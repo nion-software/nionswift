@@ -1,5 +1,123 @@
 [
   {
+    "version": "16.17.0",
+    "notes": [
+      {
+        "summary": "Standardize naming of spot graphic, angular graphic, band-pass graphic, lattice graphic.",
+        "date": "2026-02-27",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1508"
+        ]
+      },
+      {
+        "summary": "Fix several line plot drawing details.",
+        "date": "2026-02-16",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1767",
+          "https://github.com/nion-software/nionswift/issues/1779",
+          "https://github.com/nion-software/nionswift/issues/1790"
+        ]
+      },
+      {
+        "summary": "Add ability to stop and see progress on long computations that support it.",
+        "date": "2026-02-15",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/320"
+        ]
+      },
+      {
+        "summary": "Fix issues where title of window wouldn't match renamed workspace.",
+        "date": "2026-02-12",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/627"
+        ]
+      },
+      {
+        "summary": "Add checkbox in edit computation to disable computation automatic updating when inputs change.",
+        "date": "2026-02-07",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/594"
+        ]
+      },
+      {
+        "summary": "Improve memory efficiency when exporting NHDF files to allow large exports.",
+        "date": "2026-01-31",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift-io/issues/45"
+        ]
+      },
+      {
+        "summary": "Improve handling of projects renamed by renaming index and data folder outside of the application.",
+        "date": "2026-01-29",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1755"
+        ]
+      },
+      {
+        "summary": "Add more graphic lock options for line, interval, ring, wedge, and lattice.",
+        "date": "2026-01-16",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1739"
+        ]
+      },
+      {
+        "summary": "Fix issue where SVG export would occasionally fail with specific view settings.",
+        "date": "2026-01-08",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Update mapped sum/average to work on sequences and one dimensional collections.",
+        "date": "2025-12-27",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Add missing inspector component for channel graphics (position).",
+        "date": "2025-12-25",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Fix issue with display panels in workspaces not retaining contents.",
+        "date": "2025-12-12",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1720"
+        ]
+      },
+      {
+        "summary": "Fix issue with how workspaces are sorted (reverse chronologically).",
+        "date": "2025-10-15",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1695"
+        ]
+      },
+      {
+        "summary": "Fix issue in align button in inspector without graphics explicitly selected.",
+        "date": "2025-10-13",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1687"
+        ]
+      },
+      {
+        "summary": "Fix issue where opening a project would not work in some situations.",
+        "date": "2025-10-10",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1635"
+        ]
+      }
+    ]
+  },
+  {
     "version": "16.16.2",
     "notes": [
       {
