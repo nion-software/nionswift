@@ -2790,6 +2790,7 @@ class DocumentController(Window.Window):
         self.add_action_to_menu_if_enabled(menu, "display.reveal", action_context)
         self.add_action_to_menu_if_enabled(menu, "file.export", action_context)
         self.add_action_to_menu_if_enabled(menu, "file.export_batch", action_context)
+        self.add_action_to_menu_if_enabled(menu, "workspace.new_workspace_from_selection", action_context)
 
         def reveal_data_item(data_item: DataItem.DataItem) -> None:
             # same as selecting menu item for 'reveal'
@@ -3810,6 +3811,180 @@ class WorkspaceSplit5x4Action(WorkspaceSplitAction):
         return super().execute(context)
 
 
+def _is_selected_in_workspace(selected: DisplayItem.DisplayItem, workspace: Workspace.Workspace) -> bool:
+    """Checks if the display item is in the display panels in the workspace"""
+    for display_panel in workspace.display_panels:
+        if display_panel._is_selected() and display_panel.display_item == selected:
+            return True
+    return False
+
+
+class SplitFromSelectionAction(WorkspaceSplitAction):
+    action_id = "workspace.split_from_selection"
+    action_name = _("Split Panel From Selection")
+    split_defaults = {1: (1, 1), 2: (2, 1), 3: (2, 2), 4: (2, 2), 5: (3, 2), 6: (3, 2), 7: (4, 2), 8: (4, 2), 9: (3, 3),
+                      12: (4, 3), 16: (4, 4), 20: (5, 4), 25: (5, 5), 30: (6, 5), 36: (6, 6), 42: (7, 6), 49: (7, 7),
+                      56: (8, 7), 64: (8, 8), 72: (9, 8), 81: (9, 9), 90: (10, 9), 100: (10, 10)}
+
+    @classmethod
+    def get_split(cls, selection_count: int) -> typing.Tuple[int, int]:
+        """Get a split for the layout that holds the selected items
+
+        If the number in the selection is n * n or (n + 1) * n and is below the 100 max then it uses a default split.
+        Otherwise it will return the smallest default split that can contain the number
+        """
+
+        if selection_count in cls.split_defaults:
+            return cls.split_defaults[selection_count]
+
+        for split_count in cls.split_defaults:
+            if split_count > selection_count:
+                return cls.split_defaults[split_count]
+
+        return 10, 10
+
+    def _get_selected(self, context: Window.ActionContext) -> list[DisplayItem.DisplayItem]:
+        """Gets the selection in the data panel used in a split"""
+        context = typing.cast(DocumentController.ActionContext, context)
+        selection = list(context.display_items)  # context.display_items can either be the data_panel display items or the workspace display items currently selected
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller
+        selection_count = len(selection)
+        use_data_panel_selection = selection_count == 0  # either there is no selection in the data panel or there is no selection in the workspace panels
+        if not use_data_panel_selection and _is_selected_in_workspace(selection[0], workspace_controller):  # if there are items then check if the item is in the workspace
+            if selection_count == 1:
+                use_data_panel_selection = True  # Use the data panel selection only when one workspace display panel is selected
+            selection = []
+
+        if use_data_panel_selection:  # Try to use the data panel selection
+            data_panel = typing.cast(DataPanel.DataPanel, window.find_dock_panel("data-panel"))
+            display_items = workspace_controller.document_controller.filtered_display_items_model.display_items
+            for index in data_panel._selection.ordered_indexes:
+                selection.append(display_items[index])
+
+        return selection
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        assert window
+        workspace_controller = window.workspace_controller
+        assert workspace_controller
+        selected_display_panel = workspace_controller.document_controller.selected_display_panel
+        assert selected_display_panel
+        selection = self._get_selected(context)
+        selected_count = len(selection) + (0 if selected_display_panel.display_item is None else 1)  # if there is a display_item then the total splits needs to include it
+        horizontal, vertical = SplitFromSelectionAction.get_split(selected_count)
+
+        display_panels = context.display_panels if context.display_panels else [selected_display_panel]
+        if not (horizontal == 1 and vertical == 1):
+            display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, horizontal, vertical)
+        new_workspace_result = Window.ActionResult(Window.ActionStatus.FINISHED)
+        new_workspace_result.results["display_panels"] = list(display_panels)
+
+        # Populate the newly created panel
+        # workspace_controller.document_controller.next_result_display_panel() would give the next display panel in the whole workspace
+        # instead iterate through the newly created panels
+        for display_item in selection:
+            for display_panel in display_panels:
+                if display_panel.is_result_panel and display_panel.display_panel_type == "empty":
+                    display_panel.set_display_item(display_item)  # Should this be set_displayed_data_item?
+                    break
+
+        return new_workspace_result
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        selection = self._get_selected(context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller
+        selected_display_panel = workspace_controller.document_controller.selected_display_panel
+        return bool(selection) and len(selection) < 101 and selected_display_panel is not None
+
+    def get_action_name(self, context: Window.ActionContext) -> str:
+        context = typing.cast(DocumentController.ActionContext, context)
+        selection = self._get_selected(context)
+
+        item_count = len(selection) + (0 if context.selected_display_panel is None or context.selected_display_panel.display_item is None else 1)
+        if item_count == 0:
+            return self.action_name
+
+        if item_count > 1:
+            h, w = SplitFromSelectionAction.get_split(len(selection))
+            return _("Split Panel From Selection") + f" {h}x{w} ({item_count} items)"
+
+        data_item = selection[0].data_item
+        display_item = selection[0]
+        if data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
+            displayed_title = display_item.displayed_title if display_item else data_item.title
+            return _("Insert ") + f" \"{displayed_title}\" " + _("Into Panel")
+        elif display_item:
+            return _("Insert ") + f" \"{display_item.displayed_title}\" " + _("Into Panel")
+        return self.action_name
+
+
+class NewFromSelectionAction(WorkspaceNewAction):
+    action_id = "workspace.new_workspace_from_selection"
+    action_name = _("New Workspace From Selection")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        selected_in_workspace = _is_selected_in_workspace(context.display_items[0], window.workspace_controller) if window.workspace_controller and len(context.display_items) > 0 else False
+
+        new_workspace_result = super().execute(context)
+        if new_workspace_result.status != Window.ActionStatus.FINISHED:
+            return new_workspace_result
+
+        workspace_controller = window.workspace_controller
+        assert workspace_controller
+        if selected_in_workspace:
+            context.display_panel = context.selected_display_panel
+            data_panel = typing.cast(DataPanel.DataPanel, window.find_dock_panel("data-panel"))
+            display_items = workspace_controller.document_controller.filtered_display_items_model.display_items
+            workspace_items = list(context.display_items)
+            for index in data_panel._selection.ordered_indexes:
+                workspace_items.append(display_items[index])
+            context = window._get_action_context_for_display_items(workspace_items, context.display_panel)
+
+        # Since the only display panel will be the selected one, display_panels can just be a list with that inside
+        # apply_layouts mutates the workspace_controller.display_panels so using it will cause recursion
+        # The context.display_panels is no longer valid due to the creation of a new workspace
+        assert workspace_controller.document_controller.selected_display_panel
+        context.selected_display_panel = workspace_controller.document_controller.selected_display_panel
+        context.display_panels = [context.selected_display_panel]
+
+        window.perform_action_in_context("workspace.split_from_selection", context)
+        return new_workspace_result
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return bool(context.focus_widget) and bool(context.display_items) and len(context.display_items) < 101
+
+    def get_action_name(self, context: Window.ActionContext) -> str:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        selected_in_workspace = _is_selected_in_workspace(context.display_items[0], window.workspace_controller) if window.workspace_controller and len(context.display_items) > 0 else False
+        data_item = context.data_item
+        display_item = context.display_item
+        item_count = len(context.display_items)
+        if selected_in_workspace:
+            data_panel = typing.cast(DataPanel.DataPanel, window.find_dock_panel("data-panel"))
+            item_count += len(data_panel._selection.ordered_indexes)
+
+        if item_count > 1:
+            h, w = SplitFromSelectionAction.get_split(item_count)
+            return _("New Workspace From Selection") + f" {h}x{w} ({item_count} items)"
+        elif data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
+            displayed_title = display_item.displayed_title if display_item else data_item.title
+            return _("New Workspace From") + f" \"{displayed_title}\""
+        elif display_item:
+            return _("New Workspace From") + f" \"{display_item.displayed_title}\""
+        return self.action_name
+
+
 Window.register_action(WorkspaceChangeSplits())
 Window.register_action(WorkspaceCloneAction())
 Window.register_action(WorkspaceNewAction())
@@ -3827,6 +4002,8 @@ Window.register_action(WorkspaceSplit3x3Action())
 Window.register_action(WorkspaceSplit4x3Action())
 Window.register_action(WorkspaceSplit4x4Action())
 Window.register_action(WorkspaceSplit5x4Action())
+Window.register_action(SplitFromSelectionAction())
+Window.register_action(NewFromSelectionAction())
 
 
 class AddGroupAction(Window.Action):
