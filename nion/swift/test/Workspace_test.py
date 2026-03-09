@@ -1799,6 +1799,23 @@ class TestWorkspaceClass(unittest.TestCase):
     #     # cannot implement until common code for display controllers is moved into document model
     #     pass
 
+    def test_apply_layouts_return_value(self):
+        """Test the apply_layouts method returns the new panels in the correct order."""
+        test_cases = [(w, h) for w in range(1, 5) for h in range(1, 4)]
+        with TestContext.create_memory_context() as test_context:
+            for test_case in test_cases:
+                with self.subTest(test_case):
+                    document_controller = test_context.create_document_controller()
+                    workspace_controller = document_controller.workspace_controller
+                    selected_display_panel = workspace_controller.display_panels[0]
+                    context = typing.cast(DocumentController.DocumentController.ActionContext, document_controller._get_action_context())
+                    test_w, test_h = test_case
+                    total_new_panels = test_w * test_h
+                    returned_display_panels = workspace_controller.apply_layouts(selected_display_panel, context.display_panels, test_w, test_h)
+                    self.assertEqual(len(returned_display_panels), total_new_panels)
+                    for returned_panel, layout_panel in zip(returned_display_panels, workspace_controller.display_panels):
+                        self.assertEqual(returned_panel, layout_panel)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
