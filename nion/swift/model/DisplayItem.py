@@ -1908,6 +1908,13 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
     Observe a data item form the dimensional calibrations, intensity calibration, scales, dimensional
     shape, and is composite data properties of the display item, the display values list, the graphics,
     the graphic selection, the display layers, and the display properties.
+
+    This class tracks the list of display data channels in the display item. For each display data channel, this class
+    tracks the display values. The display values are used to update the core values of this stream in the __update
+    method.
+
+    The calibrations from the first display values are transformed by the calibration style to produce the display
+    calibrations.
     """
 
     def __init__(self,
