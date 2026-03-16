@@ -3395,7 +3395,7 @@ class OpenTitleEditAction(Window.Action):
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        display_item = typing.cast(DisplayItem.DisplayItem, context.display_item)
+        display_item = context.display_item
         if window and display_item:
             from nion.swift import DisplayEditPopup
             size = Geometry.IntSize(width=400, height=40)
@@ -3410,6 +3410,10 @@ class OpenTitleEditAction(Window.Action):
             DisplayEditPopup.pose_title_edit_popup(window, display_item, global_pos, size)
             return Window.ActionResult(Window.ActionStatus.FINISHED)
         return Window.ActionResult(Window.ActionStatus.PASS)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_item is not None  # context.display_item will be None when there's selection or the selection contains more than one item
 
 
 class ToggleFilterAction(Window.Action):
