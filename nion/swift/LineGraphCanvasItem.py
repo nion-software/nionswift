@@ -933,14 +933,14 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
         self.__ui_settings = ui_settings
         self.font = "12px"
         self.font_size_metric = self.__ui_settings.get_font_metrics(self.font, "My")  # If in the future the font_size changes then this should be changed to observe it and update accordingly
+        self.label_text_color = "black"
+        self.text_background_color = "#99ffffff"
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         # draw the data, if any
         canvas_size = canvas_bounds.size
 
         regions = self.__regions
-        box_text_color = "black"
-        text_background_color = "#99ffffff"
 
         axes = self.__axes
         if axes:
@@ -990,25 +990,23 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
 
                 return Geometry.FloatRect.from_tlhw(rect_top, rect_left, height, width)
 
-            def _draw_text_background(text_rect: Geometry.FloatRect, background_color: str) -> None:
-                with drawing_context.saver():
-                    drawing_context.fill_style = background_color
-                    drawing_context.move_to(text_rect.left, text_rect.top)
-                    drawing_context.line_to(text_rect.right, text_rect.top)
-                    drawing_context.line_to(text_rect.right, text_rect.bottom)
-                    drawing_context.line_to(text_rect.left, text_rect.bottom)
-                    drawing_context.line_to(text_rect.left, text_rect.top)
-                    drawing_context.fill()
-                    drawing_context.stroke()
-
             def _draw_label_with_background(label_text: str, label_x: float, label_y: float, text_align: str, text_baseline: str) -> None:
-                drawing_context.text_baseline = text_baseline
-                drawing_context.text_align = text_align
-                label_rect = _get_text_rectangle(label_text, label_x, label_y, text_baseline, text_align)
-                drawing_context.stroke_style = region_color
-                _draw_text_background(label_rect, text_background_color)
-                drawing_context.fill_style = box_text_color
-                drawing_context.fill_text(label_text, label_x, label_y)
+                with drawing_context.saver():
+                    drawing_context.text_baseline = text_baseline
+                    drawing_context.text_align = text_align
+                    drawing_context.fill_style = self.text_background_color
+                    label_rect = _get_text_rectangle(label_text, label_x, label_y, text_baseline, text_align)
+
+                    # Draw the text background
+                    drawing_context.move_to(label_rect.left, label_rect.top)
+                    drawing_context.line_to(label_rect.right, label_rect.top)
+                    drawing_context.line_to(label_rect.right, label_rect.bottom)
+                    drawing_context.line_to(label_rect.left, label_rect.bottom)
+                    drawing_context.line_to(label_rect.left, label_rect.top)
+                    drawing_context.fill()
+
+                    drawing_context.fill_style = self.label_text_color
+                    drawing_context.fill_text(label_text, label_x, label_y)
 
             for region in regions:
                 left_channel, right_channel = region.channels
@@ -1074,6 +1072,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     if label:
                         _draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top")
                     drawing_context.close_path()
+
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot itself."""
