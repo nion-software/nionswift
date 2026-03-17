@@ -963,7 +963,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 """Gets the rectangle that surrounds a text string
 
                 The positions returned are offset by x, y.
-                The text_baseline is the vertical alignment of the text, 'top', 'bottom' otherwise center
+                The text_baseline is the vertical alignment of the text, 'top', 'bottom' otherwise middle
                 Margin is added to the x-axis
                 """
                 metrics = self.__ui_settings.get_font_metrics(self.font, text)
@@ -973,14 +973,14 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 height = ascent + descent
 
                 if baseline == "top":
-                    rect_top = y
+                    y_pos = y + ascent
                 elif baseline == "bottom":
-                    rect_top = y - ascent  # There is a bug in nionui-tool that means 'bottom' baseline is actually alphabetic
+                    y_pos = y  # There is a bug in nionui-tool that means 'bottom' baseline is actually alphabetic. Should be - descent
                 elif baseline == "middle":
-                    rect_top = y - height / 2
+                    y_pos = y + descent
                 else:  # alphabetic or ideographic
-                    rect_top = y - ascent
-
+                    y_pos = y
+                rect_top = y_pos - ascent
                 if align == "right":
                     rect_left = x - width + margin
                 elif align == "left":
@@ -1057,14 +1057,10 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         if middle_text and region.style != "tag":
                             _draw_label_with_background(middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom")
                         drawing_context.fill_style = region_color
-                        if left_text and region.style != "tag":
-                            drawing_context.text_align = "right"
-                            drawing_context.text_baseline = "middle"
-                            drawing_context.fill_text(left_text, left - 5, level)
+                        if left_text:
+                            _draw_label_with_background(left_text, left - 5, level, "right", "middle")
                         if right_text:
-                            drawing_context.text_align = "left"
-                            drawing_context.text_baseline = "middle"
-                            drawing_context.fill_text(right_text, right + 5, level)
+                            _draw_label_with_background(right_text, right + 5, level, "left", "middle")
                     else:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
 
