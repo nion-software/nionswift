@@ -12,6 +12,24 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.17.0 (2026-03-19)
+----------------------------
+* Standardize naming of spot graphic, angular graphic, band-pass graphic, lattice graphic. [nion-software/nionswift#1508](https://github.com/nion-software/nionswift/issues/1508)
+* Fix several line plot drawing details. [nion-software/nionswift#1767](https://github.com/nion-software/nionswift/issues/1767), [nion-software/nionswift#1779](https://github.com/nion-software/nionswift/issues/1779), [nion-software/nionswift#1790](https://github.com/nion-software/nionswift/issues/1790)
+* Add ability to stop and see progress on long computations that support it. [nion-software/nionswift#320](https://github.com/nion-software/nionswift/issues/320)
+* Fix issues where title of window wouldn't match renamed workspace. [nion-software/nionswift#627](https://github.com/nion-software/nionswift/issues/627)
+* Add checkbox in edit computation to disable computation automatic updating when inputs change. [nion-software/nionswift#594](https://github.com/nion-software/nionswift/issues/594)
+* Improve memory efficiency when exporting NHDF files to allow large exports. [nion-software/nionswift-io#45](https://github.com/nion-software/nionswift-io/issues/45)
+* Improve handling of projects renamed by renaming index and data folder outside of the application. [nion-software/nionswift#1755](https://github.com/nion-software/nionswift/issues/1755)
+* Add more graphic lock options for line, interval, ring, wedge, and lattice. [nion-software/nionswift#1739](https://github.com/nion-software/nionswift/issues/1739)
+* Fix issue where SVG export would occasionally fail with specific view settings.
+* Update mapped sum/average to work on sequences and one dimensional collections.
+* Add missing inspector component for channel graphics (position).
+* Fix issue with display panels in workspaces not retaining contents. [nion-software/nionswift#1720](https://github.com/nion-software/nionswift/issues/1720)
+* Fix issue with how workspaces are sorted (reverse chronologically). [nion-software/nionswift#1695](https://github.com/nion-software/nionswift/issues/1695)
+* Fix issue in align button in inspector without graphics explicitly selected. [nion-software/nionswift#1687](https://github.com/nion-software/nionswift/issues/1687)
+* Fix issue where opening a project would not work in some situations. [nion-software/nionswift#1635](https://github.com/nion-software/nionswift/issues/1635)
+
 Version 16.16.2 (2025-10-12)
 ----------------------------
 * Restore move graphic to center button in graphic inspector. [nion-software/nionswift#1613](https://github.com/nion-software/nionswift/issues/1613)

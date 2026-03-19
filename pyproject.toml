@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nionswift"
-version = "16.17.0a0"
+version = "16.17.0"
 authors = [
     { name = "Nion Software", email = "swift@nion.com" }
 ]
