@@ -86,6 +86,7 @@ class HDF5FileEntry:
     def __init__(self, path: pathlib.Path) -> None:
         self.__lock = threading.RLock()
         self.__path = path
+        self.__is_read_only = False
         self.__fp: typing.Optional[_HDF5FilePointer] = None
         self._count = 0
 
@@ -100,13 +101,21 @@ class HDF5FileEntry:
         with self.__lock:
             if not self.__fp:
                 self.__path.parent.mkdir(parents=True, exist_ok=True)
-                self.__fp = h5py.File(self.__path, "a")
+                write_ok = os.access(self.__path, os.W_OK) or (not os.path.exists(self.__path) and os.access(self.__path.parent, os.W_OK))
+                file_mode = "a" if write_ok else "r"
+                self.__is_read_only = not write_ok
+                self.__fp = h5py.File(self.__path, file_mode)
 
     def close(self) -> None:
         with self.__lock:
             if self.__fp:
                 self.__fp.close()
             self.__fp = None
+
+    @property
+    def is_read_only(self) -> bool:
+        with self.__lock:
+            return self.__is_read_only
 
 
 class HDF5FileManager:
@@ -201,7 +210,8 @@ class HDF5Handler(StorageHandler.StorageHandler):
             json.dump(Utility.clean_dict(properties), json_io, cls=JSONEncoder)
             json_str = json_io.getvalue()
 
-            self.__dataset.attrs["properties"] = json_str
+            if not self.__file.is_read_only:
+                self.__dataset.attrs["properties"] = json_str
 
     def __ensure_dataset(self) -> None:
         with self.__lock:
