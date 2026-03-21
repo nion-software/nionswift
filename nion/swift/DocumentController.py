@@ -3411,6 +3411,10 @@ class OpenTitleEditAction(Window.Action):
             return Window.ActionResult(Window.ActionStatus.FINISHED)
         return Window.ActionResult(Window.ActionStatus.PASS)
 
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return bool(context.display_item) and len(context.display_items) == 1
+
 
 class ToggleFilterAction(Window.Action):
     action_id = "window.toggle_filter"
