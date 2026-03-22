@@ -237,14 +237,20 @@ class ComputationOutput(Persistence.PersistentObject):
             - using the label property if it exists
             - using the name property if it exists
         """
-        computation = self.container
+        container = self.container
+        computation = container if isinstance(container, Computation) else None
         name = self.name
-        if isinstance(computation, Computation) and computation.processing_id:
+        if computation:
             if processor := computation._processor_description:
                 if name and (output := processor.get_output(name)):
                     if label := output.label:
                         return label
-            compute_class = _computation_types.get(computation.processing_id)
+            computation_processor = computation.computation_processor
+            if computation_processor and name:
+                if label := computation_processor.get_output_label(name):
+                    return label
+            processing_id = computation.processing_id
+            compute_class = _computation_types.get(processing_id) if processing_id else None
             if compute_class:
                 label = typing.cast(typing.Optional[str], getattr(compute_class, "outputs", dict()).get(name, dict()).get("label", str()))
                 if label:
@@ -1050,7 +1056,8 @@ class ComputationVariable(Persistence.PersistentObject):
             - using the label property if it exists
             - using the name property if it exists
         """
-        computation = self.container
+        container = self.container
+        computation = container if isinstance(container, Computation) else None
         name = self.name
         label: str | None
         if isinstance(computation, Computation):
@@ -1061,6 +1068,10 @@ class ComputationVariable(Persistence.PersistentObject):
                 if name and (parameter := processor.get_parameter(name)):
                     if label := parameter.label:
                         return label
+            computation_processor = computation.computation_processor
+            if computation_processor and name:
+                if label := computation_processor.get_input_label(name):
+                    return label
             processing_id = computation.processing_id
             compute_class = _computation_types.get(processing_id) if processing_id else None
             if compute_class:
@@ -2228,6 +2239,9 @@ class Computation(Persistence.PersistentObject):
         if processor := self.__processor:
             if title := processor.title:
                 return title
+        if computation_processor := self.computation_processor:
+            if label := computation_processor.title:
+                return label
         processing_id = self.processing_id
         compute_class = _computation_types.get(processing_id) if processing_id else None
         if compute_class:
@@ -2247,9 +2261,11 @@ class Computation(Persistence.PersistentObject):
             - using the processor description if it exists
             - using the computation handler if it exists
         """
-        processing_id = self.processing_id
         if self.__processor and attribute in self.__processor.attributes:
             return self.__processor.attributes.get(attribute)
+        if computation_processor := self.computation_processor:
+            return computation_processor.attributes.get(attribute, default)
+        processing_id = self.processing_id
         compute_class = _computation_types.get(processing_id) if processing_id else None
         if compute_class:
             return getattr(compute_class, "attributes", dict()).get(attribute, default)
@@ -2592,10 +2608,11 @@ class Computation(Persistence.PersistentObject):
         self.needs_update = False
         if needs_update:
             api = PlugInManager.api_broker_fn("~1.0", None)
-            if self.expression:
-                executor = ScriptExpressionComputationExecutor(self, api)
-            else:
+            use_registered_executor = not self.expression or self.computation_processor is not None
+            if use_registered_executor:
                 executor = RegisteredComputationExecutor(self, api)
+            else:
+                executor = ScriptExpressionComputationExecutor(self, api)
             kwargs, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
                 def execute(context: ComputationExecutorContext, kwargs: dict[str, typing.Any]) -> None:
@@ -2618,10 +2635,11 @@ class Computation(Persistence.PersistentObject):
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
-            if self.expression:
-                executor = ScriptExpressionComputationExecutor(self, api)
-            else:
+            use_registered_executor = not self.expression or self.computation_processor is not None
+            if use_registered_executor:
                 executor = RegisteredComputationExecutor(self, api)
+            else:
+                executor = ScriptExpressionComputationExecutor(self, api)
             kwargs, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
                 executor.execute(ComputationExecutorContext(self, kwargs))
@@ -2795,6 +2813,11 @@ class Computation(Persistence.PersistentObject):
     @property
     def _processor_description(self) -> typing.Optional[ComputationProcessor]:
         return self.__processor
+
+    @property
+    def computation_processor(self) -> ComputationProcessor | None:
+        processing_id = self.processing_id
+        return ComputationProcessor._processors.get(processing_id) if processing_id else None
 
     def get_computation_metadata(self, name: str) -> typing.Optional[Persistence.PersistentDictType]:
         # return the computation description for the output data item with name
@@ -3286,6 +3309,10 @@ class ComputationExecutor:
 
     @property
     def _target_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        # used for testing only
+        target_output = self.__computation.get_output("target") if self.__computation else None
+        if isinstance(target_output, (DataSource, DataItem.DataItem)):
+            return target_output.xdata
         return None
 
 
@@ -3339,15 +3366,17 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
         assert self.__data_item_target is not None
         if self.__expression:
             code_lines = []
-            g = dict(context.parameters.parameter_map)
-            g["api"] = self.__api
-            g["target"] = self.__data_item_target
-            l: typing.Dict[str, typing.Any] = dict()
+            exec_globals = dict(context.parameters.parameter_map)
+            exec_globals["api"] = self.__api
+            exec_globals["target"] = self.__data_item_target
+            exec_locals = dict[str, typing.Any]()
             expression_lines = self.__expression.split("\n")
             code_lines.extend(expression_lines)
             code = "\n".join(code_lines)
             compiled = compile(code, "expr", "exec")
-            exec(compiled, g, l)
+            # as with other parts of this application, this can be used to execute arbitrary code. we make the assumption
+            # that the user is trusted.
+            exec(compiled, exec_globals, exec_locals)
 
     def _commit(self) -> None:
         # commit the result item clones back into the document. this method is guaranteed to run at
@@ -3384,6 +3413,7 @@ PersistentDictType = typing.Dict[str, typing.Any]
 
 class ComputationProcessorRequirement(typing.Protocol):
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool: ...
+    def to_dict(self) -> dict[str, typing.Any]: ...
 
 
 class ComputationProcessorRequirementDataRank(ComputationProcessorRequirement):
@@ -3393,6 +3423,12 @@ class ComputationProcessorRequirementDataRank(ComputationProcessorRequirement):
     @classmethod
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRequirementDataRank:
         return cls(d["values"])
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        return {
+            "type": "datum_rank",
+            "values": self.values
+        }
 
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         return data_item.datum_dimension_count in self.values
@@ -3406,6 +3442,13 @@ class ComputationProcessorRequirementDatumCalibrations(ComputationProcessorRequi
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRequirementDatumCalibrations:
         requires_equal = d.get("units") == "equal"
         return cls(requires_equal)
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        d = dict[str, typing.Any]()
+        d["type"] = "datum_calibrations"
+        if self.requires_equal:
+            d["units"] = "equal"
+        return d
 
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         if self.requires_equal:
@@ -3426,6 +3469,15 @@ class ComputationProcessorRequirementDimensionality(ComputationProcessorRequirem
         max_dimension = d.get("max")
         return cls(min_dimension, max_dimension)
 
+    def to_dict(self) -> dict[str, typing.Any]:
+        d = dict[str, typing.Any]()
+        d["type"] = "dimensionality"
+        if self.min_dimension is not None:
+            d["min"] = self.min_dimension
+        if self.max_dimension is not None:
+            d["max"] = self.max_dimension
+        return d
+
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         dimensionality = len(data_item.dimensional_shape)
         if self.min_dimension is not None and dimensionality < self.min_dimension:
@@ -3439,15 +3491,30 @@ class ComputationProcessorRequirementIsRGBType(ComputationProcessorRequirement):
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         return data_item.is_data_rgb_type
 
+    def to_dict(self) -> dict[str, typing.Any]:
+        return {
+            "type": "is_rgb_type"
+        }
+
 
 class ComputationProcessorRequirementIsSequence(ComputationProcessorRequirement):
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         return data_item.is_sequence
 
+    def to_dict(self) -> dict[str, typing.Any]:
+        return {
+            "type": "is_sequence"
+        }
+
 
 class ComputationProcessorRequirementIsNavigable(ComputationProcessorRequirement):
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         return data_item.is_sequence or data_item.is_collection
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        return {
+            "type": "is_navigable"
+        }
 
 
 class ComputationProcessorRequirementBooleanOperator(enum.Enum):
@@ -3466,6 +3533,13 @@ class ComputationProcessorRequirementBoolean(ComputationProcessorRequirement):
         operator = ComputationProcessorRequirementBooleanOperator(d["operator"])
         operands = [create_computation_processor_requirement(operand) for operand in d["operands"]]
         return cls(operator, operands)
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        return {
+            "type": "bool",
+            "operator": self.operator.value,
+            "operands": [operand.to_dict() for operand in self.operands]
+        }
 
     def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
         operator = self.operator
@@ -3525,6 +3599,13 @@ class ComputationProcessorRegion:
         name = d["name"]
         return cls(region_type, params, name)
 
+    def to_dict(self) -> dict[str, typing.Any]:
+        return {
+            "type": self.region_type.value,
+            "params": self.params,
+            "name": self.name
+        }
+
 
 class ComputationProcessorSource:
     def __init__(self, name: str, label: str, data_type: typing.Optional[str], requirements: typing.Sequence[ComputationProcessorRequirement], regions: typing.Sequence[ComputationProcessorRegion], is_croppable: bool) -> None:
@@ -3544,6 +3625,16 @@ class ComputationProcessorSource:
         regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("regions", list())]
         is_croppable = d.get("croppable", False)
         return cls(name, label, data_type, requirements, regions, is_croppable)
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        return {
+            "name": self.name,
+            "label": self.label,
+            "data_type": self.data_type,
+            "requirements": [requirement.to_dict() for requirement in self.requirements],
+            "regions": [region.to_dict() for region in self.regions],
+            "croppable": self.is_croppable
+        }
 
     def needs_update_for_event(self, event_type: BoundDataEventType) -> bool:
         """Determine if the source needs to be updated for the given event type."""
@@ -3591,21 +3682,57 @@ class ComputationProcessorParameter:
         control_type = d.get("control_type", None)
         return cls(param_type, name, label, value, value_default, value_min, value_max, control_type)
 
+    def to_dict(self) -> dict[str, typing.Any]:
+        d = {
+            "type": _map_variable_type_to_identifier[self.param_type],
+            "name": self.name,
+            "value": self.value
+        }
+        if self.label:
+            d["label"] = self.label
+        if self.value_default is not None:
+            d["value_default"] = self.value_default
+        if self.value_min is not None:
+            d["value_min"] = self.value_min
+        if self.value_max is not None:
+            d["value_max"] = self.value_max
+        if self.control_type:
+            d["control_type"] = self.control_type
+        return d
 
 class ComputationProcessorOutput:
-    def __init__(self, name: str, label: str | None) -> None:
+    def __init__(self, name: str, label: str | None, data_type: str) -> None:
         self.name = name
         self.label = label
+        self.data_type = data_type
 
     @classmethod
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessorOutput:
         name = d["name"]
         label = d.get("label", None)
-        return cls(name, label)
+        data_type = d.get("data_type", "xdata")
+        return cls(name, label, data_type)
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        d = {"name": self.name, "data_type": self.data_type}
+        if self.label:
+            d["label"] = self.label
+        return d
 
 
 class ComputationProcessor:
-    def __init__(self, expression: typing.Optional[str], title: typing.Optional[str], sources: typing.Sequence[ComputationProcessorSource], parameters: typing.Sequence[ComputationProcessorParameter], attributes: typing.Mapping[str, typing.Any], out_regions: typing.Sequence[ComputationProcessorRegion], outputs: typing.Sequence[ComputationProcessorOutput]) -> None:
+    _processors: typing.ClassVar[dict[str, ComputationProcessor]] = dict()
+
+    def __init__(
+            self,
+            expression: typing.Optional[str],
+            title: typing.Optional[str],
+            sources: typing.Sequence[ComputationProcessorSource],
+            parameters: typing.Sequence[ComputationProcessorParameter],
+            attributes: typing.Mapping[str, typing.Any],
+            out_regions: typing.Sequence[ComputationProcessorRegion],
+            outputs: typing.Sequence[ComputationProcessorOutput]
+    ) -> None:
         self.expression: typing.Optional[str] = expression
         self.title: typing.Optional[str] = title
         self.sources = list(sources)
@@ -3624,6 +3751,21 @@ class ComputationProcessor:
         out_regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("out_regions", list())]
         outputs = [ComputationProcessorOutput.from_dict(source_d) for source_d in d.get("outputs", list())]
         return cls(expression, title, sources, parameters, attributes, out_regions, outputs)
+
+    @classmethod
+    def register(cls, processor_id: str, computation_processor: ComputationProcessor) -> None:
+        ComputationProcessor._processors[processor_id] = computation_processor
+
+    def to_dict(self) -> PersistentDictType:
+        return {
+            "expression": self.expression,
+            "title": self.title,
+            "sources": [source.to_dict() for source in self.sources],
+            "parameters": [parameter.to_dict() for parameter in self.parameters],
+            "attributes": dict(self.attributes),
+            "out_regions": [region.to_dict() for region in self.out_regions],
+            "outputs": [output.to_dict() for output in self.outputs]
+        }
 
     def needs_update_for_event(self, input_key: str, event_type: BoundDataEventType) -> bool:
         for source in self.sources:
@@ -3649,6 +3791,207 @@ class ComputationProcessor:
                 return output
         return None
 
+    def get_input_label(self, name: str) -> str | None:
+        if source := self.get_source(name):
+            if source_label := source.label:
+                return source_label
+        if parameter := self.get_parameter(name):
+            if parameter_label := parameter.label:
+                return parameter_label
+        return None
+
+    def get_output_label(self, name: str) -> str | None:
+        if output := self.get_output(name):
+            if output_label := output.label:
+                return output_label
+        return None
+
+
+class ComputationProcessorExecutor:
+    def __init__(self, computation: Facade.Computation, computation_processor: ComputationProcessor) -> None:
+        self.__computation = computation
+        self.__computation_processor = computation_processor
+        self.__data_map = dict[str, DataAndMetadata._ImageDataType]()
+        self.__xdata_map = dict[str, DataAndMetadata.DataAndMetadata]()
+        self.__filter_xdata_map = dict[str, DataAndMetadata.DataAndMetadata | None]()
+
+    def __get_input_navigation_dimension_shape(self, parameters: ComputationParameters) -> DataAndMetadata.ShapeType | None:
+        # return the common navigation dimension shape for all sources, ensuring that they are compatible.
+        # if not input exists, or if inputs are mismatched in navigation dimension shape, datum dimension shape,
+        # or the calibrations of either, raise an error.
+        navigation_dimension_shape: DataAndMetadata.ShapeType | None = None
+        navigation_calibrations: DataAndMetadata.CalibrationListType | None = None
+        datum_dimension_shape: DataAndMetadata.ShapeType | None = None
+        datum_calibrations: DataAndMetadata.CalibrationListType | None = None
+        for source in self.__computation_processor.sources:
+            data_source = parameters.get_data_source(source.name)
+            xdata = data_source.xdata if data_source else None
+            if xdata:
+                if navigation_dimension_shape is None:
+                    navigation_dimension_shape = xdata.navigation_dimension_shape
+                if datum_dimension_shape is None:
+                    datum_dimension_shape = xdata.datum_dimension_shape
+                if navigation_calibrations is None:
+                    navigation_calibrations = xdata.navigation_dimensional_calibrations
+                if datum_calibrations is None:
+                    datum_calibrations = xdata.datum_dimensional_calibrations
+                # check whether all items have the same navigation dimension shapes
+                if navigation_dimension_shape != xdata.navigation_dimension_shape:
+                    raise ValueError("Mismatched navigation dimension shapes between sources.")
+                # check whether all items have the same datum dimension shapes
+                if datum_dimension_shape != xdata.datum_dimension_shape:
+                    raise ValueError("Mismatched datum dimension shapes between sources.")
+                # check whether all items have the same navigation dimension calibrations
+                for i, cal in enumerate(xdata.navigation_dimensional_calibrations):
+                    if navigation_calibrations[i] != cal:
+                        raise ValueError("Mismatched navigation dimension calibrations between sources.")
+                # check whether all items have the same datum dimension calibrations
+                for i, cal in enumerate(xdata.datum_dimensional_calibrations):
+                    if datum_calibrations[i] != cal:
+                        raise ValueError("Mismatched datum dimension calibrations between sources.")
+        if navigation_dimension_shape is None or datum_dimension_shape is None or navigation_calibrations is None or datum_calibrations is None:
+            raise ValueError("Could not determine navigation and datum dimension shapes and calibrations from sources.")
+        return navigation_dimension_shape
+
+    def __get_source_data(self, index: tuple[slice | int | numpy.int32 | numpy.int64, ...] | None, parameters: ComputationParameters) -> typing.Mapping[str, DataAndMetadata.DataAndMetadata]:
+        # return a map of source name to xdata for the given index. if index is None, return the full xdata for each source.
+        data_map = dict[str, DataAndMetadata.DataAndMetadata]()
+        for source in self.__computation_processor.sources:
+            data_source = parameters.get_data_source(source.name)
+            if data_source:
+                xdata: DataAndMetadata.DataAndMetadata | None = None
+                if index is not None:
+                    xdata = data_source.xdata[index] if data_source.xdata and data_source.xdata.is_navigable else None
+                # if the index is None, xdata will be None here. in that case, we use the element xdata from the data
+                # source, which will be based on the UI collection index and slices.
+                if xdata is None:
+                    xdata = data_source.element_xdata
+                if xdata:
+                    if source.data_type == "xdata":
+                        if source.is_croppable:
+                            xdata = data_source._data_source._crop_xdata(xdata)
+                    elif source.data_type == "filtered_xdata":
+                        filter_xdata = self.__filter_xdata_map.get(source.name)
+                        if filter_xdata is None:
+                            filter_xdata = data_source.filter_xdata
+                            self.__filter_xdata_map[source.name] = filter_xdata
+                        if filter_xdata:
+                            if xdata.is_data_complex_type:
+                                xdata = Core.function_fourier_mask(xdata, filter_xdata)
+                            else:
+                                xdata = filter_xdata * xdata
+                    else:
+                        raise ValueError(f"Unsupported source data type: {source.data_type}")
+                    if xdata:
+                        data_map[source.name] = xdata
+        return data_map
+
+    @property
+    def __is_scalar(self) -> bool:
+        # data_type can be bool, int, float, xdata.
+        for output in self.__computation_processor.outputs:
+            if output.data_type == "xdata":
+                return False
+        return True
+
+    def __process(self, parameters: ComputationParameters) -> typing.Mapping[str, DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | None]:
+        code_lines = [
+            "import numpy",
+            "import uuid",
+            "from nion.data import xdata_1_0 as xd"
+        ]
+        exec_globals = dict(parameters.parameter_map)
+        exec_locals = dict[str, typing.Any]()
+        expression = self.__computation_processor.expression
+        assert expression
+        expression_lines = expression.split("\n")
+        code_lines.extend(expression_lines)
+        code = "\n".join(code_lines)
+        compiled = compile(code, "expr", "exec")
+        # as with other parts of this application, this can be used to execute arbitrary code. we make the assumption
+        # that the user is trusted.
+        exec(compiled, exec_globals, exec_locals)
+        result = dict[str, DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | None]()
+        for output in self.__computation_processor.outputs:
+            output_name = output.name
+            if output_name in exec_locals:
+                result[output_name] = exec_locals[output_name]
+        return result
+
+    def execute_task(self, execution_context: ComputationExecutorContext) -> None:
+        # do the processing and store results in the xdata map.
+        parameters = execution_context.parameters
+        is_scalar = self.__is_scalar
+        is_mapped = is_scalar or parameters.get_str_value("mapping", "none") != "none"
+        output_keys = [output.name for output in self.__computation_processor.outputs]
+        navigation_dimension_shape = self.__get_input_navigation_dimension_shape(parameters) if is_mapped else None
+        if navigation_dimension_shape is not None:
+            # if there is a navigation shape, it is mapped. this branch works with both scalar and xdata outputs and
+            # iterates over the navigation dimensions.
+            src_name = self.__computation_processor.sources[0].name
+            data_source = parameters.get_data_source(src_name)
+            assert data_source
+            xdata = data_source.xdata
+            assert xdata
+            indexes = numpy.ndindex(xdata.navigation_dimension_shape)
+            for i, index in enumerate(indexes):
+                # synchronize with other executors. may raise ComputationCanceledException if canceled.
+                execution_context.sync_execution()
+                # construct the component_parameter_d, which are the parameters with the data sources replaced by data
+                # and metadata for the current index. this allows the processing component to be written more simply.
+                component_parameter_d = dict(self.__get_source_data(index, parameters))
+                for k, v in list(parameters.parameter_map.items()):
+                    if k not in component_parameter_d:
+                        component_parameter_d[k] = v
+                processed_data_map = self.__process(ComputationParameters(component_parameter_d))
+                for key, processed_data in processed_data_map.items():
+                    assert key in output_keys
+                    if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
+                        # handle array data
+                        index_xdata = processed_data
+                        if key not in self.__xdata_map:
+                            self.__data_map[key] = numpy.empty(xdata.navigation_dimension_shape + index_xdata.datum_dimension_shape, dtype=index_xdata.data_dtype)
+                            self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(
+                                self.__data_map[key], index_xdata.intensity_calibration,
+                                tuple(xdata.navigation_dimensional_calibrations) + tuple(index_xdata.datum_dimensional_calibrations),
+                                None, None, DataAndMetadata.DataDescriptor(xdata.is_sequence, xdata.collection_dimension_count, index_xdata.datum_dimension_count))
+                        self.__data_map[key][index] = index_xdata.data
+                    elif isinstance(processed_data, DataAndMetadata.ScalarAndMetadata):
+                        # handle scalar data
+                        index_scalar = processed_data
+                        if key not in self.__xdata_map:
+                            self.__data_map[key] = numpy.empty(xdata.navigation_dimension_shape, dtype=type(index_scalar.value))
+                            is_sequence = xdata.is_sequence and xdata.collection_dimension_count == 2
+                            datum_dimension_count = min(2, xdata.navigation_dimension_count)
+                            self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(
+                                self.__data_map[key], index_scalar.calibration,
+                                tuple(xdata.navigation_dimensional_calibrations),
+                                None, None, DataAndMetadata.DataDescriptor(is_sequence, 0, datum_dimension_count))
+                        self.__data_map[key][index] = index_scalar.value
+                # update progress in the executor context
+                execution_context.progress = (i + 1) / numpy.prod(navigation_dimension_shape, dtype=numpy.int64)
+        elif not is_scalar:
+            # not mapped, so a scalar output is not valid as there is no scalar data item to which to store it.
+            # construct the component_parameter_d, which are the parameters with the data sources replaced by data
+            # and metadata for the current index. this allows the processing component to be written more simply.
+            component_parameter_d = dict(self.__get_source_data(None, parameters))
+            for k, v in list(parameters.parameter_map.items()):
+                if k not in component_parameter_d:
+                    component_parameter_d[k] = v
+            processed_data_map = self.__process(ComputationParameters(component_parameter_d))
+            for key, processed_data in processed_data_map.items():
+                assert key in output_keys
+                if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
+                    self.__xdata_map[key] = processed_data
+
+    def commit(self) -> None:
+        # this is guaranteed to run on the main thread.
+        for output in self.__computation_processor.outputs:
+            key = output.name
+            xdata = self.__xdata_map.get(key, None)
+            if xdata:
+                self.__computation.set_referenced_xdata(key, xdata)
+
 
 class RegisteredComputationExecutor(ComputationExecutor):
     def __init__(self, computation: Computation, api: typing.Any) -> None:
@@ -3656,8 +3999,13 @@ class RegisteredComputationExecutor(ComputationExecutor):
         processing_id = computation.processing_id
         api_computation = api._new_api_object(computation)
         api_computation.api = api
-        compute_class = _computation_types.get(processing_id) if processing_id else None
-        self.__computation_handler = compute_class(api_computation) if compute_class else None
+        computation_processor = computation.computation_processor
+        if computation_processor and computation_processor.expression:
+            self.__computation_handler = typing.cast(ComputationHandlerLike | ComputationTaskHandler | None,
+                                                     ComputationProcessorExecutor(api_computation, computation_processor))
+        else:
+            compute_class = _computation_types.get(processing_id) if processing_id else None
+            self.__computation_handler = compute_class(api_computation) if compute_class else None
         if not self.__computation_handler:
             self.error_text = "Missing computation (" + (processing_id or "unknown") + ")."
 
