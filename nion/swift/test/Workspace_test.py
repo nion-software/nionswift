@@ -1359,6 +1359,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(2, len(document_model.display_items))
             document_controller.perform_action(DocumentController.GaussianFilterAction())
             self.assertEqual(3, len(document_model.display_items))
+            document_model.recompute_all()
             self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item, display_item2)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, document_model.display_items[2])
             document_controller.workspace_controller.display_panels[1].request_focus()
