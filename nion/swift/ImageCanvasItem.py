@@ -289,12 +289,12 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                 total_text_height = text_height * 2
                 total_height = scale_marker_height + padding + total_text_height
                 background_top = baseline - total_height
-                drawing_context.begin_path()
-                drawing_context.rect(0 - padding, background_top, content_width + padding * 2, total_height + padding)
-                drawing_context.close_path()
-                drawing_context.fill_style = self.__scale_marker_background_color
-
-                drawing_context.fill()
+                if self.__scale_marker_background_color:
+                    drawing_context.begin_path()
+                    drawing_context.rect(0 - padding, background_top, content_width + padding * 2, total_height + padding)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = self.__scale_marker_background_color
+                    drawing_context.fill()
 
                 if self.__scale_marker_position == "bottom-right":
                     bar_left = content_width - scale_marker_calculated_width
