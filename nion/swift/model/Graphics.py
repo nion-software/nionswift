@@ -845,7 +845,7 @@ class Graphic(Persistence.PersistentObject):
 
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
         self.stroke_color = graphic_dict.get("stroke_color", self.stroke_color)
-        self.stroke_color = graphic_dict.get("stroke_width", self.stroke_width)
+        self.stroke_width = graphic_dict.get("stroke_width", self.stroke_width)
         self.fill_color = graphic_dict.get("fill_color", self.fill_color)
         self.label = graphic_dict.get("label", self.label)
         self.is_position_locked = graphic_dict.get("is_position_locked", self.is_position_locked)
