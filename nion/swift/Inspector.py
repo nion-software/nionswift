@@ -2959,7 +2959,6 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self._stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
         self._used_stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style")
         self._stroke_width_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
-        self._used_fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width", read_property_name="used_stroke_width")
         self._fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "fill_color", title=_("Change Fill Color"), command_id="change_fill_color")
         self._used_fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"fill_color", title=_("Change Fill Color"), command_id="change_fill_color", read_property_name="used_fill_style")
         self._lock_shape_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic,"is_shape_locked", title=_(f"Change {self._graphic_type_model.value} Shape Locked"), command_id=f"change_{self._graphic_type_model.value}_shape_locked")
