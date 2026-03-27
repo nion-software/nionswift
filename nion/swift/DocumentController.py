@@ -3520,15 +3520,14 @@ class WorkspaceCloneAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         if workspace_controller:
-            def clone_clicked(text: str) -> None:
+            def clone_clicked(text: str | None) -> None:
                 if text:
                     self.set_string_property(context, "name", text)
                     self.execute(context)
-            root_canvas_item = workspace_controller._canvas_item
-            canvas_origin = root_canvas_item.canvas_widget.map_to_global(root_canvas_item.canvas_origin)
-            canvas_bounds = root_canvas_item.canvas_bounds
+
             size = Geometry.IntSize(width=400, height=100)
-            position = Geometry.IntPoint(x=canvas_origin.x + canvas_bounds.width // 2 - size.width // 2, y=canvas_origin.y + canvas_bounds.height // 2 - size.height // 2)
+            workspace_rect = workspace_controller.get_workspace_rect()
+            position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
             Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=clone_clicked,
                                            window=window, title=_("Clone a workspace"), position=position, size=size, window_style="default",
                                            cancel_button_text=_("Cancel"), accept_button_text=_("Clone"))
@@ -3566,11 +3565,9 @@ class WorkspaceNewAction(Window.Action):
                     self.set_string_property(context, "name", text)
                     self.execute(context)
 
-            root_canvas_item = workspace_controller._canvas_item
-            canvas_origin = root_canvas_item.canvas_widget.map_to_global(root_canvas_item.canvas_origin)
-            canvas_bounds = root_canvas_item.canvas_bounds
             size = Geometry.IntSize(width=400, height=100)
-            position = Geometry.IntPoint(x=canvas_origin.x + canvas_bounds.width // 2 - size.width // 2, y=canvas_origin.y + canvas_bounds.height // 2 - size.height // 2)
+            workspace_rect = workspace_controller.get_workspace_rect()
+            position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
             Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=name_clicked,
                                            window=window, title=_("Create a new workspace"), position=position, size=size, window_style="default",
                                            cancel_button_text=_("Cancel"), accept_button_text=_("Create"))
@@ -3637,17 +3634,15 @@ class WorkspaceRemoveAction(Window.Action):
                 if confirmed:
                     self.execute(context)
 
-            root_canvas_item = workspace_controller._canvas_item
-            canvas_origin = root_canvas_item.canvas_widget.map_to_global(root_canvas_item.canvas_origin)
-            canvas_bounds = root_canvas_item.canvas_bounds
             size = Geometry.IntSize(width=400, height=100)
-            position = Geometry.IntPoint(x=canvas_origin.x + canvas_bounds.width // 2 - size.width // 2, y=canvas_origin.y + canvas_bounds.height // 2 - size.height // 2)
+            workspace_rect = workspace_controller.get_workspace_rect()
+            position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
             title = _("Remove workspace")
             caption = _(f"Display panels in '{workspace_controller._workspace.name}' will be deleted.\nThe data will not be deleted.")
 
             Dialog.pose_confirmation_pop_up(completion_fn=confirmation_clicked,
-                                           window=window, title=title, caption=caption, position=position, size=size, window_style="popup",
-                                           cancel_button_text=_("Cancel"), accept_button_text=_("Delete"))
+                                            window=window, title=title, caption=caption, position=position, size=size, window_style="popup",
+                                            cancel_button_text=_("Cancel"), accept_button_text=_("Delete"))
 
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
@@ -3681,11 +3676,9 @@ class WorkspaceRenameAction(Window.Action):
                     self.set_string_property(context, "name", text)
                     self.execute(context)
 
-            root_canvas_item = workspace_controller._canvas_item
-            canvas_origin = root_canvas_item.canvas_widget.map_to_global(root_canvas_item.canvas_origin)
-            canvas_bounds = root_canvas_item.canvas_bounds
             size = Geometry.IntSize(width=400, height=100)
-            position = Geometry.IntPoint(x=canvas_origin.x + canvas_bounds.width // 2 - size.width // 2, y=canvas_origin.y + canvas_bounds.height // 2 - size.height // 2)
+            workspace_rect = workspace_controller.get_workspace_rect()
+            position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
             title = _("Rename workspace") + "\"" + workspace_controller._workspace.name + "\""
             Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=rename_clicked,
                                            window=window, title=title, position=position, size=size, window_style="default",
