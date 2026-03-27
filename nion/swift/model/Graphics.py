@@ -39,6 +39,27 @@ _LinearGradientLike = typing.Any
 CalibratedOriginType = Geometry.FloatPoint | float
 
 
+def to_float(s: typing.Any) -> float | None:
+    try:
+        return float(s) if s is not None else None
+    except (ValueError, TypeError):
+        return None
+
+
+def to_str(s: typing.Any) -> str | None:
+    return str(s) if s is not None else None
+
+
+def to_bool(s: typing.Any) -> bool:
+    if isinstance(s, bool):
+        return s
+    if isinstance(s, numbers.Number):
+        return bool(s)
+    if isinstance(s, str):
+        return s.lower() in ("true", "yes", "1")
+    return False
+
+
 class DrawingContextLike(typing.Protocol):
     fill_style: typing.Optional[typing.Union[str, _LinearGradientLike]]
     font: typing.Optional[str]
@@ -686,17 +707,17 @@ class Graphic(Persistence.PersistentObject):
     def __init__(self, type: str) -> None:
         super().__init__()
         self.define_type(type)
-        self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
+        self.define_property("graphic_id", None, changed=self._property_changed, validate=to_str, hidden=True)
         self.define_property("source_specifier", changed=self.__source_specifier_changed, key="source_uuid", hidden=True)
-        self.define_property("stroke_color", None, changed=self._property_changed, hidden=True)
-        self.define_property("stroke_width", None, changed=self._property_changed, hidden=True)
-        self.define_property("fill_color", None, changed=self._property_changed, hidden=True)
-        self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None, hidden=True)
-        self.define_property("is_position_locked", False, changed=self._property_changed, hidden=True)
-        self.define_property("is_shape_locked", False, changed=self._property_changed, hidden=True)
-        self.define_property("is_rotation_locked", False, changed=self._property_changed, hidden=True)
-        self.define_property("is_bounds_constrained", False, changed=self._property_changed, hidden=True)
-        self.define_property("role", None, changed=self._property_changed, hidden=True)
+        self.define_property("stroke_color", None, changed=self._property_changed, validate=to_str, hidden=True)
+        self.define_property("stroke_width", None, changed=self._property_changed, validate=to_float, hidden=True)
+        self.define_property("fill_color", None, changed=self._property_changed, validate=to_str, hidden=True)
+        self.define_property("label", changed=self._property_changed, validate=to_str, hidden=True)
+        self.define_property("is_position_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
+        self.define_property("is_shape_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
+        self.define_property("is_rotation_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
+        self.define_property("is_bounds_constrained", False, changed=self._property_changed, validate=to_bool, hidden=True)
+        self.define_property("role", None, changed=self._property_changed, validate=to_str, hidden=True)
         self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
@@ -740,6 +761,7 @@ class Graphic(Persistence.PersistentObject):
     @stroke_width.setter
     def stroke_width(self, value: typing.Optional[float]) -> None:
         self._set_persistent_property_value("stroke_width", value)
+        self.notify_property_changed("used_stroke_width")
 
     @property
     def fill_color(self) -> typing.Optional[str]:
@@ -844,14 +866,14 @@ class Graphic(Persistence.PersistentObject):
         return d
 
     def read_from_mime_data(self, graphic_dict: Persistence.PersistentDictType) -> None:
-        self.stroke_color = graphic_dict.get("stroke_color", self.stroke_color)
-        self.stroke_width = graphic_dict.get("stroke_width", self.stroke_width)
-        self.fill_color = graphic_dict.get("fill_color", self.fill_color)
-        self.label = graphic_dict.get("label", self.label)
-        self.is_position_locked = graphic_dict.get("is_position_locked", self.is_position_locked)
-        self.is_shape_locked = graphic_dict.get("is_shape_locked", self.is_shape_locked)
-        self.is_rotation_locked = graphic_dict.get("is_rotation_locked", self.is_rotation_locked)
-        self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
+        self.stroke_color = to_str(graphic_dict.get("stroke_color", self.stroke_color))
+        self.stroke_width = to_float(graphic_dict.get("stroke_width", self.stroke_width))
+        self.fill_color = to_str(graphic_dict.get("fill_color", self.fill_color))
+        self.label = to_str(graphic_dict.get("label", self.label))
+        self.is_position_locked = to_bool(graphic_dict.get("is_position_locked", self.is_position_locked))
+        self.is_shape_locked = to_bool(graphic_dict.get("is_shape_locked", self.is_shape_locked))
+        self.is_rotation_locked = to_bool(graphic_dict.get("is_rotation_locked", self.is_rotation_locked))
+        self.is_bounds_constrained = to_bool(graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained))
 
     def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
         d = dict(d)
