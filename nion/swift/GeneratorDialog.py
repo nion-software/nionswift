@@ -12,6 +12,7 @@ import scipy.stats
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
+from nion.swift.model import Utility
 from nion.ui import Declarative
 from nion.utils import Converter
 from nion.utils import Model
@@ -51,7 +52,6 @@ class GenerateDataDialog(Declarative.WindowHandler):
         self.array_height_model: Model.PropertyModel[int] = Model.PropertyModel(256)
 
         self.int_converter = Converter.IntegerToStringConverter()
-        self.__bytes_converter = DataItem.BytesToFileSizeStringConverter()
 
         self.bytes_string_model: Model.PropertyModel[str] = Model.PropertyModel("- Bytes")
 
@@ -80,7 +80,7 @@ class GenerateDataDialog(Declarative.WindowHandler):
                 array_height = self.array_height_model.value or 1
                 array_width = self.array_width_model.value or 1
                 data_size *= array_height * array_width
-            self.bytes_string_model.value = self.__bytes_converter.convert(value=data_size)
+            self.bytes_string_model.value = Utility.humanbytes(data_size)
 
         self.is_sequence_model.on_value_changed = update_bytes_string
         self.sequence_size_model.on_value_changed = update_bytes_string

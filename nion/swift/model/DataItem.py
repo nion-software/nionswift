@@ -119,64 +119,6 @@ class UuidsToStringsConverter:
         return [uuid.UUID(uuid_str) for uuid_str in value]
 
 
-class BytesToFileSizeStringConverter:
-    """Convert the given bytes to a string with KB, MB, GB, or TB.
-
-    Decimal places are applied to the conversion so the conversion back will lose information.
-    """
-
-    def __init__(self, decimal_places: int = 2) -> None:
-        self.decimal_places = decimal_places
-
-    def convert(self, value: int | float) -> str:
-        # see https://stackoverflow.com/questions/12523586/python-format-size-application-converting-b-to-kb-mb-gb-tb
-        num_bytes = float(value)
-        kilobytes = float(1024)
-        if num_bytes < kilobytes:
-            return '{0} {1}'.format(num_bytes, 'Bytes' if num_bytes != 1 else 'Byte')
-
-        megabytes = float(kilobytes ** 2)  # 1,048,576
-        if num_bytes < megabytes:
-            return '{0:.2f} KB'.format(num_bytes / kilobytes)
-
-        gigabytes = float(kilobytes ** 3)  # 1,073,741,824
-        if num_bytes < gigabytes:
-            return '{0:.2f} MB'.format(num_bytes / megabytes)
-
-        terabytes = float(kilobytes ** 4)  # 1,099,511,627,776
-        if num_bytes < terabytes:
-            return '{0:.2f} GB'.format(num_bytes / gigabytes)
-        elif terabytes <= num_bytes:
-            return '{0:.2f} TB'.format(num_bytes / terabytes)
-        else:
-            return "{0} Bytes".format(num_bytes)  # Default to displaying in bytes
-
-    def convert_back(self, value: str) -> float | None:
-        split = value.split(' ')
-        if len(split) == 0:
-            return None
-        try:
-            number = float(split[0])
-        except ValueError:
-            return None
-
-        prefix = split[1] if len(split) == 2 else 'Bytes'
-
-        match prefix:
-            case 'KB':
-                return number * 1024
-            case 'MB':
-                return number * 1048576
-            case 'GB':
-                return number * 1073741824
-            case 'TB':
-                return number * 1099511627776
-            case 'Bytes':
-                return number
-            case _:
-                return number
-
-
 class SessionManager(abc.ABC):
 
     @property
@@ -1501,7 +1443,7 @@ class DataItem(Persistence.PersistentObject):
         data_dtype = self.data_dtype
         if dimensional_shape is not None and data_dtype is not None:
             total_bytes = typing.cast(int, numpy.prod(dimensional_shape + (numpy.dtype(data_dtype).itemsize,), dtype=numpy.int64))
-            return BytesToFileSizeStringConverter().convert(value=total_bytes)
+            return Utility.humanbytes(total_bytes)
         return str()
 
     @property
