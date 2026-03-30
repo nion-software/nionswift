@@ -1442,32 +1442,8 @@ class DataItem(Persistence.PersistentObject):
         dimensional_shape = self.dimensional_shape
         data_dtype = self.data_dtype
         if dimensional_shape is not None and data_dtype is not None:
-
-            # see https://stackoverflow.com/questions/12523586/python-format-size-application-converting-b-to-kb-mb-gb-tb
-            def humanbytes(b: int) -> str:
-                """Return the given bytes as a human friendly KB, MB, GB, or TB string."""
-                B = float(b)
-                KB = float(1024)
-                MB = float(KB ** 2)  # 1,048,576
-                GB = float(KB ** 3)  # 1,073,741,824
-                TB = float(KB ** 4)  # 1,099,511,627,776
-
-                if B < KB:
-                    return '{0} {1}'.format(B, 'Bytes' if B != 1 else 'Byte')
-                elif KB <= B < MB:
-                    return '{0:.2f} KB'.format(B / KB)
-                elif MB <= B < GB:
-                    return '{0:.2f} MB'.format(B / MB)
-                elif GB <= B < TB:
-                    return '{0:.2f} GB'.format(B / GB)
-                elif TB <= B:
-                    return '{0:.2f} TB'.format(B / TB)
-                else:
-                    return "{0} Bytes".format(B)
-
             total_bytes = typing.cast(int, numpy.prod(dimensional_shape + (numpy.dtype(data_dtype).itemsize,), dtype=numpy.int64))
-
-            return humanbytes(total_bytes)
+            return Utility.humanbytes(total_bytes)
         return str()
 
     @property
