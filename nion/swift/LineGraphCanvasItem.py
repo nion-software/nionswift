@@ -228,17 +228,7 @@ class _IE2Style(DataStyle):
         return cal_min, cal_max
 
     def make_y_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
-        intensity_calibration = xdata.intensity_calibration or Calibration.Calibration()
-        x_cal = xdata.dimensional_calibrations[-1] if xdata.dimensional_calibrations else Calibration.Calibration()
-        y_units = intensity_calibration.units or ""
-        e_units = x_cal.units or ""
-        if e_units:
-            units = f"{y_units}·{e_units}²" if y_units else f"{e_units}²"
-        else:
-            units = y_units
-        # IE² mapping is not a simple linear transform of raw
-        # intensity so use identity offset/scale for conversions.
-        return Calibration.Calibration(0.0, 1.0, units)
+        return Calibration.Calibration(0.0, 1.0, "")
 
 
 
