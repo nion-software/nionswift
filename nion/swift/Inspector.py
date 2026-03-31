@@ -2199,7 +2199,6 @@ class LegendPositionChooserHandler(Declarative.Handler):
 class LinePlotDisplaySectionHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem):
         super().__init__()
-
         self._y_min_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_min")
         self._y_max_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_max")
         self._left_channel_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "left_channel")
@@ -2207,22 +2206,15 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
         self._y_style_model = DisplayItemDisplayPropertyCommandModel(document_controller, display_item, "y_style")
 
         self._float_to_string_converter = BetterFloatToStringConverter(pass_none=True)
+        self._data_style_items = (_("y, x"), _("log(y), x"), _("yx^2, x"))
+        self._data_style_flags = ("linear", "log", "ie2")
+        self._data_style_reverse_map = {flag: i for i, flag in enumerate(self._data_style_flags)}
 
-        class LogCheckedToCheckStateConverter(Converter.ConverterLike[str, bool]):
-            """ Convert between bool and checked/unchecked strings. """
-
-            def convert(self, value: typing.Optional[str]) -> typing.Optional[bool]:
-                """ Convert bool to checked or unchecked string """
-                return value == "log"
-
-            def convert_back(self, value: typing.Optional[bool]) -> typing.Optional[str]:
-                """ Convert checked or unchecked string to bool """
-                return "log" if value else "linear"
-
-        self._log_checked_to_check_state_converter = LogCheckedToCheckStateConverter()
+        current_flag = display_item.get_display_property("y_style") or "linear"
+        current_index = self._data_style_reverse_map.get(current_flag, 0)
+        self._current_data_style_index = Model.PropertyModel[int](current_index)
 
         u = Declarative.DeclarativeUI()
-
         self.ui_view = u.create_column(
             u.create_row(
                 u.create_label(text=_("Display:"), width=120),
@@ -2239,10 +2231,21 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_check_box(text=_("Log Scale (Y)"), checked="@binding(_y_style_model.value, converter=_log_checked_to_check_state_converter)", name="log_scale_check_box"),
+                u.create_label(text=_("Data Style:"), width=120),
+                u.create_combo_box(
+                    items=self._data_style_items,
+                    current_index="@binding(_current_data_style_index.value)",
+                    on_current_index_changed="_change_data_style"
+                ),
                 u.create_stretch()
             )
         )
+
+    def _change_data_style(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        """Map UI selection -> data style flag on the display."""
+        new_flag = self._data_style_flags[current_index]
+        if self._y_style_model.value != new_flag:
+            self._y_style_model.value = new_flag
 
 
 class LinePlotDisplayInspectorSection(InspectorSection):
