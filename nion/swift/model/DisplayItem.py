@@ -818,11 +818,6 @@ class DisplayValues:
         return self.__data_and_metadata.data_metadata if self.__data_and_metadata else None
 
     @property
-    def display_rgba_timestamp(self) -> typing.Optional[datetime.datetime]:
-        data_metadata = self.data_metadata
-        return data_metadata.timestamp if data_metadata else None
-
-    @property
     def element_data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], self.__element_data_processor.get_result("data"))
 
