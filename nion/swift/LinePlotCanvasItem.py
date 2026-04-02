@@ -560,9 +560,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             if self.__display_values_list:
                 for display_values in self.__display_values_list:
                     if display_values:
-                        display_data_and_metadata = display_values.display_data_and_metadata
-                        if display_data_and_metadata:
-                            self.__update_frame(display_data_and_metadata.metadata)
+                        data_metadata = display_values.element_data_metadata
+                        if data_metadata:
+                            self.__update_frame(data_metadata.metadata)
 
             # update the cursor info
             self.__update_cursor_info()
