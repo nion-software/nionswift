@@ -449,6 +449,13 @@ class ProcessorBase(ProcessorLike):
                     self.__parameters[key] = connection.source.get_result(connection.source_key)
             return self.__parameters.get(key, None)
 
+    def get_source_processor(self, key: str) -> ProcessorLike | None:
+        with self.__lock:
+            for connection in self.__connections:
+                if key == (connection.target_key or connection.source_key):
+                    return connection.source
+            return None
+
     def _get_string(self, key: str) -> str:
         with self.__lock:
             return typing.cast(str, self._get_parameter(key))
@@ -513,6 +520,26 @@ class ElementDataProcessor(ProcessorBase):
                                                                              flag16=False)
         self.set_result("data", data_and_metadata)
 
+    def get_data_metadata(self) -> DataAndMetadata.DataMetadata | None:
+        maybe_data_and_metadata = self._get_parameter("data")
+        if isinstance(maybe_data_and_metadata, DataAndMetadata.DataAndMetadata):
+            data_metadata = maybe_data_and_metadata.data_metadata
+            display_data_shape_info = DisplayDataShapeCalculator(data_metadata)
+            display_data_shape = display_data_shape_info.shape
+            display_data_dimensional_calibrations = display_data_shape_info.calibrations
+            if display_data_shape and data_metadata.data_dtype:
+                return DataAndMetadata.DataMetadata(
+                    data_shape=display_data_shape,
+                    data_dtype=data_metadata.data_dtype,
+                    intensity_calibration=data_metadata.intensity_calibration,
+                    dimensional_calibrations=display_data_dimensional_calibrations,
+                    metadata=data_metadata.metadata,
+                    data_descriptor=DataAndMetadata.DataDescriptor(False, 0, len(display_data_shape)),
+                    timestamp=data_metadata.timestamp,
+                    timezone=data_metadata.timezone,
+                    timezone_offset=data_metadata.timezone_offset
+                )
+        return None
 
 class DisplayDataProcessor(ProcessorBase):
     def __init__(self, *,
@@ -816,6 +843,10 @@ class DisplayValues:
     @property
     def data_metadata(self) -> DataAndMetadata.DataMetadata | None:
         return self.__data_and_metadata.data_metadata if self.__data_and_metadata else None
+
+    @property
+    def element_data_metadata(self) -> DataAndMetadata.DataMetadata | None:
+        return self.__element_data_processor.get_data_metadata()
 
     @property
     def element_data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
