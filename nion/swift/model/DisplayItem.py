@@ -2113,9 +2113,6 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                 self.__display_properties = copy.deepcopy(new_display_properties)
                 self.__send_delta()
 
-    # def __get_xdata_list(self) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
-    #     return [display_values.data_and_metadata if display_values else None for display_values in list(self.__display_values_list)]
-
     def __update(self) -> None:
         display_values_list = self.__display_values_list
         dimensional_calibrations: typing.Optional[DataAndMetadata.CalibrationListType] = None
