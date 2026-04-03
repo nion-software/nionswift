@@ -840,14 +840,6 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
         else:
             return CanvasItem.EmptyCanvasItemComposer(self, self.layout_sizing, composer_cache)
 
-    @property
-    def _xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return self.__line_graph_layer.xdata if self.__line_graph_layer else None
-
-    @property
-    def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
-        return self.__line_graph_layer.axes if self.__line_graph_layer else None
-
     def update_line_graph_layer(self, line_graph_layer: LineGraphLayer, is_fill: bool) -> None:
         if self.__line_graph_layer != line_graph_layer or self.__is_fill != is_fill:
             self.__line_graph_layer = line_graph_layer
@@ -855,8 +847,16 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     @property
-    def scaled_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return MappedCalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
+    def _xdata_for_testing(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__line_graph_layer.xdata if self.__line_graph_layer else None
+
+    @property
+    def _axes_for_testing(self) -> typing.Optional[LineGraphAxes]:
+        return self.__line_graph_layer.axes if self.__line_graph_layer else None
+
+    @property
+    def _scaled_xdata_for_testing(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return MappedCalibratedDataAndMetadataCacheItem(self._xdata_for_testing, self._axes_for_testing).calculate()
 
 
 class LineGraphLayersCanvasItemCompositionComposer(CanvasItem.CanvasItemCompositionComposer):
@@ -898,14 +898,6 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display_frame_rate_id = value
         self.update()
 
-    @property
-    def _xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return typing.cast(LineGraphLayerCanvasItem, self.canvas_items[0])._xdata if self.canvas_items else None
-
-    @property
-    def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
-        return typing.cast(LineGraphLayerCanvasItem, self.canvas_items[0])._axes if self.canvas_items else None
-
     def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LineGraphLayer]) -> None:
         line_graph_layers = list(line_graph_layers)
         while len(self.canvas_items) < len(line_graph_layers) * 2:
@@ -919,12 +911,20 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
             line_graph_layer_canvas_item = typing.cast(LineGraphLayerCanvasItem, canvas_item)
             line_graph_layer_canvas_item.update_line_graph_layer(line_graph_layer, False)
 
-    @property
-    def scaled_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return MappedCalibratedDataAndMetadataCacheItem(self._xdata, self._axes).calculate()
-
     def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphLayersCanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self.__display_frame_rate_id)
+
+    @property
+    def _xdata_for_testing(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return typing.cast(LineGraphLayerCanvasItem, self.canvas_items[0])._xdata_for_testing if self.canvas_items else None
+
+    @property
+    def _axes_for_testing(self) -> typing.Optional[LineGraphAxes]:
+        return typing.cast(LineGraphLayerCanvasItem, self.canvas_items[0])._axes_for_testing if self.canvas_items else None
+
+    @property
+    def _scaled_xdata_for_testing(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return MappedCalibratedDataAndMetadataCacheItem(self._xdata_for_testing, self._axes_for_testing).calculate()
 
 
 class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
