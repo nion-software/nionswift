@@ -374,10 +374,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
-            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.scaled_xdata.data, numpy.full((8, ), 10)))
+            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item._scaled_xdata_for_testing.data, numpy.full((8, ), 10)))
             display_item.intensity_calibration_style_id = "uncalibrated"
             display_panel.layout_immediate((640, 480))
-            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item.scaled_xdata.data, numpy.ones((8, ))))
+            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_layers_canvas_item._scaled_xdata_for_testing.data, numpy.ones((8, ))))
 
     def test_line_plot_handles_calibrated_vs_uncalibrated_display(self):
         with TestContext.create_memory_context() as test_context:
@@ -390,10 +390,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate((640, 480))
-            self.assertEqual(display_panel.display_canvas_item.line_graph_layers_canvas_item.scaled_xdata.dimensional_calibrations[-1].units, "nm")
+            self.assertEqual(display_panel.display_canvas_item.line_graph_layers_canvas_item._scaled_xdata_for_testing.dimensional_calibrations[-1].units, "nm")
             display_item.calibration_style_id = "pixels-top-left"
             display_panel.layout_immediate((640, 480))
-            self.assertFalse(display_panel.display_canvas_item.line_graph_layers_canvas_item.scaled_xdata.dimensional_calibrations[-1].units)
+            self.assertFalse(display_panel.display_canvas_item.line_graph_layers_canvas_item._scaled_xdata_for_testing.dimensional_calibrations[-1].units)
 
     def test_line_plot_with_no_data_handles_clicks(self):
         with TestContext.create_memory_context() as test_context:
