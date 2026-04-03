@@ -472,7 +472,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def line_graph_layers_canvas_item(self) -> LineGraphCanvasItem.LineGraphLayersCanvasItem:
         return self.__line_graph_layers_canvas_item
 
-    # for testing
     @property
     def _axes(self) -> typing.Optional[LineGraphCanvasItem.LineGraphAxes]:
         return self.__axes
