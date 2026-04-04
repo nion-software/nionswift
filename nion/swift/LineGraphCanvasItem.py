@@ -664,9 +664,9 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
         return LineGraphBackgroundCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.draw_grid, self.background_color)
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        self.update()
+        if self.__axes != axes:
+            self.__axes = axes
+            self.update()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1170,9 +1170,9 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(self.sizing.with_fixed_height(self.__tick_height))
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        self.update()
+        if self.__axes != axes:
+            self.__axes = axes
+            self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphHorizontalAxisTicksCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__tick_height)
@@ -1212,9 +1212,9 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(self.sizing.with_fixed_height(self.__font_size + 4))
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        self.update()
+        if self.__axes != axes:
+            self.__axes = axes
+            self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphHorizontalAxisScaleCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__font_size)
@@ -1266,10 +1266,10 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        self.size_to_content()
-        self.update()
+        if self.__axes != axes:
+            self.__axes = axes
+            self.size_to_content()
+            self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphHorizontalAxisLabelCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__font_size)
@@ -1310,9 +1310,9 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(self.sizing.with_fixed_width(self.__tick_width))
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        self.update()
+        if self.__axes != axes:
+            self.__axes = axes
+            self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphVerticalAxisTicksCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__tick_width)
@@ -1453,10 +1453,10 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        self.size_to_content()
-        self.update()
+        if self.__axes != axes:
+            self.__axes = axes
+            self.size_to_content()
+            self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphVerticalAxisScaleCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__font_size, self.__fonts, self.__ui_settings)
@@ -1514,10 +1514,10 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LineGraphAxes]) -> None:
-        # assume this is only called when axes changes
-        self.__axes = axes
-        self.size_to_content()
-        self.update()
+        if self.__axes != axes:
+            self.__axes = axes
+            self.size_to_content()
+            self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphVerticalAxisLabelCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__font_size)

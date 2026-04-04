@@ -113,6 +113,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.layout_immediate(canvas_shape)
         self.display_panel_drawing_context = DrawingContext.DrawingContext()
         self.display_item = display_item_1d
+        self.display_panel.display_canvas_item._update_canvas_items_for_testing()
         self.display_panel.refresh_layout_immediate()
         return self.display_panel.display_canvas_item
 
@@ -640,6 +641,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = 0.2
         data_item.set_intensity_calibration(intensity_calibration)
+        line_plot_canvas_item._update_canvas_items_for_testing()
         calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_max
         plot_height = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.height - 1
@@ -857,6 +859,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.display_item.set_display_property("y_min", -0.5)
         self.display_item.set_display_property("y_max", 0.5)
+        line_plot_canvas_item._update_canvas_items_for_testing()
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -877,6 +880,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.display_item.set_display_property("y_min", -0.2)
         self.display_item.set_display_property("y_max", 0.8)
+        line_plot_canvas_item._update_canvas_items_for_testing()
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -899,6 +903,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = -0.2
         data_item.set_intensity_calibration(intensity_calibration)
+        line_plot_canvas_item._update_canvas_items_for_testing()
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -919,6 +924,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.display_item.set_display_property("y_min", -0.5)
         self.display_item.set_display_property("y_max", 0.5)
+        line_plot_canvas_item._update_canvas_items_for_testing()
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=20)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -938,6 +944,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.display_item.set_display_property("y_min", -0.5)
         self.display_item.set_display_property("y_max", 0.5)
+        line_plot_canvas_item._update_canvas_items_for_testing()
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=plot_height-20)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -957,6 +964,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         v = line_plot_canvas_item.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)[0] + 8
         line_plot_canvas_item.mouse_pressed(plot_left, v, CanvasItem.KeyboardModifiers(control=True))
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, CanvasItem.KeyboardModifiers(control=True))
+        line_plot_canvas_item._update_canvas_items_for_testing()  # update after the expansion, but before the move.
         # continue
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, CanvasItem.KeyboardModifiers())
         line_plot_canvas_item.mouse_position_changed(plot_left+196, v, CanvasItem.KeyboardModifiers())
@@ -1806,6 +1814,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate(Geometry.IntSize(240, 640))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             self.assertEqual(0, len(display_item.graphics))
@@ -1843,6 +1852,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.graphic_selection.set(0)
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             self.assertEqual(1, len(display_item.graphics))
@@ -1917,6 +1927,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             self.assertEqual(0, len(display_item.graphics))
@@ -2016,6 +2027,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate(Geometry.IntSize(100, 100))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             document_controller.tool_mode = "rectangle"
@@ -2055,6 +2067,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # verify setup
@@ -2082,6 +2095,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(line_plot_display_item)
             display_panel.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # verify setup
@@ -2116,6 +2130,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(line_plot_display_item)
             display_panel.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # verify setup
@@ -2151,6 +2166,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             line_plot_canvas_item = display_panel.display_canvas_item
@@ -2186,6 +2202,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(fft_data_item))
             document_model.recompute_all()
             display_panel.layout_immediate(Geometry.IntSize(200, 200))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # everything should be updated; the display values should not be dirty
@@ -2204,6 +2221,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(line_profile_data_item))
             document_model.recompute_all()
             display_panel.layout_immediate(Geometry.IntSize(1000, 200))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # everything should be updated; the display values should not be dirty
@@ -2220,6 +2238,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate(Geometry.IntSize(1000, 200))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             command = document_controller.create_remove_display_items_command([display_item])
@@ -2229,6 +2248,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.handle_undo()
             # everything should be updated; the display values should not be dirty
             display_panel.layout_immediate(Geometry.IntSize(1000, 200))
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             self.assertTrue(display_panel.display_canvas_item._has_valid_drawn_graph_data)
 
@@ -2265,6 +2285,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_panel = document_controller.selected_display_panel
                 display_panel.set_display_panel_display_item(display_item)
                 display_panel.layout_immediate(Geometry.IntSize(200, 200))
+                display_panel.display_canvas_item._update_canvas_items_for_testing()
                 display_panel.display_canvas_item.refresh_layout_immediate()
             profile_context.project_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
             document_controller = profile_context.create_document_controller(auto_close=False)
@@ -2272,6 +2293,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             with contextlib.closing(document_controller):
                 display_panel = document_controller.selected_display_panel
                 display_panel.layout_immediate(Geometry.IntSize(200, 200))
+                display_panel.display_canvas_item._update_canvas_items_for_testing()
                 display_panel.display_canvas_item.refresh_layout_immediate()
 
     def test_image_display_item_with_missing_data_item_fails_gracefully(self):
@@ -2290,6 +2312,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_panel = document_controller.selected_display_panel
                 display_panel.set_display_panel_display_item(display_item)
                 display_panel.layout_immediate(Geometry.IntSize(200, 200))
+                display_panel.display_canvas_item._update_canvas_items_for_testing()
                 display_panel.display_canvas_item.refresh_layout_immediate()
             profile_context.project_properties["display_items"][2]["display_data_channels"][0]["data_item_reference"] = str(uuid.uuid4())
             document_controller = profile_context.create_document_controller(auto_close=False)
@@ -2297,6 +2320,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             with contextlib.closing(document_controller):
                 display_panel = document_controller.selected_display_panel
                 display_panel.layout_immediate(Geometry.IntSize(200, 200))
+                display_panel.display_canvas_item._update_canvas_items_for_testing()
                 display_panel.display_canvas_item.refresh_layout_immediate()
 
     def test_append_display_data_channel_undo_redo_cycle(self):
@@ -2836,6 +2860,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 canvas_shape = (480, 640)
                 document_controller.show_display_item(display_item)
                 display_panel.display_canvas_item.layout_immediate(canvas_shape)
+                display_panel.display_canvas_item._update_canvas_items_for_testing()
                 display_panel.display_canvas_item.refresh_layout_immediate()
                 line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
                 interval_graphic = Graphics.IntervalGraphic()
@@ -2847,7 +2872,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_item.graphic_selection.set(0)
                 line_plot_canvas_item.handle_auto_display()
-                axes = line_plot_canvas_item._axes
+                axes = line_plot_canvas_item._axes_for_testing
                 self.assertAlmostEqual(axes.drawn_left_channel, (min(interval) - padding) * 1024)
                 self.assertAlmostEqual(axes.drawn_right_channel, (max(interval) + padding) * 1024)
 
@@ -2873,6 +2898,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate(canvas_shape)
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
 
@@ -2883,7 +2909,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.add_graphic(interval_graphic)
             display_item.graphic_selection.set(0)
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 12)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(48.0) * 1.2, axes.uncalibrated_data_max)
@@ -2911,11 +2937,12 @@ class TestDisplayPanelClass(unittest.TestCase):
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate(canvas_shape)
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
 
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 0.0)  # no interval selected, so no padding
             self.assertAlmostEqual(axes.drawn_right_channel, 12.0)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(96.0) * 1.2, axes.uncalibrated_data_max)
@@ -2943,6 +2970,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate(canvas_shape)
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
 
@@ -2953,7 +2981,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.add_graphic(interval_graphic)
             display_item.graphic_selection.set(0)
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 12)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(3.0) * 1.2, axes.uncalibrated_data_max)
@@ -2981,6 +3009,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate(canvas_shape)
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
 
@@ -2991,7 +3020,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.add_graphic(interval_graphic)
             display_item.graphic_selection.set(0)
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 12)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(10.0) * 1.2, axes.uncalibrated_data_max)
@@ -3019,6 +3048,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             canvas_shape = (480, 640)
             document_controller.show_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate(canvas_shape)
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.display_canvas_item.refresh_layout_immediate()
             line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
 
@@ -3032,7 +3062,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_item.add_graphic(interval_graphic)
                 display_item.graphic_selection.add(display_item.graphics.index(interval_graphic))
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 1)
             self.assertAlmostEqual(axes.drawn_right_channel, 17)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(26.0) * 1.2, axes.uncalibrated_data_max)
