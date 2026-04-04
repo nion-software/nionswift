@@ -1797,3 +1797,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def move_down(self, amount: float = 10.0) -> None:
         self.apply_move_command(Geometry.FloatSize(-amount, 0.0))
+
+    def _update_canvas_items_for_testing(self) -> None:
+        pass  # parallel method to line plot; future use.

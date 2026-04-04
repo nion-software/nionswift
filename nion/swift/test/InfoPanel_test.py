@@ -127,6 +127,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             info_panel = document_controller.find_dock_panel("info-panel")
+            display_panel.display_canvas_item._update_canvas_items_for_testing()
             display_panel.layout_immediate((1000 + header_height, 1000))
             line_graph_layer_canvas_item = next(i for i in display_panel.canvas_items_at_point(500, 500) if isinstance(i, LineGraphCanvasItem.LineGraphLayerCanvasItem))
             p1 = line_graph_layer_canvas_item.map_to_canvas_item(Geometry.IntPoint(500, 20), display_panel.display_canvas_item)
