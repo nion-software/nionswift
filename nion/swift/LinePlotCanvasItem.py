@@ -21,6 +21,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.utils import Color
 from nion.utils import Geometry
 from nion.utils import Registry
@@ -624,7 +625,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # trigger an update
         self.update()
 
-    def __update_canvas_items(self) -> None:
+    def _update_canvas_items(self) -> None:
         # this is a separate method so that it can be used from tests.
 
         line_plot_display_info = self.__line_plot_display_info
@@ -659,10 +660,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__line_graph_regions_canvas_item.set_regions(line_plot_display_info.regions)
 
         self.__last_axes = line_plot_display_info.axes
-
-    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer | None:
-        self.__update_canvas_items()
-        return super()._get_composer(composer_cache)
 
     def set_focused(self, is_focused: bool) -> None:
         self.__line_graph_regions_canvas_item.set_is_focused(is_focused)
@@ -1239,9 +1236,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.delegate.push_undo_command(command)
 
         return "ignore"
-
-    def _update_canvas_items_for_testing(self) -> None:
-        self.__update_canvas_items()
 
     @property
     def _axes_for_testing(self) -> LineGraphCanvasItem.LineGraphAxes | None:

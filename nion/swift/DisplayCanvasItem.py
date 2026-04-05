@@ -103,7 +103,7 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
         Key contexts provide an ordered list of contexts that are used to determine
         which actions are valid at a given time. The contexts are checked in reverse
-        order (i.e. last added have highest precedence).
+        order (i.e. last added have the highest precedence).
         """
         return list()
 
@@ -119,6 +119,9 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None: ...
 
     def set_focused(self, is_focused: bool) -> None: ...
+
+    def _update_canvas_items(self) -> None:
+        pass
 
     def _wait_for_update(self) -> None:
         pass

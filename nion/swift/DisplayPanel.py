@@ -1073,7 +1073,7 @@ class DisplayTracker:
         # callbacks
         self.on_clear_display: typing.Optional[typing.Callable[[], None]] = None
         self.on_title_changed: typing.Optional[typing.Callable[[str], None]] = None
-        self.on_replace_display_canvas_item: typing.Optional[typing.Callable[[DisplayCanvasItem.DisplayCanvasItem, DisplayCanvasItem.DisplayCanvasItem], None]] = None
+        self.on_replace_display_canvas_item: typing.Optional[typing.Callable[[DisplayCanvasItem.DisplayCanvasItem], None]] = None
 
         def clear_display() -> None:
             if callable(self.on_clear_display):
@@ -1104,10 +1104,9 @@ class DisplayTracker:
         def display_type_changed(display_type: typing.Optional[str]) -> None:
             # called when the display type of the data item changes.
             self.__display_data_delta_stream_action = typing.cast(typing.Any, None)
-            old_display_canvas_item = self.__display_canvas_item
             new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
             if callable(self.on_replace_display_canvas_item):
-                self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
+                self.on_replace_display_canvas_item(new_display_canvas_item)
             self.__display_canvas_item = new_display_canvas_item
             self.__display_data_delta_stream_action = Stream.ValueStreamAction[DisplayItem.DisplayDataDelta](display_item.display_data_delta_stream, handle_display_data_delta)
             display_data_delta = display_item.display_data_delta_stream.value
@@ -2527,8 +2526,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if did_display_change:
 
             # remove any existing display canvas item
-            if len(self.__display_composition_canvas_item.canvas_items) > 0:
-                self.__display_composition_canvas_item.remove_canvas_item(self.__display_composition_canvas_item.canvas_items[0])
+            self.__display_composition_canvas_item.remove_all_canvas_items()
 
             old_display_tracker = self.__display_tracker
             self.__display_tracker = None
@@ -2567,8 +2565,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     display_canvas_item.add_display_control(c1_slider_row)
                     self.__related_icons_canvas_item = related_icons_canvas_item
 
-                def replace_display_canvas_item(old_display_canvas_item: DisplayCanvasItem.DisplayCanvasItem, new_display_canvas_item: DisplayCanvasItem.DisplayCanvasItem) -> None:
-                    self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
+                def replace_display_canvas_item(new_display_canvas_item: DisplayCanvasItem.DisplayCanvasItem) -> None:
+                    self.__display_composition_canvas_item.remove_all_canvas_items()
+                    threaded_canvas_item = CanvasItem.ThreadedCanvasItem(new_display_canvas_item)
+                    threaded_canvas_item.on_will_repaint = new_display_canvas_item._update_canvas_items
+                    self.__display_composition_canvas_item.add_canvas_item(threaded_canvas_item)
                     add_display_controls(new_display_canvas_item)
                     # whenever focus or the display canvas item changes, update the focused status
                     new_display_canvas_item.set_focused(self.__content_canvas_item.focused)
@@ -2578,9 +2579,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 self.__display_tracker.on_title_changed = handle_title_changed
                 self.__display_tracker.on_replace_display_canvas_item = replace_display_canvas_item
 
-                add_display_controls(self.__display_tracker.display_canvas_item)
-
-                self.__display_composition_canvas_item.insert_canvas_item(0, self.__display_tracker.display_canvas_item)
+                new_display_canvas_item = self.__display_tracker.display_canvas_item
+                threaded_canvas_item = CanvasItem.ThreadedCanvasItem(new_display_canvas_item)
+                threaded_canvas_item.on_will_repaint = new_display_canvas_item._update_canvas_items
+                self.__display_composition_canvas_item.add_canvas_item(threaded_canvas_item)
+                add_display_controls(new_display_canvas_item)
 
             if old_display_tracker:
                 old_display_tracker.close()
@@ -2867,7 +2870,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self.__show_context_menu([self.__display_item] if self.__display_item else [], gx, gy)
 
     def _context_menu_event_for_testing(self, x: int, y: int) -> bool:
-        canvas_items = self.canvas_items_at_point(x, y)
+        canvas_items = list[CanvasItem.AbstractCanvasItem]()
+        if self.__display_tracker:
+            display_canvas_item = self.__display_tracker.display_canvas_item
+            canvas_items = display_canvas_item.canvas_items_at_point(x, y)
+        canvas_items.extend(self.canvas_items_at_point(x, y))
         for canvas_item in canvas_items:
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
             if canvas_item.context_menu_event(canvas_item_point.x, canvas_item_point.y, x, y):
@@ -3371,5 +3378,6 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
             display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
                 display_canvas_item._wait_for_update()
+                display_canvas_item._update_canvas_items()
                 display_canvas_item.repaint_immediate(drawing_context, pixel_shape)
     return drawing_context
