@@ -1612,7 +1612,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def key_contexts(self) -> typing.Sequence[str]:
         # key contexts provide an ordered list of contexts that are used to determine
         # which actions are valid at a given time. the contexts are checked in reverse
-        # order (i.e. last added have highest precedence).
+        # order (i.e. last added have the highest precedence).
         key_contexts = ["display_panel"]
         if self.__data_shape is not None:
             key_contexts.append("raster_display")
@@ -1797,6 +1797,3 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def move_down(self, amount: float = 10.0) -> None:
         self.apply_move_command(Geometry.FloatSize(-amount, 0.0))
-
-    def _update_canvas_items_for_testing(self) -> None:
-        pass  # parallel method to line plot; future use.
