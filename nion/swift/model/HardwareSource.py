@@ -110,7 +110,7 @@ def HardwareSourceManager() -> HardwareSourceManagerInterface:
 
 
 @contextlib.contextmanager
-def get_data_generator_by_id(hardware_source_id: str, sync: bool = True) -> typing.Any:
+def get_data_generator_by_id(hardware_source_id: str, sync: bool = True) -> typing.Generator[typing.Callable[[], _NDArray], None, None]:
     """Return a generator for data.
 
     :param bool sync: whether to wait for current frame to finish then collect next frame

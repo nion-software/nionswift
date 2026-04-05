@@ -875,7 +875,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__sync_events.remove(sync_event)
 
     @contextlib.contextmanager
-    def sync_event(self) -> typing.Iterator[threading.Event]:
+    def sync_event(self) -> typing.Generator[threading.Event, None, None]:
         sync_event = threading.Event()
         self.__register_sync_event(sync_event)
         yield sync_event
