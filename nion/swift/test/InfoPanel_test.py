@@ -53,7 +53,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((400 + header_height, 400))
+            display_panel.layout_immediate((400 + header_height, 400))
             # test mouse positioning
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(20, 20, Graphics.NullModifiers())
@@ -95,7 +95,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             display_panel.display_canvas_item.mouse_exited()
@@ -111,7 +111,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item.calibration_style_id = "relative-top-left"
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             display_panel.display_canvas_item.mouse_exited()
@@ -127,8 +127,8 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             info_panel = document_controller.find_dock_panel("info-panel")
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
-            line_graph_layer_canvas_item = next(i for i in display_panel.root_container.canvas_items_at_point(500, 500) if isinstance(i, LineGraphCanvasItem.LineGraphLayerCanvasItem))
+            display_panel.layout_immediate((1000 + header_height, 1000))
+            line_graph_layer_canvas_item = next(i for i in display_panel.canvas_items_at_point(500, 500) if isinstance(i, LineGraphCanvasItem.LineGraphLayerCanvasItem))
             p1 = line_graph_layer_canvas_item.map_to_canvas_item(Geometry.IntPoint(500, 20), display_panel.display_canvas_item)
             p2 = line_graph_layer_canvas_item.map_to_canvas_item(Geometry.IntPoint(500, 70), display_panel.display_canvas_item)
             p3 = line_graph_layer_canvas_item.map_to_canvas_item(Geometry.IntPoint(500, 140), display_panel.display_canvas_item)
@@ -211,7 +211,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             display_panel.display_canvas_item.mouse_exited()
@@ -228,7 +228,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             info_panel = document_controller.find_dock_panel("info-panel")
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             self.assertTrue(self.__wait_for_cursor_position_text(document_controller, info_panel, "Position: 0.0, 50.0, 50.0"))
@@ -250,7 +250,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             info_panel = document_controller.find_dock_panel("info-panel")
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             document_controller.periodic()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
@@ -273,7 +273,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             info_panel = document_controller.find_dock_panel("info-panel")
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(400, 600, Graphics.NullModifiers())
             self.assertTrue(self.__wait_for_cursor_position_text(document_controller, info_panel, "Position: 8.0, 12.0, 30.0, 20.0"))
@@ -292,7 +292,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             p, v = display_item.get_value_and_position_text((2, 2))
             self.assertEqual("2.0, 2.0", p)
             self.assertEqual(v, "0")
@@ -319,7 +319,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             info_panel = document_controller.find_dock_panel("info-panel")
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             document_controller.periodic()

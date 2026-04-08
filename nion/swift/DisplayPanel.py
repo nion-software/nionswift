@@ -2866,6 +2866,22 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # this handles the context menu when requested from the display item
         return self.__show_context_menu([self.__display_item] if self.__display_item else [], gx, gy)
 
+    def _context_menu_event_for_testing(self, x: int, y: int) -> bool:
+        canvas_items = self.canvas_items_at_point(x, y)
+        for canvas_item in canvas_items:
+            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            if canvas_item.context_menu_event(canvas_item_point.x, canvas_item_point.y, x, y):
+                return True
+        return False
+
+    def _mouse_clicked_for_testing(self, x: int, y: int, modifiers: CanvasItem.KeyboardModifiers) -> bool:
+        canvas_items = self.canvas_items_at_point(x, y)
+        for canvas_item in canvas_items:
+            if canvas_item.wants_mouse_events:
+                canvas_item.mouse_pressed(x, y, modifiers)
+                canvas_item.mouse_released(x, y, modifiers)
+        return False
+
     def perform_action(self, fn: str, *args: typing.Any, **keywords: typing.Any) -> None:
         display_canvas_item = self.display_canvas_item
         target = display_canvas_item

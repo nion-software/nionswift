@@ -1397,13 +1397,10 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.periodic()
             self.assertIsNone(document_controller.selected_data_item)
-            modifiers = CanvasItem.KeyboardModifiers()
-            display_panel.root_container.canvas_widget.on_focus_changed(True)
-            display_panel.root_container.canvas_widget.on_mouse_entered()
-            display_panel.root_container.canvas_widget.on_mouse_pressed(40, 40, modifiers)
-            display_panel.root_container.canvas_widget.on_mouse_released(40, 40, modifiers)
+            display_panel.set_focused(True)
+            display_panel._mouse_clicked_for_testing(40, 40, CanvasItem.KeyboardModifiers())
             self.assertIsNotNone(document_controller.selected_data_item)
-            display_panel.root_container.canvas_widget.on_focus_changed(False)
+            display_panel.set_focused(False)
             self.assertIsNotNone(document_controller.selected_data_item)
 
     class DisplayPanelController:
@@ -1707,7 +1704,7 @@ class TestWorkspaceClass(unittest.TestCase):
             ]
             for bounds, display_panel in zip(expected_bounds, workspace_controller.display_panels):
                 self.assertEqual(bounds.size, display_panel.canvas_bounds.size)
-                self.assertEqual(bounds.origin, display_panel.map_to_root_container(display_panel.canvas_bounds.origin))
+                self.assertEqual(bounds.origin, display_panel.map_to_global(display_panel.canvas_bounds.origin))
             document_controller.selected_display_panel = workspace_controller.display_panels[3]
             document_controller.perform_action("workspace.split_2x2")
             root_canvas_item.layout_immediate(Geometry.IntSize(width=100, height=100))
@@ -1722,7 +1719,7 @@ class TestWorkspaceClass(unittest.TestCase):
             ]
             for bounds, display_panel in zip(expected_bounds, workspace_controller.display_panels):
                 self.assertEqual(bounds.size, display_panel.canvas_bounds.size)
-                self.assertEqual(bounds.origin, display_panel.map_to_root_container(display_panel.canvas_bounds.origin))
+                self.assertEqual(bounds.origin, display_panel.map_to_global(display_panel.canvas_bounds.origin))
 
     def test_drop_external_on_1x1_replace(self):
         with TestContext.create_memory_context() as test_context:
