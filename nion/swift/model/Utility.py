@@ -520,3 +520,28 @@ class Timer:
         if self.threshold == 0.0 or (current_time - self.last_time_ns) // 1E9 > self.threshold:
             print(f"{title}: {(current_time - self.start_time_ns) // 1E6}ms +{(current_time - self.last_time_ns) // 1E6}ms")
         self.last_time_ns = current_time
+
+
+def humanbytes(total_bytes: int | float) -> str:
+    """Format into a human-readable string with units Byte(s), KB, MB, GB, or TB formatted to two decimal places.
+
+    See https://stackoverflow.com/a/31631711.
+    """
+    total_bytes = float(total_bytes)
+    kilobytes = 1024.0
+    if total_bytes < kilobytes:
+        return '{0} {1}'.format(total_bytes, 'Bytes' if total_bytes != 1 else 'Byte')
+
+    megabytes = 1048576.0  # 1024 ** 2
+    if total_bytes < megabytes:
+        return '{0:.2f} KB'.format(total_bytes / kilobytes)
+
+    gigabytes = 1073741824.0  # 1024 ** 3
+    if total_bytes < gigabytes:
+        return '{0:.2f} MB'.format(total_bytes / megabytes)
+
+    terabytes = 1099511627776  # 1024 ** 4
+    if total_bytes < terabytes:
+        return '{0:.2f} GB'.format(total_bytes / gigabytes)
+    else:
+        return '{0:.2f} TB'.format(total_bytes / terabytes)
