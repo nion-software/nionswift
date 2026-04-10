@@ -602,13 +602,13 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_line_plot_initially_displays_entire_data_in_horizontal_direction(self):
         line_plot_canvas_item = self.setup_line_plot()
-        self.assertEqual(line_plot_canvas_item.line_graph_layers_canvas_item._axes.drawn_left_channel, 0)
-        self.assertEqual(line_plot_canvas_item.line_graph_layers_canvas_item._axes.drawn_right_channel, 1024)
+        self.assertEqual(line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.drawn_left_channel, 0)
+        self.assertEqual(line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.drawn_right_channel, 1024)
 
     def test_line_plot_initially_displays_entire_data_in_vertical_direction(self):
         line_plot_canvas_item = self.setup_line_plot()
-        self.assertEqual(line_plot_canvas_item.line_graph_layers_canvas_item._axes.uncalibrated_data_min, 0.0)
-        self.assertEqual(line_plot_canvas_item.line_graph_layers_canvas_item._axes.uncalibrated_data_max, 1.0)
+        self.assertEqual(line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.uncalibrated_data_min, 0.0)
+        self.assertEqual(line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.uncalibrated_data_max, 1.0)
 
     def test_mouse_tracking_moves_horizontal_scale(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -640,15 +640,16 @@ class TestDisplayPanelClass(unittest.TestCase):
         intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = 0.2
         data_item.set_intensity_calibration(intensity_calibration)
-        calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes.mapped_calibrated_data_min
-        calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes.mapped_calibrated_data_max
+        line_plot_canvas_item._update_canvas_items()
+        calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_min
+        calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_max
         plot_height = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.height - 1
         modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        uncalibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes.uncalibrated_data_min
-        uncalibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes.uncalibrated_data_max
+        uncalibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.uncalibrated_data_min
+        uncalibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.uncalibrated_data_max
         uncalibrated_data_range = uncalibrated_data_max - uncalibrated_data_min
         offset = -uncalibrated_data_range * 30.0 / plot_height
         self.assertAlmostEqual(self.display_item.get_display_property("y_min"), calibrated_data_min + offset - intensity_calibration.offset)
@@ -658,18 +659,18 @@ class TestDisplayPanelClass(unittest.TestCase):
         # notice: dragging increasing y drags down.
         line_plot_canvas_item = self.setup_line_plot(data_min=0.1, data_max=980)
         self.display_item.set_display_property("y_style", "log")
-        calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes.mapped_calibrated_data_min
-        calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes.mapped_calibrated_data_max
+        calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_min
+        calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_max
         plot_height = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.height - 1
         modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        axes = line_plot_canvas_item.line_graph_layers_canvas_item._axes
+        axes = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing
         calibrated_data_range = calibrated_data_max - calibrated_data_min
         calibrated_offset = -calibrated_data_range * 30.0 / plot_height
-        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_min + calibrated_offset))
-        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_max + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_min + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_max + calibrated_offset))
 
     def test_mouse_tracking_moves_log_vertical_scale_with_calibrated_data_with_offset(self):
         # notice: dragging increasing y drags down.
@@ -679,18 +680,18 @@ class TestDisplayPanelClass(unittest.TestCase):
         intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = 0.2
         data_item.set_intensity_calibration(intensity_calibration)
-        calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes.mapped_calibrated_data_min
-        calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes.mapped_calibrated_data_max
+        calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_min
+        calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_max
         plot_height = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.height - 1
         modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        axes = line_plot_canvas_item.line_graph_layers_canvas_item._axes
+        axes = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing
         calibrated_data_range = calibrated_data_max - calibrated_data_min
         calibrated_offset = -calibrated_data_range * 30.0 / plot_height
-        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_min + calibrated_offset))
-        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_max + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_min + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_max + calibrated_offset))
 
     def test_mouse_tracking_moves_log_vertical_scale_with_calibrated_data_with_offset_and_scale(self):
         # notice: dragging increasing y drags down.
@@ -701,18 +702,18 @@ class TestDisplayPanelClass(unittest.TestCase):
         intensity_calibration.offset = 0.2
         intensity_calibration.scale = 1.6
         data_item.set_intensity_calibration(intensity_calibration)
-        calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes.mapped_calibrated_data_min
-        calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes.mapped_calibrated_data_max
+        calibrated_data_min = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_min
+        calibrated_data_max = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing.scaled_data_max
         plot_height = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.height - 1
         modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        axes = line_plot_canvas_item.line_graph_layers_canvas_item._axes
+        axes = line_plot_canvas_item.line_graph_layers_canvas_item._axes_for_testing
         calibrated_data_range = calibrated_data_max - calibrated_data_min
         calibrated_offset = -calibrated_data_range * 30.0 / plot_height
-        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_min + calibrated_offset))
-        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_max + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_min"), axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_min + calibrated_offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("y_max"), axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_max + calibrated_offset))
 
     def test_mouse_tracking_shrink_scale_by_10_around_center(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -857,6 +858,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.display_item.set_display_property("y_min", -0.5)
         self.display_item.set_display_property("y_max", 0.5)
+        line_plot_canvas_item._update_canvas_items()
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -877,6 +879,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.display_item.set_display_property("y_min", -0.2)
         self.display_item.set_display_property("y_max", 0.8)
+        line_plot_canvas_item._update_canvas_items()
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -899,6 +902,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = -0.2
         data_item.set_intensity_calibration(intensity_calibration)
+        line_plot_canvas_item._update_canvas_items()
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -919,6 +923,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.display_item.set_display_property("y_min", -0.5)
         self.display_item.set_display_property("y_max", 0.5)
+        line_plot_canvas_item._update_canvas_items()
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=20)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -938,6 +943,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.display_item.set_display_property("y_min", -0.5)
         self.display_item.set_display_property("y_max", 0.5)
+        line_plot_canvas_item._update_canvas_items()
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=plot_height-20)
         modifiers = CanvasItem.KeyboardModifiers()
@@ -957,6 +963,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         v = line_plot_canvas_item.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)[0] + 8
         line_plot_canvas_item.mouse_pressed(plot_left, v, CanvasItem.KeyboardModifiers(control=True))
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, CanvasItem.KeyboardModifiers(control=True))
+        line_plot_canvas_item._update_canvas_items()  # update after the expansion, but before the move.
         # continue
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, CanvasItem.KeyboardModifiers())
         line_plot_canvas_item.mouse_position_changed(plot_left+196, v, CanvasItem.KeyboardModifiers())
@@ -2847,7 +2854,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_item.graphic_selection.set(0)
                 line_plot_canvas_item.handle_auto_display()
-                axes = line_plot_canvas_item._axes
+                axes = line_plot_canvas_item._axes_for_testing
                 self.assertAlmostEqual(axes.drawn_left_channel, (min(interval) - padding) * 1024)
                 self.assertAlmostEqual(axes.drawn_right_channel, (max(interval) + padding) * 1024)
 
@@ -2883,7 +2890,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.add_graphic(interval_graphic)
             display_item.graphic_selection.set(0)
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 12)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(48.0) * 1.2, axes.uncalibrated_data_max)
@@ -2915,7 +2922,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             line_plot_canvas_item = typing.cast(LinePlotCanvasItem.LinePlotCanvasItem, display_panel.display_canvas_item)
 
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 0.0)  # no interval selected, so no padding
             self.assertAlmostEqual(axes.drawn_right_channel, 12.0)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(96.0) * 1.2, axes.uncalibrated_data_max)
@@ -2953,7 +2960,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.add_graphic(interval_graphic)
             display_item.graphic_selection.set(0)
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 12)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(3.0) * 1.2, axes.uncalibrated_data_max)
@@ -2991,7 +2998,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.add_graphic(interval_graphic)
             display_item.graphic_selection.set(0)
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 0)
             self.assertAlmostEqual(axes.drawn_right_channel, 12)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(10.0) * 1.2, axes.uncalibrated_data_max)
@@ -3032,7 +3039,7 @@ class TestDisplayPanelClass(unittest.TestCase):
                 display_item.add_graphic(interval_graphic)
                 display_item.graphic_selection.add(display_item.graphics.index(interval_graphic))
             line_plot_canvas_item.handle_auto_display()
-            axes = line_plot_canvas_item._axes
+            axes = line_plot_canvas_item._axes_for_testing
             self.assertAlmostEqual(axes.drawn_left_channel, 1)
             self.assertAlmostEqual(axes.drawn_right_channel, 17)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(26.0) * 1.2, axes.uncalibrated_data_max)
