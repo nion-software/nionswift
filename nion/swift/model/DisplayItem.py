@@ -449,13 +449,6 @@ class ProcessorBase(ProcessorLike):
                     self.__parameters[key] = connection.source.get_result(connection.source_key)
             return self.__parameters.get(key, None)
 
-    def get_source_processor(self, key: str) -> ProcessorLike | None:
-        with self.__lock:
-            for connection in self.__connections:
-                if key == (connection.target_key or connection.source_key):
-                    return connection.source
-            return None
-
     def _get_string(self, key: str) -> str:
         with self.__lock:
             return typing.cast(str, self._get_parameter(key))
