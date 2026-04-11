@@ -3237,21 +3237,12 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.calibration_style
 
     @property
-    def intensity_calibration_style(self) -> CalibrationStyle:
-        return self.__display_data_delta_stream.intensity_calibration_style
-
-    @property
     def display_data_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
         return self.__display_data_delta_stream.display_data_shape
 
     @property
     def displayed_display_data_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
         return self.__display_data_delta_stream.displayed_display_data_calibrations
-
-    @property
-    def dimensional_shape(self) -> typing.Optional[DataAndMetadata.ShapeType]:
-        """Shape of the underlying data, if only one."""
-        return self.display_data_channel.dimensional_shape if self.display_data_channel else None
 
     @property
     def displayed_dimensional_scales(self) -> typing.Optional[typing.Tuple[float, ...]]:
@@ -3297,12 +3288,6 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
         return self.__display_data_delta_stream.displayed_intensity_calibration
-
-    def __get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
-        return self.__display_data_delta_stream.get_calibration_style_for_id(calibration_style_id)
-
-    def __get_intensity_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
-        return self.__display_data_delta_stream.get_intensity_calibration_style_for_id(calibration_style_id)
 
     @property
     def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
@@ -3610,17 +3595,6 @@ class DisplayCalibrationInfo:
         self.calibration_style = calibration_style
         self.intensity_calibration_style = intensity_calibration_style
         self.datum_calibrations = datum_calibrations
-
-    @classmethod
-    def from_display_item(cls, display_item: DisplayItem) -> DisplayCalibrationInfo:
-        return DisplayCalibrationInfo(
-            display_item.display_data_shape,
-            display_item.displayed_dimensional_scales,
-            copy.deepcopy(display_item.displayed_dimensional_calibrations),
-            copy.deepcopy(display_item.displayed_intensity_calibration),
-            display_item.calibration_style,
-            display_item.intensity_calibration_style,
-            list(display_item.datum_calibrations))
 
     def __ne__(self, other: typing.Any) -> bool:
         if not isinstance(other, DisplayCalibrationInfo):
