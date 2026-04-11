@@ -186,16 +186,17 @@ def calculate_display_range(display_limits: DisplayLimitsType, data_range: typin
     return data_range
 
 
-class CalibrationStyleLike(typing.Protocol):
-    label: str
-    calibration_style_id: str
-    is_calibrated: bool = False
+class CalibrationStyle:
+    def __init__(self, label: str, calibration_style_id: str, is_calibrated: bool = False) -> None:
+        self.label = label
+        self.calibration_style_id = calibration_style_id
+        self.is_calibrated = is_calibrated
 
+    def __repr__(self) -> str:
+        return f"CalibrationStyle(label={self.label}, calibration_style_id={self.calibration_style_id}, is_calibrated={self.is_calibrated})"
 
-class CalibrationStyle(CalibrationStyleLike):
-    label: str
-    calibration_style_id: str
-    is_calibrated: bool = False
+    def __eq__(self, other: typing.Any) -> bool:
+        return isinstance(other, CalibrationStyle) and self.label == other.label and self.calibration_style_id == other.calibration_style_id and self.is_calibrated == other.is_calibrated
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return list()
@@ -205,9 +206,8 @@ class CalibrationStyle(CalibrationStyleLike):
 
 
 class CalibrationStyleNative(CalibrationStyle):
-    label = _("Calibrated")
-    calibration_style_id = "calibrated"
-    is_calibrated = True
+    def __init__(self) -> None:
+        super().__init__(_("Calibrated"), "calibrated", True)
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         if all(calibration.is_valid for calibration in dimensional_calibrations):
@@ -217,10 +217,7 @@ class CalibrationStyleNative(CalibrationStyle):
 
 class CalibrationDescriptionCalibrationStyle(CalibrationStyle):
     def __init__(self, label: str, calibration_description: CalibrationDescription) -> None:
-        super().__init__()
-        self.label = label
-        self.calibration_style_id = calibration_description.calibration_style_id
-        self.is_calibrated = True
+        super().__init__(label, calibration_description.calibration_style_id, True)
         self.calibration_description = calibration_description
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
@@ -233,40 +230,40 @@ class CalibrationDescriptionCalibrationStyle(CalibrationStyle):
 
 
 class CalibrationStylePixelsTopLeft(CalibrationStyle):
-    label = _("Pixels (Top-Left)")
-    calibration_style_id = "pixels-top-left"
+    def __init__(self) -> None:
+        super().__init__(_("Pixels (Top-Left)"), "pixels-top-left", False)
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration() for display_dimension in dimensional_shape]
 
 
 class CalibrationStylePixelsCenter(CalibrationStyle):
-    label = _("Pixels (Center)")
-    calibration_style_id = "pixels-center"
+    def __init__(self) -> None:
+        super().__init__(_("Pixels (Center)"), "pixels-center", False)
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration(offset=-display_dimension/2) for display_dimension in dimensional_shape]
 
 
 class CalibrationStyleFractionalTopLeft(CalibrationStyle):
-    label = _("Fractional (Top Left)")
-    calibration_style_id = "relative-top-left"
+    def __init__(self) -> None:
+        super().__init__(_("Fractional (Top Left)"), "relative-top-left", False)
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration(scale=1.0/display_dimension) for display_dimension in dimensional_shape]
 
 
 class CalibrationStyleFractionalCenter(CalibrationStyle):
-    label = _("Fractional (Center)")
-    calibration_style_id = "relative-center"
+    def __init__(self) -> None:
+        super().__init__(_("Fractional (Center)"), "relative-center", False)
 
     def get_dimensional_calibrations(self, dimensional_shape: DataAndMetadata.ShapeType, dimensional_calibrations: DataAndMetadata.CalibrationListType, metadata: typing.Optional[DataAndMetadata.MetadataType]) -> DataAndMetadata.CalibrationListType:
         return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in dimensional_shape]
 
 
 class IntensityCalibrationStyleUncalibrated(CalibrationStyle):
-    label = _("Uncalibrated")
-    calibration_style_id = "uncalibrated"
+    def __init__(self) -> None:
+        super().__init__(_("Uncalibrated"), "uncalibrated", False)
 
     def get_intensity_calibration(self, calibration: Calibration.Calibration) -> Calibration.Calibration:
         return Calibration.Calibration()
@@ -2191,7 +2188,9 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                                       self.displayed_intensity_calibration,
                                       self.calibration_style,
                                       self.intensity_calibration_style,
-                                      list(self.datum_calibrations))
+                                      list(self.datum_calibrations),
+                                      self.calibration_styles,
+                                      self.intensity_calibration_styles)
 
     def __update_display_calibration_info(self, value: typing.Optional[str]) -> None:
         self.__update()
@@ -3579,13 +3578,15 @@ class DisplayItem(Persistence.PersistentObject):
 
 class DisplayCalibrationInfo:
     def __init__(self,
-                 display_data_shape: typing.Optional[DataAndMetadata.ShapeType],
-                 displayed_dimensional_scales: typing.Optional[typing.Tuple[float, ...]],
+                 display_data_shape: DataAndMetadata.ShapeType | None,
+                 displayed_dimensional_scales: typing.Tuple[float, ...] | None,
                  displayed_dimensional_calibrations: typing.Sequence[Calibration.Calibration],
                  displayed_intensity_calibration: Calibration.Calibration,
                  calibration_style: CalibrationStyle,
                  intensity_calibration_style: CalibrationStyle,
-                 datum_calibrations: list[Calibration.Calibration]
+                 datum_calibrations: typing.Sequence[Calibration.Calibration],
+                 calibration_styles: typing.Sequence[CalibrationStyle],
+                 intensity_calibration_styles: typing.Sequence[CalibrationStyle]
                  ) -> None:
         assert all(calibration.is_valid for calibration in displayed_dimensional_calibrations)
         self.display_data_shape = display_data_shape
@@ -3594,7 +3595,9 @@ class DisplayCalibrationInfo:
         self.displayed_intensity_calibration = displayed_intensity_calibration
         self.calibration_style = calibration_style
         self.intensity_calibration_style = intensity_calibration_style
-        self.datum_calibrations = datum_calibrations
+        self.datum_calibrations = tuple(datum_calibrations)
+        self.calibration_styles = tuple(calibration_styles)
+        self.intensity_calibration_styles = tuple(intensity_calibration_styles)
 
     def __ne__(self, other: typing.Any) -> bool:
         if not isinstance(other, DisplayCalibrationInfo):
@@ -3615,6 +3618,10 @@ class DisplayCalibrationInfo:
         if  type(self.calibration_style) != type(display_calibration_info.calibration_style):
             return True
         if  type(self.intensity_calibration_style) != type(display_calibration_info.intensity_calibration_style):
+            return True
+        if  self.calibration_styles != display_calibration_info.calibration_styles:
+            return True
+        if  self.intensity_calibration_styles != display_calibration_info.intensity_calibration_styles:
             return True
         return False
 
