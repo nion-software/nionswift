@@ -832,7 +832,7 @@ class HistogramPanel(Panel.Panel):
         display_data_and_metadata_stream = DisplayValuesValueStream[DataAndMetadata.DataAndMetadata](display_values_stream, "display_data_and_metadata", cmp=compare_data)
         display_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "display_range")
         display_data_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "data_range")
-        displayed_intensity_calibration_stream = Stream.MapStream[DisplayItem.DisplayCalibrationInfo, Calibration.Calibration](DisplayCalibrationInfoStream(display_item_stream), extract_displayed_intensity_calibration)
+        displayed_intensity_calibration_stream = Stream.MapStream[DisplayItem.DisplayCalibrationInfo, Calibration.Calibration](DisplayItem.DisplayCalibrationInfoStream(display_item_stream), extract_displayed_intensity_calibration)
 
         self._histogram_processor = HistogramProcessor(document_controller.event_loop)
 
@@ -922,29 +922,6 @@ class TargetDisplayItemStream(Stream.AbstractStream[DisplayItem.DisplayItem]):
         if display_item != self.__value:
             self.__value = display_item
             self.value_stream.fire(display_item)
-
-
-class DisplayCalibrationInfoStream(Stream.ValueStream[DisplayItem.DisplayCalibrationInfo]):
-    def __init__(self, display_item_stream: TargetDisplayItemStream) -> None:
-        super().__init__()
-        self.__display_item_stream = display_item_stream.add_ref()
-        self.__display_stream_listener = display_item_stream.value_stream.listen(ReferenceCounting.weak_partial(DisplayCalibrationInfoStream.__display_item_changed, self))
-        self.__display_data_delta_stream_action: typing.Optional[Stream.ValueStreamAction[DisplayItem.DisplayDataDelta]] = None
-        self.__display_item_changed(display_item_stream.value)
-
-    def __display_item_changed(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
-        if display_item:
-            self.__display_data_delta_stream_action = Stream.ValueStreamAction(display_item.display_data_delta_stream, ReferenceCounting.weak_partial(DisplayCalibrationInfoStream.__handle_display_data_delta_stream, self))
-            self.__handle_display_data_delta_stream(display_item.display_data_delta_stream.value)
-        else:
-            self.__display_data_delta_stream_action = None
-            self.__handle_display_data_delta_stream(None)
-
-    def __handle_display_data_delta_stream(self, value: typing.Optional[DisplayItem.DisplayDataDelta]) -> None:
-        if value:
-            self.value_stream.fire(value.display_calibration_info)
-        else:
-            self.value_stream.fire(None)
 
 
 class TargetRegionStream(Stream.AbstractStream[Graphics.Graphic]):
