@@ -3601,7 +3601,7 @@ class DisplayCalibrationInfo:
 
     def __ne__(self, other: typing.Any) -> bool:
         if not isinstance(other, DisplayCalibrationInfo):
-            return False
+            return True
         display_calibration_info = other
         if not display_calibration_info:
             return True
