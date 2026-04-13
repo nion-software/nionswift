@@ -3262,10 +3262,6 @@ class DisplayItem(Persistence.PersistentObject):
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
         return self.__display_data_delta_stream.displayed_intensity_calibration
 
-    @property
-    def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return self.__display_data_delta_stream.calibration_styles
-
     @dataclasses.dataclass
     class DataInfo:
         data_shape: typing.Tuple[int, ...]

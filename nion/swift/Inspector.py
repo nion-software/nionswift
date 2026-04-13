@@ -3380,29 +3380,12 @@ class GraphicsSectionHandler(Declarative.Handler):
         self.__display_item = display_item
         self._graphics_model = graphics_model
         self._graphic_handlers: list[GraphicsInspectorHandler] = []
-
-        calibration_styles = display_item.calibration_styles
-        self.__display_calibration_style_options = [calibration_style.label for calibration_style in calibration_styles]
-        self.__display_calibration_style_ids = [calibration_style.calibration_style_id for calibration_style in
-                                                calibration_styles]
-        self.__display_calibration_style_reverse_map = {p: i for i, p in
-                                                        enumerate(self.__display_calibration_style_ids)}
-
-        self._current_calibration_index_model = Model.PropertyModel(
-            self.__display_calibration_style_reverse_map.get(self.__display_item.calibration_style_id))
-        self.__calibration_style_listener = self.__display_item.display_property_changed_event.listen(
-            ReferenceCounting.weak_partial(GraphicsSectionHandler.__update_calibration_id, self))
+        self._calibration_style_model = CalibrationStyleModel(document_controller, display_item, DimensionalCalibrationStyleModelAdapter())
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
             u.create_column(items="_graphics_model.items", item_component_id="graphic", spacing=4),
-            u.create_row(
-                u.create_label(text=_("Display"), width=60, text_alignment_vertical="center"),
-                u.create_combo_box(items=self.__display_calibration_style_options,
-                                   current_index="@binding(_current_calibration_index_model.value)",
-                                   on_current_index_changed="_change_calibration_style_option"),
-                u.create_stretch()
-            ),
+            u.create_row(u.create_label(text=_("Display"), width=60), u.create_combo_box(items_ref="@binding(_calibration_style_model.items)", current_index="@binding(_calibration_style_model.index)"), u.create_stretch()),
             u.create_stretch()
         )
 
@@ -3413,13 +3396,6 @@ class GraphicsSectionHandler(Declarative.Handler):
             self._graphic_handlers.append(handler)
             return handler
         return None
-
-    def _change_calibration_style_option(self, widget: Declarative.UIWidget, current_index: int) -> None:
-        self.__display_item.calibration_style_id = self.__display_calibration_style_ids[current_index]
-
-    def __update_calibration_id(self, property_name: typing.Any) -> None:
-        if property_name == "calibration_style_id":
-            self._current_calibration_index_model.value = self.__display_calibration_style_reverse_map[self.__display_item.calibration_style_id]
 
 
 class GraphicsInspectorSection(InspectorSection):
