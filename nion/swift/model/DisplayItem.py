@@ -3249,18 +3249,9 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.datum_calibrations
 
     @property
-    def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        """The calibrations for all data dimensions in the displayed calibration style."""
-        return self.__display_data_delta_stream.displayed_dimensional_calibrations
-
-    @property
     def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
         """The calibrations for all data dimensions in a calibrated style if possible or None."""
         return self.__display_data_delta_stream.calibrated_dimensional_calibrations
-
-    @property
-    def displayed_intensity_calibration(self) -> Calibration.Calibration:
-        return self.__display_data_delta_stream.displayed_intensity_calibration
 
     @dataclasses.dataclass
     class DataInfo:
@@ -3429,8 +3420,8 @@ class DisplayItem(Persistence.PersistentObject):
 
     def get_value_and_position_text(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> typing.Tuple[str, str]:
         display_data_channel = self.display_data_channel
-        dimensional_calibrations = self.displayed_dimensional_calibrations
-        intensity_calibration = self.displayed_intensity_calibration
+        dimensional_calibrations = self.__display_data_delta_stream.displayed_dimensional_calibrations
+        intensity_calibration = self.__display_data_delta_stream.displayed_intensity_calibration
 
         if not all(map(operator.attrgetter("is_valid"), dimensional_calibrations)):
             dimensional_calibrations = [Calibration.Calibration() for _ in dimensional_calibrations]

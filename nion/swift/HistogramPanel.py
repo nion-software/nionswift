@@ -832,7 +832,8 @@ class HistogramPanel(Panel.Panel):
         display_data_and_metadata_stream = DisplayValuesValueStream[DataAndMetadata.DataAndMetadata](display_values_stream, "display_data_and_metadata", cmp=compare_data)
         display_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "display_range")
         display_data_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "data_range")
-        displayed_intensity_calibration_stream = Stream.MapStream[DisplayItem.DisplayCalibrationInfo, Calibration.Calibration](DisplayItem.DisplayCalibrationInfoStream(display_item_stream), extract_displayed_intensity_calibration)
+        display_calibration_info_stream = DisplayItem.DisplayCalibrationInfoStream(display_item_stream)
+        displayed_intensity_calibration_stream = Stream.MapStream[DisplayItem.DisplayCalibrationInfo, Calibration.Calibration](display_calibration_info_stream, extract_displayed_intensity_calibration)
 
         self._histogram_processor = HistogramProcessor(document_controller.event_loop)
 
@@ -854,8 +855,9 @@ class HistogramPanel(Panel.Panel):
             if not canvas_x:
                 document_controller.cursor_changed(None)
             if display_item_stream and display_item_stream.value and canvas_x:
-                if display_range is not None:  # can be None with empty data
-                    displayed_intensity_calibration = display_item_stream.value.displayed_intensity_calibration
+                display_calibration_info = display_calibration_info_stream.value
+                if display_range is not None and display_calibration_info is not None:  # can be None with empty data
+                    displayed_intensity_calibration = display_calibration_info.displayed_intensity_calibration
                     adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
                     adjusted_x_str = displayed_intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
                     document_controller.cursor_changed([_('Intensity: ') + adjusted_x_str])

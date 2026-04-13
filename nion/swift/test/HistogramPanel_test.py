@@ -271,7 +271,7 @@ class TestHistogramPanelClass(unittest.TestCase):
                 histogram_processor.display_data_and_metadata = display_values.display_data_and_metadata
                 histogram_processor.display_range = display_values.display_range
                 histogram_processor.display_data_range = display_values.data_range
-                histogram_processor.displayed_intensity_calibration = display_item.displayed_intensity_calibration
+                histogram_processor.displayed_intensity_calibration = display_item.display_data_delta_stream.displayed_intensity_calibration
                 had_histogram = False
                 had_statistics = False
                 def property_changed(key: str) -> None:
