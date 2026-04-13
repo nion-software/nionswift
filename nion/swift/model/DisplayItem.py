@@ -3249,9 +3249,10 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_data_delta_stream.datum_calibrations
 
     @property
-    def calibrated_dimensional_calibrations(self) -> typing.Optional[typing.Sequence[Calibration.Calibration]]:
-        """The calibrations for all data dimensions in a calibrated style if possible or None."""
-        return self.__display_data_delta_stream.calibrated_dimensional_calibrations
+    def display_calibration_info(self) -> DisplayCalibrationInfo | None:
+        """Return the latest display calibration info."""
+        display_data_delta = self.__display_data_delta_stream.value
+        return display_data_delta.display_calibration_info if display_data_delta is not None else None
 
     @dataclasses.dataclass
     class DataInfo:
@@ -3264,7 +3265,8 @@ class DisplayItem(Persistence.PersistentObject):
     def data_info(self) -> DisplayItem.DataInfo:
         display_data_shape = self.display_data_shape
         assert display_data_shape is not None
-        calibrated_dimensional_calibrations = self.calibrated_dimensional_calibrations
+        display_calibration_info = self.display_calibration_info
+        calibrated_dimensional_calibrations = display_calibration_info.calibrated_dimensional_calibrations if display_calibration_info is not None else None
         calibrated_dimensional_calibration_str_list = list[str]()
         if calibrated_dimensional_calibrations:
             # make the assumption that the display data is the last dimensions of the data. generate a negative index
@@ -3597,6 +3599,32 @@ class DisplayCalibrationInfo:
         if self.intensity_calibration_styles != display_calibration_info.intensity_calibration_styles:
             return True
         return False
+
+    @property
+    def calibrated_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration] | None:
+        """Returns dimensional calibrations that are actually calibrated with units.
+
+        First checks the users displayed calibration style; if no units are present, checks the other calibration styles.
+        """
+        dimensional_calibrations = self.dimensional_calibrations
+        dimensional_shape = self.dimensional_shape
+        if dimensional_calibrations and dimensional_shape:
+            display_data_metadata = self.display_data_metadata
+            potential_dimensional_calibrations = self.calibration_style.get_dimensional_calibrations(dimensional_shape,
+                                                                                                     dimensional_calibrations,
+                                                                                                     display_data_metadata)
+            if potential_dimensional_calibrations:
+                if any(dimensional_calibration.units for dimensional_calibration in potential_dimensional_calibrations):
+                    return potential_dimensional_calibrations
+            for calibration_style in self.calibration_styles:
+                potential_dimensional_calibrations = calibration_style.get_dimensional_calibrations(dimensional_shape,
+                                                                                                    dimensional_calibrations,
+                                                                                                    display_data_metadata)
+                if potential_dimensional_calibrations:
+                    if any(dimensional_calibration.units for dimensional_calibration in
+                           potential_dimensional_calibrations):
+                        return potential_dimensional_calibrations
+        return None
 
 
 class DisplayCalibrationInfoStream(Stream.ValueStream[DisplayCalibrationInfo]):
