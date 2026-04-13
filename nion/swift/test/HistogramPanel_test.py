@@ -130,7 +130,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             stats1_text = histogram_panel._statistics_widget._stats1_property.value
             stats2_text = histogram_panel._statistics_widget._stats2_property.value
             # now change the data and verify that statistics gets recomputed via document model
-            display_item.intensity_calibration_style_id = display_item.intensity_calibration_styles[-1].calibration_style_id
+            display_item.intensity_calibration_style_id = display_item.display_data_delta_stream.intensity_calibration_styles[-1].calibration_style_id
             # wait for statistics task to be complete
             histogram_panel._histogram_processor._evaluate_immediate()
             self.assertNotEqual(stats1_text, histogram_panel._statistics_widget._stats1_property.value)

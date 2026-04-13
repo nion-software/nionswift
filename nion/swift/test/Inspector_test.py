@@ -25,6 +25,7 @@ from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Observable
+from nion.utils import Registry
 
 
 Facade.initialize()
@@ -1773,6 +1774,52 @@ class TestInspectorClass(unittest.TestCase):
             self.assertFalse(display_item.graphics[0].label)
             command.redo()
             self.assertEqual("abc", display_item.graphics[0].label)
+
+    def test_dimensional_calibration_style_model_index_updates(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            calibration_style_model = Inspector.CalibrationStyleModel(document_controller, display_item, Inspector.DimensionalCalibrationStyleModelAdapter())
+            self.assertEqual(0, calibration_style_model.index)
+            calibration_style_model.index = 1
+            self.assertEqual(1, calibration_style_model.index)
+
+    def test_intensity_calibration_style_model_index_and_items(self):
+        # tests that the list of calibration style model items is stable when the index changes (intensity)
+        class CalibrationProvider:
+            def get_calibration_descriptions(self, data_metadata: DataAndMetadata.DataMetadata, **kwargs: typing.Any) -> typing.Sequence[DisplayItem.CalibrationDescription]:
+                calibration_descriptions = list()
+                calibration_descriptions.append(DisplayItem.CalibrationDescription("intensity-y", "calculated", "data", Calibration.Calibration(scale=2.0, units="y"), None))
+                calibration_descriptions.append(DisplayItem.CalibrationDescription("intensity-z", "calculated", "data", Calibration.Calibration(scale=2.0, units="z"), None))
+                return calibration_descriptions
+
+        calibration_provider = CalibrationProvider()
+        Registry.register_component(calibration_provider, {"calibration-provider"})
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data_item = DataItem.DataItem(numpy.random.randn(8))
+                data_item.intensity_calibration = Calibration.Calibration(scale=3.0, units="x")
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                calibration_style_model = Inspector.CalibrationStyleModel(document_controller, display_item, Inspector.IntensityCalibrationStyleModelAdapter())
+                calibration_style_items = calibration_style_model.items
+                self.assertEqual(0, calibration_style_model.index)
+                calibration_style_model.index = 2
+                self.assertEqual(2, calibration_style_model.index)
+                self.assertEqual(calibration_style_items, calibration_style_model.items)
+                calibration_style_model.index = 1
+                self.assertEqual(1, calibration_style_model.index)
+                self.assertEqual(calibration_style_items, calibration_style_model.items)
+                calibration_style_model.index = 0
+                self.assertEqual(0, calibration_style_model.index)
+                self.assertEqual(calibration_style_items, calibration_style_model.items)
+        finally:
+            Registry.unregister_component(calibration_provider, {"calibration-provider"})
 
 
 if __name__ == '__main__':
