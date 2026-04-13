@@ -1684,125 +1684,116 @@ class CalibrationHandler(Declarative.Handler):
 
 
 class CalibrationStyleModelAdapter(typing.Protocol):
-    def get_calibration_style(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyle]: ...
-    def get_calibrated_style_id(self, display_item: DisplayItem.DisplayItem) -> str: ...
-    def get_calibration_styles(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyle]: ...
-    def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyle) -> typing.Sequence[Calibration.Calibration]: ...
+    def get_calibrations(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, calibration_style: DisplayItem.CalibrationStyle) -> typing.Sequence[Calibration.Calibration]: ...
+    def get_calibration_style(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> DisplayItem.CalibrationStyle: ...
+    def get_calibration_styles(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> typing.Sequence[DisplayItem.CalibrationStyle]: ...
     def get_calibration_style_id_property_name(self) -> str: ...
-    def get_calibration_styles_property_name(self) -> str: ...
-    def get_display_calibrations_property_name(self) -> str: ...
 
 
 class DimensionalCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
-    def get_calibration_style(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyle]:
-        return display_item.calibration_styles
+    def get_calibrations(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, calibration_style: DisplayItem.CalibrationStyle) -> typing.Sequence[Calibration.Calibration]:
+        dimensional_shape = display_calibration_info.dimensional_shape
+        dimensional_calibrations = display_calibration_info.dimensional_calibrations
+        if dimensional_calibrations and dimensional_shape:
+            metadata = display_calibration_info.display_data_metadata
+            return calibration_style.get_dimensional_calibrations(dimensional_shape, dimensional_calibrations, metadata)
+        return [Calibration.Calibration() for _ in dimensional_calibrations] if dimensional_calibrations else [Calibration.Calibration()]
 
-    def get_calibrated_style_id(self, display_item: DisplayItem.DisplayItem) -> str:
-        return display_item.calibration_style_id
+    def get_calibration_style(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> DisplayItem.CalibrationStyle:
+        return display_calibration_info.calibration_style
 
-    def get_calibration_styles(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyle]:
-        return display_item.calibration_styles
-
-    def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyle) -> typing.Sequence[Calibration.Calibration]:
-        return display_item.get_displayed_dimensional_calibrations_with_calibration_style(calibration_style)
+    def get_calibration_styles(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> typing.Sequence[DisplayItem.CalibrationStyle]:
+        return display_calibration_info.calibration_styles
 
     def get_calibration_style_id_property_name(self) -> str:
         return "calibration_style_id"
 
-    def get_calibration_styles_property_name(self) -> str:
-        return "calibration_styles"
-
-    def get_display_calibrations_property_name(self) -> str:
-        return "displayed_dimensional_calibrations"
-
 
 class IntensityCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
-    def get_calibration_style(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyle]:
-        return display_item.intensity_calibration_styles
+    def get_calibrations(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, calibration_style: DisplayItem.CalibrationStyle) -> typing.Sequence[Calibration.Calibration]:
+        intensity_calibration = display_calibration_info.intensity_calibration
+        if intensity_calibration:
+            return [calibration_style.get_intensity_calibration(intensity_calibration)]
+        return [Calibration.Calibration()]
 
-    def get_calibrated_style_id(self, display_item: DisplayItem.DisplayItem) -> str:
-        return display_item.intensity_calibration_style_id
+    def get_calibration_style(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> DisplayItem.CalibrationStyle:
+        return display_calibration_info.intensity_calibration_style
 
-    def get_calibration_styles(self, display_item: DisplayItem.DisplayItem) -> typing.Sequence[DisplayItem.CalibrationStyle]:
-        return display_item.intensity_calibration_styles
-
-    def get_calibrations(self, display_item: DisplayItem.DisplayItem, calibration_style: DisplayItem.CalibrationStyle) -> typing.Sequence[Calibration.Calibration]:
-        return [display_item.get_displayed_intensity_calibration_with_calibration_style(calibration_style)]
+    def get_calibration_styles(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> typing.Sequence[DisplayItem.CalibrationStyle]:
+        return display_calibration_info.intensity_calibration_styles
 
     def get_calibration_style_id_property_name(self) -> str:
         return "intensity_calibration_style_id"
 
-    def get_calibration_styles_property_name(self) -> str:
-        return "intensity_calibration_styles"
-
-    def get_display_calibrations_property_name(self) -> str:
-        return "displayed_intensity_calibration"
-
 
 class CalibrationStyleModel(Observable.Observable):
-    """"""
+    """A model represents the calibration styles available and chosen calibration style for a display item.
+
+    The items property is a read-only sequence of strings representing the available calibration styles for the display item.
+
+    The index property is a read/write integer and will update the display item to use the selected calibration style when set.
+
+    The adapter is used to adapt this model to either dimensional or intensity calibrations.
+    """
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, adapter: CalibrationStyleModelAdapter) -> None:
         super().__init__()
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__adapter = adapter
-        self.__display_item_property_changed_listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(CalibrationStyleModel.__handle_display_item_property_changed, self))
-        self.__display_item_display_property_changed_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibrationStyleModel.__handle_display_item_property_changed, self))
-        self.__calibration_styles = self.__adapter.get_calibration_style(self.__display_item)
+        self.__last_display_calibration_info: DisplayItem.DisplayCalibrationInfo | None = None
+        self.__index: int | None = None
+        self.__items: tuple[str, ...] = tuple()
+        self.__calibration_styles: tuple[DisplayItem.CalibrationStyle, ...] = tuple()
+        display_calibration_info_stream = DisplayItem.DisplayCalibrationInfoStream(Stream.ValueStream(display_item))
+        self.__display_calibration_info_stream_action = Stream.ValueStreamAction(display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_calibration_info_changed, self))
+        self.__update_items_and_index(display_calibration_info_stream.value)
 
-    def __handle_display_item_property_changed(self, name: str) -> None:
-        if name == self.__adapter.get_calibration_style_id_property_name():
-            self.notify_property_changed("calibration_style_id")
-            self.notify_property_changed("index")
-        if name == self.__adapter.get_calibration_styles_property_name():
-            self.__calibration_styles = self.__adapter.get_calibration_style(self.__display_item)
-            self.notify_property_changed("items")
-            self.notify_property_changed("index")
-        if name == self.__adapter.get_display_calibrations_property_name():
-            self.notify_property_changed("items")
-
-    @property
-    def items(self) -> typing.List[str]:
+    def __update_items_and_index(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+        calibration_style = self.__adapter.get_calibration_style(display_calibration_info) if display_calibration_info else None
+        calibration_styles = self.__adapter.get_calibration_styles(display_calibration_info) if display_calibration_info else tuple()
+        index = calibration_styles.index(calibration_style) if calibration_style in calibration_styles else None
         items = list[str]()
-        for calibration_style in self.__calibration_styles:
-            calibration_style_label = calibration_style.label
-            if calibration_style.is_calibrated:
-                calibrations = self.__adapter.get_calibrations(self.__display_item, calibration_style)
+        for calibration_style_ in calibration_styles:
+            calibration_style_label = calibration_style_.label
+            if calibration_style_.is_calibrated:
+                calibrations = self.__adapter.get_calibrations(display_calibration_info, calibration_style_) if display_calibration_info else tuple()
                 units = [c.units or "-" for c in calibrations]
                 if units and all(unit == units[0] for unit in units):
                     calibration_style_label += " (" + units[0] + ")"
                 else:
                     calibration_style_label += " (" + "/".join(units) + ")"
             items.append(calibration_style_label)
-        return items
+        items_tuple = tuple(items)
+        if items_tuple != self.__items:
+            self.__items = items_tuple
+            self.notify_property_changed("items")
+        if index != self.__index:
+            self.__index = index
+            self.notify_property_changed("index")
+        self.__calibration_styles = tuple(calibration_styles)
+
+    def __handle_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+        if self.__last_display_calibration_info != display_calibration_info:
+            self.__update_items_and_index(display_calibration_info)
+            self.__last_display_calibration_info = display_calibration_info
 
     @property
-    def index(self) -> typing.Optional[int]:
-        calibration_style_id = self.calibration_style_id
-        for i, calibration_style in enumerate(self.__calibration_styles):
-            if calibration_style.calibration_style_id == calibration_style_id:
-                return i
-        return 0
+    def items(self) -> typing.Sequence[str]:
+        return self.__items
+
+    @property
+    def index(self) -> int | None:
+        return self.__index
 
     @index.setter
-    def index(self, value: typing.Optional[int]) -> None:
+    def index(self, value: int | None) -> None:
         value = value or 0  # startup case
         if value != self.index:
             value = max(0, min(value, len(self.__calibration_styles) - 1))
-            self.calibration_style_id = self.__calibration_styles[value].calibration_style_id
-
-    @property
-    def calibration_style_id(self) -> str:
-        return self.__adapter.get_calibrated_style_id(self.__display_item)
-
-    @calibration_style_id.setter
-    def calibration_style_id(self, value: str) -> None:
-        if value != self.calibration_style_id:
-            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__adapter.get_calibration_style_id_property_name(), value)
+            calibration_style_id = self.__calibration_styles[value].calibration_style_id
+            command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__adapter.get_calibration_style_id_property_name(), calibration_style_id)
             command.perform()
             self.__document_controller.push_undo_command(command)
-            self.notify_property_changed("calibration_style_id")
-            self.notify_property_changed("index")
 
 
 class CalibrationSectionHandler(Declarative.Handler):
