@@ -130,7 +130,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             stats1_text = histogram_panel._statistics_widget._stats1_property.value
             stats2_text = histogram_panel._statistics_widget._stats2_property.value
             # now change the data and verify that statistics gets recomputed via document model
-            display_item.intensity_calibration_style_id = display_item.display_data_delta_stream.intensity_calibration_styles[-1].calibration_style_id
+            display_item.intensity_calibration_style_id = display_item.display_calibration_info.intensity_calibration_styles[-1].calibration_style_id
             # wait for statistics task to be complete
             histogram_panel._histogram_processor._evaluate_immediate()
             self.assertNotEqual(stats1_text, histogram_panel._statistics_widget._stats1_property.value)
@@ -271,7 +271,7 @@ class TestHistogramPanelClass(unittest.TestCase):
                 histogram_processor.display_data_and_metadata = display_values.display_data_and_metadata
                 histogram_processor.display_range = display_values.display_range
                 histogram_processor.display_data_range = display_values.data_range
-                histogram_processor.displayed_intensity_calibration = display_item.display_data_delta_stream.displayed_intensity_calibration
+                histogram_processor.displayed_intensity_calibration = display_item.display_calibration_info.displayed_intensity_calibration
                 had_histogram = False
                 had_statistics = False
                 def property_changed(key: str) -> None:

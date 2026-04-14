@@ -1277,14 +1277,14 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 self.assertEqual("calibrated", display_item.calibration_style_id)
-                self.assertEqual("calibrated", display_item.display_data_delta_stream.calibration_style.calibration_style_id)
+                self.assertEqual("calibrated", display_item.display_calibration_info.calibration_style_id)
             # read it back
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = document_model.data_items[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 self.assertEqual("calibrated", display_item.calibration_style_id)
-                self.assertEqual("calibrated", display_item.display_data_delta_stream.calibration_style.calibration_style_id)
+                self.assertEqual("calibrated", display_item.display_calibration_info.calibration_style_id)
 
     def test_reloaded_graphics_load_properly(self):
         with create_memory_profile_context() as profile_context:

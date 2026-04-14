@@ -1566,7 +1566,7 @@ class TestGraphicsClass(unittest.TestCase):
             interval_graphic = Graphics.IntervalGraphic()
             interval_graphic.interval = (0.25, 0.75)
             display_item.add_graphic(interval_graphic)
-            self.assertEqual(display_item.display_data_delta_stream.scales[-1], 100)
+            self.assertEqual(display_item.display_calibration_info.displayed_dimensional_scales[-1], 100)
             data_item.set_data(numpy.zeros((50, ), numpy.uint32))
             self.assertEqual(interval_graphic.interval, (0.25, 0.75))
 
@@ -1580,7 +1580,7 @@ class TestGraphicsClass(unittest.TestCase):
             interval_graphic = Graphics.IntervalGraphic()
             interval_graphic.interval = (0.25, 0.75)
             display_item.add_graphic(interval_graphic)
-            self.assertEqual(display_item.display_data_delta_stream.scales[-1], 100)
+            self.assertEqual(display_item.display_calibration_info.displayed_dimensional_scales[-1], 100)
             display_item.dimensional_scales = (1,)
             self.assertEqual(interval_graphic.interval, (0.25, 0.75))
 
