@@ -167,12 +167,9 @@ class BitmapOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition):
     def active(self, value: bool) -> None:
         self.__overlay_canvas_item.is_active = value
 
-    @property
-    def focused(self) -> bool:
-        return self.__overlay_canvas_item.focused
-
     def _set_focused(self, focused: bool) -> None:
         self.__overlay_canvas_item.is_focused = focused
+        super()._set_focused(focused)
 
     def update_sizing(self, new_sizing: CanvasItem.Sizing) -> None:
         super().update_sizing(new_sizing)

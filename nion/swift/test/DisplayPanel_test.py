@@ -3382,6 +3382,33 @@ class TestDisplayPanelClass(unittest.TestCase):
             # clean up by clearing out the periodic queue
             document_controller.periodic()
 
+    def test_related_canvas_item_focus_handling(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            document_model.get_crop_new(display_item, display_item.data_item)
+            # set up display panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.layout_immediate(Geometry.IntSize(1000 + display_panel.header_canvas_item.header_height, 1000))
+            document_controller.periodic()
+            # request focus by 'clicking' on the related icons canvas item. confirm it is focused.
+            bitmap_overlay_canvas_item = display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items[0].canvas_items[0]
+            bitmap_overlay_canvas_item._request_focus(Geometry.IntPoint.make((5, 5)), CanvasItem.KeyboardModifiers())
+            self.assertTrue(bitmap_overlay_canvas_item.focused)
+            # confirm clear focus works.
+            bitmap_overlay_canvas_item.clear_focus()
+            self.assertFalse(bitmap_overlay_canvas_item.focused)
+            # request focus by 'clicking' on the related icons canvas item again. confirm.
+            bitmap_overlay_canvas_item._request_focus(Geometry.IntPoint.make((5, 5)), CanvasItem.KeyboardModifiers())
+            self.assertTrue(bitmap_overlay_canvas_item.focused)
+            # relinquish focus by 'clicking' outside the related icons canvas item. confirm related items not focused.
+            display_panel._request_focus(Geometry.IntPoint.make((5, 5)), CanvasItem.KeyboardModifiers())
+            self.assertFalse(bitmap_overlay_canvas_item.focused)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
