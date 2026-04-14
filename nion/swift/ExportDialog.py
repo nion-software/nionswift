@@ -322,8 +322,10 @@ def calculate_display_size_in_pixels(display_item: DisplayItem.DisplayItem) -> G
 
     If the display item is a line plot, use the hardcoded value of 5x3 inches.
     """
-    if display_item.display_data_shape and display_item.used_display_type != "line_plot":
-        return Geometry.IntSize(height=display_item.display_data_shape[-2], width=display_item.display_data_shape[-1])
+    display_calibration_info = display_item.display_calibration_info
+    display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+    if display_data_shape and display_item.used_display_type != "line_plot":
+        return Geometry.IntSize(height=display_data_shape[-2], width=display_data_shape[-1])
     return Geometry.IntSize(
         height=round(inch_unit_description.convert_value_to_pixels(3.0)),
         width=round(inch_unit_description.convert_value_to_pixels(5.0))

@@ -1692,12 +1692,7 @@ class CalibrationStyleModelAdapter(typing.Protocol):
 
 class DimensionalCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
     def get_calibrations(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, calibration_style: DisplayItem.CalibrationStyle) -> typing.Sequence[Calibration.Calibration]:
-        dimensional_shape = display_calibration_info.dimensional_shape
-        dimensional_calibrations = display_calibration_info.dimensional_calibrations
-        if dimensional_calibrations and dimensional_shape:
-            metadata = display_calibration_info.display_data_metadata
-            return calibration_style.get_dimensional_calibrations(dimensional_shape, dimensional_calibrations, metadata)
-        return [Calibration.Calibration() for _ in dimensional_calibrations] if dimensional_calibrations else [Calibration.Calibration()]
+        return display_calibration_info.get_dimensional_calibrations_for_calibration_style(calibration_style)
 
     def get_calibration_style(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> DisplayItem.CalibrationStyle:
         return display_calibration_info.calibration_style
@@ -1711,10 +1706,7 @@ class DimensionalCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
 
 class IntensityCalibrationStyleModelAdapter(CalibrationStyleModelAdapter):
     def get_calibrations(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, calibration_style: DisplayItem.CalibrationStyle) -> typing.Sequence[Calibration.Calibration]:
-        intensity_calibration = display_calibration_info.intensity_calibration
-        if intensity_calibration:
-            return [calibration_style.get_intensity_calibration(intensity_calibration)]
-        return [Calibration.Calibration()]
+        return display_calibration_info.get_intensity_calibrations_for_calibration_style(calibration_style)
 
     def get_calibration_style(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> DisplayItem.CalibrationStyle:
         return display_calibration_info.intensity_calibration_style
@@ -2510,7 +2502,8 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
 
     def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
-        calibrations = self.__display_item.displayed_display_data_calibrations
+        display_calibration_info = self.__display_item.display_calibration_info
+        calibrations = display_calibration_info.displayed_display_data_calibrations if display_calibration_info else None
         if not calibrations:
             return Calibration.Calibration()
         if self.__uniform:
@@ -2530,7 +2523,8 @@ class CalibratedValueFloatToStringConverter(Converter.ConverterLike[float, str])
 
     def __get_data_size(self) -> int:
         index = self.__index
-        display_data_shape = self.__display_item.display_data_shape
+        display_calibration_info = self.__display_item.display_calibration_info
+        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
         dimension_count = len(display_data_shape) if display_data_shape is not None else 0
         if index < 0:
             index = dimension_count + index
@@ -2588,7 +2582,8 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
 
     def __get_calibration(self) -> Calibration.Calibration:
         index = self.__index
-        calibrations = self.__display_item.displayed_display_data_calibrations
+        display_calibration_info = self.__display_item.display_calibration_info
+        calibrations = display_calibration_info.displayed_display_data_calibrations if display_calibration_info else None
         if not calibrations:
             return Calibration.Calibration()
         if self.__uniform:
@@ -2605,7 +2600,8 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
 
     def __get_data_size(self) -> int:
         index = self.__index
-        display_data_shape = self.__display_item.display_data_shape
+        display_calibration_info = self.__display_item.display_calibration_info
+        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
         dimension_count = len(display_data_shape) if display_data_shape else 0
         if index < 0:
             index = dimension_count + index
@@ -2655,8 +2651,9 @@ class CalibratedBinding(Binding.Binding):
         self.update_target_direct(self.get_target_value())
 
     def __calibrations_changed(self, key: str) -> None:
-        if key == "displayed_display_data_calibrations":
-            self.__update_target(self.__display_item.displayed_display_data_calibrations)
+        display_calibration_info = self.__display_item.display_calibration_info
+        if key == "displayed_display_data_calibrations" and display_calibration_info is not None:
+            self.__update_target(display_calibration_info.displayed_display_data_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -2684,7 +2681,8 @@ class CalibratedSizeBinding(CalibratedBinding):
 
 class CalibratedWidthBinding(CalibratedBinding):
     def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
-        display_data_shape = display_item.display_data_shape
+        display_calibration_info = display_item.display_calibration_info
+        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
         factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
         converter = CalibratedSizeFloatToStringConverter(display_item, 0, factor)  # width is stored in pixels. argh.
         super().__init__(display_item, value_binding, converter)
@@ -2707,8 +2705,9 @@ class CalibratedLengthBinding(Binding.Binding):
         self.update_target_direct(self.get_target_value())
 
     def __calibrations_changed(self, key: str) -> None:
-        if key == "displayed_display_data_calibrations":
-            self.__update_target(self.__display_item.displayed_display_data_calibrations)
+        display_calibration_info = self.__display_item.display_calibration_info
+        if key == "displayed_display_data_calibrations" and display_calibration_info is not None:
+            self.__update_target(display_calibration_info.displayed_display_data_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -2750,8 +2749,9 @@ class CalibratedAngleBinding(Binding.Binding):
         self.update_target_direct(self.get_target_value())
 
     def __calibrations_changed(self, key: str) -> None:
-        if key == "displayed_display_data_calibrations":
-            self.__update_target(self.__display_item.displayed_display_data_calibrations)
+        display_calibration_info = self.__display_item.display_calibration_info
+        if key == "displayed_display_data_calibrations" and display_calibration_info is not None:
+            self.__update_target(display_calibration_info.displayed_display_data_calibrations)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
@@ -3068,7 +3068,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_line_profile_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        display_data_shape = self.__display_item.display_data_shape
+        display_calibration_info = self.__display_item.display_calibration_info
+        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
         factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
         self._line_profile_width_model = DisplayItemCalibratedValueModel(
             GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "width", title=_("Change Width"), command_id="change_line_profile_width"),

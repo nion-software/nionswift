@@ -1341,9 +1341,10 @@ class DataItem(metaclass=SharedInstance):
         display_data_channel = self.__display_item.display_data_channel
         if display_data_channel:
             shape = display_data_channel.display_data_shape
-            if shape is not None:
-                calibrated_origin = Geometry.FloatPoint(y=self.__display_item.datum_calibrations[0].convert_from_calibrated_value(0.0),
-                                                        x=self.__display_item.datum_calibrations[1].convert_from_calibrated_value(0.0))
+            display_calibration_info = self.__display_item.display_calibration_info
+            if shape is not None and display_calibration_info is not None:
+                calibrated_origin = Geometry.FloatPoint(y=display_calibration_info.datum_calibrations[0].convert_from_calibrated_value(0.0),
+                                                        x=display_calibration_info.datum_calibrations[1].convert_from_calibrated_value(0.0))
                 mask = Graphics.create_mask_data(self.__display_item.graphics, shape, calibrated_origin)
                 return DataAndMetadata.new_data_and_metadata(data=mask)
         return None

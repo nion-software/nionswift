@@ -1818,9 +1818,11 @@ class DocumentController(Window.Window):
         if display_item:
             mime_data = self.ui.create_mime_data()
 
-            # copy the data item as an svg
+            # copy the data item as SVG
 
-            if display_item.display_data_shape and len(display_item.display_data_shape) == 2:
+            display_calibration_info = display_item.display_calibration_info
+            display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+            if display_data_shape and len(display_data_shape) == 2:
                 display_shape = Geometry.IntSize(height=800, width=800)
             else:
                 display_shape = Geometry.IntSize(height=600, width=800)
