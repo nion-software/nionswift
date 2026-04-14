@@ -520,3 +520,28 @@ class Timer:
         if self.threshold == 0.0 or (current_time - self.last_time_ns) // 1E9 > self.threshold:
             print(f"{title}: {(current_time - self.start_time_ns) // 1E6}ms +{(current_time - self.last_time_ns) // 1E6}ms")
         self.last_time_ns = current_time
+
+
+def make_pretty_size_str(total_bytes: int | float) -> str:
+    """Format a number into a string with units Byte(s), KB, MB, GB, or TB formatted to two decimal places.
+
+    See https://stackoverflow.com/a/31631711.
+    """
+    total_bytes = float(total_bytes)
+    kilobyte = 1024.0
+    if total_bytes < kilobyte:
+        return f"{total_bytes} {'Bytes' if total_bytes != 1 else 'Byte'}"
+
+    megabyte = 1048576.0  # 1024 ** 2
+    if total_bytes < megabyte:
+        return f"{total_bytes / kilobyte:.2f} KB"
+
+    gigabyte = 1073741824.0  # 1024 ** 3
+    if total_bytes < gigabyte:
+        return f"{total_bytes / megabyte:.2f} MB"
+
+    terabyte = 1099511627776.0  # 1024 ** 4
+    if total_bytes < terabyte:
+        return f"{total_bytes / gigabyte:.2f} GB"
+    else:
+        return f"{total_bytes / terabyte:.2f} TB"

@@ -12,8 +12,10 @@ import scipy.stats
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
+from nion.swift.model import Utility
 from nion.ui import Declarative
 from nion.utils import Converter
+from nion.utils import Stream
 from nion.utils import Model
 
 if typing.TYPE_CHECKING:
@@ -29,28 +31,75 @@ class GenerateDataDialog(Declarative.WindowHandler):
 
         self.__document_controller = document_controller
 
-        self.title_model: Model.PropertyModel[str] = Model.PropertyModel(_("Generated Data"))
-        self.data_type_model: Model.PropertyModel[int] = Model.PropertyModel(0)
-        self.is_sequence_model: Model.PropertyModel[int] = Model.PropertyModel(0)
-        self.collection_rank_model: Model.PropertyModel[int] = Model.PropertyModel(0)
-        self.datum_rank_model: Model.PropertyModel[int] = Model.PropertyModel(1)
+        self.title_model = Model.PropertyModel(_("Generated Data"))
+        self.data_type_model = Model.PropertyModel(0)
+        self.is_sequence_model = Model.PropertyModel(0)
+        self.collection_rank_model = Model.PropertyModel(0)
+        self.datum_rank_model = Model.PropertyModel(1)
 
-        self.sequence_size_model: Model.PropertyModel[int] = Model.PropertyModel(16)
+        self.sequence_size_model = Model.PropertyModel(16)
 
-        self.line_size_model: Model.PropertyModel[int] = Model.PropertyModel(512)
+        self.line_size_model = Model.PropertyModel(512)
 
-        self.scan_width_model: Model.PropertyModel[int] = Model.PropertyModel(256)
-        self.scan_height_model: Model.PropertyModel[int] = Model.PropertyModel(256)
+        self.scan_width_model = Model.PropertyModel(256)
+        self.scan_height_model = Model.PropertyModel(256)
 
-        self.spectrum_size_model: Model.PropertyModel[int] = Model.PropertyModel(1024)
+        self.spectrum_size_model = Model.PropertyModel(1024)
 
-        self.image_width_model: Model.PropertyModel[int] = Model.PropertyModel(1024)
-        self.image_height_model: Model.PropertyModel[int] = Model.PropertyModel(1024)
+        self.image_width_model = Model.PropertyModel(1024)
+        self.image_height_model = Model.PropertyModel(1024)
 
-        self.array_width_model: Model.PropertyModel[int] = Model.PropertyModel(1024)
-        self.array_height_model: Model.PropertyModel[int] = Model.PropertyModel(256)
+        self.array_width_model = Model.PropertyModel(1024)
+        self.array_height_model = Model.PropertyModel(256)
 
         self.int_converter = Converter.IntegerToStringConverter()
+
+        def update_bytes_string(*args: typing.Any) -> str:
+            """Recalculate the number of bytes that will be used based on the selected sequence, collection and datum options."""
+            data_size = 4  # data_type_model needs to drive this when it is made to drive anything as it currently doesn't do anything.
+
+            if self.is_sequence_model.value == 1:
+                sequence_size = self.sequence_size_model.value or 1
+                data_size *= sequence_size
+
+            if self.collection_rank_model.value == 1:  # Line selected in combo box
+                line_size = self.line_size_model.value or 1
+                data_size *= line_size
+            elif self.collection_rank_model.value == 2:  # Scan selected in combo box
+                scan_height = self.scan_height_model.value or 1
+                scan_width = self.scan_width_model.value or 1
+                data_size *= scan_height * scan_width
+
+            if self.datum_rank_model.value == 0:  # Spectrum selected in combo box
+                spectrum_size = self.spectrum_size_model.value or 1
+                data_size *= spectrum_size
+            elif self.datum_rank_model.value == 1:  # Image selected in combo box
+                image_height = self.image_height_model.value or 1
+                image_width = self.image_width_model.value or 1
+                data_size *= image_height * image_width
+            elif self.datum_rank_model.value == 2:  # Array selected in combo box
+                array_height = self.array_height_model.value or 1
+                array_width = self.array_width_model.value or 1
+                data_size *= array_height * array_width
+            return Utility.make_pretty_size_str(data_size)
+
+        input_streams: typing.Sequence[Stream.PropertyChangedEventStream[typing.Any]] = [
+            Stream.PropertyChangedEventStream(self.is_sequence_model, "value"),
+            Stream.PropertyChangedEventStream(self.sequence_size_model, "value"),
+            Stream.PropertyChangedEventStream(self.collection_rank_model, "value"),
+            Stream.PropertyChangedEventStream(self.line_size_model, "value"),
+            Stream.PropertyChangedEventStream(self.scan_height_model, "value"),
+            Stream.PropertyChangedEventStream(self.scan_width_model, "value"),
+            Stream.PropertyChangedEventStream(self.datum_rank_model, "value"),
+            Stream.PropertyChangedEventStream(self.spectrum_size_model, "value"),
+            Stream.PropertyChangedEventStream(self.image_height_model, "value"),
+            Stream.PropertyChangedEventStream(self.image_width_model, "value"),
+            Stream.PropertyChangedEventStream(self.array_height_model, "value"),
+            Stream.PropertyChangedEventStream(self.array_width_model, "value")
+        ]
+
+        # create a model from the bytes string stream that updates whenever any of the inputs that affect the data size are changed.
+        self.bytes_string_model = Model.StreamValueModel(Stream.CombineLatestStream(input_streams, update_bytes_string))
 
         u = Declarative.DeclarativeUI()
 
@@ -131,7 +180,9 @@ class GenerateDataDialog(Declarative.WindowHandler):
         datum_stack = u.create_stack(spectrum_column, image_column, array_column,
                                      current_index="@binding(datum_rank_model.value)")
 
-        button_row = u.create_row(u.create_stretch(),
+        bytes_size_row = u.create_row(u.create_label(text="@binding(bytes_string_model.value)"))
+
+        button_row = u.create_row(bytes_size_row, u.create_stretch(),
                                   u.create_push_button(text=_("Cancel"), on_clicked="close_window"),
                                   u.create_push_button(text=_("Generate"), on_clicked="generate"), spacing=8)
 
