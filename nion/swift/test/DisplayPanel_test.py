@@ -1767,6 +1767,26 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
+    def test_line_plot_image_display_canvas_item_with_legend_only_updates_if_display_data_changes(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.set_display_property("legend_position", "top-right")
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.layout_immediate(Geometry.IntSize(240, 640))
+            document_controller.periodic()
+            self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
+            display_panel.display_canvas_item._wait_for_update()
+            update_count = display_panel.display_canvas_item._update_count
+            document_controller.periodic()
+            display_panel.refresh_layout_immediate()
+            display_panel.display_canvas_item._wait_for_update()
+            self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
+
     def test_focused_data_item_changes_when_display_changed_directly_in_content(self):
         # this capability is only used in the camera plug-in when switching image to summed and back.
         with TestContext.create_memory_context() as test_context:

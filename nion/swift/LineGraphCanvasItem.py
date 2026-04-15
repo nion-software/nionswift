@@ -1637,8 +1637,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # current legend items corresponding to layers of the display item
         self.__legend_entries: typing.List[LegendEntry] = list()
 
-        # reordered/inserted entries that have not yet been applied
-        self.__effective_entries: typing.List[LegendEntry] = list()
+        # reordered/inserted entries that have not yet been applied. also last for change detection purposes.
+        self.__effective_entries = list[LegendEntry]()
+        self.__last_effective_entries = list[LegendEntry]()
 
         # True when a user is clicking, but a drag hasn't started because they haven't moved the mouse enough
         self.__mouse_pressed_for_dragging = False
@@ -1682,9 +1683,12 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             effective_entries.insert(self.__entry_to_insert, effective_entries.pop(self.__dragging_index))
 
         self.__effective_entries = effective_entries
-        self.__needs_size_to_content = True
 
-        self.size_to_content()
+        if self.__effective_entries != self.__last_effective_entries:
+            self.__last_effective_entries = list(self.__effective_entries)  # copy
+            self.__needs_size_to_content = True
+            self.size_to_content()
+            self.update()
 
     def size_to_content(self) -> None:
         if self.__needs_size_to_content:
@@ -1718,7 +1722,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # assume this is only called when legend entries changes
         self.__legend_entries = list(legend_entries)
         self.__generate_effective_entries()
-        self.update()
 
     def __get_legend_index(self, x: int, y: int, ignore_y: bool = False, insertion: bool = False) -> int:
         # Returns the current index at a certain x and y if over a legend item, otherwise returns -1. If ignore_y is set,
