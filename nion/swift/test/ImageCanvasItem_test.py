@@ -56,7 +56,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((100 + header_height, 100))
+            display_panel.layout_immediate((100 + header_height, 100))
             # run test
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
@@ -75,7 +75,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((100 + header_height, 100))
+            display_panel.layout_immediate((100 + header_height, 100))
             # run test
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
@@ -94,7 +94,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(display_panel.display_canvas_item._scale_marker_canvas_item_for_test._dimension_calibration_for_test.units, "x")
 
@@ -110,7 +110,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(display_panel.display_canvas_item._scale_marker_canvas_item_for_test._dimension_calibration_for_test.units, "x")
 
@@ -126,7 +126,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(display_panel.display_canvas_item._scale_marker_canvas_item_for_test._dimension_calibration_for_test.units, "b")
 
@@ -142,7 +142,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_rectangle(self):
         # setup
@@ -155,7 +155,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(document_controller.tool_mode, "pointer")
             for tool_mode in ["rectangle", "point", "ellipse", "line"]:
@@ -178,7 +178,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             rect_region = Graphics.RectangleGraphic()
             rect_region.bounds = (0.25, 0.25), (0.5, 0.5)
@@ -207,7 +207,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             rect_region = Graphics.RectangleGraphic()
             rect_region.bounds = (0.25, 0.25), (0.5, 0.5)
@@ -234,7 +234,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             rect_region1 = Graphics.RectangleGraphic()
             rect_region1.bounds = (0.2, 0.2), (0.4, 0.4)
@@ -263,7 +263,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             rect_region1 = Graphics.RectangleGraphic()
             rect_region1.bounds = (0.2, 0.2), (0.4, 0.4)
@@ -288,9 +288,9 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_item.display_type = "image"
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             drawing_context = DrawingContext.DrawingContext()
-            display_panel.root_container.repaint_immediate(drawing_context, display_panel.root_container.canvas_size)
+            display_panel.repaint_immediate(drawing_context, display_panel.canvas_size)
 
     def test_hand_tool_on_one_image_of_multiple_displays(self):
         # setup
@@ -304,7 +304,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             copy_display_item = document_model.get_display_item_copy_new(display_item)
             display_panel.set_display_panel_display_item(copy_display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # run test
             document_controller.tool_mode = "hand"
             display_panel.display_canvas_item.simulate_press((100,125))
@@ -319,7 +319,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((100 + header_height, 100))
+            display_panel.layout_immediate((100 + header_height, 100))
             display_panel.perform_action("set_fit_mode")
             # run test. each data pixel will be spanned by two display pixels. clicking at an odd value
             # will be a click in the center of a data pixel. zoom should expand and contract around that
@@ -368,7 +368,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((100 + header_height, 100))
+            display_panel.layout_immediate((100 + header_height, 100))
             display_panel.perform_action("set_one_to_one_mode")
             # run test. Each canvas pixel starts as 1 image pixel, with image centered
             self.assertEqual((20, 20),

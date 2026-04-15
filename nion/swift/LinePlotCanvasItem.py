@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # standard libraries
 import copy
-import dataclasses
 import math
 import operator
 import threading
@@ -22,6 +21,7 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import UISettings
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.utils import Color
 from nion.utils import Geometry
 from nion.utils import Registry
@@ -29,7 +29,6 @@ from nion.utils import Registry
 if typing.TYPE_CHECKING:
     from nion.swift.model import Persistence
     from nion.swift import Undo
-    from nion.ui import DrawingContext
     from nion.ui import UserInterface
 
 _NDArray = numpy.typing.NDArray[typing.Any]
@@ -44,15 +43,15 @@ def are_axes_equal(axes1: typing.Optional[LineGraphCanvasItem.LineGraphAxes], ax
         return False
     if axes1.drawn_right_channel != axes2.drawn_right_channel:
         return False
-    if axes1.mapped_calibrated_data_min != axes2.mapped_calibrated_data_min:
+    if axes1.scaled_data_min != axes2.scaled_data_min:
         return False
-    if axes1.mapped_calibrated_data_max != axes2.mapped_calibrated_data_max:
+    if axes1.scaled_data_max != axes2.scaled_data_max:
         return False
     if axes1.x_calibration != axes2.x_calibration:
         return False
     if axes1.y_calibration != axes2.y_calibration:
         return False
-    if axes1.data_style.style_id != axes2.data_style.style_id:
+    if axes1.axis_scale.axis_scale_id != axes2.axis_scale.axis_scale_id:
         return False
     return True
 
@@ -114,22 +113,39 @@ MAX_LAYER_COUNT = 16
 
 
 class LinePlotDisplayInfo:
-    def __init__(self, display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo], display_properties: Persistence.PersistentDictType, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]], display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
+    """Represents the information needed to display a line plot, including the data, calibrations, axes and legend information.
+
+    This object is effectively immutable, i.e. outside of caching.
+    """
+
+    def __init__(
+            self,
+            display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
+            display_properties: Persistence.PersistentDictType,
+            display_values_list: typing.Sequence[DisplayItem.DisplayValues | None],
+            display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
+            graphics: typing.Sequence[Graphics.Graphic],
+            graphic_selection: DisplayItem.GraphicSelection | None
+    ) -> None:
         self.__display_calibration_info = display_calibration_info
+        self.__display_properties = copy.deepcopy(display_properties)
+        self.__display_values_list = list(display_values_list)
+        self.__display_layers = list(display_layers)
+        self.__graphics = list(graphics)
+        self.__graphic_selection = copy.copy(graphic_selection)
+
+        # cached values
         self.__y_min: float | None = display_properties.get("y_min", None)
         self.__y_max: float | None = display_properties.get("y_max", None)
-        self.__y_style: str | None = display_properties.get("y_style", "linear")
+        self.__y_axis_scale_id: str | None = display_properties.get("y_style", "linear")  # 'y_style' for backward compatibility
         self.__left_channel: int | None = display_properties.get("left_channel", None)
         self.__right_channel: int | None = display_properties.get("right_channel", None)
         self.__legend_position: str | None = display_properties.get("legend_position", None)
-        self.__display_values_list = list(display_values_list)
-        self.__display_layers = list(display_layers)
-
-        # cached values
         self.__xdata_list: typing.Optional[typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]]] = None
         self.__axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes] = None
         self.__line_graph_layers: typing.Optional[typing.List[LineGraphCanvasItem.LineGraphLayer]] = None
         self.__legend_entries: typing.Optional[typing.List[LineGraphCanvasItem.LegendEntry]] = None
+        self.__regions: typing.Sequence[LineGraphCanvasItem.RegionInfo] | None = None
 
         # for testing
         self._has_valid_drawn_graph_data = False
@@ -137,6 +153,74 @@ class LinePlotDisplayInfo:
     @property
     def is_valid(self) -> bool:
         return self.__display_calibration_info is not None
+
+    @property
+    def display_layers(self) -> typing.Sequence[DisplayItem.DisplayLayerInfo]:
+        return self.__display_layers
+
+    @property
+    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
+        return self.__graphics
+
+    @property
+    def graphic_selection(self) -> DisplayItem.GraphicSelection | None:
+        return self.__graphic_selection
+
+    @property
+    def regions(self) -> typing.Sequence[LineGraphCanvasItem.RegionInfo]:
+        display_calibration_info = self.__display_calibration_info
+        if self.__regions is None and display_calibration_info:
+            dimensional_scales = display_calibration_info.displayed_dimensional_scales
+            graphics = self.__graphics
+            graphic_selection = self.__graphic_selection or DisplayItem.GraphicSelection()
+            regions = list[LineGraphCanvasItem.RegionInfo]()
+            if dimensional_scales and graphics:
+                data_scale = dimensional_scales[-1]
+                dimensional_calibration = display_calibration_info.displayed_dimensional_calibrations[-1] if len(
+                    display_calibration_info.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(
+                    scale=data_scale)
+
+                def convert_to_calibrated_value_str(f: float) -> str:
+                    return u"{0}".format(
+                        dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale),
+                                                                                samples=round(data_scale),
+                                                                                include_units=False))
+
+                def convert_to_calibrated_size_str(f: float) -> str:
+                    return u"{0}".format(
+                        dimensional_calibration.convert_to_calibrated_size_str(f, value_range=(0, data_scale),
+                                                                               samples=round(data_scale),
+                                                                               include_units=False))
+
+                for graphic_index, graphic in enumerate(graphics):
+                    if isinstance(graphic, Graphics.IntervalGraphic):
+                        graphic_start, graphic_end = graphic.start, graphic.end
+                        graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
+                        left_channel = graphic_start * data_scale
+                        right_channel = graphic_end * data_scale
+                        left_text = convert_to_calibrated_value_str(left_channel)
+                        right_text = convert_to_calibrated_value_str(right_channel)
+                        middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
+                        region = LineGraphCanvasItem.RegionInfo((graphic_start, graphic_end),
+                                                                graphic_selection.contains(graphic_index),
+                                                                graphic_index, left_text, right_text, middle_text,
+                                                                graphic.label, None, graphic.color)
+                        regions.append(region)
+                    elif isinstance(graphic, Graphics.ChannelGraphic):
+                        graphic_start, graphic_end = graphic.position, graphic.position
+                        graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
+                        left_channel = graphic_start * data_scale
+                        right_channel = graphic_end * data_scale
+                        left_text = convert_to_calibrated_value_str(left_channel)
+                        right_text = convert_to_calibrated_value_str(right_channel)
+                        middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
+                        region = LineGraphCanvasItem.RegionInfo((graphic_start, graphic_end),
+                                                                graphic_selection.contains(graphic_index),
+                                                                graphic_index, left_text, right_text, middle_text,
+                                                                graphic.label, "tag", graphic.color)
+                        regions.append(region)
+            self.__regions = regions
+        return self.__regions or list()
 
     @property
     def data_scale(self) -> float:
@@ -215,7 +299,7 @@ class LinePlotDisplayInfo:
             displayed_intensity_calibration = self.displayed_intensity_calibration
             y_min = self.__y_min
             y_max = self.__y_max
-            y_style = self.__y_style
+            y_axis_scale_id = self.__y_axis_scale_id
             left_channel_opt = self.__left_channel
             right_channel_opt = self.__right_channel
             data_scale = self.data_scale
@@ -234,18 +318,18 @@ class LinePlotDisplayInfo:
                 y_max_calibration = displayed_intensity_calibration.convert_to_calibrated_value(y_max)
             else:
                 y_max_calibration = None
-            mapped_calibrated_data_min, mapped_calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(xdata_list,
+            scaled_data_min, scaled_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(xdata_list,
                                                                                                       y_min_calibrated,
                                                                                                       y_max_calibration,
-                                                                                                      y_style)
+                                                                                                      y_axis_scale_id)
             self.__axes = LineGraphCanvasItem.LineGraphAxes(data_scale,
-                                                            mapped_calibrated_data_min,
-                                                            mapped_calibrated_data_max,
+                                                            scaled_data_min,
+                                                            scaled_data_max,
                                                             left_channel,
                                                             right_channel,
                                                             displayed_dimensional_calibration,
                                                             displayed_intensity_calibration,
-                                                            y_style,
+                                                            y_axis_scale_id,
                                                             y_ticker)
         return self.__axes
 
@@ -306,6 +390,18 @@ class LinePlotDisplayInfo:
             self.__legend_entries = legend_entries
         return self.__legend_entries
 
+    def apply_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> LinePlotDisplayInfo:
+        """Apply the display data delta changes to this display info and return a new display info with the changes applied."""
+
+        display_calibration_info = display_data_delta.display_calibration_info if display_data_delta.display_calibration_info_changed else self.__display_calibration_info
+        display_properties = copy.deepcopy(display_data_delta.display_properties if display_data_delta.display_properties_changed else self.__display_properties)
+        display_values_list = list(display_data_delta.display_values_list if display_data_delta.display_values_list_changed else self.__display_values_list)
+        display_layers = list(display_data_delta.display_layers_list if display_data_delta.display_layers_list_changed else self.__display_layers)
+        graphics = list(display_data_delta.graphics if display_data_delta.graphics_changed else self.__graphics)
+        graphic_selection = copy.copy(display_data_delta.graphic_selection if display_data_delta.graphic_selection_changed else self.__graphic_selection)
+
+        return LinePlotDisplayInfo(display_calibration_info, display_properties, display_values_list, display_layers, graphics, graphic_selection)
+
 
 class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """A canvas item to display a line plot.
@@ -339,10 +435,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__closing_lock = threading.RLock()
         self.__closed = False
-
-        self.__update_lock = threading.RLock()
-
-        self.__last_xdata_list: typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]] = list()
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
@@ -452,13 +544,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__graphic_drag_start_pos: Geometry.IntPoint = Geometry.IntPoint()
         self.__graphic_drag_changed = False
 
-        self.__line_plot_display_info = LinePlotDisplayInfo(None, dict(), list(), list())
+        # track last axes separately to avoid having to calculate it on the main thread.
+        # calculating axes can trigger a display computation.
+        self.__last_axes: LineGraphCanvasItem.LineGraphAxes | None = None
 
-        self.__axes: typing.Optional[LineGraphCanvasItem.LineGraphAxes] = None
-        self.__legend_entries: typing.Optional[typing.List[LineGraphCanvasItem.LegendEntry]] = None
+        self.__line_plot_display_info = LinePlotDisplayInfo(None, dict(), list(), list(), list(), None)
 
-        self.__graphics: typing.List[Graphics.Graphic] = list()
-        self.__graphic_selection: typing.Optional[DisplayItem.GraphicSelection] = None
         self.__pending_interval: typing.Optional[Graphics.IntervalGraphic] = None
 
     def close(self) -> None:
@@ -474,23 +565,17 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def line_graph_layers_canvas_item(self) -> LineGraphCanvasItem.LineGraphLayersCanvasItem:
         return self.__line_graph_layers_canvas_item
 
-    # for testing
-    @property
-    def _axes(self) -> typing.Optional[LineGraphCanvasItem.LineGraphAxes]:
-        return self.__axes
-
     @property
     def _has_valid_drawn_graph_data(self) -> bool:
         return self.__line_plot_display_info._has_valid_drawn_graph_data
 
-    def __update_legend_origin(self) -> None:
+    def __update_legend_origin(self, legend_position: str | None) -> None:
         line_graph_legend_row_visible = False
         line_graph_legend_row_canvas_item0_visible = False
         line_graph_legend_row_canvas_item2_visible = False
         line_graph_outer_right_column_visible = False
         line_graph_outer_left_column_visible = False
 
-        legend_position = self.__line_plot_display_info.legend_position
         if legend_position == "top-left":
             line_graph_legend_row_visible= True
             line_graph_legend_row_canvas_item2_visible = True
@@ -515,87 +600,69 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__display_controls.add_canvas_item(display_control_canvas_item)
 
     def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
-        # ensure that this method is only entered once and updates are done in a batch to avoid repainting
-        # intermediate states.
-        with self.__update_lock, self.batch_update():
-            if display_data_delta.display_values_list_changed:
-                self.__update_display_values(display_data_delta.display_values_list)
-            if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
-                self.__update_display_properties_and_layers(display_data_delta.display_calibration_info,
-                                                            display_data_delta.display_properties,
-                                                            display_data_delta.display_layers_list)
-            if display_data_delta.graphics_changed or display_data_delta.graphic_selection_changed or display_data_delta.display_calibration_info_changed:
-                self.__update_graphics_coordinate_system(display_data_delta.graphics,
-                                                         display_data_delta.graphic_selection,
-                                                         display_data_delta.display_calibration_info)
+        """Update the state of the display.
 
-    def set_focused(self, is_focused: bool) -> None:
-        self.__line_graph_regions_canvas_item.set_is_focused(is_focused)
-
-    def __update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
-        self.__display_values_list = list(display_values_list)
-
-    def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo,
-                                               display_properties: Persistence.PersistentDictType,
-                                               display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
-        """Update the display values. Called from display panel.
-
-        This method saves the display values and data and triggers an update. It should be as fast as possible.
-
-        As a layer, this canvas item will respond to the update by calling prepare_render on the layer's rendering
-        thread.
-
-        The inefficiencies in this process are that the layer must re-render on each call to this function. There is
-        also a cost within the constituent canvas items to check whether the axes or their data has changed.
-
-        When the display is associated with a single data item, the data will be
+        display_data_delta contains changes to the state of the display. For any item that is marked as changed,
+        update the corresponding state in this canvas item. After updating the state, trigger an update of the display by
+        calling update().
         """
 
-        # may be called from thread; prevent a race condition with closing.
-        with self.__closing_lock:
-            if self.__closed:
-                return
+        # update the line plot display info.
+        self.__line_plot_display_info = self.__line_plot_display_info.apply_display_data_delta(display_data_delta)
 
-            self.__line_plot_display_info = LinePlotDisplayInfo(display_calibration_info, display_properties, self.__display_values_list, display_layers)
-            self.__display_layers = display_layers
+        # update the frame rate info
+        display_values_list = display_data_delta.display_values_list
+        if display_values_list:
+            for display_values in display_values_list:
+                if display_values:
+                    data_metadata = display_values.element_data_metadata
+                    if data_metadata:
+                        self.__update_frame(data_metadata.metadata)
 
-            if self.__display_values_list:
-                for display_values in self.__display_values_list:
-                    if display_values:
-                        display_data_and_metadata = display_values.display_data_and_metadata
-                        if display_data_and_metadata:
-                            self.__update_frame(display_data_and_metadata.metadata)
+        # update the cursor info
+        self.__update_cursor_info()
 
-            # update the cursor info
-            self.__update_cursor_info()
+        # trigger an update
+        self.update()
 
-            # tell the other canvas items to update
-            line_plot_display_info = self.__line_plot_display_info
+    def _update_canvas_items(self) -> None:
+        # this is a separate method so that it can be used from tests.
+
+        line_plot_display_info = self.__line_plot_display_info
+
+        with self.batch_update():
+            # update the line graph layers
             line_graph_layers = line_plot_display_info.line_graph_layers
-            legend_entries = line_plot_display_info.legend_entries
             self.__line_graph_layers_canvas_item.update_line_graph_layers(line_graph_layers)
             self.__line_graph_regions_canvas_item.update_line_graph_layers(line_graph_layers)
 
-            # update the canvas items
-            self.__update_legend_origin()
-            if self.__legend_entries != legend_entries:
-                self.__legend_entries = legend_entries
-                self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries)
-                self.__line_graph_outer_left_legend.set_legend_entries(legend_entries)
-                self.__line_graph_outer_right_legend.set_legend_entries(legend_entries)
-            axes = line_plot_display_info.axes
-            if not are_axes_equal(self.__axes, axes):
-                self.__axes = axes
-                self.__line_graph_background_canvas_item.set_axes(axes)
-                self.__line_graph_frame_canvas_item.set_draw_frame(bool(axes))
-                self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
-                self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes)
-                self.__line_graph_vertical_axis_ticks_canvas_item.set_axes(axes)
-                self.__line_graph_horizontal_axis_label_canvas_item.set_axes(axes)
-                self.__line_graph_horizontal_axis_scale_canvas_item.set_axes(axes)
-                self.__line_graph_horizontal_axis_ticks_canvas_item.set_axes(axes)
+            # update the legend position
+            self.__update_legend_origin(line_plot_display_info.legend_position)
 
-            self.update()
+            # update the legend entries
+            legend_entries = line_plot_display_info.legend_entries
+            self.__line_graph_legend_canvas_item.set_legend_entries(legend_entries)
+            self.__line_graph_outer_left_legend.set_legend_entries(legend_entries)
+            self.__line_graph_outer_right_legend.set_legend_entries(legend_entries)
+
+            # update the axes
+            axes = line_plot_display_info.axes
+            self.__line_graph_background_canvas_item.set_axes(axes)
+            self.__line_graph_frame_canvas_item.set_draw_frame(bool(axes))
+            self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
+            self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes)
+            self.__line_graph_vertical_axis_ticks_canvas_item.set_axes(axes)
+            self.__line_graph_horizontal_axis_label_canvas_item.set_axes(axes)
+            self.__line_graph_horizontal_axis_scale_canvas_item.set_axes(axes)
+            self.__line_graph_horizontal_axis_ticks_canvas_item.set_axes(axes)
+
+            # update the graphics
+            self.__line_graph_regions_canvas_item.set_regions(line_plot_display_info.regions)
+
+        self.__last_axes = line_plot_display_info.axes
+
+    def set_focused(self, is_focused: bool) -> None:
+        self.__line_graph_regions_canvas_item.set_is_focused(is_focused)
 
     def __update_frame(self, metadata: DataAndMetadata.MetadataType) -> None:
         # update frame rate info
@@ -610,56 +677,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             frame_index = d.get("frame_index", 0)
 
             self.__frame_rate_canvas_item.frame_tick(frame_index)
-
-    def __update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic],
-                                            graphic_selection: DisplayItem.GraphicSelection,
-                                            display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
-        dimensional_scales = display_calibration_info.displayed_dimensional_scales
-
-        self.__graphics = copy.copy(list(graphics))
-        self.__graphic_selection = copy.copy(graphic_selection)
-
-        if dimensional_scales is None or len(dimensional_scales) == 0:
-            return
-        assert dimensional_scales is not None
-
-        data_scale = dimensional_scales[-1]
-        dimensional_calibration = display_calibration_info.displayed_dimensional_calibrations[-1] if len(display_calibration_info.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=data_scale)
-
-        def convert_to_calibrated_value_str(f: float) -> str:
-            return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale),
-                                                                                         samples=round(data_scale),
-                                                                                         include_units=False))
-
-        def convert_to_calibrated_size_str(f: float) -> str:
-            return u"{0}".format(dimensional_calibration.convert_to_calibrated_size_str(f, value_range=(0, data_scale),
-                                                                                        samples=round(data_scale),
-                                                                                        include_units=False))
-
-        regions = list()
-        for graphic_index, graphic in enumerate(graphics):
-            if isinstance(graphic, Graphics.IntervalGraphic):
-                graphic_start, graphic_end = graphic.start, graphic.end
-                graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
-                left_channel = graphic_start * data_scale
-                right_channel = graphic_end * data_scale
-                left_text = convert_to_calibrated_value_str(left_channel)
-                right_text = convert_to_calibrated_value_str(right_channel)
-                middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
-                region = LineGraphCanvasItem.RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label, None, graphic.color)
-                regions.append(region)
-            elif isinstance(graphic, Graphics.ChannelGraphic):
-                graphic_start, graphic_end = graphic.position, graphic.position
-                graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
-                left_channel = graphic_start * data_scale
-                right_channel = graphic_end * data_scale
-                left_text = convert_to_calibrated_value_str(left_channel)
-                right_text = convert_to_calibrated_value_str(right_channel)
-                middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
-                region = LineGraphCanvasItem.RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label, "tag", graphic.color)
-                regions.append(region)
-
-        self.__line_graph_regions_canvas_item.set_regions(regions)
 
     def __view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
@@ -735,10 +752,11 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     def __view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         """Change the view to encompass the selected graphic intervals."""
-        all_graphics = self.__graphics
+        all_graphics = self.__line_plot_display_info.graphics
+        graphic_selection = self.__line_plot_display_info.graphic_selection
         graphics: typing.List[Graphics.Graphic]
-        if self.__graphic_selection:
-            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__graphic_selection.contains(graphic_index)]
+        if graphic_selection:
+            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if graphic_selection.contains(graphic_index)]
         else:
             graphics = list()
         intervals = list()
@@ -795,7 +813,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             return True
         delegate = self.delegate
         if delegate and delegate.tool_mode == "pointer" and not self.__graphic_drag_items:
-            if self._axes:
+            axes = self.__last_axes
+            if axes:
                 pos = Geometry.IntPoint(x=x, y=y)
                 h_axis_canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
                 v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
@@ -809,8 +828,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         self.cursor_shape = "split_vertical"
                     else:
                         self.cursor_shape = "hand"
-                elif self.__graphics:
-                    graphics = self.__graphics
+                elif graphics := self.__line_plot_display_info.graphics:
                     for graphic_index, graphic in enumerate(graphics):
                         if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
                             widget_mapping = self.__get_mouse_mapping()
@@ -849,7 +867,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_pressed(x, y, modifiers):
             return True
-        if not self._axes:
+        if not self.__last_axes:
             return False
         self.__undo_command = None
         pos = Geometry.IntPoint(x=x, y=y)
@@ -884,7 +902,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_released(x, y, modifiers):
             return True
-        if not self._axes:
+        if not self.__last_axes:
             return False
         self.end_tracking(modifiers)
         delegate = self.delegate
@@ -916,7 +934,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def key_contexts(self) -> typing.Sequence[str]:
         key_contexts = ["display_panel"]
         key_contexts.append("line_plot_display")
-        if self.__graphic_selection and self.__graphic_selection.has_selection:
+        graphic_selection = self.__line_plot_display_info.graphic_selection
+        if graphic_selection and graphic_selection.has_selection:
             key_contexts.append("line_plot_display_graphics")
         return key_contexts
 
@@ -950,7 +969,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         canvas_bounds = self.__line_graph_regions_canvas_item.canvas_bounds
         assert canvas_bounds
         plot_rect = canvas_bounds.translated(plot_origin)
-        axes = self._axes
+        axes = self.__last_axes
         left_channel = axes.drawn_left_channel if axes else 0
         right_channel = axes.drawn_right_channel if axes else 0
         return LinePlotCanvasItemMapping(data_scale, plot_rect, left_channel, right_channel)
@@ -963,10 +982,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # keep track of general drag information
         self.__graphic_drag_start_pos = pos
         self.__graphic_drag_changed = False
-        if self._axes and self.__graphic_selection:
+        axes = self.__last_axes
+        graphic_selection = self.__line_plot_display_info.graphic_selection
+        if axes and graphic_selection:
             self.__tracking_selections = True
-            graphics = self.__graphics
-            selection_indexes = self.__graphic_selection.indexes
+            graphics = self.__line_plot_display_info.graphics
+            selection_indexes = graphic_selection.indexes
             for graphic_index, graphic in enumerate(graphics):
                 if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
                     already_selected = graphic_index in selection_indexes
@@ -1000,7 +1021,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def begin_tracking_horizontal(self, pos: Geometry.IntPoint, rescale: bool) -> None:
         plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
-        if canvas_bounds and (axes := self._axes):
+        if canvas_bounds and (axes := self.__last_axes):
             plot_rect = canvas_bounds.translated(plot_origin)
             self.__tracking_horizontal = True
             self.__tracking_rescale = rescale
@@ -1014,17 +1035,17 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def begin_tracking_vertical(self, pos: Geometry.IntPoint, rescale: bool) -> None:
         graph_area_canvas_bounds = self.__line_graph_area_stack.canvas_bounds
         v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
-        if graph_area_canvas_bounds and v_axis_canvas_bounds and (axes := self._axes):
+        if graph_area_canvas_bounds and v_axis_canvas_bounds and (axes := self.__last_axes):
             plot_height = graph_area_canvas_bounds.height - 1
             self.__tracking_vertical = True
             self.__tracking_rescale = rescale
             self.__tracking_start_pos = pos
-            self.__tracking_start_calibrated_data_min = axes.mapped_calibrated_data_min
-            self.__tracking_start_calibrated_data_max = axes.mapped_calibrated_data_max
+            self.__tracking_start_calibrated_data_min = axes.scaled_data_min
+            self.__tracking_start_calibrated_data_max = axes.scaled_data_max
             self.__tracking_start_calibrated_data_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / plot_height
             plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
             plot_rect = v_axis_canvas_bounds.translated(plot_origin)
-            if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max and axes.data_style.style_id == "linear":
+            if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max and axes.axis_scale.axis_scale_id == "linear":
                 calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1) if plot_rect.height > 1 else 1.0
                 calibrated_unit_per_pixel = calibrated_unit_per_pixel if calibrated_unit_per_pixel else 1.0  # handle case where calibrated_unit_per_pixel is zero
                 origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel
@@ -1039,8 +1060,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         delegate = self.delegate
         if not delegate:
             return False
+        graphic_selection = self.__line_plot_display_info.graphic_selection
         if self.__tracking_selections:
-            if self.__graphic_drag_item is None and not self.__graphic_drag_changed and self.__graphic_selection:
+            if self.__graphic_drag_item is None and not self.__graphic_drag_changed and graphic_selection:
                 widget_mapping = self.__get_mouse_mapping()
                 x = widget_mapping.map_point_widget_to_channel_norm(self.__graphic_drag_start_pos.to_float_point())
                 if not self.__pending_interval:
@@ -1057,8 +1079,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__undo_command = delegate.add_and_select_region(region)
                 else:
                     region = None
-                selection_indexes = self.__graphic_selection.indexes
-                for graphic_index, graphic in enumerate(self.__graphics):
+                selection_indexes = graphic_selection.indexes
+                for graphic_index, graphic in enumerate(self.__line_plot_display_info.graphics):
                     if graphic == region:
                         part, specific = graphic.test(widget_mapping, self.__ui_settings, pos.to_float_point(), False)
                         if part:
@@ -1107,7 +1129,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             if not self.__undo_command:
                 self.__undo_command = delegate.create_change_display_command()
             v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
-            axes = self._axes
+            axes = self.__last_axes
             if axes:
                 if v_axis_canvas_bounds and self.__tracking_rescale:
                     plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
@@ -1119,16 +1141,16 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     new_calibrated_data_per_pixel = calibrated_offset / pixel_offset
                     calibrated_data_min = self.__tracking_start_calibrated_origin - new_calibrated_data_per_pixel * self.__tracking_start_origin_y
                     calibrated_data_max = self.__tracking_start_calibrated_origin + new_calibrated_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
-                    uncalibrated_data_min = axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_min)
-                    uncalibrated_data_max = axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_max)
+                    uncalibrated_data_min = axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_min)
+                    uncalibrated_data_max = axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_max)
                     delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
                     return True
                 else:
                     delta = pos - self.__tracking_start_pos
                     calibrated_data_min = self.__tracking_start_calibrated_data_min + self.__tracking_start_calibrated_data_per_pixel * delta.y
                     calibrated_data_max = self.__tracking_start_calibrated_data_max + self.__tracking_start_calibrated_data_per_pixel * delta.y
-                    uncalibrated_data_min = axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_min)
-                    uncalibrated_data_max = axes.convert_mapped_calibrated_y_value_to_uncalibrated_value(calibrated_data_max)
+                    uncalibrated_data_min = axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_min)
+                    uncalibrated_data_max = axes.convert_scaled_y_value_to_uncalibrated_value(calibrated_data_max)
                     delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
                     return True
         return False
@@ -1140,8 +1162,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if not self.__graphic_drag_items and not modifiers.control:
             delegate.clear_selection()
         if self.__tracking_selections and self.__graphic_drag_item:
-            graphics = self.__graphics
-            if self._axes and graphics is not None:
+            graphics = self.__line_plot_display_info.graphics
+            if self.__last_axes and graphics is not None:
                 for index in self.__graphic_drag_indexes:
                     graphic = graphics[index]
                     graphic.end_drag(self.__graphic_part_data[index])
@@ -1176,7 +1198,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         if self.__mouse_in and self.__last_mouse:
             pos_1d = None
-            axes = self._axes
+            axes = self.__last_axes
             line_graph_layers_canvas_item = self.line_graph_layers_canvas_item
             if axes:
                 mouse = self.map_to_canvas_item(self.__last_mouse, line_graph_layers_canvas_item)
@@ -1208,9 +1230,13 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if source_display_item:
             from_index = legend_data["index"]
             # if we aren't the source item, move the display layer between display items
-            command = self.delegate.create_move_display_layer_command(source_display_item, from_index, len(self.__display_layers))
+            command = self.delegate.create_move_display_layer_command(source_display_item, from_index, len(self.__line_plot_display_info.display_layers))
             # TODO: perform only if the display channel doesn't exist in the target
             command.perform()
             self.delegate.push_undo_command(command)
 
         return "ignore"
+
+    @property
+    def _axes_for_testing(self) -> LineGraphCanvasItem.LineGraphAxes | None:
+        return self.__line_plot_display_info.axes

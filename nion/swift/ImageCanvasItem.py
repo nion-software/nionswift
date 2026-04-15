@@ -289,12 +289,12 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                 total_text_height = text_height * 2
                 total_height = scale_marker_height + padding + total_text_height
                 background_top = baseline - total_height
-                drawing_context.begin_path()
-                drawing_context.rect(0 - padding, background_top, content_width + padding * 2, total_height + padding)
-                drawing_context.close_path()
-                drawing_context.fill_style = self.__scale_marker_background_color
-
-                drawing_context.fill()
+                if self.__scale_marker_background_color:
+                    drawing_context.begin_path()
+                    drawing_context.rect(0 - padding, background_top, content_width + padding * 2, total_height + padding)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = self.__scale_marker_background_color
+                    drawing_context.fill()
 
                 if self.__scale_marker_position == "bottom-right":
                     bar_left = content_width - scale_marker_calculated_width
@@ -1612,7 +1612,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def key_contexts(self) -> typing.Sequence[str]:
         # key contexts provide an ordered list of contexts that are used to determine
         # which actions are valid at a given time. the contexts are checked in reverse
-        # order (i.e. last added have highest precedence).
+        # order (i.e. last added have the highest precedence).
         key_contexts = ["display_panel"]
         if self.__data_shape is not None:
             key_contexts.append("raster_display")

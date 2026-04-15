@@ -178,8 +178,8 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
         self.__thread_future: typing.Optional[concurrent.futures.Future[None]] = None
         self.__closing = False
         self.__pending = False
-        self.__visible = False
         self.on_content_size_changed = content_size_changed_fn
+        self._is_visible = False  # managed by the panel
 
         self.__draw(DrawingContext.DrawingContext())
 
@@ -208,7 +208,7 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
                     with Process.audit("draw_thread"):
                         self.__draw(drawing_context)
             with self.__thread_lock:
-                if not self.__pending or not self.__visible:
+                if not self.__pending:
                     self.__thread_future = None
                     break
 
@@ -269,18 +269,9 @@ class ThreadedCanvasItem(CanvasItem.CanvasItemComposition):
     def _trigger(self) -> None:
         with self.__thread_lock:
             self.__pending = True  # pending even if not visible.
-            if self.root_container and (canvas_widget := getattr(self.root_container, "canvas_widget", None)):
-                self.__visible = typing.cast(UserInterface.DockWidget, typing.cast(UserInterface.CanvasWidget, canvas_widget).root_container).visible
-                if self.__visible:
-                    # only launch thread if visible and not already running.
-                    if not self.__thread_future:
-                        self.__thread_future = ThreadedCanvasItem._executor.submit(self.__draw_thread)
-
-    # def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
-    #     start = time.perf_counter_ns()
-    #     super()._repaint_template(drawing_context, immediate)
-    #     end = time.perf_counter_ns()
-    #     print(f"repaint {(end - start) / 1000}us")
+            # only launch thread if visible and not already running.
+            if not self.__thread_future and self._is_visible:
+                self.__thread_future = ThreadedCanvasItem._executor.submit(self.__draw_thread)
 
 
 class ThreadHelper:
@@ -376,10 +367,18 @@ class MetadataPanel(Panel.Panel):
 
         def handle_will_show() -> None:
             # this is called when the dock widget is shown. we need to trigger the metadata editor to
-            # reconstruct its contents.
+            # reconstruct its contents. also mark the metadata editor as visible so the draw thread will run.
             self.__metadata_source_changed(self.__metadata_model.data_item)
+            self.__metadata_editor_canvas_item._is_visible = True
+
+        def handle_will_hide() -> None:
+            # this is called when the dock widget is hidden. we need to clear the metadata editor to free up resources.
+            # also mark the metadata editor as not visible so the draw thread will not run.
+            self.__metadata_source_changed(None)
+            self.__metadata_editor_canvas_item._is_visible = False
 
         self.dock_widget.on_will_show = handle_will_show
+        self.dock_widget.on_will_hide = handle_will_hide
 
     def __metadata_source_changed(self, metadata_source: MetadataSource | None) -> None:
         self.__delegate.metadata_source = metadata_source

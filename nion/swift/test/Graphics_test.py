@@ -94,7 +94,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             mapping = self.__get_mapping()
             line_graphic = Graphics.LineGraphic()
             line_graphic.start = (0.25, 0.25)
@@ -158,7 +158,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             mapping = self.__get_mapping()
             ui_settings = DisplayPanel.FixedUISettings()
             line_graphic = Graphics.LineGraphic()
@@ -396,7 +396,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             for tool_mode, graphic_type in t:
                 document_controller.tool_mode = tool_mode
                 self.assertEqual(0, len(display_item.graphics))
@@ -421,7 +421,7 @@ class TestGraphicsClass(unittest.TestCase):
             # set up display to be 1000x1000
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # set up mask graphic
             spot_graphic = Graphics.SpotGraphic()
             display_item.add_graphic(spot_graphic)
@@ -458,7 +458,7 @@ class TestGraphicsClass(unittest.TestCase):
             # set up display to be 1000x1000
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # set up mask graphic
             wedge_graphic = Graphics.WedgeGraphic()
             display_item.add_graphic(wedge_graphic)
@@ -498,7 +498,7 @@ class TestGraphicsClass(unittest.TestCase):
             # set up display to be 1000x1000
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # set up mask graphic
             ring_graphic = Graphics.RingGraphic()
             display_item.add_graphic(ring_graphic)
@@ -534,7 +534,7 @@ class TestGraphicsClass(unittest.TestCase):
             # set up display to be 1000x1000
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             # set up mask graphic
             lattice_graphic = Graphics.LatticeGraphic()
             display_item.add_graphic(lattice_graphic)
@@ -572,7 +572,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             spot_graphic = Graphics.SpotGraphic()
             display_item.add_graphic(spot_graphic)
             initial_bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
@@ -651,7 +651,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
 
             def get_extended_attr(object, extended_name):
                 initial_value = object
@@ -1453,7 +1453,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
-            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.layout_immediate((1000 + header_height, 1000))
             rect_graphic1 = Graphics.RectangleGraphic()
             rect_graphic2 = Graphics.RectangleGraphic()
             rect_graphic1.bounds = (0.4, 0.4), (0.2, 0.2)

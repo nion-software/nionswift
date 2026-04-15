@@ -1070,7 +1070,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # this should not occur in regular use, but occurred prior to 2026-March due to this issue:
         # https://github.com/nion-software/nionswift/issues/1795
         for computation in list(self.__computations):
-            if computation.is_orphaned:
+            # If the computation is orphaned, delete it. Deleting a computation may cause other orphaned computations
+            # to cascade delete, so re-check existence in the list before deleting each one.
+            if computation in self.__computations and computation.is_orphaned:
                 self.remove_computation(computation)
 
     def insert_model_item(self, container: Persistence.PersistentContainerType, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
