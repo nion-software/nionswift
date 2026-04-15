@@ -727,10 +727,6 @@
                 ]
             },
             {
-                "type": "item",
-                "action_id": "workspace.split_from_selection"
-            },
-            {
                 "type": "separator"
             },
             {
