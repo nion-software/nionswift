@@ -2217,6 +2217,20 @@ class DisplayItem(Persistence.PersistentObject):
             Stream.PropertyChangedEventStream[str](self, "intensity_calibration_style_id"),
         )
 
+        # configure the display_calibration_info_stream.
+
+        def handle_display_data_delta_stream(display_calibration_info_stream: Stream.ValueStream[DisplayCalibrationInfo], value: DisplayDataDelta | None) -> None:
+            if value is not None:
+                if display_calibration_info_stream.value is None or value.display_calibration_info_changed:
+                    display_calibration_info_stream.value = value.display_calibration_info
+            else:
+                display_calibration_info_stream.value = None
+
+        self.__display_calibration_info_stream = Stream.ValueStream[DisplayCalibrationInfo]()
+        self.__display_data_delta_stream_action = Stream.ValueStreamAction(self.__display_data_delta_stream, functools.partial(handle_display_data_delta_stream, self.__display_calibration_info_stream))
+
+        # configure the graphic selection changes listener.
+
         def graphic_selection_changed() -> None:
             # relay the message
             self.graphic_selection_changed_event.fire(self.graphic_selection)
@@ -3057,10 +3071,12 @@ class DisplayItem(Persistence.PersistentObject):
         self.graphics_changed_event.fire(self.graphic_selection)
 
     @property
+    def display_calibration_info_stream(self) -> Stream.ValueStream[DisplayCalibrationInfo]:
+        return self.__display_calibration_info_stream
+
+    @property
     def display_calibration_info(self) -> DisplayCalibrationInfo | None:
-        """Return the latest display calibration info."""
-        display_data_delta = self.__display_data_delta_stream.value
-        return display_data_delta.display_calibration_info if display_data_delta is not None else None
+        return self.__display_calibration_info_stream.value
 
     @dataclasses.dataclass
     class DataInfo:

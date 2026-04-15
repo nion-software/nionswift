@@ -576,7 +576,10 @@ class DisplayItemDisplayPropertyCommandModel(Model.PropertyModel[typing.Any]):
         return self.__display_item.get_display_property(self.__property_name)
 
 
-class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
+_GraphicPropertyCommandModelValueType = typing.TypeVar("_GraphicPropertyCommandModelValueType")
+
+
+class GraphicPropertyCommandModel(Model.PropertyModel[_GraphicPropertyCommandModelValueType]):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic,
                  property_name: str, title: str,  command_id: str, read_property_name: str | None = None) -> None:
         read_name = read_property_name if read_property_name else property_name
@@ -585,11 +588,11 @@ class GraphicPropertyCommandModel(Model.PropertyModel[typing.Any]):
         self.__read_property_name = read_name
         self.__graphic = graphic
 
-        def property_changed_from_user(value: typing.Any) -> None:
+        def property_changed_from_user(value: _GraphicPropertyCommandModelValueType | None) -> None:
             if value != getattr(graphic, self.__read_property_name):
                 command = DisplayPanel.ChangeGraphicsCommand(document_controller.document_model, display_item, [graphic],
                                                             title=title, command_id=command_id, is_mergeable=True,
-                                                            **{self.__property_name: value})
+                                                            **{self.__property_name: typing.cast(typing.Any, value)})
                 command.perform()
                 document_controller.push_undo_command(command)
                 self.value = getattr(graphic, self.__read_property_name)
@@ -2602,7 +2605,7 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
         index = self.__index
         display_calibration_info = self.__display_item.display_calibration_info
         display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
-        dimension_count = len(display_data_shape) if display_data_shape else 0
+        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count and display_data_shape is not None:
@@ -2732,105 +2735,146 @@ class CalibratedLengthBinding(Binding.Binding):
         return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
 
 
-class CalibratedAngleBinding(Binding.Binding):
-    def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
-        super().__init__(None)
-        self.__display_item = display_item
-        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1, uniform=True)
-        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0, uniform=True)
-        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0, uniform=True)
-        self.__start_binding = start_binding
-        self.__end_binding = end_binding
-        self.__start_binding.target_setter = ReferenceCounting.weak_partial(CalibratedAngleBinding.__update_target, self)
-        self.__end_binding.target_setter = ReferenceCounting.weak_partial(CalibratedAngleBinding.__update_target, self)
-        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibratedAngleBinding.__calibrations_changed, self))
-
-    def __update_target(self, value: typing.Any) -> None:
-        self.update_target_direct(self.get_target_value())
-
-    def __calibrations_changed(self, key: str) -> None:
-        display_calibration_info = self.__display_item.display_calibration_info
-        if key == "displayed_display_data_calibrations" and display_calibration_info is not None:
-            self.__update_target(display_calibration_info.displayed_display_data_calibrations)
-
-    # set the model value from the target ui element text.
-    def update_source(self, target_value: typing.Any) -> None:
-        start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
-        end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
-        calibrated_start = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(start[0]),
-                                               x=self.__x_converter.convert_to_calibrated_value(start[1]))
-        calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
-        calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
-        length = math.sqrt(calibrated_dy * calibrated_dy + calibrated_dx * calibrated_dx)
-        angle = RadianToDegreeStringConverter().convert_back(target_value) or 0.0
-        new_calibrated_end = calibrated_start + length * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
-        end = Geometry.FloatPoint(y=self.__y_converter.convert_from_calibrated_value(new_calibrated_end.y),
-                                  x=self.__x_converter.convert_from_calibrated_value(new_calibrated_end.x))
-        self.__end_binding.update_source(end)
-
-    # get the value from the model and return it as a string suitable for the target ui element.
-    # in this binding, it combines the two source bindings into one.
-    def get_target_value(self) -> typing.Optional[str]:
-        start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
-        end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
-        calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
-        calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
-        return RadianToDegreeStringConverter().convert(-math.atan2(calibrated_dy, calibrated_dx))
-
-
-class DisplayItemCalibratedValueModel(Model.PropertyModel[typing.Any]):
-    """ Model to catch the property changed event for the calibration changing that can trigger a UI update """
-    def __init__(self, property_model: Model.PropertyModel[typing.Any],
-                 converter: Converter.ConverterLike[typing.Any, typing.Any],
-                 display_item: DisplayItem.DisplayItem):
+class DisplayItemCalibratedDimensionValueModel(Model.ValueModel[str]):
+    def __init__(self, property_model: Model.ValueModel[tuple[float, ...]], display_item: DisplayItem.DisplayItem, *, dimension_index: int, is_size: bool, uniform: bool = False, factor: float = 1.0) -> None:
         super().__init__()
         self.__property_model = property_model
-        self.__converter = converter
         self.__display_item = display_item
+        self.__dimension_index = dimension_index
+        self.__is_size = is_size
+        self.__uniform = uniform
+        self.__factor = factor
+        self.__display_calibration_info: DisplayItem.DisplayCalibrationInfo | None = self.__display_item.display_calibration_info
+        self.__display_item_listener = Stream.ValueStreamAction(self.__display_item.display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__on_display_calibration_info_changed, self))
+        self.__property_listener = self.__property_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__on_value_changed, self))
+        self.__value_str: str | None = None
+        self.__update()
 
-        self.__display_item_listener = self.__display_item.display_property_changed_event.listen(
-            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_calibration_changed, self))
-        self.__property_listener = self.__property_model.property_changed_event.listen(
-            ReferenceCounting.weak_partial(DisplayItemCalibratedValueModel.__on_value_changed, self))
+    def __get_calibration(self) -> Calibration.Calibration:
+        dimension_index = self.__dimension_index
+        calibrations = self.__display_calibration_info.displayed_display_data_calibrations if self.__display_calibration_info else None
+        if not calibrations:
+            return Calibration.Calibration()
+        if self.__uniform:
+            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
+            if len(unit_set) > 1:
+                return Calibration.Calibration()
+        dimension_count = len(calibrations)
+        if dimension_index < 0:
+            dimension_index = dimension_count + dimension_index
+        if dimension_index >= 0 and dimension_index < dimension_count:
+            return calibrations[dimension_index]
+        else:
+            return Calibration.Calibration()
 
-    def __on_calibration_changed(self, property: str) -> None:
-        if property == "displayed_display_data_calibrations":
+    def __get_data_size(self) -> int:
+        index = self.__dimension_index
+        display_calibration_info = self.__display_calibration_info
+        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
+            return display_data_shape[index]
+        else:
+            return 1
+
+    def __get_value_str(self) -> str | None:
+        value_tuple = self.__property_model.value
+        if value_tuple is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            if self.__is_size:
+                return calibration.convert_to_calibrated_size_str(data_size * value_tuple[self.__dimension_index] * self.__factor, value_range=(0, data_size), samples=data_size)
+            else:
+                return calibration.convert_to_calibrated_value_str(data_size * value_tuple[self.__dimension_index] * self.__factor, value_range=(0, data_size), samples=data_size)
+        return None
+
+    def __update(self) -> None:
+        new_value = self.__get_value_str()
+        if new_value != self.__value_str:
+            self.__value_str = new_value
             self.notify_property_changed("value")
 
+    def __on_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+        self.__display_calibration_info = display_calibration_info
+        self.__update()
+
     def __on_value_changed(self, property: str) -> None:
-        self.notify_property_changed("value")
+        self.__update()
 
     @property
-    def value(self) -> typing.Any:
-        return self.__converter.convert(self.__property_model.value)
+    def value(self) -> str | None:
+        return self.__value_str
 
     @value.setter
-    def value(self, value: typing.Any) -> None:
-        self.__property_model.value = self.__converter.convert_back(value)
+    def value(self, value_str: str | None) -> None:
+        new_value: float | None = None
+        if value_str is not None:
+            calibration = self.__get_calibration()
+            data_size = self.__get_data_size()
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                if self.__is_size:
+                    new_value = calibration.convert_from_calibrated_size(value) / data_size / self.__factor
+                else:
+                    new_value = calibration.convert_from_calibrated_value(value) / data_size / self.__factor
+        value_tuple = self.__property_model.value
+        new_value_tuple = value_tuple
+        if value_tuple is not None and new_value is not None:
+            value_list = list(value_tuple)
+            value_list[self.__dimension_index] = new_value
+            new_value_tuple = tuple(value_list)
+        if new_value_tuple != value_tuple:
+            self.__property_model.value = new_value_tuple
 
 
-class TuplePropertyElementModel(Model.PropertyModel[typing.Any]):
-    def __init__(self, source: Model.PropertyModel[tuple[typing.Any]], index: int):
+class TupleToFloatPropertyElementModel(Model.ValueModel[float]):
+    """Model to represent an indexed element of a tuple model."""
+
+    def __init__(self, source: Model.ValueModel[tuple[float, ...]], index: int):
         super().__init__()
         self.__source = source
         self.__index = index
-        self.__listener = self.__source.property_changed_event.listen(
-            ReferenceCounting.weak_partial(TuplePropertyElementModel.__on_tuple_changed, self))
+        self.__listener = self.__source.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__on_source_changed, self))
 
     @property
-    def value(self) -> typing.Any:
+    def value(self) -> float | None:
         tuple_value = self.__source.value
         return tuple_value[self.__index] if tuple_value else None
 
     @value.setter
-    def value(self, new_value: typing.Any) -> None:
+    def value(self, new_value: float | None) -> None:
         if self.value != new_value:
             tuple_value = self.__source.value
-            tuple_as_list = list(tuple_value) if tuple_value else []
-            tuple_as_list[self.__index] = new_value
+            tuple_as_list: list[float] = list(tuple_value) if tuple_value else []
+            tuple_as_list[self.__index] = new_value or 0.0
             self.__source.value = tuple(tuple_as_list)
 
-    def __on_tuple_changed(self, property_name: str) -> None:
+    def __on_source_changed(self, property_name: str) -> None:
+        if property_name == "value":
+            self.notify_property_changed("value")
+
+
+class FloatToTuplePropertyElementModel(Model.ValueModel[tuple[float, ...]]):
+    """Model to represent an indexed element of a tuple model."""
+
+    def __init__(self, source: Model.ValueModel[float]):
+        super().__init__()
+        self.__source = source
+        self.__listener = self.__source.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__on_source_changed, self))
+
+    @property
+    def value(self) -> tuple[float, ...] | None:
+        source_value = self.__source.value
+        return (source_value,) if isinstance(source_value, float) else None
+
+    @value.setter
+    def value(self, new_value: tuple[float, ...] | None) -> None:
+        if self.value != new_value:
+            self.__source.value = new_value[0] if new_value is not None and len(new_value) > 0 else None
+
+    def __on_source_changed(self, property_name: str) -> None:
         if property_name == "value":
             self.notify_property_changed("value")
 
@@ -2937,15 +2981,15 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self._stroke_float_str_converter = Converter.FloatToStringConverter(pass_none=True)
         self._graphic_type_model = Model.PropertyModel[str]()
         self.__set_type_specifics()
-        self._graphic_label_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
-        self._lock_position_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_(f"Change {self._graphic_type_model.value} Position Locked"), command_id=f"change_{self._graphic_type_model.value}_position_locked")
-        self._lock_rotation_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic, "is_rotation_locked", title=_(f"Change {self._graphic_type_model.value} Rotation Locked"), command_id=f"change_{self._graphic_type_model.value}_rotation_locked")
-        self._stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
-        self._used_stroke_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style")
-        self._stroke_width_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
-        self._fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic, "fill_color", title=_("Change Fill Color"), command_id="change_fill_color")
-        self._used_fill_color_model = GraphicPropertyCommandModel(document_controller, display_item, graphic,"fill_color", title=_("Change Fill Color"), command_id="change_fill_color", read_property_name="used_fill_style")
-        self._lock_shape_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, graphic,"is_shape_locked", title=_(f"Change {self._graphic_type_model.value} Shape Locked"), command_id=f"change_{self._graphic_type_model.value}_shape_locked")
+        self._graphic_label_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
+        self._lock_position_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_(f"Change {self._graphic_type_model.value} Position Locked"), command_id=f"change_{self._graphic_type_model.value}_position_locked")
+        self._lock_rotation_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_rotation_locked", title=_(f"Change {self._graphic_type_model.value} Rotation Locked"), command_id=f"change_{self._graphic_type_model.value}_rotation_locked")
+        self._stroke_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
+        self._used_stroke_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style")
+        self._stroke_width_model = GraphicPropertyCommandModel[float](document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
+        self._fill_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "fill_color", title=_("Change Fill Color"), command_id="change_fill_color")
+        self._used_fill_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"fill_color", title=_("Change Fill Color"), command_id="change_fill_color", read_property_name="used_fill_style")
+        self._lock_shape_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic,"is_shape_locked", title=_(f"Change {self._graphic_type_model.value} Shape Locked"), command_id=f"change_{self._graphic_type_model.value}_shape_locked")
 
         u = Declarative.DeclarativeUI()
 
@@ -3047,15 +3091,9 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_point_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        position_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "position", title=_("Change Position"), command_id="change_point_position")
-        self._point_position_x_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(position_model, 1),
-                                                                       CalibratedValueFloatToStringConverter(self.__display_item, 1),
-                                                                       self.__display_item)
-        self._point_position_y_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(position_model, 0),
-                                                                       CalibratedValueFloatToStringConverter(
-                                                                           self.__display_item, 0),
-                                                                       self.__display_item)
-
+        position_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "position", title=_("Change Position"), command_id="change_point_position")
+        self._point_position_x_model = DisplayItemCalibratedDimensionValueModel(position_model, self.__display_item, dimension_index=1, is_size=False)
+        self._point_position_y_model = DisplayItemCalibratedDimensionValueModel(position_model, self.__display_item, dimension_index=0, is_size=False)
         return u.create_row(
             u.create_spacing(20),
             u.create_label(text=_("X"), width=26),
@@ -3071,9 +3109,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
         display_calibration_info = self.__display_item.display_calibration_info
         display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
         factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
-        self._line_profile_width_model = DisplayItemCalibratedValueModel(
-            GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "width", title=_("Change Width"), command_id="change_line_profile_width"),
-            CalibratedSizeFloatToStringConverter(self.__display_item, 0, factor), self.__display_item)
+        line_profile_width_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "width", title=_("Change Width"), command_id="change_line_profile_width")
+        self._line_profile_width_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(line_profile_width_model), self.__display_item, dimension_index=0, is_size=True, factor=factor)
         return u.create_column(
             self.__create_line_shape_and_pos(),
             u.create_spacing(4),
@@ -3087,20 +3124,12 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_line_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        start_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
-        end_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change Line End"), command_id="change_line_end")
-        self._x0_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(start_model, 1),
-                                                         CalibratedValueFloatToStringConverter(self.__display_item, 1),
-                                                         self.__display_item)
-        self._y0_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(start_model, 0),
-                                                         CalibratedValueFloatToStringConverter(self.__display_item, 0),
-                                                         self.__display_item)
-        self._x1_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(end_model, 1),
-                                                         CalibratedValueFloatToStringConverter(self.__display_item, 1),
-                                                         self.__display_item)
-        self._y1_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(end_model, 0),
-                                                         CalibratedValueFloatToStringConverter(self.__display_item, 0),
-                                                         self.__display_item)
+        start_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
+        end_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change Line End"), command_id="change_line_end")
+        self._x0_model = DisplayItemCalibratedDimensionValueModel(start_model, self.__display_item, dimension_index=1, is_size=False)
+        self._y0_model = DisplayItemCalibratedDimensionValueModel(start_model, self.__display_item, dimension_index=0, is_size=False)
+        self._x1_model = DisplayItemCalibratedDimensionValueModel(end_model, self.__display_item, dimension_index=1, is_size=False)
+        self._y1_model = DisplayItemCalibratedDimensionValueModel(end_model, self.__display_item, dimension_index=0, is_size=False)
         self._length_model = LineLengthModel(start_model, end_model, self.__display_item)
         self._angle_model = LineAngleModel(start_model, end_model, self.__display_item)
 
@@ -3138,19 +3167,15 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_rectangle_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        center_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "center", title=_(f"Change {self._graphic_type_model.value} Center"), command_id=f"change_{self._graphic_type_model.value}_center")
-        size_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "size", title=_(f"Change {self._graphic_type_model.value} Size"), command_id=f"change_{self._graphic_type_model.value}_size")
+        center_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "center", title=_(f"Change {self._graphic_type_model.value} Center"), command_id=f"change_{self._graphic_type_model.value}_center")
+        size_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "size", title=_(f"Change {self._graphic_type_model.value} Size"), command_id=f"change_{self._graphic_type_model.value}_size")
 
-        x_value_converter = CalibratedValueFloatToStringConverter(self.__display_item, 1)
-        y_value_converter = CalibratedValueFloatToStringConverter(self.__display_item, 0)
-        x_size_converter = CalibratedSizeFloatToStringConverter(self.__display_item, 1)
-        y_size_converter = CalibratedSizeFloatToStringConverter(self.__display_item, 0)
+        self._center_x_model = DisplayItemCalibratedDimensionValueModel(center_model, self.__display_item, dimension_index=1, is_size=False)
+        self._center_y_model = DisplayItemCalibratedDimensionValueModel(center_model, self.__display_item, dimension_index=0, is_size=False)
+        self._width_model = DisplayItemCalibratedDimensionValueModel(size_model, self.__display_item, dimension_index=1, is_size=True)
+        self._height_model = DisplayItemCalibratedDimensionValueModel(size_model, self.__display_item, dimension_index=0, is_size=True)
 
-        self._center_x_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(center_model, 1), x_value_converter, self.__display_item)
-        self._center_y_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(center_model, 0), y_value_converter, self.__display_item)
-        self._width_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(size_model, 1), x_size_converter, self.__display_item)
-        self._height_model = DisplayItemCalibratedValueModel(TuplePropertyElementModel(size_model, 0), y_size_converter, self.__display_item)
-        self._rotation_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "rotation", title=_(f"Change {self._graphic_type_model.value} Rotation"), command_id=f"change_{self._graphic_type_model.value}_size")
+        self._rotation_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "rotation", title=_(f"Change {self._graphic_type_model.value} Rotation"), command_id=f"change_{self._graphic_type_model.value}_size")
 
         self._radian_to_degrees_string_converter = RadianToDegreeStringConverter()
 
@@ -3188,17 +3213,11 @@ class GraphicsInspectorHandler(Declarative.Handler):
         return self.__create_rectangle_shape_and_pos()
 
     def __create_interval_shape_and_pos(self) -> Declarative.UIDescriptionResult:
-        converter = CalibratedValueFloatToStringConverter(self.__display_item, -1)
-        self._start_model = DisplayItemCalibratedValueModel(
-            GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "start",
-                                        title=_(f"Change {self._graphic_type_model.value} Start"),
-                                        command_id=f"change_{self._graphic_type_model.value}_start"),
-            converter, self.__display_item)
-        self._end_model = DisplayItemCalibratedValueModel(
-            GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "end",
-                                        title=_(f"Change {self._graphic_type_model.value} End"),
-                                        command_id=f"change_{self._graphic_type_model.value}_end"),
-            converter, self.__display_item)
+        start_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "start", title=_(f"Change {self._graphic_type_model.value} Start"), command_id=f"change_{self._graphic_type_model.value}_start")
+        end_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "end", title=_(f"Change {self._graphic_type_model.value} End"), command_id=f"change_{self._graphic_type_model.value}_end")
+
+        self._start_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(start_model), self.__display_item, dimension_index=-1, is_size=False)
+        self._end_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(end_model), self.__display_item, dimension_index=-1, is_size=False)
 
         u = Declarative.DeclarativeUI()
 
@@ -3219,12 +3238,9 @@ class GraphicsInspectorHandler(Declarative.Handler):
         )
 
     def __create_channel_pos(self) -> Declarative.UIDescriptionResult:
-        converter = CalibratedValueFloatToStringConverter(self.__display_item, -1)
-        self._position_model = DisplayItemCalibratedValueModel(
-            GraphicPropertyCommandModel(self.__document_controller, self.__display_item, self.__graphic, "position",
-                                        title=_(f"Change {self._graphic_type_model.value} Position"),
-                                        command_id=f"change_{self._graphic_type_model.value}_position"),
-            converter, self.__display_item)
+        position_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "position", title=_(f"Change {self._graphic_type_model.value} Position"), command_id=f"change_{self._graphic_type_model.value}_position")
+
+        self._position_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(position_model), self.__display_item, dimension_index=-1, is_size=False)
 
         u = Declarative.DeclarativeUI()
 
@@ -3243,14 +3259,11 @@ class GraphicsInspectorHandler(Declarative.Handler):
         return self.__create_rectangle_shape_and_pos()
 
     def __create_wedge_shape_and_pos(self) -> Declarative.UIDescriptionResult:
-        angle_interval_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item,
-                                                           self.__graphic, "angle_interval",
-                                                           title=_("Change Angle Interval"),
-                                                           command_id="change_angle_interval")
+        angle_interval_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "angle_interval", title=_("Change Angle Interval"), command_id="change_angle_interval")
 
         self._radian_to_degrees_string_converter = RadianToDegreeStringConverter()
-        self._start_angle_model = TuplePropertyElementModel(angle_interval_model, 0)
-        self._end_angle_model = TuplePropertyElementModel(angle_interval_model, 1)
+        self._start_angle_model = TupleToFloatPropertyElementModel(angle_interval_model, 0)
+        self._end_angle_model = TupleToFloatPropertyElementModel(angle_interval_model, 1)
 
         u = Declarative.DeclarativeUI()
 
@@ -3282,27 +3295,17 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__annular_ring_mode_model.value = self.__annular_ring_mode_ids[current_index]
 
     def __create_ring_shape_and_pos(self) -> Declarative.UIDescriptionResult:
-        self._radius_1_model = DisplayItemCalibratedValueModel(
-            GraphicPropertyCommandModel(self.__document_controller, self.__display_item,
-                                        self.__graphic, "radius_1",
-                                        title=_("Change Radius 1"),
-                                        command_id="change_radius_1"),
-            CalibratedSizeFloatToStringConverter(self.__display_item, 0), self.__display_item)
-        self._radius_2_model = DisplayItemCalibratedValueModel(
-            GraphicPropertyCommandModel(self.__document_controller, self.__display_item,
-                                        self.__graphic, "radius_2",
-                                        title=_("Change Radius 2"),
-                                        command_id="change_radius_2"),
-            CalibratedSizeFloatToStringConverter(self.__display_item, 0), self.__display_item)
+        radius_1_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "radius_1", title=_("Change Radius 1"), command_id="change_radius_1")
+        radius_2_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "radius_2", title=_("Change Radius 2"), command_id="change_radius_2")
+
+        self._radius_1_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(radius_1_model), self.__display_item, dimension_index=0, is_size=True)
+        self._radius_2_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(radius_2_model), self.__display_item, dimension_index=0, is_size=True)
 
         self.__annular_ring_mode_options = [_("Band-Pass"), _("Low-Pass"), _("High-Pass")]
         self.__annular_ring_mode_ids = ["band-pass", "low-pass", "high-pass"]
         self.__annular_ring_mode_reverse_map = {p: i for i, p in enumerate(self.__annular_ring_mode_ids)}
 
-        self.__annular_ring_mode_model = GraphicPropertyCommandModel(self.__document_controller, self.__display_item,
-                                                                     self.__graphic, "mode",
-                                                                     title=_("Change Mode"),
-                                                                     command_id="change_mode")
+        self.__annular_ring_mode_model = GraphicPropertyCommandModel[str](self.__document_controller, self.__display_item, self.__graphic, "mode", title=_("Change Mode"), command_id="change_mode")
 
         self._current_annular_ring_mode_index = Model.PropertyModel(
             self.__annular_ring_mode_reverse_map.get(str(self.__annular_ring_mode_model.value), 0))
@@ -3904,20 +3907,20 @@ class GraphicHandler(Declarative.Handler):
                 display_item = graphic.display_item
                 index = 1 if property == "center_x" else 0
                 graphic_name = "rectangle"
-                property_model = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
+                property_model = GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             elif property in ("width", "height"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "width" else 0
                 graphic_name = "rectangle"
-                size_model = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
+                size_model = GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
                 return CalibratedSizeBinding(index, display_item, ClosingTuplePropertyBinding(size_model, "value", index))
             elif property in ("rotation_deg", ):
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "rectangle"
-                rotation_model = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
+                rotation_model = GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
                 return ClosingPropertyBinding(rotation_model, "value", converter=RadianToDegreeStringConverter())
         if isinstance(source, Graphics.LineTypeGraphic):
             if property in ("start_x", "start_y"):
@@ -3925,35 +3928,35 @@ class GraphicHandler(Declarative.Handler):
                 display_item = graphic.display_item
                 index = 1 if property == "start_x" else 0
                 graphic_name = "line_profile"
-                property_model = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "start", title=_("Change {} Start").format(graphic_name), command_id="change_" + graphic_name + "_start")
+                property_model = GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {} Start").format(graphic_name), command_id="change_" + graphic_name + "_start")
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property in ("end_x", "end_y"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "end_x" else 0
                 graphic_name = "line_profile"
-                property_model = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "end", title=_("Change {} End").format(graphic_name), command_id="change_" + graphic_name + "_end")
+                property_model = GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {} End").format(graphic_name), command_id="change_" + graphic_name + "_end")
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property == "length":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model1 = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "start", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_start")
-                property_model2 = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "end", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_end")
+                property_model1 = GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_start")
+                property_model2 = GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_end")
                 return CalibratedLengthBinding(display_item, ClosingPropertyBinding(property_model1, "value"), ClosingPropertyBinding(property_model2, "value"))
             if property == "angle":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
-                return CalibratedBinding(display_item, ClosingPropertyBinding(property_model, "value"), RadianToDegreeStringConverter())
+                property_model_f = GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
+                return CalibratedBinding(display_item, ClosingPropertyBinding(property_model_f, "value"), RadianToDegreeStringConverter())
         if isinstance(source, Graphics.LineProfileGraphic):
             if property == "width":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model = GraphicPropertyCommandModel(self.document_controller, display_item, graphic, "width", title=_("Change {} Line Width").format(graphic_name), command_id="change_" + graphic_name + "_line_width")
-                return CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model, "value"))
+                property_model_f = GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "width", title=_("Change {} Line Width").format(graphic_name), command_id="change_" + graphic_name + "_line_width")
+                return CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         return None
 
     def __make_component_content(self, graphic: Graphics.Graphic) -> Declarative.UIDescription:
