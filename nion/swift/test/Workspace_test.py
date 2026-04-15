@@ -1944,18 +1944,6 @@ class TestWorkspaceClass(unittest.TestCase):
     def copy_display_panel_uuids(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> list[tuple[uuid.UUID, uuid.UUID | None]]:
         return [(display_panel.uuid, display_panel.data_item.uuid if display_panel.data_item is not None else None) for display_panel in display_panels]
 
-    def run_disabled_split_test(self, test_case: SplitCase, perform_func: typing.Callable[[DocumentController.DocumentController], None]):
-        """Test there is no change for invalid test cases.
-
-        Setup the selection using the test_case and then run perform_func with the document controller to call the action.
-        """
-        with TestContext.create_memory_context() as test_context:
-            document_controller, _ = self.__setup_split_test(test_context, test_case)
-            workspace_controller = document_controller.workspace_controller
-            starting_display_panels = workspace_controller.display_panels
-            perform_func(document_controller)
-            self.assertEqual(starting_display_panels, workspace_controller.display_panels)
-
     def _verify_split_results(self, document_controller: DocumentController.DocumentController, selected_data_items: list[DataItem.DataItem], test_case: SplitCase, initial_display_panels: list[tuple[uuid.UUID, uuid.UUID | None]]) -> None:
         """Verify the number, shape, and order of the created panels, as well as the undo and redo."""
 
@@ -2025,58 +2013,18 @@ class TestWorkspaceClass(unittest.TestCase):
             perform_func(document_controller)
             self._verify_split_results(document_controller, selected_data_items, test_case, initial_display_panels)
 
-    def perform_split_selection(self, document_controller: DocumentController.DocumentController):
-        """The perform_func to be passed into the run_split_test function for the workspace.split_from_selection tests"""
-        action_context = document_controller._get_action_context()
-        document_controller.perform_action_in_context("workspace.split_from_selection", action_context)
 
-    def test_split_disabled_when_no_data_panel_items_selected(self):
-        test_case = SplitCase(selected_data_items_indices=[], selected_workspace_panels_indices=[0], total_data_items=1)
-        self.run_disabled_split_test(test_case, self.perform_split_selection)
+    def run_disabled_split_test(self, test_case: SplitCase, perform_func: typing.Callable[[DocumentController.DocumentController], None]):
+        """Test there is no change for invalid test cases.
 
-    def test_split_disabled_when_no_display_panel_selected(self):
-        test_case = SplitCase(selected_data_items_indices=[0], selected_workspace_panels_indices=[], total_data_items=1)
-        self.run_disabled_split_test(test_case, self.perform_split_selection)
-
-    def test_split_disabled_when_too_many_items_selected(self):
-        test_case = SplitCase(selected_data_items_indices=[x for x in range(0, 102)], selected_workspace_panels_indices=[0], total_data_items=102)
-        self.run_disabled_split_test(test_case, self.perform_split_selection)
-
-    def test_split_disabled_when_too_many_display_panels_selected(self):
-        test_case = SplitCase(selected_data_items_indices=[0], selected_workspace_panels_indices=[0, 1], total_data_items=1, initial_layout_id="2x1")
-        self.run_disabled_split_test(test_case, self.perform_split_selection)
-
-    def test_split_inserts_single_item(self):
-        test_case = SplitCase(selected_workspace_panels_indices=0, expected_split_shape=(1, 1), total_expected_panels=1, selected_data_items_indices=[0], total_data_items=1)
-        self.run_split_test(test_case, self.perform_split_selection)
-
-    def test_split_inserts_two_items(self):
-        test_case = SplitCase(selected_workspace_panels_indices=0, expected_split_shape=(2, 1), total_expected_panels=2, selected_data_items_indices=[0, 1], total_data_items=2)
-        self.run_split_test(test_case, self.perform_split_selection)
-
-    def test_split_inserts_five_items(self):
-        test_case = SplitCase(selected_workspace_panels_indices=0, expected_split_shape=(3, 2), total_expected_panels=6, selected_data_items_indices=[0, 1, 2, 3, 4], total_data_items=5)
-        self.run_split_test(test_case, self.perform_split_selection)
-
-    def test_split_with_panel_item(self):  # 1 panel with an existing data item, 4 selected data items, will be split into 3x2 since the existing makes the total 5
-        test_case = SplitCase(selected_workspace_panels_indices=0, expected_split_shape=(3, 2), total_expected_panels=6, selected_data_items_indices=[1, 2, 3, 4], total_data_items=5, workspace_data_items_indices=[(0, 0)])
-        self.run_split_test(test_case, self.perform_split_selection)
-
-    def test_split_with_right_selected(self):  # 2 panels right selected, 5 data items split will be 3x2 with one empty
-        test_case = SplitCase(selected_workspace_panels_indices=1, expected_split_shape=(3, 2), total_expected_panels=7, selected_data_items_indices=[0, 1, 2, 3, 4], total_data_items=5, initial_layout_id="2x1")
-        self.run_split_test(test_case, self.perform_split_selection)
-
-    def test_split_with_bottom_selected(self):   # 2 panels bottom selected, 5 data items split will be 3x2 with one empty
-        test_case = SplitCase(selected_workspace_panels_indices=1, expected_split_shape=(3, 2), total_expected_panels=7, selected_data_items_indices=[0, 1, 2, 3, 4], total_data_items=5, initial_layout_id="2x1")
-        self.run_split_test(test_case, self.perform_split_selection)
-
-    def test_split_with_existing_item(self):  # 2 panels, second with an existing data item and selected, 4 selected data items, will be split into 3x2 since the existing makes the total 5
-        test_case = SplitCase(selected_workspace_panels_indices=1, expected_split_shape=(3, 2), total_expected_panels=7, selected_data_items_indices=[1, 2, 3, 4], total_data_items=5, workspace_data_items_indices=[(1, 0)], initial_layout_id="2x1")
-        self.run_split_test(test_case, self.perform_split_selection)
-
-    def test_split_with_existing_items(self):  # 2 panels with an existing data items, only second selected, 4 selected data items, will be split into 3x2 since the existing makes the total 5
-        test_case = SplitCase(selected_workspace_panels_indices=1, expected_split_shape=(3, 2), total_expected_panels=7, selected_data_items_indices=[1, 2, 3, 4], total_data_items=6, workspace_data_items_indices=[(0, 5), (1, 0)], initial_layout_id="2x1")
-        self.run_split_test(test_case, self.perform_split_selection)
+        Setup the selection using the test_case and then run perform_func with the document controller to call the action.
+        """
+        with TestContext.create_memory_context() as test_context:
+            document_controller, _ = self.__setup_split_test(test_context, test_case)
+            workspace_controller = document_controller.workspace_controller
+            starting_display_panels = workspace_controller.display_panels
+            perform_func(document_controller)
+            self.assertEqual(starting_display_panels, workspace_controller.display_panels)
 
     def perform_new_workspace_from_selection(self, document_controller: DocumentController.DocumentController) -> None:
         """The perform_func to be passed into the run_split_test function for the workspace.new_workspace_from_selection tests.

@@ -5,6 +5,7 @@ import copy
 import functools
 import gettext
 import json
+import math
 import random
 import string
 import threading
@@ -92,6 +93,30 @@ class SplitFromSelectionCommand(Undo.UndoableCommand):
     def _redo(self) -> None:
         assert self.__new_layout is not None
         self.__workspace_controller.reconstruct(self.__new_layout)
+
+    @classmethod
+    def get_split(cls, selection_count: int) -> typing.Tuple[int, int]:
+        """Get a split for the layout that holds the selected items that is approximately a 5:3 ratio
+
+        Depending on if the division of columns have ceil or floor applied first will affect the final split.
+        Both are calculated and the one that will have the least unused panels is returned.
+        """
+        ratio = 0.6
+        columns = math.sqrt(selection_count / ratio)
+
+        columns_ceil = math.ceil(columns)
+        rows_ceil = math.ceil(selection_count / columns_ceil)
+
+        columns_floor = math.floor(columns)
+        rows_floor = math.ceil(selection_count / columns_floor)
+
+        ceil_diff = columns_ceil * rows_ceil - selection_count
+        floor_diff = columns_floor * rows_floor - selection_count
+
+        if floor_diff < ceil_diff:
+            return columns_floor, rows_floor
+
+        return columns_ceil, rows_ceil
 
 
 class NewWorkspaceFromSelectionCommand(Undo.UndoableCommand):

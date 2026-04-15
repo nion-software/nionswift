@@ -2824,7 +2824,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__document_controller.add_action_to_menu(menu, "display_panel.select_siblings", action_context)
         if action_context.display_panel:
             menu.add_separator()
-            self.__document_controller.add_action_to_menu_if_enabled(menu, "workspace.split_from_selection", action_context)
             self.__document_controller.add_action_to_menu(menu, "workspace.split_vertical", action_context)
             self.__document_controller.add_action_to_menu(menu, "workspace.split_horizontal", action_context)
             menu.add_separator()

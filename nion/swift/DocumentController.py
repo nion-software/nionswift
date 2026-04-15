@@ -3810,113 +3810,6 @@ class WorkspaceSplit5x4Action(WorkspaceSplitAction):
         return super().execute(context)
 
 
-class SplitFromSelectionAction(Window.Action):
-    action_id = "workspace.split_from_selection"
-    action_name = _("Split Panel From Selection")
-
-    @classmethod
-    def get_split(cls, selection_count: int) -> typing.Tuple[int, int]:
-        """Get a split for the layout that holds the selected items that is approximately a 5:3 ratio
-
-        Depending on if the division of columns have ceil or floor applied first will affect the final split.
-        Both are calculated and the one that will have the least unused panels is returned.
-        """
-        ratio = 0.6
-        columns = math.sqrt(selection_count / ratio)
-
-        columns_ceil = math.ceil(columns)
-        rows_ceil = math.ceil(selection_count / columns_ceil)
-
-        columns_floor = math.floor(columns)
-        rows_floor = math.ceil(selection_count / columns_floor)
-
-        ceil_diff = columns_ceil * rows_ceil - selection_count
-        floor_diff = columns_floor * rows_floor - selection_count
-
-        if floor_diff < ceil_diff:
-            return columns_floor, rows_floor
-
-        return columns_ceil, rows_ceil
-
-    @staticmethod
-    def _get_selected(context: DocumentController.ActionContext) -> list[DisplayItem.DisplayItem]:
-        """Gets the selection in the data panel used in a split."""
-        selection = []
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        assert workspace_controller
-        data_panel = typing.cast(DataPanel.DataPanel, window.find_dock_panel("data-panel"))
-        display_items = workspace_controller.document_controller.filtered_display_items_model.display_items
-        for index in data_panel._selection.ordered_indexes:
-            selection.append(display_items[index])
-
-        if len(selection) == 1 and context.display_panel and selection[0] == context.display_panel.display_item:
-            # Only one item in the selection and that item is the selected display panel's item.
-            return []  # The selection is only the selected display panel which can't split with itself so no selection is returned
-        return selection
-
-    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        assert window
-        workspace_controller = window.workspace_controller
-        assert workspace_controller
-        selected_display_panel = workspace_controller.document_controller.selected_display_panel or context.display_panel
-        assert selected_display_panel
-        selection = self._get_selected(context)
-        selected_count = len(selection) + (0 if selected_display_panel.display_item is None else 1)  # If there is a display_item then the total splits needs to include it
-        split_layout = SplitFromSelectionAction.get_split(selected_count)
-        display_panels = context.display_panels if context.display_panels else [selected_display_panel]
-        command = Workspace.SplitFromSelectionCommand(workspace_controller, selection, selected_display_panel, display_panels, split_layout)
-        command.perform()
-        window.push_undo_command(command)
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
-
-    def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        assert workspace_controller
-
-        selection = self._get_selected(context)
-        selected_display_panel = workspace_controller.document_controller.selected_display_panel or context.display_panel
-        return bool(selection) and len(selection) < 101 and selected_display_panel is not None
-
-    def get_action_name(self, context: Window.ActionContext) -> str:
-        context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        assert workspace_controller
-
-        selection = self._get_selected(context)
-        selected_display_panel = workspace_controller.document_controller.selected_display_panel or context.display_panel
-
-        if not bool(selection) or len(selection) > 100 or selected_display_panel is None:
-            return self.action_name  # If the action is disabled return default name
-
-        if selected_display_panel:
-            display_item = selected_display_panel.display_item
-            if display_item is not None:
-                selection.insert(0, display_item)
-
-        item_count = len(selection)
-        if item_count == 0:
-            return self.action_name
-
-        if item_count > 1:
-            h, w = SplitFromSelectionAction.get_split(item_count)
-            return _("Split Panel From Selection") + f" {h}x{w} ({item_count} items)"
-
-        data_item = selection[0].data_item
-        display_item = selection[0]
-        if data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
-            displayed_title = display_item.displayed_title if display_item else data_item.title
-            return _("Insert Item") + f" \"{displayed_title}\" " + _("Into Panel")
-        elif display_item:
-            return _("Insert Item") + f" \"{display_item.displayed_title}\" " + _("Into Panel")
-        return self.action_name
-
-
 class NewFromSelectionAction(WorkspaceNewAction):
     action_id = "workspace.new_workspace_from_selection"
     action_name = _("New Workspace From Selection")
@@ -3944,7 +3837,7 @@ class NewFromSelectionAction(WorkspaceNewAction):
         workspace_controller = window.workspace_controller
         assert workspace_controller is not None
         selection = self._get_selected(context)
-        split = SplitFromSelectionAction.get_split(len(selection))
+        split = Workspace.SplitFromSelectionCommand.get_split(len(selection))
         command = Workspace.NewWorkspaceFromSelectionCommand(workspace_controller, text, selection, split)
         command.perform()
         window.push_undo_command(command)
@@ -3966,7 +3859,7 @@ class NewFromSelectionAction(WorkspaceNewAction):
         display_item = context.display_item
         item_count = len(selection)
         if item_count > 1:
-            h, w = SplitFromSelectionAction.get_split(item_count)
+            h, w = Workspace.SplitFromSelectionCommand.get_split(item_count)
             return _("New Workspace From Selection") + f" {h}x{w} ({item_count} items)"
         elif data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
             displayed_title = display_item.displayed_title if display_item else data_item.title
@@ -3993,7 +3886,6 @@ Window.register_action(WorkspaceSplit3x3Action())
 Window.register_action(WorkspaceSplit4x3Action())
 Window.register_action(WorkspaceSplit4x4Action())
 Window.register_action(WorkspaceSplit5x4Action())
-Window.register_action(SplitFromSelectionAction())
 Window.register_action(NewFromSelectionAction())
 
 
