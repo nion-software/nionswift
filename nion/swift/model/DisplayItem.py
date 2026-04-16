@@ -3551,7 +3551,7 @@ class DisplayCalibrationInfo:
             if uniform:
                 unit_set = set(calibration.units if calibration.units else '' for calibration in dimension_calibrations)
                 if len(unit_set) > 1:
-                    return CalibrationAndDataSize(Calibration.Calibration(), 1)
+                    return CalibrationAndDataSize(Calibration.Calibration(), display_data_shape[dimension_index])
             dimension_count = len(dimension_calibrations)
             if dimension_index < 0:
                 dimension_index = dimension_count + dimension_index
