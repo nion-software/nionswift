@@ -3525,11 +3525,12 @@ class WorkspaceCloneAction(Window.Action):
                     self.set_string_property(context, "name", text)
                     self.execute(context)
 
+            title = _("Clone workspace ") + "\"" + workspace_controller._workspace.name + "\""
             size = Geometry.IntSize(width=400, height=100)
             workspace_rect = workspace_controller.get_workspace_rect()
             position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
             Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=clone_clicked,
-                                           window=window, title=_("Clone a workspace"), position=position, size=size, window_style="default",
+                                           window=window, title=title, position=position, size=size,
                                            cancel_button_text=_("Cancel"), accept_button_text=_("Clone"))
 
         return Window.ActionResult(Window.ActionStatus.FINISHED)
@@ -3569,7 +3570,7 @@ class WorkspaceNewAction(Window.Action):
             workspace_rect = workspace_controller.get_workspace_rect()
             position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
             Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=name_clicked,
-                                           window=window, title=_("Create a new workspace"), position=position, size=size, window_style="default",
+                                           window=window, title=_("Create a new workspace"), position=position, size=size,
                                            cancel_button_text=_("Cancel"), accept_button_text=_("Create"))
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
@@ -3679,9 +3680,9 @@ class WorkspaceRenameAction(Window.Action):
             size = Geometry.IntSize(width=400, height=100)
             workspace_rect = workspace_controller.get_workspace_rect()
             position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
-            title = _("Rename workspace") + "\"" + workspace_controller._workspace.name + "\""
+            title = _("Rename workspace ") + "\"" + workspace_controller._workspace.name + "\""
             Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=rename_clicked,
-                                           window=window, title=title, position=position, size=size, window_style="default",
+                                           window=window, title=title, position=position, size=size,
                                            cancel_button_text=_("Cancel"), accept_button_text=_("Rename"))
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
