@@ -114,6 +114,7 @@ class TestInspectorClass(unittest.TestCase):
             size_width_binding = Inspector.CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(rect_graphic, "size", 0))
             size_width_binding.update_source("0.6")
             self.assertEqual(center, rect_graphic.center)
+            size_width_binding = None
             rect_graphic.close()
 
     def test_calibration_inspector_section_binds(self):
