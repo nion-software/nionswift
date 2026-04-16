@@ -2767,34 +2767,42 @@ class CalibratedAngleBinding(CalibratedBinding):
 class CalibratedLengthBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
-        self.__display_item = display_item
-        self.__x_converter = CalibratedValueFloatToStringConverter(display_item, 1, uniform=True)
-        self.__y_converter = CalibratedValueFloatToStringConverter(display_item, 0, uniform=True)
-        self.__size_converter = CalibratedSizeFloatToStringConverter(display_item, 0, uniform=True)
+        self.__display_calibration_info = display_item.display_calibration_info
+        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__on_display_calibration_info_changed, self))
         self.__start_binding = start_binding
         self.__end_binding = end_binding
-        self.__start_binding.target_setter = ReferenceCounting.weak_partial(CalibratedLengthBinding.__update_target, self)
-        self.__end_binding.target_setter = ReferenceCounting.weak_partial(CalibratedLengthBinding.__update_target, self)
-        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibratedLengthBinding.__calibrations_changed, self))
+        self.__start_binding.target_setter = ReferenceCounting.weak_partial(self.__class__.__update_target, self)
+        self.__end_binding.target_setter = ReferenceCounting.weak_partial(self.__class__.__update_target, self)
 
     def __update_target(self, value: typing.Any) -> None:
         self.update_target_direct(self.get_target_value())
 
-    def __calibrations_changed(self, key: str) -> None:
-        display_calibration_info = self.__display_item.display_calibration_info
-        if key == "displayed_display_data_calibrations" and display_calibration_info is not None:
+    def __on_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+        self.__display_calibration_info = display_calibration_info
+        if display_calibration_info:
             self.__update_target(display_calibration_info.displayed_display_data_calibrations)
+
+    def __get_calibration_and_data_size(self, dimension_index: int) -> DisplayItem.CalibrationAndDataSize:
+        if self.__display_calibration_info:
+            return self.__display_calibration_info.get_dimension_calibration_and_data_size(dimension_index, uniform=True)
+        else:
+            return DisplayItem.CalibrationAndDataSize(Calibration.Calibration(), 1)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
         start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
         end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
-        calibrated_start = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(start[0]), x=self.__x_converter.convert_to_calibrated_value(start[1]))
-        calibrated_end = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(end[0]), x=self.__x_converter.convert_to_calibrated_value(end[1]))
+        y_calibration_and_data_size = self.__get_calibration_and_data_size(0)
+        x_calibration_and_data_size = self.__get_calibration_and_data_size(1)
+        calibrated_start = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_to_calibrated_value(start.y),
+                                               x=x_calibration_and_data_size.calibration.convert_to_calibrated_value(start.x))
+        calibrated_end = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_to_calibrated_value(end.y),
+                                             x=x_calibration_and_data_size.calibration.convert_to_calibrated_value(end.x))
         delta = calibrated_end - calibrated_start
         angle = -math.atan2(delta.y, delta.x)
         new_calibrated_end = calibrated_start + target_value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
-        end = Geometry.FloatPoint(y=self.__y_converter.convert_from_calibrated_value(new_calibrated_end.y), x=self.__x_converter.convert_from_calibrated_value(new_calibrated_end.x))
+        end = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_from_calibrated_value(new_calibrated_end.y),
+                                  x=x_calibration_and_data_size.calibration.convert_from_calibrated_value(new_calibrated_end.x))
         self.__end_binding.update_source(end)
 
     # get the value from the model and return it as a string suitable for the target ui element.
@@ -2802,10 +2810,14 @@ class CalibratedLengthBinding(Binding.Binding):
     def get_target_value(self) -> typing.Optional[str]:
         start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
         end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
-        calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
-        calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
-        calibrated_value = math.sqrt(calibrated_dx * calibrated_dx + calibrated_dy * calibrated_dy)
-        return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
+        y_calibration_and_data_size = self.__get_calibration_and_data_size(0)
+        x_calibration_and_data_size = self.__get_calibration_and_data_size(1)
+        calibrated_start = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_to_calibrated_value(start.y),
+                                               x=x_calibration_and_data_size.calibration.convert_to_calibrated_value(start.x))
+        calibrated_end = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_to_calibrated_value(end.y),
+                                             x=x_calibration_and_data_size.calibration.convert_to_calibrated_value(end.x))
+        calibrated_distance = Geometry.distance(calibrated_end, calibrated_start)
+        return y_calibration_and_data_size.calibration.convert_calibrated_size_to_str(calibrated_distance)
 
 
 class DisplayItemCalibratedDimensionValueModel(Model.ValueModel[str]):
