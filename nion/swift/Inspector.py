@@ -2640,55 +2640,141 @@ class CalibratedSizeFloatToStringConverter(Converter.ConverterLike[float, str]):
 
 
 class CalibratedBinding(Binding.Binding):
-    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding, converter: Converter.ConverterLike[float, str]) -> None:
-        super().__init__(None, converter=converter)
-        self.__display_item = display_item
+    """A abstract calibrated dimension value binding.
+
+    Takes a value binding and a display item, and combines them to convert between the binding value and the calibrated string for a UI element.
+
+    The display item is monitored for changes to the calibration info, and the target value is updated when the calibration info changes.
+
+    Subclasses must override the two conversion methods.
+    """
+    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding, dimension_index: int) -> None:
+        super().__init__(None)
+        self.__display_calibration_info = display_item.display_calibration_info
+        self.__dimension_index = dimension_index
+        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__on_display_calibration_info_changed, self))
         self.__value_binding = value_binding
-        self.__converter_x = converter  # mypy bug (it uses base self.__converter type if named the same)
-
-        self.__value_binding.target_setter = ReferenceCounting.weak_partial(CalibratedBinding.__update_target, self)
-
-        self.__calibrations_changed_event_listener = display_item.display_property_changed_event.listen(ReferenceCounting.weak_partial(CalibratedBinding.__calibrations_changed, self))
+        self.__value_binding.target_setter = ReferenceCounting.weak_partial(self.__class__.__update_target, self)
 
     def __update_target(self, value: typing.Any) -> None:
         self.update_target_direct(self.get_target_value())
 
-    def __calibrations_changed(self, key: str) -> None:
-        display_calibration_info = self.__display_item.display_calibration_info
-        if key == "displayed_display_data_calibrations" and display_calibration_info is not None:
+    def __on_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+        self.__display_calibration_info = display_calibration_info
+        if display_calibration_info:
             self.__update_target(display_calibration_info.displayed_display_data_calibrations)
+
+    def __get_calibration(self) -> Calibration.Calibration:
+        dimension_index = self.__dimension_index
+        calibrations = self.__display_calibration_info.displayed_display_data_calibrations if self.__display_calibration_info else None
+        if not calibrations:
+            return Calibration.Calibration()
+        dimension_count = len(calibrations)
+        if dimension_index < 0:
+            dimension_index = dimension_count + dimension_index
+        if dimension_index >= 0 and dimension_index < dimension_count:
+            return calibrations[dimension_index]
+        else:
+            return Calibration.Calibration()
+
+    def __get_data_size(self) -> int:
+        index = self.__dimension_index
+        display_calibration_info = self.__display_calibration_info
+        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count and display_data_shape is not None:
+            return display_data_shape[index]
+        else:
+            return 1
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
-        converted_value = self.__converter_x.convert_back(target_value)
+        converted_value = self._convert_str_to_value(self.__get_calibration(), self.__display_calibration_info, self.__get_data_size(), target_value)
         self.__value_binding.update_source(converted_value)
 
     # get the value from the model and return it as a string suitable for the target ui element.
     # in this binding, it combines the two source bindings into one.
     def get_target_value(self) -> typing.Optional[str]:
         value = self.__value_binding.get_target_value()
-        return self.__converter_x.convert(value) if value is not None else None
+        return self._convert_value_to_str(self.__get_calibration(), self.__display_calibration_info, self.__get_data_size(), value) if value is not None else None
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        """Subclasses must override this method to convert from the string to the model value, using the calibration and data size as needed."""
+        raise NotImplementedError()
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        """Subclasses must override this method to convert from the model value to the string, using the calibration and data size as needed."""
+        raise NotImplementedError()
 
 
 class CalibratedValueBinding(CalibratedBinding):
     def __init__(self, index: int, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
-        converter = CalibratedValueFloatToStringConverter(display_item, index)
-        super().__init__(display_item, value_binding, converter)
+        super().__init__(display_item, value_binding, index)
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        if value_str is not None:
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_value(value) / data_size
+        return None
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        if value is not None:
+            return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
+        return None
 
 
 class CalibratedSizeBinding(CalibratedBinding):
     def __init__(self, index: int, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
-        converter = CalibratedSizeFloatToStringConverter(display_item, index)
-        super().__init__(display_item, value_binding, converter)
+        super().__init__(display_item, value_binding, index)
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        if value_str is not None:
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_size(value) / data_size
+        return None
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        if value is not None:
+            return calibration.convert_to_calibrated_size_str(data_size * value, value_range=(0, data_size), samples=data_size)
+        return None
 
 
 class CalibratedWidthBinding(CalibratedBinding):
     def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
-        display_calibration_info = display_item.display_calibration_info
-        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
-        factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
-        converter = CalibratedSizeFloatToStringConverter(display_item, 0, factor)  # width is stored in pixels. argh.
-        super().__init__(display_item, value_binding, converter)
+        super().__init__(display_item, value_binding, 0)
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        if value_str is not None:
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+                factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
+                return calibration.convert_from_calibrated_size(value) / data_size / factor
+        return None
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        if value is not None:
+            display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+            factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
+            return calibration.convert_to_calibrated_size_str(data_size * value * factor, value_range=(0, data_size), samples=data_size)
+        return None
+
+
+class CalibratedAngleBinding(CalibratedBinding):
+    # NOTE: the angle can change depending on the calibrations
+
+    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
+        super().__init__(display_item, value_binding, 0)
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        return RadianToDegreeStringConverter().convert_back(value_str) if value_str is not None else None
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        return RadianToDegreeStringConverter().convert(value) if value is not None else None
 
 
 class CalibratedLengthBinding(Binding.Binding):
@@ -3949,7 +4035,7 @@ class GraphicHandler(Declarative.Handler):
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
                 property_model_f = GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
-                return CalibratedBinding(display_item, ClosingPropertyBinding(property_model_f, "value"), RadianToDegreeStringConverter())
+                return CalibratedAngleBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         if isinstance(source, Graphics.LineProfileGraphic):
             if property == "width":
                 graphic = source
