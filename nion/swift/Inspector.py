@@ -2664,41 +2664,28 @@ class CalibratedBinding(Binding.Binding):
         if display_calibration_info:
             self.__update_target(display_calibration_info.displayed_display_data_calibrations)
 
-    def __get_calibration(self) -> Calibration.Calibration:
-        dimension_index = self.__dimension_index
-        calibrations = self.__display_calibration_info.displayed_display_data_calibrations if self.__display_calibration_info else None
-        if not calibrations:
-            return Calibration.Calibration()
-        dimension_count = len(calibrations)
-        if dimension_index < 0:
-            dimension_index = dimension_count + dimension_index
-        if dimension_index >= 0 and dimension_index < dimension_count:
-            return calibrations[dimension_index]
+    def __get_calibration_and_data_size(self) -> DisplayItem.CalibrationAndDataSize:
+        if self.__display_calibration_info:
+            return self.__display_calibration_info.get_dimension_calibration_and_data_size(self.__dimension_index)
         else:
-            return Calibration.Calibration()
-
-    def __get_data_size(self) -> int:
-        index = self.__dimension_index
-        display_calibration_info = self.__display_calibration_info
-        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
-        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
-        if index < 0:
-            index = dimension_count + index
-        if index >= 0 and index < dimension_count and display_data_shape is not None:
-            return display_data_shape[index]
-        else:
-            return 1
+            return DisplayItem.CalibrationAndDataSize(Calibration.Calibration(), 1)
 
     # set the model value from the target ui element text.
     def update_source(self, target_value: typing.Any) -> None:
-        converted_value = self._convert_str_to_value(self.__get_calibration(), self.__display_calibration_info, self.__get_data_size(), target_value)
+        calibration_and_data_size = self.__get_calibration_and_data_size()
+        calibration = calibration_and_data_size.calibration
+        data_size = calibration_and_data_size.data_size
+        converted_value = self._convert_str_to_value(calibration, self.__display_calibration_info, data_size, target_value)
         self.__value_binding.update_source(converted_value)
 
     # get the value from the model and return it as a string suitable for the target ui element.
     # in this binding, it combines the two source bindings into one.
     def get_target_value(self) -> typing.Optional[str]:
         value = self.__value_binding.get_target_value()
-        return self._convert_value_to_str(self.__get_calibration(), self.__display_calibration_info, self.__get_data_size(), value) if value is not None else None
+        calibration_and_data_size = self.__get_calibration_and_data_size()
+        calibration = calibration_and_data_size.calibration
+        data_size = calibration_and_data_size.data_size
+        return self._convert_value_to_str(calibration, self.__display_calibration_info, data_size, value) if value is not None else None
 
     def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
         """Subclasses must override this method to convert from the string to the model value, using the calibration and data size as needed."""
@@ -2836,40 +2823,18 @@ class DisplayItemCalibratedDimensionValueModel(Model.ValueModel[str]):
         self.__value_str: str | None = None
         self.__update()
 
-    def __get_calibration(self) -> Calibration.Calibration:
-        dimension_index = self.__dimension_index
-        calibrations = self.__display_calibration_info.displayed_display_data_calibrations if self.__display_calibration_info else None
-        if not calibrations:
-            return Calibration.Calibration()
-        if self.__uniform:
-            unit_set = set(calibration.units if calibration.units else '' for calibration in calibrations)
-            if len(unit_set) > 1:
-                return Calibration.Calibration()
-        dimension_count = len(calibrations)
-        if dimension_index < 0:
-            dimension_index = dimension_count + dimension_index
-        if dimension_index >= 0 and dimension_index < dimension_count:
-            return calibrations[dimension_index]
+    def __get_calibration_and_data_size(self) -> DisplayItem.CalibrationAndDataSize:
+        if self.__display_calibration_info:
+            return self.__display_calibration_info.get_dimension_calibration_and_data_size(self.__dimension_index, uniform=self.__uniform)
         else:
-            return Calibration.Calibration()
-
-    def __get_data_size(self) -> int:
-        index = self.__dimension_index
-        display_calibration_info = self.__display_calibration_info
-        display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
-        dimension_count = len(display_data_shape) if display_data_shape is not None else 0
-        if index < 0:
-            index = dimension_count + index
-        if index >= 0 and index < dimension_count and display_data_shape is not None:
-            return display_data_shape[index]
-        else:
-            return 1
+            return DisplayItem.CalibrationAndDataSize(Calibration.Calibration(), 1)
 
     def __get_value_str(self) -> str | None:
         value_tuple = self.__property_model.value
         if value_tuple is not None:
-            calibration = self.__get_calibration()
-            data_size = self.__get_data_size()
+            calibration_and_data_size = self.__get_calibration_and_data_size()
+            calibration = calibration_and_data_size.calibration
+            data_size = calibration_and_data_size.data_size
             if self.__is_size:
                 return calibration.convert_to_calibrated_size_str(data_size * value_tuple[self.__dimension_index] * self.__factor, value_range=(0, data_size), samples=data_size)
             else:
@@ -2897,8 +2862,9 @@ class DisplayItemCalibratedDimensionValueModel(Model.ValueModel[str]):
     def value(self, value_str: str | None) -> None:
         new_value: float | None = None
         if value_str is not None:
-            calibration = self.__get_calibration()
-            data_size = self.__get_data_size()
+            calibration_and_data_size = self.__get_calibration_and_data_size()
+            calibration = calibration_and_data_size.calibration
+            data_size = calibration_and_data_size.data_size
             value = Converter.FloatToStringConverter().convert_back(value_str)
             if value is not None:
                 if self.__is_size:

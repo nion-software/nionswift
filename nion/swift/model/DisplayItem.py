@@ -3366,6 +3366,12 @@ class DisplayItem(Persistence.PersistentObject):
         return str(), str()
 
 
+@dataclasses.dataclass
+class CalibrationAndDataSize:
+    calibration: Calibration.Calibration
+    data_size: int
+
+
 class DisplayCalibrationInfo:
     """Represents the calibration information for a display.
 
@@ -3537,6 +3543,24 @@ class DisplayCalibrationInfo:
     @property
     def intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
         return get_intensity_calibration_styles(self.__data_metadata_list)
+
+    def get_dimension_calibration_and_data_size(self, dimension_index: int, *, uniform: bool = False) -> CalibrationAndDataSize:
+        dimension_calibrations = self.displayed_display_data_calibrations
+        display_data_shape = self.display_data_shape
+        if dimension_calibrations is not None and display_data_shape is not None and len(dimension_calibrations) == len(display_data_shape):
+            if uniform:
+                unit_set = set(calibration.units if calibration.units else '' for calibration in dimension_calibrations)
+                if len(unit_set) > 1:
+                    return CalibrationAndDataSize(Calibration.Calibration(), 1)
+            dimension_count = len(dimension_calibrations)
+            if dimension_index < 0:
+                dimension_index = dimension_count + dimension_index
+            if dimension_index >= 0 and dimension_index < dimension_count:
+                return CalibrationAndDataSize(dimension_calibrations[dimension_index], display_data_shape[dimension_index])
+            else:
+                return CalibrationAndDataSize(Calibration.Calibration(), 1)
+        else:
+            return CalibrationAndDataSize(Calibration.Calibration(), 1)
 
     @property
     def calibrated_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration] | None:
