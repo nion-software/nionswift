@@ -297,6 +297,8 @@ class DataPanel(Panel.Panel):
                 action_context = document_controller._get_action_context_for_display_items(display_items, None)
                 document_controller.populate_context_menu(menu, action_context)
                 menu.add_separator()
+                document_controller.add_action_to_menu_if_enabled(menu, "workspace.new_workspace_from_selection", action_context)
+                menu.add_separator()
                 document_controller.add_action_to_menu(menu, "item.delete", action_context)
                 menu.popup(context_menu_event.gp.x, context_menu_event.gp.y)
                 return True

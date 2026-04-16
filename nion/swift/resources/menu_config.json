@@ -667,6 +667,10 @@
             },
             {
                 "type": "item",
+                "action_id": "workspace.new_workspace_from_selection"
+            },
+            {
+                "type": "item",
                 "action_id": "workspace.rename"
             },
             {

@@ -3814,6 +3814,65 @@ class WorkspaceSplit5x4Action(WorkspaceSplitAction):
         return super().execute(context)
 
 
+class NewFromSelectionAction(WorkspaceNewAction):
+    action_id = "workspace.new_workspace_from_selection"
+    action_name = _("New Workspace From Selection")
+
+    @staticmethod
+    def _get_selected(context: DocumentController.ActionContext) -> list[DisplayItem.DisplayItem]:
+        """Get the current selection. The order will be selected display panels with items then selected data panel items."""
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller is not None
+        selection = [context.selected_display_panel.display_item] if context.selected_display_panel and context.selected_display_panel.display_item else []
+        selection.extend([display_panel.display_item for display_panel in workspace_controller.document_controller.secondary_display_panels if display_panel.display_item is not None])
+        data_panel = typing.cast(DataPanel.DataPanel, window.find_dock_panel("data-panel"))
+        display_items = workspace_controller.document_controller.filtered_display_items_model.display_items
+        for index in data_panel._selection.ordered_indexes:
+            selection.append(display_items[index])
+        return selection
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        text = self.get_string_property(context, "name")
+        if not text:
+            return Window.ActionResult(Window.ActionStatus.CANCELLED)
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller is not None
+        selection = self._get_selected(context)
+        split = Workspace.SplitFromSelectionCommand.get_split(len(selection))
+        command = Workspace.NewWorkspaceFromSelectionCommand(workspace_controller, text, selection, split)
+        command.perform()
+        window.push_undo_command(command)
+
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        selection = self._get_selected(context)
+        return bool(context.focus_widget) and bool(selection) and len(selection) < 101
+
+    def get_action_name(self, context: Window.ActionContext) -> str:
+        context = typing.cast(DocumentController.ActionContext, context)
+        selection = self._get_selected(context)
+        if not bool(context.focus_widget) or not bool(selection) or len(selection) > 100:
+            return self.action_name  # If the action is disabled return the default name
+
+        data_item = selection[0].data_item if selection[0].data_item is not None else None
+        display_item = context.display_item
+        item_count = len(selection)
+        if item_count > 1:
+            h, w = Workspace.SplitFromSelectionCommand.get_split(item_count)
+            return _("New Workspace From Selection") + f" {h}x{w} ({item_count} items)"
+        elif data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
+            displayed_title = display_item.displayed_title if display_item else data_item.title
+            return _("New Workspace From Item ") + f" \"{displayed_title}\""
+        elif display_item:
+            return _("New Workspace From Item") + f" \"{display_item.displayed_title}\""
+        return self.action_name
+
+
 Window.register_action(WorkspaceChangeSplits())
 Window.register_action(WorkspaceCloneAction())
 Window.register_action(WorkspaceNewAction())
@@ -3831,6 +3890,7 @@ Window.register_action(WorkspaceSplit3x3Action())
 Window.register_action(WorkspaceSplit4x3Action())
 Window.register_action(WorkspaceSplit4x4Action())
 Window.register_action(WorkspaceSplit5x4Action())
+Window.register_action(NewFromSelectionAction())
 
 
 class AddGroupAction(Window.Action):

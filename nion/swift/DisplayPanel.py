@@ -2838,6 +2838,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__document_controller.add_action_to_menu(split_menu, "workspace.split_4x3", action_context)
             self.__document_controller.add_action_to_menu(split_menu, "workspace.split_4x4", action_context)
             self.__document_controller.add_action_to_menu(split_menu, "workspace.split_5x4", action_context)
+            menu.add_separator()
+            self.__document_controller.add_action_to_menu_if_enabled(menu, "workspace.new_workspace_from_selection", action_context)
         if self.__document_controller.is_action_enabled("display_panel.close", action_context):
             menu.add_separator()
             self.__document_controller.add_action_to_menu(menu, "display_panel.close", action_context)
