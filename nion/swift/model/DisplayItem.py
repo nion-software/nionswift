@@ -2158,7 +2158,6 @@ class DisplayItem(Persistence.PersistentObject):
         self.__display_data_channel_data_item_description_changed_event_listeners: typing.List[Event.EventListener] = list()
         self.__display_data_channel_data_item_proxy_changed_event_listeners: typing.List[Event.EventListener] = list()
 
-        self.display_property_changed_event = Event.Event()
         self.display_changed_event = Event.Event()
         self.display_item_will_close_event = Event.Event()  # used to shut down thumbnail
 
@@ -2419,10 +2418,6 @@ class DisplayItem(Persistence.PersistentObject):
         if name == "title":
             self.__specified_title_stream.value = value
             self.notify_property_changed("displayed_title")
-        if name == "calibration_style_id":
-            self.display_property_changed_event.fire("calibration_style_id")
-        if name == "intensity_calibration_style_id":
-            self.display_property_changed_event.fire("intensity_calibration_style_id")
 
     def __display_properties_changed(self, name: str, value: typing.Any) -> None:
         self.notify_property_changed(name)
@@ -2538,16 +2533,6 @@ class DisplayItem(Persistence.PersistentObject):
             else:
                 display_properties.pop(property_name, None)
             self.display_properties = display_properties
-            self.display_property_changed_event.fire(property_name)
-            # TODO: neither graphics_changed_event.fire is probably not necessary since these will change the display calibration info instead.
-            if property_name in ("displayed_dimensional_scales", "displayed_dimensional_calibrations", "displayed_intensity_calibration"):
-                self.graphics_changed_event.fire(self.graphic_selection)
-            if property_name in ("calibration_style_id", "intensity_calibration_style_id"):
-                self.display_property_changed_event.fire("displayed_dimensional_scales")
-                self.display_property_changed_event.fire("displayed_dimensional_calibrations")
-                self.display_property_changed_event.fire("displayed_intensity_calibration")
-                self.display_property_changed_event.fire("displayed_display_data_calibrations")
-                self.graphics_changed_event.fire(self.graphic_selection)
             self.display_changed_event.fire()
 
     def insert_display_layer(self, before_index: int, display_layer: DisplayLayer) -> None:
@@ -2827,11 +2812,6 @@ class DisplayItem(Persistence.PersistentObject):
     def __update_displays(self) -> None:
         for display_data_channel in self.display_data_channels:
             display_data_channel.update_display_data()
-
-        self.display_property_changed_event.fire("displayed_dimensional_scales")
-        self.display_property_changed_event.fire("displayed_dimensional_calibrations")
-        self.display_property_changed_event.fire("displayed_intensity_calibration")
-        self.display_property_changed_event.fire("displayed_display_data_calibrations")
 
         self.display_changed_event.fire()
 
