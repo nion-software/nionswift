@@ -528,20 +528,20 @@ def format_with_binary_prefix(total_bytes: int | float) -> str:
     See https://stackoverflow.com/a/31631711.
     """
     total_bytes = float(total_bytes)
-    kilobytes = 1024.0
-    if total_bytes < kilobytes:
-        return '{0} {1}'.format(total_bytes, 'Bytes' if total_bytes != 1 else 'Byte')
+    kilobyte = 1024.0
+    if total_bytes < kilobyte:
+        return f"{total_bytes} {'Bytes' if total_bytes != 1 else 'Byte'}"
 
-    megabytes = 1048576.0  # 1024 ** 2
-    if total_bytes < megabytes:
-        return '{0:.2f} KB'.format(total_bytes / kilobytes)
+    megabyte = 1048576.0  # 1024 ** 2
+    if total_bytes < megabyte:
+        return f"{total_bytes / kilobyte:.2f} KB"
 
-    gigabytes = 1073741824.0  # 1024 ** 3
-    if total_bytes < gigabytes:
-        return '{0:.2f} MB'.format(total_bytes / megabytes)
+    gigabyte = 1073741824.0  # 1024 ** 3
+    if total_bytes < gigabyte:
+        return f"{total_bytes / megabyte:.2f} MB"
 
-    terabytes = 1099511627776  # 1024 ** 4
-    if total_bytes < terabytes:
-        return '{0:.2f} GB'.format(total_bytes / gigabytes)
+    terabyte = 1099511627776  # 1024 ** 4
+    if total_bytes < terabyte:
+        return f"{total_bytes / gigabyte:.2f} GB"
     else:
-        return '{0:.2f} TB'.format(total_bytes / terabytes)
+        return f"{total_bytes / terabyte:.2f} TB"

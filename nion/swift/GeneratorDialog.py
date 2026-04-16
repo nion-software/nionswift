@@ -56,50 +56,51 @@ class GenerateDataDialog(Declarative.WindowHandler):
 
         self.int_converter = Converter.IntegerToStringConverter()
 
-        self.bytes_string_model: Model.PropertyModel[str] = Model.PropertyModel("- Bytes")
+        self.bytes_string_model: Model.PropertyModel[str] = Model.PropertyModel("- Bytes")  # Temporary string before first calculating
 
-        def update_bytes_string(*_: typing.Any | None) -> None:
+        def update_bytes_string(*_: typing.Any) -> None:
+            """Recalculate the number of bytes that will be used based on the selected sequence, collection and datam options."""
             data_size = 4  # data_type_model needs to drive this when it is made to drive anything as it currently doesn't do anything.
             if self.is_sequence_model.value == 1:
                 sequence_size = self.sequence_size_model.value or 1
                 data_size *= sequence_size
 
-            if self.collection_rank_model.value == 1:
+            if self.collection_rank_model.value == 1:  # Line selected in combo box
                 line_size = self.line_size_model.value or 1
                 data_size *= line_size
-            elif self.collection_rank_model.value == 2:
+            elif self.collection_rank_model.value == 2:  # Scan selected in combo box
                 scan_height = self.scan_height_model.value or 1
                 scan_width = self.scan_width_model.value or 1
                 data_size *= scan_height * scan_width
 
-            if self.datum_rank_model.value == 0:
+            if self.datum_rank_model.value == 0:  # Spectrum selected in combo box
                 spectrum_size = self.spectrum_size_model.value or 1
                 data_size *= spectrum_size
-            elif self.datum_rank_model.value == 1:
+            elif self.datum_rank_model.value == 1:  # Image selected in combo box
                 image_height = self.image_height_model.value or 1
                 image_width = self.image_width_model.value or 1
                 data_size *= image_height * image_width
-            elif self.datum_rank_model.value == 2:
+            elif self.datum_rank_model.value == 2:  # Array selected in combo box
                 array_height = self.array_height_model.value or 1
                 array_width = self.array_width_model.value or 1
                 data_size *= array_height * array_width
             self.bytes_string_model.value = Utility.format_with_binary_prefix(data_size)
 
-        self.bytes_update_stream: BYTES_UPDATE_STREAM_TYPE  = Stream.CombineLatestStream([
-                Stream.PropertyChangedEventStream(self.is_sequence_model, "value"),
-                Stream.PropertyChangedEventStream(self.sequence_size_model, "value"),
-                Stream.PropertyChangedEventStream(self.collection_rank_model, "value"),
-                Stream.PropertyChangedEventStream(self.line_size_model, "value"),
-                Stream.PropertyChangedEventStream(self.scan_height_model, "value"),
-                Stream.PropertyChangedEventStream(self.scan_width_model, "value"),
-                Stream.PropertyChangedEventStream(self.datum_rank_model, "value"),
-                Stream.PropertyChangedEventStream(self.spectrum_size_model, "value"),
-                Stream.PropertyChangedEventStream(self.image_height_model, "value"),
-                Stream.PropertyChangedEventStream(self.image_width_model, "value"),
-                Stream.PropertyChangedEventStream(self.array_height_model, "value"),
-                Stream.PropertyChangedEventStream(self.array_width_model, "value")
-            ], value_fn=update_bytes_string)
-        update_bytes_string(_)
+        self.bytes_update_stream: BYTES_UPDATE_STREAM_TYPE = Stream.CombineLatestStream([
+            Stream.PropertyChangedEventStream(self.is_sequence_model, "value"),
+            Stream.PropertyChangedEventStream(self.sequence_size_model, "value"),
+            Stream.PropertyChangedEventStream(self.collection_rank_model, "value"),
+            Stream.PropertyChangedEventStream(self.line_size_model, "value"),
+            Stream.PropertyChangedEventStream(self.scan_height_model, "value"),
+            Stream.PropertyChangedEventStream(self.scan_width_model, "value"),
+            Stream.PropertyChangedEventStream(self.datum_rank_model, "value"),
+            Stream.PropertyChangedEventStream(self.spectrum_size_model, "value"),
+            Stream.PropertyChangedEventStream(self.image_height_model, "value"),
+            Stream.PropertyChangedEventStream(self.image_width_model, "value"),
+            Stream.PropertyChangedEventStream(self.array_height_model, "value"),
+            Stream.PropertyChangedEventStream(self.array_width_model, "value")
+        ], value_fn=update_bytes_string)
+        update_bytes_string()
 
         u = Declarative.DeclarativeUI()
 
