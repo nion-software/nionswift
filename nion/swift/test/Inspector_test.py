@@ -85,18 +85,6 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()  # force UI to update
             document_controller.notify_focused_display_changed(None)
 
-    def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
-        with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            converter = Inspector.CalibratedValueFloatToStringConverter(display_item, 0)
-            converter.convert(0.5)
-            converter = Inspector.CalibratedSizeFloatToStringConverter(display_item, 0)
-            converter.convert(0.5)
-
     def test_adjusting_rectangle_width_should_keep_center_constant(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -397,37 +385,6 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()  # needed to update the inspector
             line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             self.assertEqual(line_handler._line_profile_width_model.value, "10.0 mm")
-
-    def test_float_to_string_converter_strips_units(self):
-        with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.calibration_style_id = "pixels-top-left"
-            converter = Inspector.CalibratedValueFloatToStringConverter(display_item, 0)
-            locale.setlocale(locale.LC_ALL, '')
-            self.assertAlmostEqual(converter.convert_back("0.5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back(".5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("00.5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("0.500"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("0.500e0"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("+.5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("-.5"), -0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("+0.5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("0.5x"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("x0.5"), 0.0)
-            self.assertAlmostEqual(converter.convert_back(" 0.5 "), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back(""), 0.0)
-            self.assertAlmostEqual(converter.convert_back("  "), 0.0)
-            self.assertAlmostEqual(converter.convert_back(" x"), 0.0)
-            try:
-                locale.setlocale(locale.LC_ALL, 'de_DE')
-                self.assertAlmostEqual(converter.convert_back("0,500"), 0.5 / 256)
-                self.assertAlmostEqual(converter.convert_back("0.500"), 0.5 / 256)
-            except locale.Error as e:
-                pass
 
     def test_inspector_handles_sliced_3d_data(self):
         with TestContext.create_memory_context() as test_context:
