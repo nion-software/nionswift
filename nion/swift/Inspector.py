@@ -1739,7 +1739,7 @@ class CalibrationStyleModel(Observable.Observable):
         self.__index: int | None = None
         self.__items: tuple[str, ...] = tuple()
         self.__calibration_styles: tuple[DisplayItem.CalibrationStyle, ...] = tuple()
-        display_calibration_info_stream = DisplayItem.DisplayCalibrationInfoStream(Stream.ValueStream(display_item))
+        display_calibration_info_stream = display_item.display_calibration_info_stream
         self.__display_calibration_info_stream_action = Stream.ValueStreamAction(display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_calibration_info_changed, self))
         self.__update_items_and_index(display_calibration_info_stream.value)
 
