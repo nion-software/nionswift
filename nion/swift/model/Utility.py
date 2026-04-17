@@ -540,7 +540,7 @@ def make_pretty_size_str(total_bytes: int | float) -> str:
     if total_bytes < gigabyte:
         return f"{total_bytes / megabyte:.2f} MB"
 
-    terabyte = 1099511627776  # 1024 ** 4
+    terabyte = 1099511627776.0  # 1024 ** 4
     if total_bytes < terabyte:
         return f"{total_bytes / gigabyte:.2f} GB"
     else:
