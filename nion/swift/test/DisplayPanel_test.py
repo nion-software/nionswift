@@ -3065,7 +3065,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(26.0) * 1.2, axes.uncalibrated_data_max)
             self.assertAlmostEqual(data_item1.intensity_calibration.convert_from_calibrated_value(0.0) * 1.2, axes.uncalibrated_data_min)
 
-    def test_display_tracker_updates_when_inherited_title_updates(self):
+    def test_display_panel_title_updates_when_inherited_title_updates(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -3080,15 +3080,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual("red", display_item.displayed_title)
             self.assertEqual("red (Negate)", display_item2.displayed_title)
             display_panel = document_controller.selected_display_panel
-            display_tracker = DisplayPanel.DisplayTracker(display_item2, DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_panel, document_controller.event_loop, False)
-            with contextlib.closing(display_tracker):
-                title_changed = False
-                def handle_title_changed(title: str) -> None:
-                    nonlocal title_changed
-                    title_changed = True
-                display_tracker.on_title_changed = handle_title_changed
-                data_item.title = "green"
-                self.assertTrue(title_changed)
+            display_panel.set_display_item(display_item2)
+            print(display_panel.header_canvas_item.title)
+            self.assertEqual("red (Negate)", display_panel.header_canvas_item.title)
+            data_item.title = "green"
+            self.assertEqual("green (Negate)", display_panel.header_canvas_item.title)
 
     def test_index_sliders_update_when_data_created_later(self):
         with TestContext.create_memory_context() as test_context:
