@@ -543,36 +543,6 @@ def is_valid_display_type(display_type: str) -> bool:
     return display_type in ("image", "line_plot")
 
 
-class DisplayTypeMonitor:
-    """Monitor a display for changes to the display type.
-
-    Provides the display_type_changed(display_type) event.
-
-    Provides the display_type r/o property.
-    """
-
-    def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
-        self.display_type_changed_event = Event.Event()
-        self.__display_changed_event_listener: typing.Optional[Event.EventListener] = None
-        self.__display_type: typing.Optional[str] = None
-        self.__first = True  # handle case where there is no data, so display_type is always None and doesn't change
-        if display_item:
-            self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(self.__update_display_type, display_item))
-        self.__update_display_type(display_item)
-
-    def close(self) -> None:
-        if self.__display_changed_event_listener:
-            self.__display_changed_event_listener.close()
-            self.__display_changed_event_listener = None
-
-    def __update_display_type(self, display_item: DisplayItem.DisplayItem) -> None:
-        display_type = display_item.used_display_type if display_item else None
-        if self.__display_type != display_type or self.__first:
-            self.__display_type = display_type
-            self.display_type_changed_event.fire(display_type)
-            self.__first = False
-
-
 class DisplayDataChannelValueStream(Stream.ValueStream[DisplayItem.DisplayDataChannel]):
     def __init__(self, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem]) -> None:
         super().__init__()
@@ -1094,45 +1064,44 @@ class DisplayTracker:
 
         self.__display_canvas_item = create_display_canvas_item(display_item, ui_settings, delegate, event_loop, draw_background=self.__draw_background)
 
-        def handle_display_data_delta(display_data_delta: typing.Optional[DisplayItem.DisplayDataDelta]) -> None:
+        def handle_display_data_delta(display_data_delta: DisplayItem.DisplayDataDelta | None) -> None:
+            # This is called when the display data delta stream produces a new value. The value is passed on to the
+            # display canvas item.
             with self.__closing_lock:
                 assert display_data_delta
                 self.__display_canvas_item.update_display_data_delta(display_data_delta)
 
-        self.__display_data_delta_stream_action = Stream.ValueStreamAction[DisplayItem.DisplayDataDelta](display_item.display_data_delta_stream, handle_display_data_delta)
+        self.__display_data_delta_stream = display_item.display_data_delta_stream
+        self.__display_data_delta_stream_action = Stream.ValueStreamAction(self.__display_data_delta_stream, handle_display_data_delta)
+        self.__display_type: str | None = None
 
-        def display_type_changed(display_type: typing.Optional[str]) -> None:
-            # called when the display type of the data item changes.
-            self.__display_data_delta_stream_action = typing.cast(typing.Any, None)
-            new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
-            if callable(self.on_replace_display_canvas_item):
-                self.on_replace_display_canvas_item(new_display_canvas_item)
-            self.__display_canvas_item = new_display_canvas_item
-            self.__display_data_delta_stream_action = Stream.ValueStreamAction[DisplayItem.DisplayDataDelta](display_item.display_data_delta_stream, handle_display_data_delta)
-            display_data_delta = display_item.display_data_delta_stream.value
-            assert display_data_delta
-            display_data_delta.mark_changed()
-            handle_display_data_delta(display_data_delta)
+        def handle_display_changed(display_item: DisplayItem.DisplayItem) -> None:
+            # This is called in response to a display change event, which may indicate a change in the display type.
+            # If the display type changes, update the display canvas item and the display data delta stream listener.
+            display_type = display_item.used_display_type
+            if self.__display_type != display_type:
+                self.__display_type = display_type
+                new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
+                if callable(self.on_replace_display_canvas_item):
+                    self.on_replace_display_canvas_item(new_display_canvas_item)
+                self.__display_canvas_item = new_display_canvas_item
+                # force an update of the display canvas item with the current display data delta by marking it changed.
+                display_data_delta = self.__display_data_delta_stream.value
+                assert display_data_delta
+                display_data_delta.mark_changed()
+                handle_display_data_delta(display_data_delta)
 
-        self.__display_type_monitor = DisplayTypeMonitor(display_item)
-        self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
+        # set up a listener to handle display type changes.
+        self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(handle_display_changed, display_item))
 
-        display_data_delta = display_item.display_data_delta_stream.value
-        assert display_data_delta
-        display_data_delta.mark_changed()
-        handle_display_data_delta(display_data_delta)
+        # initial update
+        handle_display_changed(display_item)
 
     def close(self) -> None:
         with self.__closing_lock:  # ensures that display pipeline finishes
-            self.__display_type_changed_event_listener.close()
-            self.__display_type_changed_event_listener = typing.cast(typing.Any, None)
-            self.__display_type_monitor.close()
-            self.__display_type_monitor = typing.cast(typing.Any, None)
             # decrement the ref count on the old item to release it from memory if no longer used.
             self.__display_item.decrement_display_ref_count()
-            self.__display_about_to_be_removed_event_listener.close()
             self.__display_about_to_be_removed_event_listener = typing.cast(typing.Any, None)
-            self.__display_property_changed_event_listener.close()
             self.__display_property_changed_event_listener = typing.cast(typing.Any, None)
             self.__display_canvas_item = typing.cast(typing.Any, None)
             self.__display_data_delta_stream_action = typing.cast(typing.Any, None)
