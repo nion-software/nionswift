@@ -28,6 +28,7 @@ from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
 from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Process
 
 if typing.TYPE_CHECKING:
@@ -832,6 +833,19 @@ class Workspace:
         threading.Thread(target=wait_for_timeout, daemon=True).start()
         setattr(message_box_widget, "remove_now", remove_box)  # argh. type checking.
         return message_box_widget
+
+    def get_workspace_rect(self) -> Geometry.IntRect | None:
+        root_canvas_item = self._canvas_item
+        canvas_widget = root_canvas_item.canvas_widget
+        canvas_bounds = root_canvas_item.canvas_bounds
+        if canvas_bounds is None:
+            return None
+        if canvas_widget is None:
+            return canvas_bounds
+
+        canvas_origin = root_canvas_item.canvas_origin or Geometry.IntPoint(0, 0)
+        global_canvas_origin = canvas_widget.map_to_global(canvas_origin)
+        return Geometry.IntRect(global_canvas_origin, canvas_bounds.size)
 
     def handle_drag_enter(self, display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData) -> str:
         if mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):

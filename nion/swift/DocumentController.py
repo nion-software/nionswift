@@ -3520,14 +3520,19 @@ class WorkspaceCloneAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         if workspace_controller:
-            def clone_clicked(text: str) -> None:
+            def clone_clicked(text: str | None) -> None:
                 if text:
                     self.set_string_property(context, "name", text)
                     self.execute(context)
-            workspace_controller.pose_get_string_message_box(caption=_("Enter name for the workspace"),
-                                                             text=workspace_controller._workspace.name,
-                                                             accepted_fn=clone_clicked, accepted_text=_("Clone"),
-                                                             message_box_id="clone_workspace")
+
+            title = _("Clone workspace ") + "\"" + workspace_controller._workspace.name + "\""
+            size = Geometry.IntSize(width=400, height=100)
+            workspace_rect = workspace_controller.get_workspace_rect()
+            position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
+            Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=clone_clicked,
+                                           window=window, title=title, position=position, size=size,
+                                           cancel_button_text=_("Cancel"), accept_button_text=_("Clone"))
+
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3556,14 +3561,17 @@ class WorkspaceNewAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         if workspace_controller:
-            def create_clicked(text: str) -> None:
+            def name_clicked(text: str | None) -> None:
                 if text:
                     self.set_string_property(context, "name", text)
                     self.execute(context)
-            workspace_controller.pose_get_string_message_box(caption=_("Enter name for the workspace"),
-                                                             text=_("Workspace"),
-                                                             accepted_fn=create_clicked, accepted_text=_("Create"),
-                                                             message_box_id="create_workspace")
+
+            size = Geometry.IntSize(width=400, height=100)
+            workspace_rect = workspace_controller.get_workspace_rect()
+            position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
+            Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=name_clicked,
+                                           window=window, title=_("Create a new workspace"), position=position, size=size,
+                                           cancel_button_text=_("Cancel"), accept_button_text=_("Create"))
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3623,13 +3631,20 @@ class WorkspaceRemoveAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         if workspace_controller:
-            def confirm_clicked() -> None:
-                self.execute(context)
+            def confirmation_clicked(confirmed: bool) -> None:
+                if confirmed:
+                    self.execute(context)
 
-            caption = _(f"Remove workspace '{workspace_controller._workspace.name}'?")
-            workspace_controller.pose_confirmation_message_box(caption, confirm_clicked,
-                                                               accepted_text=_("Remove Workspace"),
-                                                               message_box_id="remove_workspace")
+            size = Geometry.IntSize(width=400, height=100)
+            workspace_rect = workspace_controller.get_workspace_rect()
+            position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
+            title = _("Remove workspace")
+            caption = _(f"Display panels in '{workspace_controller._workspace.name}' will be deleted.\nThe data will not be deleted.")
+
+            Dialog.pose_confirmation_pop_up(completion_fn=confirmation_clicked,
+                                            window=window, title=title, caption=caption, position=position, size=size, window_style="popup",
+                                            cancel_button_text=_("Cancel"), accept_button_text=_("Delete"))
+
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
@@ -3657,14 +3672,18 @@ class WorkspaceRenameAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         if workspace_controller:
-            def rename_clicked(text: str) -> None:
+            def rename_clicked(text: str | None) -> None:
                 if text:
                     self.set_string_property(context, "name", text)
                     self.execute(context)
-            workspace_controller.pose_get_string_message_box(caption=_("Enter new name for workspace"),
-                                                             text=workspace_controller._workspace.name,
-                                                             accepted_fn=rename_clicked, accepted_text=_("Rename"),
-                                                             message_box_id="rename_workspace")
+
+            size = Geometry.IntSize(width=400, height=100)
+            workspace_rect = workspace_controller.get_workspace_rect()
+            position = Dialog.get_popup_position(workspace_rect, size) if workspace_rect else Geometry.IntPoint(0, 0)
+            title = _("Rename workspace ") + "\"" + workspace_controller._workspace.name + "\""
+            Dialog.pose_edit_string_pop_up(current_string=workspace_controller._workspace.name, completion_fn=rename_clicked,
+                                           window=window, title=title, position=position, size=size,
+                                           cancel_button_text=_("Cancel"), accept_button_text=_("Rename"))
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
 
