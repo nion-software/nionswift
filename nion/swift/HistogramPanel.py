@@ -827,13 +827,20 @@ class HistogramPanel(Panel.Panel):
             return display_calibration_info.displayed_intensity_calibration if display_calibration_info else None
 
         display_item_stream = TargetDisplayItemStream(document_controller)
+        display_item = display_item_stream.value
         display_data_channel_stream = StreamPropertyStream[DisplayItem.DisplayDataChannel](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "display_data_channel")
         display_values_stream = DisplayDataChannelDisplayValuesStream(display_data_channel_stream)
         display_data_and_metadata_stream = DisplayValuesValueStream[DataAndMetadata.DataAndMetadata](display_values_stream, "display_data_and_metadata", cmp=compare_data)
         display_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "display_range")
         display_data_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "data_range")
-        display_calibration_info_stream = DisplayItem.DisplayCalibrationInfoStream(display_item_stream)
+        display_calibration_info_stream = Stream.FollowStream[DisplayItem.DisplayCalibrationInfo](display_item.display_calibration_info_stream if display_item else None)
         displayed_intensity_calibration_stream = Stream.MapStream[DisplayItem.DisplayCalibrationInfo, Calibration.Calibration](display_calibration_info_stream, extract_displayed_intensity_calibration)
+
+        # configure the display_calibration_info_stream to update when the display item changes, since the calibration info stream is based on the display item stream.
+        def handle_display_item_changed(display_item: DisplayItem.DisplayItem | None) -> None:
+            display_calibration_info_stream.stream = display_item.display_calibration_info_stream if display_item else None
+
+        self.__display_item_stream_action = Stream.ValueStreamAction(display_item_stream, handle_display_item_changed)
 
         self._histogram_processor = HistogramProcessor(document_controller.event_loop)
 

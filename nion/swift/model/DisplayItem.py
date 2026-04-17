@@ -3569,30 +3569,6 @@ class DisplayCalibrationInfo:
         return None
 
 
-class DisplayCalibrationInfoStream(Stream.ValueStream[DisplayCalibrationInfo]):
-    def __init__(self, display_item_stream: Stream.AbstractStream[DisplayItem]) -> None:
-        super().__init__()
-        self.__display_item_stream = display_item_stream.add_ref()
-        self.__display_stream_listener = display_item_stream.value_stream.listen(ReferenceCounting.weak_partial(DisplayCalibrationInfoStream.__display_item_changed, self))
-        self.__display_data_delta_stream_action: typing.Optional[Stream.ValueStreamAction[DisplayDataDelta]] = None
-        self.__display_item_changed(display_item_stream.value)
-
-    def __display_item_changed(self, display_item: typing.Optional[DisplayItem]) -> None:
-        if display_item:
-            self.__display_data_delta_stream_action = Stream.ValueStreamAction(display_item.display_data_delta_stream, ReferenceCounting.weak_partial(DisplayCalibrationInfoStream.__handle_display_data_delta_stream, self))
-            self.__handle_display_data_delta_stream(display_item.display_data_delta_stream.value)
-        else:
-            self.__display_data_delta_stream_action = None
-            self.__handle_display_data_delta_stream(None)
-
-    def __handle_display_data_delta_stream(self, value: typing.Optional[DisplayDataDelta]) -> None:
-        if value:
-            if self.value is None or value.display_calibration_info_changed:
-                self.value = value.display_calibration_info
-        else:
-            self.value = None
-
-
 def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
     """A sort key for display items. The sort by uuid makes it determinate."""
     assert not display_item._closed
