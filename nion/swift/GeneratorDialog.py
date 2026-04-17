@@ -18,8 +18,6 @@ from nion.utils import Converter
 from nion.utils import Stream
 from nion.utils import Model
 
-BYTES_UPDATE_STREAM_TYPE = Stream.CombineLatestStream[typing.Sequence[Stream.PropertyChangedEventStream[Model.PropertyModel[int]]], typing.Callable[[typing.Any], None]]
-
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
 
@@ -33,34 +31,33 @@ class GenerateDataDialog(Declarative.WindowHandler):
 
         self.__document_controller = document_controller
 
-        self.title_model: Model.PropertyModel[str] = Model.PropertyModel(_("Generated Data"))
-        self.data_type_model: Model.PropertyModel[int] = Model.PropertyModel(0)
-        self.is_sequence_model: Model.PropertyModel[int] = Model.PropertyModel(0)
-        self.collection_rank_model: Model.PropertyModel[int] = Model.PropertyModel(0)
-        self.datum_rank_model: Model.PropertyModel[int] = Model.PropertyModel(1)
+        self.title_model = Model.PropertyModel(_("Generated Data"))
+        self.data_type_model = Model.PropertyModel(0)
+        self.is_sequence_model = Model.PropertyModel(0)
+        self.collection_rank_model = Model.PropertyModel(0)
+        self.datum_rank_model = Model.PropertyModel(1)
 
-        self.sequence_size_model: Model.PropertyModel[int] = Model.PropertyModel(16)
+        self.sequence_size_model = Model.PropertyModel(16)
 
-        self.line_size_model: Model.PropertyModel[int] = Model.PropertyModel(512)
+        self.line_size_model = Model.PropertyModel(512)
 
-        self.scan_width_model: Model.PropertyModel[int] = Model.PropertyModel(256)
-        self.scan_height_model: Model.PropertyModel[int] = Model.PropertyModel(256)
+        self.scan_width_model = Model.PropertyModel(256)
+        self.scan_height_model = Model.PropertyModel(256)
 
-        self.spectrum_size_model: Model.PropertyModel[int] = Model.PropertyModel(1024)
+        self.spectrum_size_model = Model.PropertyModel(1024)
 
-        self.image_width_model: Model.PropertyModel[int] = Model.PropertyModel(1024)
-        self.image_height_model: Model.PropertyModel[int] = Model.PropertyModel(1024)
+        self.image_width_model = Model.PropertyModel(1024)
+        self.image_height_model = Model.PropertyModel(1024)
 
-        self.array_width_model: Model.PropertyModel[int] = Model.PropertyModel(1024)
-        self.array_height_model: Model.PropertyModel[int] = Model.PropertyModel(256)
+        self.array_width_model = Model.PropertyModel(1024)
+        self.array_height_model = Model.PropertyModel(256)
 
         self.int_converter = Converter.IntegerToStringConverter()
 
-        self.bytes_string_model: Model.PropertyModel[str] = Model.PropertyModel("- Bytes")  # Temporary string before first calculating
-
-        def update_bytes_string(*_: typing.Any) -> None:
-            """Recalculate the number of bytes that will be used based on the selected sequence, collection and datam options."""
+        def update_bytes_string(*args: typing.Any) -> str:
+            """Recalculate the number of bytes that will be used based on the selected sequence, collection and datum options."""
             data_size = 4  # data_type_model needs to drive this when it is made to drive anything as it currently doesn't do anything.
+
             if self.is_sequence_model.value == 1:
                 sequence_size = self.sequence_size_model.value or 1
                 data_size *= sequence_size
@@ -84,9 +81,9 @@ class GenerateDataDialog(Declarative.WindowHandler):
                 array_height = self.array_height_model.value or 1
                 array_width = self.array_width_model.value or 1
                 data_size *= array_height * array_width
-            self.bytes_string_model.value = Utility.format_with_binary_prefix(data_size)
+            return Utility.make_pretty_size_str(data_size)
 
-        self.bytes_update_stream: BYTES_UPDATE_STREAM_TYPE = Stream.CombineLatestStream([
+        input_streams: typing.Sequence[Stream.PropertyChangedEventStream[typing.Any]] = [
             Stream.PropertyChangedEventStream(self.is_sequence_model, "value"),
             Stream.PropertyChangedEventStream(self.sequence_size_model, "value"),
             Stream.PropertyChangedEventStream(self.collection_rank_model, "value"),
@@ -99,8 +96,10 @@ class GenerateDataDialog(Declarative.WindowHandler):
             Stream.PropertyChangedEventStream(self.image_width_model, "value"),
             Stream.PropertyChangedEventStream(self.array_height_model, "value"),
             Stream.PropertyChangedEventStream(self.array_width_model, "value")
-        ], value_fn=update_bytes_string)
-        update_bytes_string()
+        ]
+
+        # create a model from the bytes string stream that updates whenever any of the inputs that affect the data size are changed.
+        self.bytes_string_model = Model.StreamValueModel(Stream.CombineLatestStream(input_streams, update_bytes_string))
 
         u = Declarative.DeclarativeUI()
 

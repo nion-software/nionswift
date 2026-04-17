@@ -522,7 +522,7 @@ class Timer:
         self.last_time_ns = current_time
 
 
-def format_with_binary_prefix(total_bytes: int | float) -> str:
+def make_pretty_size_str(total_bytes: int | float) -> str:
     """Format a number into a string with units Byte(s), KB, MB, GB, or TB formatted to two decimal places.
 
     See https://stackoverflow.com/a/31631711.

@@ -1443,7 +1443,7 @@ class DataItem(Persistence.PersistentObject):
         data_dtype = self.data_dtype
         if dimensional_shape is not None and data_dtype is not None:
             total_bytes = typing.cast(int, numpy.prod(dimensional_shape + (numpy.dtype(data_dtype).itemsize,), dtype=numpy.int64))
-            return Utility.format_with_binary_prefix(total_bytes)
+            return Utility.make_pretty_size_str(total_bytes)
         return str()
 
     @property
