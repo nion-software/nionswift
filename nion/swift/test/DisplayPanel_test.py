@@ -171,6 +171,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_select_line(self):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
         self.document_controller.add_line_graphic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         # click outside so nothing is selected
         self.display_panel.display_canvas_item.simulate_click((0, 0))
         self.document_controller.periodic()
@@ -178,19 +179,24 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select the line
         self.display_panel.display_canvas_item.simulate_click((200, 200))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
         # now shift the view and try again
         self.display_panel.display_canvas_item.simulate_click((0, 0))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
-        self.display_panel.display_canvas_item.refresh_layout_immediate()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.display_panel.display_canvas_item.simulate_click((200, 200))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 0)
         self.display_panel.display_canvas_item.simulate_click((220, 200))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
 
@@ -198,28 +204,34 @@ class TestDisplayPanelClass(unittest.TestCase):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
         self.document_controller.add_line_graphic()
         self.document_controller.add_ellipse_graphic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         # click outside so nothing is selected
         self.display_panel.display_canvas_item.simulate_click((0, 0))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 0)
         # select the ellipse
         self.display_panel.display_canvas_item.simulate_click((725, 500))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(1 in self.display_item.graphic_selection.indexes)
         # select the line
         self.display_panel.display_canvas_item.simulate_click((200, 200))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
         # add the ellipse to the selection. click inside the right side.
         self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 2)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
         # remove the ellipse from the selection. click inside the right side.
         self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
 
@@ -233,6 +245,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
         self.document_controller.add_line_graphic()
         self.document_controller.add_ellipse_graphic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         # make sure items are in the right place
         self.assertClosePoint(self.display_item.graphics[0].start, (0.2, 0.2))
         self.assertClosePoint(self.display_item.graphics[0].end, (0.8, 0.8))
@@ -240,6 +253,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select both
         self.display_item.graphic_selection.set(0)
         self.display_item.graphic_selection.add(1)
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(len(self.display_item.graphic_selection.indexes), 2)
         # drag by (0.1, 0.2)
         self.display_panel.display_canvas_item.simulate_drag((500,500), (600,700))
@@ -255,6 +269,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertCloseRectangle(self.display_item.graphics[1].bounds, ((0.25, 0.25), (0.5, 0.5)))
         # now select just the line, drag middle of circle. should only drag circle.
         self.display_item.graphic_selection.set(0)
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.display_panel.display_canvas_item.simulate_drag((700,500), (800,500))
         self.document_controller.periodic()
         self.assertClosePoint(self.display_item.graphics[0].start, (0.2, 0.2))
@@ -264,6 +279,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_drag_line_part(self):
         # add line (0.2, 0.2), (0.8, 0.8)
         self.document_controller.add_line_graphic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         # make sure items it is in the right place
         self.assertClosePoint(self.display_item.graphics[0].start, (0.2, 0.2))
         self.assertClosePoint(self.display_item.graphics[0].end, (0.8, 0.8))
@@ -341,10 +357,10 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_item.graphics[0].end, (1.18, 0.42))
 
     def test_nudge_line(self):
-        # add line (0.2, 0.2), (0.8, 0.8)
+        # add line (0.2, 0.2), (0.8, 0.8). select it.
         self.document_controller.add_line_graphic()
-        # select it
         self.display_item.graphic_selection.set(0)
+        self.display_panel.display_canvas_item._update_canvas_items()
         # move it left
         self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].start, (0.200, 0.199))
@@ -367,10 +383,10 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_item.graphics[0].start, (0.200, 0.200))
 
     def test_nudge_rect(self):
-        # add rect (0.25, 0.25), (0.5, 0.5)
+        # add rect (0.25, 0.25), (0.5, 0.5). select it.
         self.document_controller.add_rectangle_graphic()
-        # select it
         self.display_item.graphic_selection.set(0)
+        self.display_panel.display_canvas_item._update_canvas_items()
         # move it left
         self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.249))
@@ -393,10 +409,10 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.250))
 
     def test_nudge_ellipse(self):
-        # add rect (0.25, 0.25), (0.5, 0.5)
+        # add rect (0.25, 0.25), (0.5, 0.5), select it.
         self.document_controller.add_ellipse_graphic()
-        # select it
         self.display_item.graphic_selection.set(0)
+        self.display_panel.display_canvas_item._update_canvas_items()
         # move it left
         self.display_panel._handle_key_pressed(typing.cast(TestUI.UserInterface, self.document_controller.ui).create_key_by_id("left"))
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.250, 0.249))
@@ -421,6 +437,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_drag_point_moves_the_point_graphic(self):
         # add point (0.5, 0.5)
         self.document_controller.add_point_graphic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         # make sure items it is in the right place
         self.assertClosePoint(self.display_item.graphics[0].position, (0.5, 0.5))
         # select it
@@ -437,6 +454,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_panel.display_canvas_item.simulate_click((100,100))
         self.document_controller.periodic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertFalse(self.display_item.graphic_selection.indexes)
         self.display_panel.display_canvas_item.simulate_click((500,500))
         self.document_controller.periodic()
@@ -457,7 +475,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         # assumes the test widget is 640x480
         self.display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertIsNotNone(self.display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(240, 320)))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(240, 300)), (5, 5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(0, 60)), (0.0, 0.0))
@@ -473,12 +493,16 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=480, width=640))
+            display_panel.display_canvas_item._update_canvas_items()
             # establish display properties
             display_panel.display_canvas_item.move_left()
+            display_panel.display_canvas_item._update_canvas_items()
             display_panel.display_canvas_item.move_right()
+            display_panel.display_canvas_item._update_canvas_items()
             self.assertEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
             # move and ensure value was updated
             display_panel.display_canvas_item.move_left()  # 10 pixels left
+            display_panel.display_canvas_item._update_canvas_items()
             self.assertNotEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
 
     def test_resize_rectangle(self):
@@ -489,6 +513,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_item.graphics[0].bounds[1], (0.5, 0.5))
         # select it
         self.display_item.graphic_selection.set(0)
+        self.display_panel.display_canvas_item._update_canvas_items()
         # drag top left corner
         self.display_panel.display_canvas_item.simulate_drag((250,250), (300,250))
         self.document_controller.periodic()
@@ -508,6 +533,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=2000, width=1000))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_rectangle_graphic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         # make sure items it is in the right place
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.display_item.graphics[0].bounds[1], (0.5, 0.5))
@@ -534,6 +560,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=2000, width=1000))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_ellipse_graphic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         # make sure items it is in the right place
         self.assertClosePoint(self.display_item.graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.display_item.graphics[0].bounds[1], (0.5, 0.5))
@@ -1136,7 +1163,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.simulate_click((100, 100), modifiers)
         self.display_panel._handle_key_pressed(TestUI.Key(None, "up", modifiers))
-        self.display_panel.display_canvas_item.scroll_area_canvas_item.refresh_layout_immediate()
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(self.display_panel.display_canvas_item.scroll_area_canvas_item.canvas_items[0].canvas_rect, ((-10, 0), (1000, 1000)))
 
     def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
@@ -1206,6 +1233,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_perform_action_gets_dispatched_to_image_canvas_item(self):
         self.assertEqual(self.display_panel.display_canvas_item.image_canvas_mode, "fit")
         self.display_panel.perform_action("set_fill_mode")
+        self.display_panel.display_canvas_item._update_canvas_items()
         self.assertEqual(self.display_panel.display_canvas_item.image_canvas_mode, "fill")
 
     def test_dragging_to_add_point_makes_desired_point(self):
@@ -1531,6 +1559,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_rectangle_graphic()
         self.document_controller.add_ellipse_graphic()
         self.document_controller.add_interval_graphic()
+        self.display_panel.display_canvas_item._update_canvas_items()
         display_canvas_item.mouse_pressed(10, 10, CanvasItem.KeyboardModifiers())
         display_canvas_item.mouse_released(10, 10, CanvasItem.KeyboardModifiers())
         self.document_controller.periodic()
@@ -1588,10 +1617,10 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.set_display_panel_display_item(display_item)
-            display_panel.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
             display_item.display_type = "line_plot"
-            display_panel.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            display_panel.display_canvas_item._update_canvas_items()
             display_item.display_type = "image"
+            display_panel.display_canvas_item._update_canvas_items()
             self.assertIsNotNone(display_panel.display_canvas_item._display_values)
 
     def test_display_2d_update_with_no_data(self):
@@ -1648,10 +1677,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
-            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
-            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_data_changes(self):
@@ -1665,13 +1692,12 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(240, 640))
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
-            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.random.randn(8, 8)))
-            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_graphic_changes(self):
+        # test that display canvas item gets one update per graphic property changed event.
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -1685,10 +1711,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
-            display_panel.display_canvas_item._wait_for_update()
+            display_panel.display_canvas_item._update_canvas_items()
             update_count = display_panel.display_canvas_item._update_count
-            graphic.bounds = Geometry.FloatRect.from_tlbr(0.1, 0.1, 0.2, 0.2)
-            display_panel.display_canvas_item._wait_for_update()
+            display_panel.display_canvas_item._trace = True
+            graphic.rotation = 1.0  # use rotation; bounds will generate multiple property changed events
+            display_panel.display_canvas_item._trace = False
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_does_not_update_if_graphic_does_not_change(self):
@@ -1710,7 +1737,6 @@ class TestDisplayPanelClass(unittest.TestCase):
             # click once
             display_panel.display_canvas_item.simulate_click(Geometry.IntPoint(120, 120))
             document_controller.periodic()
-            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
 
             display_item_did_change = False
@@ -1725,7 +1751,6 @@ class TestDisplayPanelClass(unittest.TestCase):
                 document_controller.periodic()
                 display_panel.display_canvas_item.simulate_release(Geometry.IntPoint(120, 120))
                 document_controller.periodic()
-                display_panel.display_canvas_item._wait_for_update()
                 self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
             self.assertFalse(display_item_did_change)
@@ -1742,10 +1767,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(240, 640))
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
-            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             display_data_channel.color_map_id = "hsv"
-            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_line_plot_image_display_canvas_item_only_updates_if_display_data_changes(self):
@@ -1760,11 +1783,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
-            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
             display_panel.refresh_layout_immediate()
-            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_line_plot_image_display_canvas_item_with_legend_only_updates_if_display_data_changes(self):
@@ -1780,11 +1801,9 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
-            display_panel.display_canvas_item._wait_for_update()
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
             display_panel.refresh_layout_immediate()
-            display_panel.display_canvas_item._wait_for_update()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_focused_data_item_changes_when_display_changed_directly_in_content(self):
@@ -2040,8 +2059,6 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
-            display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_display_item(display_item)
             display_panel.layout_immediate(Geometry.IntSize(100, 100))
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
@@ -2215,9 +2232,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.layout_immediate(Geometry.IntSize(200, 200))
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
-            # everything should be updated; the display values should not be dirty
+            # everything should be updated
             self.assertIsNotNone(display_panel.display_canvas_item._display_values)
-            self.assertFalse(display_panel.display_canvas_item._display_values_dirty)
 
     def test_line_plot_data_from_processing_initially_displays(self):
         with TestContext.create_memory_context() as test_context:
@@ -3255,12 +3271,14 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             display_panel.layout_immediate((1000 + header_height, 1000))
+            display_panel.display_canvas_item._update_canvas_items()
             # run test
             display_panel.perform_action("set_fit_mode")
             self.assertEqual((0.5, 0.5), tuple(display_item.display_properties["image_position"]))
             document_controller.tool_mode = "hand"
             display_panel.display_canvas_item.simulate_drag((100,100), (200,200))
             document_controller.periodic()
+            display_panel.display_canvas_item._update_canvas_items()
             self.assertEqual((0.4, 0.4), tuple(display_item.display_properties["image_position"]))
             # undo check assumptions
             document_controller.handle_undo()
@@ -3271,6 +3289,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             # move again
             display_panel.display_canvas_item.simulate_drag((100,100), (200,200))
             document_controller.periodic()
+            display_panel.display_canvas_item._update_canvas_items()
             self.assertEqual((0.3, 0.3), tuple(display_item.display_properties["image_position"]))
             # undo check assumptions
             document_controller.handle_undo()

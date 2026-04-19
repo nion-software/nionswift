@@ -188,6 +188,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # draws line, then rect
             display_item.add_graphic(line_region)
             display_item.add_graphic(rect_region)
+            display_panel.display_canvas_item._update_canvas_items()
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((50, 950))
             document_controller.periodic()
@@ -217,6 +218,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # draws line, then rect
             display_item.add_graphic(line_region)
             display_item.add_graphic(rect_region)
+            display_panel.display_canvas_item._update_canvas_items()
             display_item = document_model.get_display_item_for_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((500, 600))
@@ -242,8 +244,9 @@ class TestImageCanvasItemClass(unittest.TestCase):
             rect_region2.bounds = (0.4, 0.4), (0.4, 0.4)
             display_item.add_graphic(rect_region1)
             display_item.add_graphic(rect_region2)
+            display_panel.display_canvas_item._update_canvas_items()
             display_item = document_model.get_display_item_for_data_item(data_item)
-            # clicking on line should select it
+            # clicking on the line should select it
             display_panel.display_canvas_item.simulate_click((700, 700))
             document_controller.periodic()
             self.assertEqual(display_item.graphic_selection.indexes, set((1, )))
@@ -271,6 +274,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             rect_region2.bounds = (0.4, 0.4), (0.4, 0.4)
             display_item.add_graphic(rect_region1)
             display_item.add_graphic(rect_region2)
+            display_panel.display_canvas_item._update_canvas_items()
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((500, 500))
             document_controller.periodic()
@@ -321,6 +325,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = display_panel.header_canvas_item.header_height
             display_panel.layout_immediate((100 + header_height, 100))
             display_panel.perform_action("set_fit_mode")
+            display_panel.display_canvas_item._update_canvas_items()
             # run test. each data pixel will be spanned by two display pixels. clicking at an odd value
             # will be a click in the center of a data pixel. zoom should expand and contract around that
             # pixel. there is also a check to make sure zooming is not just ending up with the same exact
@@ -333,6 +338,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_panel.display_canvas_item.simulate_click((20, 20))  # 10,10 in image space
             # the zoom tool runs asynchronously, so give it a slice of async time.
             document_controller.periodic()
+            display_panel.display_canvas_item._update_canvas_items()
             # check results
             # After zooming in on 20,20 canvas (10,10 image) the canvas will have zoomed in 1.25X so the display
             # now only shows 40x40 of the image on the canvas. Since it was centered around the 10,10 position of
@@ -351,6 +357,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # zoom out is done by passing the alt key to the canvas item.
             display_panel.display_canvas_item.simulate_click((20, 20), CanvasItem.KeyboardModifiers(alt=True))
             document_controller.periodic()
+            display_panel.display_canvas_item._update_canvas_items()
             # zoom in at the center of a data pixel followed by zoom out in the same spot should end up in the same original mapping.
             self.assertEqual((25, 25),
                              display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(51, 51)))
@@ -370,6 +377,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = display_panel.header_canvas_item.header_height
             display_panel.layout_immediate((100 + header_height, 100))
             display_panel.perform_action("set_one_to_one_mode")
+            display_panel.display_canvas_item._update_canvas_items()
             # run test. Each canvas pixel starts as 1 image pixel, with image centered
             self.assertEqual((20, 20),
                              display_panel.display_canvas_item.map_widget_to_image(Geometry.IntPoint(50, 50)))
@@ -379,6 +387,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_panel.display_canvas_item.simulate_click((40, 40))  # 10,10 in image space
             # the zoom tool runs asynchronously, so give it a slice of async time.
             document_controller.periodic()
+            display_panel.display_canvas_item._update_canvas_items()
             # check results
             # After zooming in on 40,40 canvas (10,10 image) the canvas will have zoomed in 1.25X so the display
             # displays the full new 50x50, but a quarter of the new pixels (2.5) are on the left and 3/4 on the right.
@@ -397,6 +406,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # zoom out is done by passing the alt key to the canvas item.
             display_panel.display_canvas_item.simulate_click((40, 40), CanvasItem.KeyboardModifiers(alt=True))
             document_controller.periodic()
+            display_panel.display_canvas_item._update_canvas_items()
             # zoom in at the center of a data pixel followed by zoom out in the same spot should end up in the
             # same original mapping.
             self.assertTupleAlmostEqual((20, 20),
