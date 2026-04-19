@@ -208,7 +208,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__is_focused = value
         self.update()
 
-    def update_coordinate_system(self, displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.Sequence[Calibration.Calibration], graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection) -> None:
+    def update_coordinate_system(self, displayed_shape: DataAndMetadata.ShapeType | None, coordinate_system: typing.Sequence[Calibration.Calibration], graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection) -> None:
         needs_update = False
         if coordinate_system != self.__coordinate_system:
             self.__coordinate_system = tuple(coordinate_system)
@@ -421,11 +421,6 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__update_sizing()
             self.update()
 
-    def set_display_properties(self, display_properties: Persistence.PersistentDictType) -> None:
-        self.scale_marker_position = display_properties.get("scale_marker_position", None)
-        self.scale_marker_text_color = display_properties.get("scale_marker_text_color", None)
-        self.scale_marker_background_color = display_properties.get("scale_marker_background_color", None)
-
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
         return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration,
                                              self.__info_text, self.__screen_pixel_per_image_pixel_stream.value,
@@ -436,28 +431,27 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
                                              )
 
 
-def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAndMetadata.Shape2dType, image_canvas_mode: str, image_zoom: float, image_position: Geometry.FloatPoint) -> Geometry.IntRect:
+def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: Geometry.IntSize, image_canvas_mode: str, image_zoom: float, image_position: Geometry.FloatPoint) -> Geometry.IntRect:
     """Calculate origin and size for canvas size, data shape, and image display parameters."""
     if image_canvas_mode == "fill":
-        data_shape = data_shape
-        scale_h = float(data_shape[1]) / canvas_size.width
-        scale_v = float(data_shape[0]) / canvas_size.height
+        scale_h = float(data_shape.width) / canvas_size.width
+        scale_v = float(data_shape.height) / canvas_size.height
         if scale_v < scale_h:
-            image_canvas_size = Geometry.IntSize(canvas_size[0], round(canvas_size.height * data_shape[1] / data_shape[0]))
+            image_canvas_size = Geometry.IntSize(canvas_size[0], round(canvas_size.height * data_shape.width / data_shape.height))
         else:
-            image_canvas_size = Geometry.IntSize(round(canvas_size.width * data_shape[0] / data_shape[1]), canvas_size.width)
+            image_canvas_size = Geometry.IntSize(round(canvas_size.width * data_shape.height / data_shape.width), canvas_size.width)
         image_canvas_origin = Geometry.IntPoint(round(canvas_size.height * 0.5 - image_canvas_size.height * 0.5),
                                                 round(canvas_size.width * 0.5 - image_canvas_size.width * 0.5))
         return Geometry.IntRect(image_canvas_origin, image_canvas_size)
     elif image_canvas_mode == "fit":
         return Geometry.IntRect(Geometry.IntPoint(), canvas_size)
     elif image_canvas_mode == "1:1":
-        image_canvas_origin = Geometry.IntPoint(round(canvas_size.height * 0.5 - data_shape[0] * 0.5), round(canvas_size.width * 0.5 - data_shape[1] * 0.5))
-        return Geometry.IntRect(image_canvas_origin, Geometry.IntSize.make(data_shape))
+        image_canvas_origin = Geometry.IntPoint(round(canvas_size.height * 0.5 - data_shape.height * 0.5), round(canvas_size.width * 0.5 - data_shape.width * 0.5))
+        return Geometry.IntRect(image_canvas_origin, data_shape)
     elif image_canvas_mode == "2:1":
-        image_canvas_size = Geometry.IntSize(round(data_shape[0] * 0.5), round(data_shape[1] * 0.5))
-        image_canvas_origin = Geometry.IntPoint(round(canvas_size.height * 0.5 - data_shape[0] * 0.25),
-                                                round(canvas_size.width * 0.5 - data_shape[1] * 0.25))
+        image_canvas_size = Geometry.IntSize(round(data_shape.height * 0.5), round(data_shape.width * 0.5))
+        image_canvas_origin = Geometry.IntPoint(round(canvas_size.height * 0.5 - data_shape.height * 0.25),
+                                                round(canvas_size.width * 0.5 - data_shape.width * 0.25))
         return Geometry.IntRect(image_canvas_origin, image_canvas_size)
     else:
         image_canvas_size_f = Geometry.FloatSize(canvas_size.height * image_zoom, canvas_size.width * image_zoom)
@@ -469,9 +463,9 @@ def calculate_origin_and_size(canvas_size: Geometry.IntSize, data_shape: DataAnd
 
 
 class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
-    def __init__(self, data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None, image_zoom: float = 1.0, image_position: Geometry.FloatPoint = Geometry.FloatPoint(0.5, 0.5), image_canvas_mode: str = "fit") -> None:
+    def __init__(self, data_shape: Geometry.IntSize | None = None, image_zoom: float = 1.0, image_position: Geometry.FloatPoint = Geometry.FloatPoint(0.5, 0.5), image_canvas_mode: str = "fit") -> None:
         super().__init__()
-        self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = data_shape
+        self.__data_shape = data_shape
         self.__image_zoom = image_zoom
         self.__image_position = image_position
         self.__image_canvas_mode = image_canvas_mode
@@ -480,11 +474,11 @@ class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
         return ImageAreaCanvasItemLayout(self.__data_shape, self.__image_zoom, self.__image_position, self.__image_canvas_mode)
 
     @property
-    def data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
+    def data_shape(self) -> Geometry.IntSize | None:
         return self.__data_shape
 
     @data_shape.setter
-    def data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
+    def data_shape(self, value: Geometry.IntSize | None) -> None:
         self.__data_shape = value
 
     @property
@@ -517,10 +511,11 @@ class ImageAreaCanvasItemLayout(CanvasItem.CanvasItemLayout):
             if not content._has_layout:
                 # if the content has not layout yet, always update it.
                 self.update_canvas_item_layout(canvas_origin, canvas_size, content)
-            if canvas_size:
-                widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, Geometry.IntRect(canvas_origin, canvas_size), list())
+            if canvas_size and self.__data_shape is not None:
+                widget_mapping = ImageCanvasItemMapping.make(self.__data_shape.as_tuple(), Geometry.IntRect(canvas_origin, canvas_size), list())
                 if widget_mapping:
-                    image_canvas_rect = calculate_origin_and_size(canvas_size, widget_mapping.data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
+                    data_shape = Geometry.IntSize.make(widget_mapping.data_shape)
+                    image_canvas_rect = calculate_origin_and_size(canvas_size, data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
                     content.update_layout(image_canvas_rect.origin, image_canvas_rect.size)
 
 
@@ -532,7 +527,7 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
+        self.__data_shape: Geometry.IntSize | None = None
         self.__lock = threading.RLock()
         self.screen_pixel_per_image_pixel_stream = Stream.ValueStream(0.0)
         self.__listener = self._canvas_size_stream.value_stream.listen(ReferenceCounting.weak_partial(ImageAreaCompositeCanvasItem.__on_canvas_size_changed, self))
@@ -541,11 +536,11 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
         self.__update_screen_pixel_per_image()
 
     @property
-    def _data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
+    def _data_shape(self) -> Geometry.IntSize | None:
         return self.__data_shape
 
     @_data_shape.setter
-    def _data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
+    def _data_shape(self, value: Geometry.IntSize | None) -> None:
         if self.__data_shape != value:
             self.__data_shape = value
             self.__update_screen_pixel_per_image()
@@ -553,7 +548,7 @@ class ImageAreaCompositeCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __update_screen_pixel_per_image(self) -> None:
         screen_pixel_per_image_pixel = 0.0
-        widget_mapping = ImageCanvasItemMapping.make(self._data_shape, self.canvas_rect, list())
+        widget_mapping = ImageCanvasItemMapping.make(self._data_shape.as_tuple(), self.canvas_rect, list()) if self._data_shape and self.canvas_rect else None
         if widget_mapping:
             data_shape = widget_mapping.data_shape
             screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget(Geometry.FloatSize(1, 1)).height / data_shape[0]
@@ -593,11 +588,11 @@ class ImageAreaCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(content)
 
     @property
-    def _data_shape(self) -> typing.Optional[DataAndMetadata.Shape2dType]:
+    def _data_shape(self) -> Geometry.IntSize | None:
         return self.__scroll_area_layout.data_shape
 
     @_data_shape.setter
-    def _data_shape(self, value: typing.Optional[DataAndMetadata.Shape2dType]) -> None:
+    def _data_shape(self, value: Geometry.IntSize | None) -> None:
         if self.__scroll_area_layout.data_shape != value:
             self.__scroll_area_layout.data_shape = value
             self.update()
@@ -882,7 +877,8 @@ class HandMouseHandler(MouseHandler):
         assert value_change.is_begin
         assert value_change_value is not None
 
-        image_position: typing.Optional[Geometry.FloatPoint] = None
+        image_position = image_canvas_item._last_image_position
+        data_shape = image_canvas_item._last_data_shape
 
         # preliminary setup for the tracking loop.
         mouse_pos, modifiers = value_change_value
@@ -898,7 +894,7 @@ class HandMouseHandler(MouseHandler):
                     mouse_pos, modifiers = value_change.value
                     assert last_drag_pos
                     delta = mouse_pos - last_drag_pos
-                    image_position = image_canvas_item._update_image_canvas_position(-delta.as_size().to_float_size())
+                    image_position = image_canvas_item._update_image_canvas_position(-delta.as_size().to_float_size(), data_shape, image_position)
                     last_drag_pos = mouse_pos
 
             # if the image position was set, it means the user moved the image. perform the task.
@@ -938,9 +934,15 @@ class CreateGraphicMouseHandler(MouseHandler):
             graphic = getattr(create_create_graphic_task, "_graphic")
             graphic_drag_part = graphic._default_drag_part
 
-            delegate.add_index_to_selection(image_canvas_item.graphic_index(graphic))
+            display_item = delegate.display_item
+            assert display_item
+
+            graphic_selection = display_item.graphic_selection
+            graphics = tuple(display_item.graphics)
+
+            delegate.add_index_to_selection(graphics.index(graphic))
             # setup drag
-            selection_indexes = image_canvas_item.graphic_selection.indexes
+            selection_indexes = graphic_selection.indexes
             assert len(selection_indexes) == 1
             graphic_drag_item_was_selected = True
             # keep track of general drag information
@@ -970,7 +972,6 @@ class CreateGraphicMouseHandler(MouseHandler):
                     delegate.adjust_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, mouse_pos, modifiers)
                     graphic_drag_changed = True
 
-            graphics = list(image_canvas_item.graphics)
             for index in graphic_drag_indexes:
                 graphic_ = graphics[index]
                 graphic_.end_drag(graphic_part_data[index])
@@ -994,35 +995,11 @@ class CreateGraphicMouseHandler(MouseHandler):
                 create_create_graphic_task.commit()
 
 
-def calculate_dimensional_calibration(data_and_metadata: DataAndMetadata.DataMetadata,
-                                      displayed_dimensional_calibrations: typing.Sequence[
-                                          Calibration.Calibration]) -> Calibration.Calibration:
-    if len(displayed_dimensional_calibrations) == 0:
-        dimensional_calibration = Calibration.Calibration()
-    elif len(displayed_dimensional_calibrations) == 1:
-        dimensional_calibration = displayed_dimensional_calibrations[0]
-    else:
-        datum_dimensions = data_and_metadata.datum_dimension_indexes
-        collection_dimensions = data_and_metadata.collection_dimension_indexes
-        if len(datum_dimensions) == 2:
-            if displayed_dimensional_calibrations[-1].units:
-                dimensional_calibration = displayed_dimensional_calibrations[-1]
-            else:
-                dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
-        elif len(collection_dimensions) > 0:
-            dimensional_calibration = data_and_metadata.dimensional_calibrations[collection_dimensions[-1]]
-        elif len(datum_dimensions) > 0:
-            dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
-        else:
-            dimensional_calibration = Calibration.Calibration()
-    return dimensional_calibration
-
-
-
 @dataclasses.dataclass
 class FrameInfo:
     frame_index: int
     info_items: typing.Sequence[str]
+
 
 def get_frame_info(data_metadata: DataAndMetadata.DataMetadata) -> FrameInfo:
     # extracts the dict from metadata. packages can provide components which get called to extract
@@ -1052,109 +1029,131 @@ graphic_type_map = {
 }
 
 
-class DisplayValueProcessor:
-    """Process display values in a separate thread.
+class ImageDisplayInfo:
+    """Represents the information needed to display an image, including the data and calibrations.
 
-    The executor is shared between all instances of this class.
-
-    Clients should call put_display_values to put display values into the processor. The processor will run
-    process_display_values on a thread if it is not already running. The processor will apply the display values to
-    the bitmap and timestamp canvas items.
-
-    Clients should call stop to stop the processor when it is no longer needed. This will stop the processing thread.
+    This object is effectively immutable, i.e. outside of caching.
     """
-    def __init__(self,
-                 executor: concurrent.futures.ThreadPoolExecutor,
-                 bitmap_canvas_item: CanvasItem.BitmapCanvasItem,
-                 timestamp_canvas_item: CanvasItem.TimestampCanvasItem,
-                 display_latency_model: Model.PropertyModel[bool]) -> None:
-        self.__executor = executor
-        self.__display_values: DisplayItem.DisplayValues | None = None
-        self.__bitmap_canvas_item = bitmap_canvas_item
-        self.__timestamp_canvas_item = timestamp_canvas_item
-        self.__display_latency_model = display_latency_model
-        self.__stopped = False
-        self.__lock = threading.RLock()
-        self.__future: concurrent.futures.Future[None] | None = None
+    def __init__(
+            self,
+            display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
+            display_properties: Persistence.PersistentDictType,
+            display_values_list: typing.Sequence[DisplayItem.DisplayValues | None],
+            display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
+            graphics: typing.Sequence[Graphics.Graphic],
+            graphic_selection: DisplayItem.GraphicSelection | None
+    ) -> None:
+        self.__display_calibration_info = display_calibration_info
+        self.__display_properties = copy.deepcopy(display_properties)
+        self.__display_values_list = list(display_values_list)
+        self.__display_layers = list(display_layers)
+        self.__graphics = list(graphics)
+        self.__graphic_selection = copy.copy(graphic_selection) if graphic_selection else DisplayItem.GraphicSelection()
 
-    def stop(self) -> None:
-        # set the stopped flag and wait for the future (if any) to complete.
-        self.__stopped = True
-        with self.__lock:
-            future = self.__future
-            self.__display_values = None
-        if future:
-            future.result()
+        # cached values
+        self.__image_zoom = typing.cast(float, display_properties.get("image_zoom", 1.0))
+        self.__image_position = Geometry.FloatPoint.make(display_properties.get("image_position", (0.5, 0.5)))
+        self.__image_canvas_mode = typing.cast(str, display_properties.get("image_canvas_mode", "fit"))
 
-    def __process_display_values(self) -> None:
-        # runs on a thread until stopped, loop while new display values are available, apply them to the bitmap
-        # and timestamp canvas items. after the loop is exited, check again for display values to avoid a race
-        # condition where the display values get set after the lock within the loop but where the current value
-        # was None, causing a break out of the loop.
-        while not self.__stopped:
-            # put_display_values only sets display values under the lock.
-            # retrieve them here under the lock and clear them.
-            with self.__lock:
-                display_values = self.__display_values
-                self.__display_values = None
-            # at this point forward, the display values may be set again, so we need to check
-            if display_values:
-                self.apply(display_values)
-                display_values = None  # clear the reference to the display values
+    @property
+    def display_calibration_info(self) -> DisplayItem.DisplayCalibrationInfo | None:
+        return self.__display_calibration_info
+
+    @property
+    def display_layers(self) -> typing.Sequence[DisplayItem.DisplayLayerInfo]:
+        return self.__display_layers
+
+    @property
+    def display_values(self) -> DisplayItem.DisplayValues | None:
+        return self.__display_values_list[0] if len(self.__display_values_list) > 0 else None
+
+    @property
+    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
+        return self.__graphics
+
+    @property
+    def graphic_selection(self) -> DisplayItem.GraphicSelection:
+        return self.__graphic_selection
+
+    @property
+    def image_zoom(self) -> float:
+        return self.__image_zoom
+
+    @property
+    def image_position(self) -> Geometry.FloatPoint:
+        return self.__image_position
+
+    @property
+    def image_canvas_mode(self) -> str:
+        return self.__image_canvas_mode
+
+    @property
+    def scale_marker_position(self) -> str | None:
+        return typing.cast(str | None, self.__display_properties.get("scale_marker_position", None))
+
+    @property
+    def scale_marker_text_color(self) -> str | None:
+        return typing.cast(str | None, self.__display_properties.get("scale_marker_text_color", None))
+
+    @property
+    def scale_marker_background_color(self) -> str | None:
+        return typing.cast(str | None, self.__display_properties.get("scale_marker_background_color", None))
+
+    @property
+    def data_shape(self) -> Geometry.IntSize | None:
+        if self.__display_calibration_info is not None:
+            display_data_shape = self.__display_calibration_info.display_data_shape
+            if display_data_shape is not None:
+                return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, display_data_shape)) if len(display_data_shape) == 2 else None
+        return None
+
+    @property
+    def dimensional_calibration(self) -> Calibration.Calibration:
+        display_values = self.display_values
+        data_metadata = display_values.data_metadata if display_values else None
+        if data_metadata:
+            display_calibration_info = self.display_calibration_info
+            displayed_dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations if display_calibration_info else list()
+            if len(displayed_dimensional_calibrations) == 0:
+                dimensional_calibration = Calibration.Calibration()
+            elif len(displayed_dimensional_calibrations) == 1:
+                dimensional_calibration = displayed_dimensional_calibrations[0]
             else:
-                break
-        with self.__lock:
-            if self.__display_values:
-                self.__future = self.__executor.submit(self.__process_display_values)
-            else:
-                self.__future = None
+                datum_dimensions = data_metadata.datum_dimension_indexes
+                collection_dimensions = data_metadata.collection_dimension_indexes
+                if len(datum_dimensions) == 2:
+                    if displayed_dimensional_calibrations[-1].units:
+                        dimensional_calibration = displayed_dimensional_calibrations[-1]
+                    else:
+                        dimensional_calibration = data_metadata.dimensional_calibrations[datum_dimensions[-1]]
+                elif len(collection_dimensions) > 0:
+                    dimensional_calibration = data_metadata.dimensional_calibrations[collection_dimensions[-1]]
+                elif len(datum_dimensions) > 0:
+                    dimensional_calibration = data_metadata.dimensional_calibrations[datum_dimensions[-1]]
+                else:
+                    dimensional_calibration = Calibration.Calibration()
+            return dimensional_calibration
+        return Calibration.Calibration()
 
-    def put_display_values(self, display_values: DisplayItem.DisplayValues) -> None:
-        with self.__lock:
-            # always set the new display values
-            self.__display_values = display_values
+    @property
+    def frame_info(self) -> FrameInfo:
+        display_values = self.display_values
+        data_metadata = display_values.data_metadata if display_values else None
+        if data_metadata:
+            return get_frame_info(data_metadata)
+        return FrameInfo(0, list())
 
-            # launch processing on a thread if not already running
-            if not self.__future:
-                self.__future = self.__executor.submit(self.__process_display_values)
+    def apply_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> ImageDisplayInfo:
+        """Apply the display data delta changes to this display info and return a new display info with the changes applied."""
 
-    def wait_for_update(self) -> None:
-        while True:
-            with self.__lock:
-                if not self.__future:
-                    break
-            time.sleep(0.01)  # wait for the display values to be processed
+        display_calibration_info = display_data_delta.display_calibration_info if display_data_delta.display_calibration_info_changed else self.__display_calibration_info
+        display_properties = copy.deepcopy(display_data_delta.display_properties if display_data_delta.display_properties_changed else self.__display_properties)
+        display_values_list = list(display_data_delta.display_values_list if display_data_delta.display_values_list_changed else self.__display_values_list)
+        display_layers = list(display_data_delta.display_layers_list if display_data_delta.display_layers_list_changed else self.__display_layers)
+        graphics = list(display_data_delta.graphics if display_data_delta.graphics_changed else self.__graphics)
+        graphic_selection = copy.copy(display_data_delta.graphic_selection if display_data_delta.graphic_selection_changed else self.__graphic_selection)
 
-    def apply(self, display_values: DisplayItem.DisplayValues) -> None:
-        bitmap_canvas_item = self.__bitmap_canvas_item
-        timestamp_canvas_item = self.__timestamp_canvas_item
-        display_latency_model = self.__display_latency_model
-        display_data = display_values.adjusted_data_and_metadata
-        if display_data and display_data.data_dtype == numpy.float32:
-            display_range = display_values.transformed_display_range
-            color_map_data = display_values.color_map_data
-            color_map_rgba: typing.Optional[DrawingContext.RGBA32Type]
-            if color_map_data is not None:
-                color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
-                color_map_rgba[..., 0:3] = color_map_data
-                color_map_rgba[..., 3] = 255
-                color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
-            else:
-                color_map_rgba = None
-            # the canvas item expects a ndarray. since the data is being accessed directly here, it could
-            # be an array compatible that might be deleted (e.g. a hdf5 dataset). so convert it to a numpy
-            # if not already.
-            display_data_data = display_data.data
-            if not isinstance(display_data_data, numpy.ndarray):
-                display_data_data = numpy.array(display_data_data)
-            bitmap_canvas_item.set_data(display_data_data, display_range, color_map_rgba)
-        else:
-            data_rgba = display_values.display_rgba
-            bitmap_canvas_item.set_rgba_bitmap_data(data_rgba)
-        data_metadata = display_values.data_metadata
-        metadata_d = data_metadata.metadata if data_metadata else dict()
-        timestamp_ns = metadata_d.get("hardware_source", dict()).get("system_time_ns", time.perf_counter_ns()) if display_latency_model.value else 0
-        timestamp_canvas_item.timestamp_ns = timestamp_ns
+        return ImageDisplayInfo(display_calibration_info, display_properties, display_values_list, display_layers, graphics, graphic_selection)
 
 
 class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -1198,13 +1197,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
-        self.__image_zoom = 1.0
-        self.__image_position = Geometry.FloatPoint(0.5, 0.5)
-        self.__image_canvas_mode = "fit"
-
-        self.__display_calibration_info_dirty = False
-        self.__display_properties_dirty = False
-
         # create the child canvas items
         # the background
         # next the zoom-able items
@@ -1238,32 +1230,20 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.add_canvas_item(self.__timestamp_canvas_item)
         self.add_canvas_item(self.__frame_rate_canvas_item)
 
-        self.__display_values_dirty = False
-        self.__display_values: typing.Optional[DisplayItem.DisplayValues] = None
-        self.__pending_display_values_lock = threading.RLock()
-        self.__pending_display_values = list[DisplayItem.DisplayValues]()
-        self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
-        self.__coordinate_system: typing.Sequence[Calibration.Calibration] = tuple()
-        self.__graphics: typing.List[Graphics.Graphic] = list()
-        self.__graphic_selection: DisplayItem.GraphicSelection = DisplayItem.GraphicSelection()
-
         # used for dragging graphic items
         self.__last_mouse: typing.Optional[Geometry.IntPoint] = None
         self.__mouse_in = False
         self.__mouse_handler: typing.Optional[MouseHandler] = None
 
+        self.__image_display_info = ImageDisplayInfo(None, dict(), list(), list(), list(), None)
+        self.__last_image_display_info = self.__image_display_info
+
         # frame rate and latency
         self.__display_latency_model = Model.PropertyModel[bool](False)
 
-        # display values queue
-        self.__display_values_processor = DisplayValueProcessor(ImageCanvasItem._executor, self.__bitmap_canvas_item, self.__timestamp_canvas_item, self.__display_latency_model)
-
     def close(self) -> None:
-        self.__display_values_processor.stop()
-        self.__display_values_processor = typing.cast(typing.Any, None)
         with self.__closing_lock:
             self.__closed = True
-        self.__display_values = None
         super().close()
 
     @property
@@ -1273,115 +1253,114 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         self.__overlay_canvas_item.add_canvas_item(display_control_canvas_item)
 
-    def __update_display_values(self, display_values_list: typing.Sequence[typing.Optional[DisplayItem.DisplayValues]]) -> None:
-        self.__display_values = display_values_list[0] if display_values_list else None
-        self.__display_values_dirty = True
-
-    def __display_info_changed(self) -> None:
-        if self.__data_shape is not None:
-            # configure the bitmap canvas item
-            display_values = self.__display_values
-            if display_values:
-                self.__display_values_processor.put_display_values(display_values)
-
-    def __update_display_properties_and_layers(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo, display_properties: Persistence.PersistentDictType, display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo]) -> None:
-        # thread-safe
-        data_metadata = self.__display_values.data_metadata if self.__display_values else None
-        if data_metadata:
-            frame_info = get_frame_info(data_metadata)
-
-            # this method may trigger a layout of its parent scroll area. however, the parent scroll
-            # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
-            # that this object is not closeable while this method is running; and this method should not
-            # run if the object is already closed.
-            with self.__closing_lock:
-                if self.__closed:
-                    return
-
-                image_zoom = display_properties.get("image_zoom", 1.0)
-                image_position = Geometry.FloatPoint.make(display_properties.get("image_position", (0.5, 0.5)))
-                image_canvas_mode = display_properties.get("image_canvas_mode", "fit")
-
-                if self.__image_zoom != image_zoom or self.__image_position != image_position or self.__image_canvas_mode != image_canvas_mode:
-                    if image_zoom is not None:
-                        self.__image_zoom = image_zoom
-                        self.scroll_area_canvas_item._image_zoom = self.__image_zoom
-                    if image_position is not None:
-                        self.__image_position = image_position
-                        self.scroll_area_canvas_item._image_position = self.__image_position
-                    if image_canvas_mode is not None:
-                        self.__image_canvas_mode = image_canvas_mode
-                        self.scroll_area_canvas_item._image_canvas_mode = self.__image_canvas_mode
-
-                # if the data changes, update the display.
-                data_shape = display_calibration_info.display_data_shape
-                if data_shape is not None and len(data_shape) == 2 and (self.__display_properties_dirty or self.__display_calibration_info_dirty or self.__display_values_dirty):
-                    self.__display_values_dirty = False
-                    self.__display_properties_dirty = False
-                    self.__display_calibration_info_dirty = False
-                    self.__data_shape = data_shape[0], data_shape[1]
-                    self.scroll_area_canvas_item._data_shape = self.__data_shape
-                    self.__composite_canvas_item._data_shape = self.__data_shape
-                    self.__coordinate_system = display_calibration_info.datum_calibrations
-                    self.__frame_rate_canvas_item.frame_tick(frame_info.frame_index)
-                    # update the cursor info
-                    self.__update_cursor_info()
-
-                    scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
-                    if scroll_area_canvas_size is not None:
-                        # only update layout if the size/origin will change. it is slow.
-                        image_canvas_rect: typing.Optional[Geometry.IntRect]
-                        if self.__data_shape is not None:
-                            image_canvas_rect = calculate_origin_and_size(scroll_area_canvas_size, self.__data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
-                        else:
-                            image_canvas_rect = None
-                        if image_canvas_rect != self.__composite_canvas_item.canvas_rect:
-                            # layout. this makes sure that the info overlay gets updated too.
-                            self.update_layout(self.canvas_origin, self.canvas_size)
-                            # trigger updates
-                            self.__composite_canvas_item.update()
-
-                    # note: bitmap canvas item will be updated in the display_info_changed method.
-                    # doing it in display_info_changed ensures that the repaint (on a thread) does not occur
-                    # before setting the data. if the update were done above, as it used to be, the repaint
-                    # could occur before the new data was sent to the bitmap canvas item.
-
-                # update bitmaps. this will update the bitmap canvas item, too.
-                self.__display_info_changed()
-
-                # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-                dimensional_calibration = calculate_dimensional_calibration(data_metadata, display_calibration_info.displayed_dimensional_calibrations)
-                self.__scale_marker_canvas_item.set_data_info(dimensional_calibration, frame_info.info_items)
-                self.__scale_marker_canvas_item.set_display_properties(display_properties)
-
-    def __update_graphics_coordinate_system(self, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection, display_calibration_info: DisplayItem.DisplayCalibrationInfo) -> None:
-        self.__graphics = list(graphics)
-        self.__graphic_selection = copy.copy(graphic_selection)
-        self.__graphics_canvas_item.update_coordinate_system(display_calibration_info.display_data_shape, display_calibration_info.datum_calibrations, self.__graphics, self.__graphic_selection)
-
     def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
-        if display_data_delta.display_values_list_changed:
-            self.__update_display_values(display_data_delta.display_values_list)
-        if display_data_delta.display_values_list_changed or display_data_delta.display_calibration_info_changed or display_data_delta.display_layers_list_changed or display_data_delta.display_properties_changed:
-            self.__display_properties_dirty = self.__display_properties_dirty or display_data_delta.display_properties_changed
-            self.__display_calibration_info_dirty = self.__display_calibration_info_dirty or display_data_delta.display_calibration_info_changed
-            self.__update_display_properties_and_layers(display_data_delta.display_calibration_info,
-                                                        display_data_delta.display_properties,
-                                                        display_data_delta.display_layers_list)
-        if display_data_delta.graphics_changed or display_data_delta.graphic_selection_changed or display_data_delta.display_calibration_info_changed:
-            self.__update_graphics_coordinate_system(display_data_delta.graphics,
-                                                     display_data_delta.graphic_selection,
-                                                     display_data_delta.display_calibration_info)
+        """Update the state of the display by updating image_display_info and then calling update()."""
 
-    def _wait_for_update(self) -> None:
-        # used for testing
-        self.__display_values_processor.wait_for_update()
+        # update the display info.
+        self.__image_display_info = self.__image_display_info.apply_display_data_delta(display_data_delta)
+
+        # update the cursor info
+        self.__update_cursor_info()
+
+        # trigger an update
+        self.update()
+
+    def _update_canvas_items(self) -> None:
+        image_display_info = self.__image_display_info
+
+        with self.batch_update():
+            image_zoom = image_display_info.image_zoom
+            image_position = image_display_info.image_position
+            image_canvas_mode = image_display_info.image_canvas_mode
+            frame_info = image_display_info.frame_info
+            dimensional_calibration = image_display_info.dimensional_calibration
+            scale_marker_position = image_display_info.scale_marker_position
+            scale_marker_text_color = image_display_info.scale_marker_text_color
+            scale_marker_background_color = image_display_info.scale_marker_background_color
+            data_shape = image_display_info.data_shape
+            display_calibration_info = image_display_info.display_calibration_info
+            display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+            datum_calibrations = display_calibration_info.datum_calibrations if display_calibration_info else list()
+
+            self.scroll_area_canvas_item._image_zoom = image_zoom
+            self.scroll_area_canvas_item._image_position = image_position
+            self.scroll_area_canvas_item._image_canvas_mode = image_canvas_mode
+
+            self.__frame_rate_canvas_item.frame_tick(frame_info.frame_index)
+
+            self.scroll_area_canvas_item._data_shape = data_shape
+            self.__composite_canvas_item._data_shape = data_shape
+
+            scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
+            if scroll_area_canvas_size is not None:
+                # only update layout if the size/origin will change. it is slow.
+                image_canvas_rect: typing.Optional[Geometry.IntRect]
+                if data_shape is not None:
+                    image_canvas_rect = calculate_origin_and_size(scroll_area_canvas_size, data_shape, image_canvas_mode, image_zoom, image_position)
+                else:
+                    image_canvas_rect = None
+                if image_canvas_rect != self.__composite_canvas_item.canvas_rect:
+                    # layout. this makes sure that the info overlay gets updated too.
+                    self.update_layout(self.canvas_origin, self.canvas_size)
+                    # trigger updates
+                    self.__composite_canvas_item.update()
+
+            # update the display values
+            display_values = image_display_info.display_values
+            if display_values is not None:
+                if display_values != self.__last_image_display_info.display_values:
+                    display_data = display_values.adjusted_data_and_metadata
+                    if display_data:
+                        if display_data.data_dtype == numpy.float32:
+                            display_range = display_values.transformed_display_range
+                            color_map_data = display_values.color_map_data
+                            color_map_rgba: typing.Optional[DrawingContext.RGBA32Type]
+                            if color_map_data is not None:
+                                color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
+                                color_map_rgba[..., 0:3] = color_map_data
+                                color_map_rgba[..., 3] = 255
+                                color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
+                            else:
+                                color_map_rgba = None
+                            # the canvas item expects a ndarray. since the data is being accessed directly here, it could
+                            # be an array compatible that might be deleted (e.g. a hdf5 dataset). so convert it to a numpy
+                            # if not already.
+                            display_data_data = display_data.data
+                            if not isinstance(display_data_data, numpy.ndarray):
+                                display_data_data = numpy.array(display_data_data)
+                            self.__bitmap_canvas_item.set_data(display_data_data, display_range, color_map_rgba)
+                        else:
+                            data_rgba = display_values.display_rgba
+                            self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba)
+                    else:
+                        self.__bitmap_canvas_item.set_rgba_bitmap_data(None)
+                    data_metadata = display_values.data_metadata
+                    metadata_d = data_metadata.metadata if data_metadata else dict()
+                    timestamp_ns = metadata_d.get("hardware_source", dict()).get("system_time_ns", time.perf_counter_ns()) if self.__display_latency_model.value else 0
+                    self.__timestamp_canvas_item.timestamp_ns = timestamp_ns
+            else:
+                self.__bitmap_canvas_item.set_rgba_bitmap_data(None)
+                self.__timestamp_canvas_item.timestamp_ns = 0
+
+            # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
+            self.__scale_marker_canvas_item.set_data_info(dimensional_calibration, frame_info.info_items)
+            self.__scale_marker_canvas_item.scale_marker_position = scale_marker_position
+            self.__scale_marker_canvas_item.scale_marker_text_color = scale_marker_text_color
+            self.__scale_marker_canvas_item.scale_marker_background_color = scale_marker_background_color
+
+            self.__graphics_canvas_item.update_coordinate_system(display_data_shape,
+                                                                 datum_calibrations,
+                                                                 image_display_info.graphics,
+                                                                 image_display_info.graphic_selection)
+
+        self.__last_image_display_info = image_display_info
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.
         delegate = self.delegate
-        if delegate and self.__display_values:
-            display_data_and_metadata = self.__display_values.display_data_and_metadata if self.__display_values else None
+        if delegate:
+            display_values = self.__last_image_display_info.display_values
+            display_data_and_metadata = display_values.display_data_and_metadata if display_values else None
             data = display_data_and_metadata.data if display_data_and_metadata else None
             if data is not None:
                 # The old algorithm was a problem during EELS where the signal data
@@ -1397,35 +1376,29 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     @property
     def graphics(self) -> typing.Sequence[Graphics.Graphic]:
-        return self.__graphics
+        return self.__last_image_display_info.graphics
 
     def graphic_index(self, graphic: Graphics.Graphic) -> int:
-        return self.__graphics.index(graphic)
+        return self.graphics.index(graphic)
 
     @property
     def graphic_selection(self) -> DisplayItem.GraphicSelection:
-        return self.__graphic_selection
+        return self.__last_image_display_info.graphic_selection
 
     @property
     def ui_settings(self) -> UISettings.UISettings:
         return self.__ui_settings
 
-    def _set_image_canvas_position(self, image_position: Geometry.FloatPoint) -> None:
-        # create a widget mapping to get from image norm to widget coordinates and back
-        delegate = self.delegate
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
-        if delegate and widget_mapping:
-            delegate.update_display_properties({"image_position": list(image_position), "image_canvas_mode": "custom"})
-
     # update the image canvas position by the widget delta amount. called on main thread.
-    def _update_image_canvas_position(self, widget_delta: Geometry.FloatSize) -> Geometry.FloatPoint:
+    def _update_image_canvas_position(self, widget_delta: Geometry.FloatSize, data_shape: Geometry.IntSize | None, image_position: Geometry.FloatPoint) -> Geometry.FloatPoint:
         # create a widget mapping to get from image norm to widget coordinates and back
         new_image_canvas_position = Geometry.FloatPoint()
         delegate = self.delegate
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds, list())
+        data_shape_tuple = data_shape.as_tuple() if data_shape is not None else None
+        widget_mapping = ImageCanvasItemMapping.make(data_shape_tuple, self.__composite_canvas_item.canvas_bounds, list())
         if delegate and widget_mapping:
             # figure out what composite canvas point lies at the center of the scroll area.
-            last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__image_position)
+            last_widget_center = widget_mapping.map_point_image_norm_to_widget(image_position)
             # determine what new point will lie at the center of the scroll area by adding delta
             new_widget_center = last_widget_center + widget_delta
             # map back to image norm coordinates
@@ -1435,17 +1408,17 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             new_image_norm_center_1 = max(min(new_image_norm_center[1], 1.0), 0.0)
             # save the new image norm center
             new_image_canvas_position = Geometry.FloatPoint(new_image_norm_center_0, new_image_norm_center_1)
-            self._set_image_canvas_position(new_image_canvas_position)
+            delegate.update_display_properties({"image_position": list(new_image_canvas_position), "image_canvas_mode": "custom"})
         return new_image_canvas_position
 
     def convert_pixel_to_normalised(self, coord: Geometry.IntPoint) -> Geometry.FloatPoint:
         if coord:
-            widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_bounds,
-                                                         list())
+            data_shape = self.__last_image_display_info.data_shape.as_tuple() if self.__last_image_display_info.data_shape else None
+            widget_mapping = ImageCanvasItemMapping.make(data_shape, self.__composite_canvas_item.canvas_bounds, list())
             if widget_mapping:
                 mapped = self.map_widget_to_image(coord)
-                if (mapped is not None) and (self.__data_shape is not None):
-                    norm_coord = tuple(mapped_coord / shape_dim for mapped_coord, shape_dim in zip(iter(mapped), iter(self.__data_shape)))
+                if (mapped is not None) and (data_shape is not None):
+                    norm_coord = tuple(mapped_coord / shape_dim for mapped_coord, shape_dim in zip(iter(mapped), iter(data_shape)))
                     return Geometry.FloatPoint(norm_coord[0], norm_coord[1])  # y,x
         return Geometry.FloatPoint(-1, -1)
 
@@ -1525,7 +1498,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         image_position = widget_mapping.map_point_widget_to_image(mouse_pos)
         if delegate.image_mouse_released(image_position, modifiers):
             return True
-        graphics = self.__graphics
         if self.__mouse_handler:
             self.__mouse_handler.mouse_released(Geometry.IntPoint(y, x), modifiers)
             self.__mouse_handler = None
@@ -1599,7 +1571,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return False
 
     def pan_gesture(self, dx: int, dy: int) -> bool:
-        self._update_image_canvas_position(Geometry.FloatSize(dy, dx))
+        self._update_image_canvas_position(Geometry.FloatSize(dy, dx), self.__last_image_display_info.data_shape, self.__last_image_display_info.image_position)
         return True
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
@@ -1614,13 +1586,16 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # which actions are valid at a given time. the contexts are checked in reverse
         # order (i.e. last added have the highest precedence).
         key_contexts = ["display_panel"]
-        if self.__data_shape is not None:
+        data_shape = self.__last_image_display_info.data_shape.as_tuple() if self.__last_image_display_info.data_shape else None
+        if data_shape is not None:
             key_contexts.append("raster_display")
-            if self.__graphic_selection.has_selection:
+            graphic_selection = self.graphic_selection
+            graphics = self.graphics
+            if graphic_selection.has_selection:
                 key_contexts.append("raster_display_graphics")
             graphic_type: typing.Optional[str] = None
-            for graphic_index in self.__graphic_selection.indexes:
-                graphic = self.__graphics[graphic_index]
+            for graphic_index in graphic_selection.indexes:
+                graphic = graphics[graphic_index]
                 if graphic_type and graphic.type != graphic_type:
                     graphic_type = None
                     break
@@ -1637,7 +1612,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__display_latency_model.value = not self.__display_latency_model.value
 
     def __get_mouse_mapping(self) -> ImageCanvasItemMapping:
-        widget_mapping = ImageCanvasItemMapping.make(self.__data_shape, self.__composite_canvas_item.canvas_rect, self.__coordinate_system)
+        data_shape = self.__last_image_display_info.data_shape.as_tuple() if self.__last_image_display_info.data_shape else None
+        datum_calibrations = self.__last_image_display_info.display_calibration_info.datum_calibrations if self.__last_image_display_info.display_calibration_info else list()
+        widget_mapping = ImageCanvasItemMapping.make(data_shape, self.__composite_canvas_item.canvas_rect, datum_calibrations)
         assert widget_mapping
         return widget_mapping
 
@@ -1648,8 +1625,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p: Geometry.IntPoint) -> typing.Optional[typing.Tuple[int, int]]:
         transformed_image_rect = self.__get_mouse_mapping().canvas_rect
-        if transformed_image_rect and self.__data_shape:
-            image_size = Geometry.IntSize.make(self.__data_shape)
+        data_shape = self.__last_image_display_info.data_shape.as_tuple() if self.__last_image_display_info.data_shape else None
+        if transformed_image_rect and data_shape:
+            image_size = Geometry.IntSize.make(data_shape)
             if transformed_image_rect.height != 0.0:
                 image_y = math.floor(image_size.height * (p.y - transformed_image_rect.top) / transformed_image_rect.height)
             else:
@@ -1663,24 +1641,32 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     # map from image normalized coordinates to image coordinates
     def map_image_norm_to_image(self, p: Geometry.FloatPoint) -> typing.Optional[Geometry.FloatPoint]:
-        image_size = self.__data_shape
-        if image_size:
-            return Geometry.FloatPoint(p.y * image_size[0], p.x * image_size[1])
+        data_shape = self.__last_image_display_info.data_shape
+        if data_shape:
+            return Geometry.FloatPoint(p.y * data_shape.height, p.x * data_shape.width)
         return None
+
+    @property
+    def _last_image_position(self) -> Geometry.FloatPoint:
+        return self.__last_image_display_info.image_position
+
+    @property
+    def _last_data_shape(self) -> Geometry.IntSize | None:
+        return self.__last_image_display_info.data_shape
 
     def __update_cursor_info(self) -> None:
         delegate = self.delegate
         if delegate:
-            image_size = self.__data_shape
+            data_shape = self.__last_image_display_info.data_shape
             if self.__mouse_in and self.__last_mouse:
                 pos_2d = None
-                if image_size is not None and len(image_size) > 1:
+                if data_shape is not None:
                     pos_2d = self.map_widget_to_image(self.__last_mouse)
                 delegate.cursor_changed(pos_2d)
 
     @property
     def image_canvas_mode(self) -> str:
-        return self.__image_canvas_mode
+        return self.__last_image_display_info.image_canvas_mode
 
     @property
     def _bitmap_canvas_item(self) -> CanvasItem.BitmapCanvasItem:
@@ -1688,11 +1674,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     @property
     def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
-        return self.__display_values
-
-    @property
-    def _display_values_dirty(self) -> bool:
-        return self.__display_values_dirty
+        return self.__last_image_display_info.display_values
 
     def __apply_display_properties_command(self, display_properties: Persistence.PersistentDictType) -> None:
         delegate = self.delegate
@@ -1705,7 +1687,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         delegate = self.delegate
         if delegate:
             command = delegate.create_change_display_command(command_id="image_nudge", is_mergeable=True)
-            self._update_image_canvas_position(delta)
+            self._update_image_canvas_position(delta, self.__last_image_display_info.data_shape, self.__last_image_display_info.image_position)
             delegate.push_undo_command(command)
 
     def set_fit_mode(self) -> None:
@@ -1723,25 +1705,26 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def get_current_zoom(self) -> float:
         if self.image_canvas_mode == "custom":
             # Already in custom, just return current zoom
-            return self.__image_zoom
+            return self.__last_image_display_info.image_zoom
 
-        if self.canvas_bounds and self.__data_shape:
+        data_shape = self.__last_image_display_info.data_shape
+        if self.canvas_bounds and data_shape is not None:
             new_zoom = 1.0
             if self.image_canvas_mode == "fit":
                 # defaults to zoom of 1
                 pass
             elif self.image_canvas_mode == "fill":
-                x_zoom = self.canvas_bounds.width / self.__data_shape[1]
-                y_zoom = self.canvas_bounds.height / self.__data_shape[0]
+                x_zoom = self.canvas_bounds.width / data_shape.width
+                y_zoom = self.canvas_bounds.height / data_shape.height
                 new_zoom = max(y_zoom, x_zoom) / min(y_zoom, x_zoom)
                 pass
             elif self.image_canvas_mode == "1:1":
-                x_zoom = self.__data_shape[1] / self.canvas_bounds.width
-                y_zoom = self.__data_shape[0] / self.canvas_bounds.height
+                x_zoom = data_shape.width / self.canvas_bounds.width
+                y_zoom = data_shape.height / self.canvas_bounds.height
                 new_zoom = max(y_zoom, x_zoom)
             elif self.image_canvas_mode == "2:1":
-                x_zoom = self.__data_shape[1] / self.canvas_bounds.width
-                y_zoom = self.__data_shape[0] / self.canvas_bounds.height
+                x_zoom = data_shape.width / self.canvas_bounds.width
+                y_zoom = data_shape.height / self.canvas_bounds.height
                 new_zoom = max(y_zoom, x_zoom)
                 new_zoom /= 2
             return new_zoom
@@ -1751,15 +1734,16 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         display_properties: dict[str, float | str | list[float]] = {}
 
         # Image zoom appears undefined in some non-custom modes
-        if self.__image_canvas_mode != "custom":
+        if self.__last_image_display_info.image_canvas_mode != "custom":
             previous_zoom = self.get_current_zoom()
             new_zoom = previous_zoom * factor
             display_properties["image_zoom"] = new_zoom
             display_properties["image_canvas_mode"] = "custom"
         else:
-            display_properties["image_zoom"] = self.__image_zoom * factor
+            display_properties["image_zoom"] = self.__last_image_display_info.image_zoom * factor
 
-        if focused_position and self.scroll_area_canvas_item.canvas_size and self.__data_shape:
+        data_shape = self.__last_image_display_info.data_shape.as_tuple() if self.__last_image_display_info.data_shape else None
+        if focused_position and self.scroll_area_canvas_item.canvas_size and data_shape:
             # Position to focus the zoom on here, so need to keep that position under the cursor
             mapped = self.map_widget_to_image(focused_position)
             if mapped:
@@ -1775,7 +1759,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     new_image_center = (mapped[0] + scaled_mapped_vector[0],
                                         mapped[1] + scaled_mapped_vector[1])
                     norm_coord = tuple(new_mapped_coord / shape_dim for new_mapped_coord, shape_dim in
-                                       zip(iter(new_image_center), iter(self.__data_shape)))
+                                       zip(iter(new_image_center), iter(data_shape)))
                     display_properties["image_position"] = list(Geometry.FloatPoint(norm_coord[0], norm_coord[1]))
 
         self.__apply_display_properties_command(display_properties)
