@@ -3299,7 +3299,6 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
             display_data_delta.mark_changed()
             display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
-                display_canvas_item._wait_for_update()
                 display_canvas_item._update_canvas_items()
                 display_canvas_item.repaint_immediate(drawing_context, pixel_shape)
     return drawing_context

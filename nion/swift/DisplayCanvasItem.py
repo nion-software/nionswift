@@ -45,6 +45,9 @@ class DisplayCanvasItemDelegate(typing.Protocol):
     @tool_mode.setter
     def tool_mode(self, value: str) -> None: ...
 
+    @property
+    def display_item(self) -> DisplayItem.DisplayItem | None: raise NotImplementedError()
+
     def begin_mouse_tracking(self) -> None: ...
     def end_mouse_tracking(self, undo_command: typing.Optional[Undo.UndoableCommand]) -> None: ...
     def delete_key_pressed(self) -> None: ...
@@ -123,9 +126,6 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def _update_canvas_items(self) -> None:
         pass
 
-    def _wait_for_update(self) -> None:
-        pass
-
 
 class FrameRateCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, fps: str, fps2: str, fps3: str) -> None:
@@ -195,8 +195,8 @@ class FrameRateCanvasItem(CanvasItem.AbstractCanvasItem):
             if frame_index != self.__display_frame_rate_last_index:
                 Utility.fps_tick("frame_" + self.__display_frame_rate_id)
                 self.__display_frame_rate_last_index = frame_index
+                self.update()
             Utility.fps_tick("update_" + self.__display_frame_rate_id)
-            self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
         if self.__display_frame_rate_id:
