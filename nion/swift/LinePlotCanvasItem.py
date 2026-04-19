@@ -390,6 +390,21 @@ class LinePlotDisplayInfo:
             self.__legend_entries = legend_entries
         return self.__legend_entries
 
+    @property
+    def frame_index(self) -> int:
+        for display_values in self.__display_values_list:
+            if display_values:
+                data_metadata = display_values.element_data_metadata
+                if data_metadata:
+                    # allow registered metadata_display components to populate a dictionary
+                    # the line plot canvas item will look at "frame_index"
+                    d: Persistence.PersistentDictType = dict()
+                    for component in Registry.get_components_by_type("metadata_display"):
+                        component.populate(d, data_metadata)
+                    # pull out the frame_index key
+                    return typing.cast(int, d.get("frame_index", 0))
+        return 0
+
     def apply_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> LinePlotDisplayInfo:
         """Apply the display data delta changes to this display info and return a new display info with the changes applied."""
 
@@ -610,15 +625,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # update the line plot display info.
         self.__line_plot_display_info = self.__line_plot_display_info.apply_display_data_delta(display_data_delta)
 
-        # update the frame rate info
-        display_values_list = display_data_delta.display_values_list
-        if display_values_list:
-            for display_values in display_values_list:
-                if display_values:
-                    data_metadata = display_values.element_data_metadata
-                    if data_metadata:
-                        self.__update_frame(data_metadata.metadata)
-
         # update the cursor info
         self.__update_cursor_info()
 
@@ -659,24 +665,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # update the graphics
             self.__line_graph_regions_canvas_item.set_regions(line_plot_display_info.regions)
 
+            # update frame rate info
+            if self.__frame_rate_canvas_item.display_frame_rate_id:
+                self.__frame_rate_canvas_item.frame_tick(line_plot_display_info.frame_index)
+
         self.__last_axes = line_plot_display_info.axes
 
     def set_focused(self, is_focused: bool) -> None:
         self.__line_graph_regions_canvas_item.set_is_focused(is_focused)
-
-    def __update_frame(self, metadata: DataAndMetadata.MetadataType) -> None:
-        # update frame rate info
-        if self.__frame_rate_canvas_item.display_frame_rate_id:
-            # allow registered metadata_display components to populate a dictionary
-            # the line plot canvas item will look at "frame_index"
-            d: Persistence.PersistentDictType = dict()
-            for component in Registry.get_components_by_type("metadata_display"):
-                component.populate(d, metadata)
-
-            # pull out the frame_index key
-            frame_index = d.get("frame_index", 0)
-
-            self.__frame_rate_canvas_item.frame_tick(frame_index)
 
     def __view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""

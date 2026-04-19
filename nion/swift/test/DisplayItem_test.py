@@ -674,12 +674,12 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                self.assertIsNone(display_item.calibrated_dimensional_calibrations)
+                self.assertIsNone(display_item.data_info.calibrated_dimensional_calibrations)
                 data_item.dimensional_calibrations = [Calibration.Calibration(3.0, 0.5, "nm")]
-                self.assertEqual(1, len(display_item.calibrated_dimensional_calibrations))
-                self.assertEqual("nm", display_item.calibrated_dimensional_calibrations[0].units)
+                self.assertEqual(1, len(display_item.data_info.calibrated_dimensional_calibrations))
+                self.assertEqual("nm", display_item.data_info.calibrated_dimensional_calibrations[0].units)
                 display_item.calibration_style_id = "pixels-center"
-                self.assertEqual("nm", display_item.calibrated_dimensional_calibrations[0].units)
+                self.assertEqual("nm", display_item.data_info.calibrated_dimensional_calibrations[0].units)
 
     def test_data_info_for_calibrated_image(self):
         with create_memory_profile_context() as profile_context:
@@ -823,7 +823,8 @@ class TestDisplayItemClass(unittest.TestCase):
                 for expected, shape, is_sequence, collection_dimension_count, datum_dimension_count in l:
                     data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones(shape), data_descriptor=DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)))
                     document_model.append_data_item(data_item)
-                    self.assertEqual(len(expected), len(document_model.display_items[-1].displayed_display_data_calibrations))
+                    display_calibration_info = document_model.display_items[-1].display_calibration_info
+                    self.assertEqual(len(expected), len(display_calibration_info.displayed_display_data_calibrations))
                     self.assertEqual(expected, DisplayItem.DisplayDataShapeCalculator(data_item.data_metadata).indexes)
 
     def test_display_data_processor_retains_dimensional_calibrations(self) -> None:

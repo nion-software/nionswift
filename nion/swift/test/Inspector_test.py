@@ -25,6 +25,7 @@ from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Observable
+from nion.utils import Registry
 
 
 Facade.initialize()
@@ -84,18 +85,6 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()  # force UI to update
             document_controller.notify_focused_display_changed(None)
 
-    def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
-        with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            converter = Inspector.CalibratedValueFloatToStringConverter(display_item, 0)
-            converter.convert(0.5)
-            converter = Inspector.CalibratedSizeFloatToStringConverter(display_item, 0)
-            converter.convert(0.5)
-
     def test_adjusting_rectangle_width_should_keep_center_constant(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -113,6 +102,7 @@ class TestInspectorClass(unittest.TestCase):
             size_width_binding = Inspector.CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(rect_graphic, "size", 0))
             size_width_binding.update_source("0.6")
             self.assertEqual(center, rect_graphic.center)
+            size_width_binding = None
             rect_graphic.close()
 
     def test_calibration_inspector_section_binds(self):
@@ -395,37 +385,6 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()  # needed to update the inspector
             line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
             self.assertEqual(line_handler._line_profile_width_model.value, "10.0 mm")
-
-    def test_float_to_string_converter_strips_units(self):
-        with TestContext.create_memory_context() as test_context:
-            document_controller = test_context.create_document_controller()
-            document_model = document_controller.document_model
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_item = document_model.get_display_item_for_data_item(data_item)
-            display_item.calibration_style_id = "pixels-top-left"
-            converter = Inspector.CalibratedValueFloatToStringConverter(display_item, 0)
-            locale.setlocale(locale.LC_ALL, '')
-            self.assertAlmostEqual(converter.convert_back("0.5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back(".5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("00.5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("0.500"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("0.500e0"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("+.5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("-.5"), -0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("+0.5"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("0.5x"), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back("x0.5"), 0.0)
-            self.assertAlmostEqual(converter.convert_back(" 0.5 "), 0.5 / 256)
-            self.assertAlmostEqual(converter.convert_back(""), 0.0)
-            self.assertAlmostEqual(converter.convert_back("  "), 0.0)
-            self.assertAlmostEqual(converter.convert_back(" x"), 0.0)
-            try:
-                locale.setlocale(locale.LC_ALL, 'de_DE')
-                self.assertAlmostEqual(converter.convert_back("0,500"), 0.5 / 256)
-                self.assertAlmostEqual(converter.convert_back("0.500"), 0.5 / 256)
-            except locale.Error as e:
-                pass
 
     def test_inspector_handles_sliced_3d_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -1773,6 +1732,52 @@ class TestInspectorClass(unittest.TestCase):
             self.assertFalse(display_item.graphics[0].label)
             command.redo()
             self.assertEqual("abc", display_item.graphics[0].label)
+
+    def test_dimensional_calibration_style_model_index_updates(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            calibration_style_model = Inspector.CalibrationStyleModel(document_controller, display_item, Inspector.DimensionalCalibrationStyleModelAdapter())
+            self.assertEqual(0, calibration_style_model.index)
+            calibration_style_model.index = 1
+            self.assertEqual(1, calibration_style_model.index)
+
+    def test_intensity_calibration_style_model_index_and_items(self):
+        # tests that the list of calibration style model items is stable when the index changes (intensity)
+        class CalibrationProvider:
+            def get_calibration_descriptions(self, data_metadata: DataAndMetadata.DataMetadata, **kwargs: typing.Any) -> typing.Sequence[DisplayItem.CalibrationDescription]:
+                calibration_descriptions = list()
+                calibration_descriptions.append(DisplayItem.CalibrationDescription("intensity-y", "calculated", "data", Calibration.Calibration(scale=2.0, units="y"), None))
+                calibration_descriptions.append(DisplayItem.CalibrationDescription("intensity-z", "calculated", "data", Calibration.Calibration(scale=2.0, units="z"), None))
+                return calibration_descriptions
+
+        calibration_provider = CalibrationProvider()
+        Registry.register_component(calibration_provider, {"calibration-provider"})
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data_item = DataItem.DataItem(numpy.random.randn(8))
+                data_item.intensity_calibration = Calibration.Calibration(scale=3.0, units="x")
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                calibration_style_model = Inspector.CalibrationStyleModel(document_controller, display_item, Inspector.IntensityCalibrationStyleModelAdapter())
+                calibration_style_items = calibration_style_model.items
+                self.assertEqual(0, calibration_style_model.index)
+                calibration_style_model.index = 2
+                self.assertEqual(2, calibration_style_model.index)
+                self.assertEqual(calibration_style_items, calibration_style_model.items)
+                calibration_style_model.index = 1
+                self.assertEqual(1, calibration_style_model.index)
+                self.assertEqual(calibration_style_items, calibration_style_model.items)
+                calibration_style_model.index = 0
+                self.assertEqual(0, calibration_style_model.index)
+                self.assertEqual(calibration_style_items, calibration_style_model.items)
+        finally:
+            Registry.unregister_component(calibration_provider, {"calibration-provider"})
 
 
 if __name__ == '__main__':

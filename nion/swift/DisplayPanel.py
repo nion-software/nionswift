@@ -543,36 +543,6 @@ def is_valid_display_type(display_type: str) -> bool:
     return display_type in ("image", "line_plot")
 
 
-class DisplayTypeMonitor:
-    """Monitor a display for changes to the display type.
-
-    Provides the display_type_changed(display_type) event.
-
-    Provides the display_type r/o property.
-    """
-
-    def __init__(self, display_item: DisplayItem.DisplayItem) -> None:
-        self.display_type_changed_event = Event.Event()
-        self.__display_changed_event_listener: typing.Optional[Event.EventListener] = None
-        self.__display_type: typing.Optional[str] = None
-        self.__first = True  # handle case where there is no data, so display_type is always None and doesn't change
-        if display_item:
-            self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(self.__update_display_type, display_item))
-        self.__update_display_type(display_item)
-
-    def close(self) -> None:
-        if self.__display_changed_event_listener:
-            self.__display_changed_event_listener.close()
-            self.__display_changed_event_listener = None
-
-    def __update_display_type(self, display_item: DisplayItem.DisplayItem) -> None:
-        display_type = display_item.used_display_type if display_item else None
-        if self.__display_type != display_type or self.__first:
-            self.__display_type = display_type
-            self.display_type_changed_event.fire(display_type)
-            self.__first = False
-
-
 class DisplayDataChannelValueStream(Stream.ValueStream[DisplayItem.DisplayDataChannel]):
     def __init__(self, display_item_value_stream: Stream.ValueStream[DisplayItem.DisplayItem]) -> None:
         super().__init__()
@@ -1055,91 +1025,6 @@ class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def handle_auto_display(self) -> bool:
         # enter key has been pressed
         return False
-
-
-class DisplayTracker:
-    """Tracks messages from a display and passes them to associated display canvas item."""
-
-    def __init__(self, display_item: DisplayItem.DisplayItem, ui_settings: UISettings.UISettings,
-                 delegate: DisplayCanvasItem.DisplayCanvasItemDelegate, event_loop: asyncio.AbstractEventLoop,
-                 draw_background: bool) -> None:
-        self.__display_item = display_item
-        self.__ui_settings = ui_settings
-        self.__delegate = delegate
-        self.__event_loop = event_loop
-        self.__draw_background = draw_background
-        self.__closing_lock = threading.RLock()
-
-        # callbacks
-        self.on_clear_display: typing.Optional[typing.Callable[[], None]] = None
-        self.on_title_changed: typing.Optional[typing.Callable[[str], None]] = None
-        self.on_replace_display_canvas_item: typing.Optional[typing.Callable[[DisplayCanvasItem.DisplayCanvasItem], None]] = None
-
-        def clear_display() -> None:
-            if callable(self.on_clear_display):
-                self.on_clear_display()
-
-        def display_item_property_changed(key: str) -> None:
-            if key == "displayed_title":
-                if callable(self.on_title_changed):
-                    self.on_title_changed(display_item.displayed_title)
-
-        self.__display_about_to_be_removed_event_listener = display_item.about_to_be_removed_event.listen(clear_display)
-        self.__display_property_changed_event_listener = display_item.property_changed_event.listen(display_item_property_changed)
-
-        # ensure data stays in memory while displayed
-        display_item.increment_display_ref_count()
-
-        # create a canvas item and add it to the container canvas item.
-
-        self.__display_canvas_item = create_display_canvas_item(display_item, ui_settings, delegate, event_loop, draw_background=self.__draw_background)
-
-        def handle_display_data_delta(display_data_delta: typing.Optional[DisplayItem.DisplayDataDelta]) -> None:
-            with self.__closing_lock:
-                assert display_data_delta
-                self.__display_canvas_item.update_display_data_delta(display_data_delta)
-
-        self.__display_data_delta_stream_action = Stream.ValueStreamAction[DisplayItem.DisplayDataDelta](display_item.display_data_delta_stream, handle_display_data_delta)
-
-        def display_type_changed(display_type: typing.Optional[str]) -> None:
-            # called when the display type of the data item changes.
-            self.__display_data_delta_stream_action = typing.cast(typing.Any, None)
-            new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
-            if callable(self.on_replace_display_canvas_item):
-                self.on_replace_display_canvas_item(new_display_canvas_item)
-            self.__display_canvas_item = new_display_canvas_item
-            self.__display_data_delta_stream_action = Stream.ValueStreamAction[DisplayItem.DisplayDataDelta](display_item.display_data_delta_stream, handle_display_data_delta)
-            display_data_delta = display_item.display_data_delta_stream.value
-            assert display_data_delta
-            display_data_delta.mark_changed()
-            handle_display_data_delta(display_data_delta)
-
-        self.__display_type_monitor = DisplayTypeMonitor(display_item)
-        self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
-
-        display_data_delta = display_item.display_data_delta_stream.value
-        assert display_data_delta
-        display_data_delta.mark_changed()
-        handle_display_data_delta(display_data_delta)
-
-    def close(self) -> None:
-        with self.__closing_lock:  # ensures that display pipeline finishes
-            self.__display_type_changed_event_listener.close()
-            self.__display_type_changed_event_listener = typing.cast(typing.Any, None)
-            self.__display_type_monitor.close()
-            self.__display_type_monitor = typing.cast(typing.Any, None)
-            # decrement the ref count on the old item to release it from memory if no longer used.
-            self.__display_item.decrement_display_ref_count()
-            self.__display_about_to_be_removed_event_listener.close()
-            self.__display_about_to_be_removed_event_listener = typing.cast(typing.Any, None)
-            self.__display_property_changed_event_listener.close()
-            self.__display_property_changed_event_listener = typing.cast(typing.Any, None)
-            self.__display_canvas_item = typing.cast(typing.Any, None)
-            self.__display_data_delta_stream_action = typing.cast(typing.Any, None)
-
-    @property
-    def display_canvas_item(self) -> DisplayCanvasItem.DisplayCanvasItem:
-        return self.__display_canvas_item
 
 
 class InsertGraphicsCommand(Undo.UndoableCommand):
@@ -2032,8 +1917,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         ui = document_controller.ui
 
+        self.__display_canvas_item: DisplayCanvasItem.DisplayCanvasItem | None = None
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
-        self.__display_tracker: typing.Optional[DisplayTracker] = None
+        self.__display_data_delta_stream: DisplayItem.DisplayDataDeltaStream | None = None
+        self.__display_data_delta_stream_action: Stream.ValueStreamAction[DisplayItem.DisplayDataDelta] | None = None
+        self.__display_type: str | None = None
+        self.__display_changed_event_listener: Event.EventListener | None = None
+        self.__display_about_to_be_removed_event_listener: Event.EventListener | None = None
+        self.__display_property_changed_event_listener: Event.EventListener | None = None
         self.__data_item_reference_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__data_item_reference_changed_task: typing.Optional[asyncio.Task[None]] = None
 
@@ -2043,7 +1934,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # used for the (optional) display canvas item
         self.__closing_lock = threading.RLock()
 
-        self.__display_item_value_stream = Stream.ValueStream[DisplayItem.DisplayItem]().add_ref()
+        self.__display_item_value_stream = Stream.ValueStream[DisplayItem.DisplayItem]()
 
         self.__related_icons_canvas_item: typing.Optional[RelatedIconsCanvasItem] = None
 
@@ -2216,11 +2107,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__data_item_reference_changed_event_listener.close()
             self.__data_item_reference_changed_event_listener = None
 
-        self.__display_item_value_stream.remove_ref()
-        self.__display_item_value_stream = typing.cast(typing.Any, None)
-
         with self.__closing_lock:  # ensures that display pipeline finishes
             self.set_display_item(None)  # required before destructing display thread
+
+        self.__display_item_value_stream = typing.cast(typing.Any, None)
 
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
         self.__set_display_panel_controller(None)
@@ -2285,8 +2175,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self.__identifier
 
     @property
-    def display_canvas_item(self) -> typing.Optional[DisplayCanvasItem.DisplayCanvasItem]:
-        return self.__display_tracker.display_canvas_item if self.__display_tracker else None
+    def display_canvas_item(self) -> DisplayCanvasItem.DisplayCanvasItem | None:
+        return self.__display_canvas_item
 
     @property
     def display_panel_type(self) -> str:
@@ -2521,73 +2411,107 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         old_display_items = copy.copy(self.__display_items)
 
-        did_display_change = self.__display_item != display_item
+        if display_item != self.__display_item:
+            document_controller = self.__document_controller
+            document_model = document_controller.document_model
 
-        if did_display_change:
+            def add_display_controls(display_canvas_item: DisplayCanvasItem.DisplayCanvasItem) -> None:
+                related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, document_model,
+                                                                   self.__display_item_value_stream,
+                                                                   self.document_controller.drag)
+                sequence_slider_row = IndexValueSliderCanvasItem(_("S"),
+                                                                 self.__display_item_value_stream,
+                                                                 SequenceIndexAdapter(self.document_controller),
+                                                                 self.ui.get_font_metrics,
+                                                                 self.__document_controller.event_loop,
+                                                                 self.__playback_controller.handle_play_button,
+                                                                 self.__playback_controller.is_movie_playing)
+                c0_slider_row = IndexValueSliderCanvasItem(_("C0"),
+                                                           self.__display_item_value_stream,
+                                                           CollectionIndexAdapter(self.document_controller, 0),
+                                                           self.ui.get_font_metrics,
+                                                           self.__document_controller.event_loop)
+                c1_slider_row = IndexValueSliderCanvasItem(_("C1"),
+                                                           self.__display_item_value_stream,
+                                                           CollectionIndexAdapter(self.document_controller, 1),
+                                                           self.ui.get_font_metrics,
+                                                           self.__document_controller.event_loop)
+                display_canvas_item.add_display_control(related_icons_canvas_item, "related_icons")
+                display_canvas_item.add_display_control(sequence_slider_row)
+                display_canvas_item.add_display_control(c0_slider_row)
+                display_canvas_item.add_display_control(c1_slider_row)
+                self.__related_icons_canvas_item = related_icons_canvas_item
 
-            # remove any existing display canvas item
-            self.__display_composition_canvas_item.remove_all_canvas_items()
+            def clear_display() -> None:
+                self.set_display_panel_display_item(None, True)
 
-            old_display_tracker = self.__display_tracker
-            self.__display_tracker = None
-
-            if display_item:
-                def clear_display() -> None:
-                    self.set_display_panel_display_item(None, True)
-
-                def handle_title_changed(title: str) -> None:
+            def display_item_property_changed(key: str) -> None:
+                if key == "displayed_title":
                     self.__update_title()
 
-                def add_display_controls(display_canvas_item: DisplayCanvasItem.DisplayCanvasItem) -> None:
-                    related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, self.get_document_model(),
-                                                                       self.__display_item_value_stream,
-                                                                       self.document_controller.drag)
-                    sequence_slider_row = IndexValueSliderCanvasItem(_("S"),
-                                                                     self.__display_item_value_stream,
-                                                                     SequenceIndexAdapter(self.document_controller),
-                                                                     self.ui.get_font_metrics,
-                                                                     self.__document_controller.event_loop,
-                                                                     self.__playback_controller.handle_play_button,
-                                                                     self.__playback_controller.is_movie_playing)
-                    c0_slider_row = IndexValueSliderCanvasItem(_("C0"),
-                                                               self.__display_item_value_stream,
-                                                               CollectionIndexAdapter(self.document_controller, 0),
-                                                               self.ui.get_font_metrics,
-                                                               self.__document_controller.event_loop)
-                    c1_slider_row = IndexValueSliderCanvasItem(_("C1"),
-                                                               self.__display_item_value_stream,
-                                                               CollectionIndexAdapter(self.document_controller, 1),
-                                                               self.ui.get_font_metrics,
-                                                               self.__document_controller.event_loop)
-                    display_canvas_item.add_display_control(related_icons_canvas_item, "related_icons")
-                    display_canvas_item.add_display_control(sequence_slider_row)
-                    display_canvas_item.add_display_control(c0_slider_row)
-                    display_canvas_item.add_display_control(c1_slider_row)
-                    self.__related_icons_canvas_item = related_icons_canvas_item
+            def handle_display_data_delta(display_data_delta: DisplayItem.DisplayDataDelta | None) -> None:
+                # This is called when the display data delta stream produces a new value. The value is passed on to the
+                # display canvas item.
+                if display_data_delta is not None and self.__display_canvas_item is not None:
+                    self.__display_canvas_item.update_display_data_delta(display_data_delta)
 
-                def replace_display_canvas_item(new_display_canvas_item: DisplayCanvasItem.DisplayCanvasItem) -> None:
-                    self.__display_composition_canvas_item.remove_all_canvas_items()
+            def handle_display_changed(display_item: DisplayItem.DisplayItem) -> None:
+                # This is called in response to a display change event, which may indicate a change in the display type.
+                # If the display type changes, update the display canvas item and the display data delta stream listener.
+                display_type = display_item.used_display_type
+                if self.__display_type != display_type:
+                    configure_display_canvas_item(display_item)
+
+            def configure_display_canvas_item(display_item: DisplayItem.DisplayItem | None) -> None:
+                # Clear the existing display canvas item and display item listeners.
+                self.__display_canvas_item = None
+                self.__display_type = None
+                self.__display_data_delta_stream = None
+                self.__display_data_delta_stream_action = None
+                self.__display_changed_event_listener = None
+                self.__display_about_to_be_removed_event_listener = None
+                self.__display_property_changed_event_listener = None
+                self.__display_composition_canvas_item.remove_all_canvas_items()
+
+                if display_item:
+                    # update the display type so we can know when it changes.
+                    self.__display_type = display_item.used_display_type
+                    ui_settings = DisplayPanelUISettings(self.ui)
+                    self.__display_about_to_be_removed_event_listener = display_item.about_to_be_removed_event.listen(clear_display)
+                    self.__display_property_changed_event_listener = display_item.property_changed_event.listen(display_item_property_changed)
+                    new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self, document_controller.event_loop, True)
                     threaded_canvas_item = CanvasItem.ThreadedCanvasItem(new_display_canvas_item)
                     threaded_canvas_item.on_will_repaint = new_display_canvas_item._update_canvas_items
                     self.__display_composition_canvas_item.add_canvas_item(threaded_canvas_item)
                     add_display_controls(new_display_canvas_item)
                     # whenever focus or the display canvas item changes, update the focused status
                     new_display_canvas_item.set_focused(self.__content_canvas_item.focused)
+                    self.__display_canvas_item = new_display_canvas_item
+                    # configure the display data stream and listener to update the display canvas item when the display data changes.
+                    display_data_delta_stream = display_item.display_data_delta_stream
+                    display_data_delta_stream_action = Stream.ValueStreamAction(display_data_delta_stream, handle_display_data_delta)
+                    self.__display_data_delta_stream = display_data_delta_stream
+                    self.__display_data_delta_stream_action = display_data_delta_stream_action
+                    # set up a listener to handle display type changes.
+                    self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(handle_display_changed, display_item))
+                    # force an update of the display canvas item with the current display data delta by marking it changed.
+                    display_data_delta = display_data_delta_stream.value
+                    assert display_data_delta
+                    display_data_delta.mark_changed()
+                    handle_display_data_delta(display_data_delta)
 
-                self.__display_tracker = DisplayTracker(display_item, DisplayPanelUISettings(self.ui), self, self.__document_controller.event_loop, True)
-                self.__display_tracker.on_clear_display = clear_display
-                self.__display_tracker.on_title_changed = handle_title_changed
-                self.__display_tracker.on_replace_display_canvas_item = replace_display_canvas_item
+            configure_display_canvas_item(display_item)
 
-                new_display_canvas_item = self.__display_tracker.display_canvas_item
-                threaded_canvas_item = CanvasItem.ThreadedCanvasItem(new_display_canvas_item)
-                threaded_canvas_item.on_will_repaint = new_display_canvas_item._update_canvas_items
-                self.__display_composition_canvas_item.add_canvas_item(threaded_canvas_item)
-                add_display_controls(new_display_canvas_item)
+            # Ensure data stays in memory while displayed. Do this before decrementing the old display item's ref
+            # count in case the new display item is the same as the old display item.
+            if display_item:
+                display_item.increment_display_ref_count()
 
-            if old_display_tracker:
-                old_display_tracker.close()
+            # Decrement the ref count on the old item to release it from memory if no longer used.
+            if self.__display_item:
+                self.__display_item.decrement_display_ref_count()
 
+            # Store the new display.
             self.__display_item = display_item
 
             self.__playback_controller.display_data_channel = self.display_item.display_data_channel if self.display_item else None
@@ -2607,8 +2531,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # setting the related icons canvas item is costly and can cause stuttering in operations
         # as simple as dragging a background selection in a background subtracted line plot as it
         # recalculates thumbnails on the main thread.
-        if did_display_change and self.__display_item_value_stream:
-            self.__display_item_value_stream.value = display_item
+        self.__display_item_value_stream.value = display_item
 
         self.__update_title()
 
@@ -2871,9 +2794,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def _context_menu_event_for_testing(self, x: int, y: int) -> bool:
         canvas_items = list[CanvasItem.AbstractCanvasItem]()
-        if self.__display_tracker:
-            display_canvas_item = self.__display_tracker.display_canvas_item
-            canvas_items = display_canvas_item.canvas_items_at_point(x, y)
+        if self.__display_canvas_item:
+            canvas_items = self.__display_canvas_item.canvas_items_at_point(x, y)
         canvas_items.extend(self.canvas_items_at_point(x, y))
         for canvas_item in canvas_items:
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)

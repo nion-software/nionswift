@@ -150,8 +150,8 @@ class ImageCanvasItemMapping(Graphics.CoordinateMappingLike):
 
 class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
-                 ui_settings: UISettings.UISettings, graphics: typing.List[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
-                 displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.List[Calibration.Calibration],
+                 ui_settings: UISettings.UISettings, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
+                 displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.Sequence[Calibration.Calibration],
                  is_focused: bool) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__ui_settings = ui_settings
@@ -193,10 +193,10 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         super().__init__()
         self.__ui_settings = ui_settings
         self.__displayed_shape: typing.Optional[DataAndMetadata.ShapeType] = None
-        self.__graphics: typing.List[Graphics.Graphic] = list()
-        self.__graphics_for_compare: list[tuple[uuid.UUID, int]] = list()
+        self.__graphics: typing.Sequence[Graphics.Graphic] = tuple()
+        self.__graphics_for_compare: typing.Sequence[tuple[uuid.UUID, int]] = tuple()
         self.__graphic_selection = DisplayItem.GraphicSelection()
-        self.__coordinate_system: typing.List[Calibration.Calibration] = list()
+        self.__coordinate_system: typing.Sequence[Calibration.Calibration] = tuple()
         self.__is_focused = False
 
     @property
@@ -211,11 +211,11 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     def update_coordinate_system(self, displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.Sequence[Calibration.Calibration], graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection) -> None:
         needs_update = False
         if coordinate_system != self.__coordinate_system:
-            self.__coordinate_system = list(coordinate_system)
+            self.__coordinate_system = tuple(coordinate_system)
             needs_update = True
         if displayed_shape is None or len(displayed_shape) != 2:
             displayed_shape = None
-            graphics = list()
+            graphics = tuple()
             graphic_selection = DisplayItem.GraphicSelection()
         assert displayed_shape is None or len(displayed_shape) == 2
         if ((self.__displayed_shape is None) != (displayed_shape is None)) or (self.__displayed_shape != displayed_shape):
@@ -223,7 +223,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             needs_update = True
         graphics_for_compare = [(graphic.uuid, graphic.modified_count) for graphic in graphics]
         if graphics_for_compare != self.__graphics_for_compare:
-            self.__graphics = list(graphics)
+            self.__graphics = tuple(graphics)
             self.__graphics_for_compare = graphics_for_compare
             needs_update = True
         if self.__graphic_selection != graphic_selection:
@@ -1243,7 +1243,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__pending_display_values_lock = threading.RLock()
         self.__pending_display_values = list[DisplayItem.DisplayValues]()
         self.__data_shape: typing.Optional[DataAndMetadata.Shape2dType] = None
-        self.__coordinate_system: typing.List[Calibration.Calibration] = list()
+        self.__coordinate_system: typing.Sequence[Calibration.Calibration] = tuple()
         self.__graphics: typing.List[Graphics.Graphic] = list()
         self.__graphic_selection: DisplayItem.GraphicSelection = DisplayItem.GraphicSelection()
 
