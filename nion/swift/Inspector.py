@@ -2791,9 +2791,31 @@ class FloatToTuplePropertyElementModel(Model.ValueModel[tuple[float, ...]]):
             self.notify_property_changed("value")
 
 
+class FloatPointToTuplePropertyModel(Model.ValueModel[tuple[float, ...]]):
+    """Model to represent a FloatPoint as a tuple model."""
+
+    def __init__(self, source: Model.ValueModel[Geometry.FloatPoint]):
+        super().__init__()
+        self.__source = source
+        self.__listener = self.__source.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__handle_source_changed, self))
+
+    @property
+    def value(self) -> tuple[float, ...] | None:
+        source_value = self.__source.value
+        return (source_value.y, source_value.x) if isinstance(source_value, Geometry.FloatPoint) else None
+
+    @value.setter
+    def value(self, new_value: tuple[float, ...] | None) -> None:
+        if self.value != new_value:
+            self.__source.value = Geometry.FloatPoint(y=new_value[0], x=new_value[1]) if new_value is not None and len(new_value) == 2 else None
+
+    def __handle_source_changed(self, property_name: str) -> None:
+        if property_name == "value":
+            self.notify_property_changed("value")
+
+
 class LineLengthModel(Model.PropertyModel[float]):
-    def __init__(self, start_model: Model.PropertyModel[typing.Any], end_model: Model.PropertyModel[typing.Any],
-                 display_item: DisplayItem.DisplayItem):
+    def __init__(self, start_model: Model.PropertyModel[Geometry.FloatPoint], end_model: Model.PropertyModel[Geometry.FloatPoint], display_item: DisplayItem.DisplayItem):
         super().__init__()
         self.__start_model = start_model
         self.__end_model = end_model
@@ -2847,8 +2869,7 @@ class LineLengthModel(Model.PropertyModel[float]):
 
 
 class LineAngleModel(Model.PropertyModel[float]):
-    def __init__(self, start_model: Model.PropertyModel[typing.Any], end_model: Model.PropertyModel[typing.Any],
-                 display_item: DisplayItem.DisplayItem):
+    def __init__(self, start_model: Model.PropertyModel[Geometry.FloatPoint], end_model: Model.PropertyModel[Geometry.FloatPoint], display_item: DisplayItem.DisplayItem):
         super().__init__()
         self.__start_model = start_model
         self.__end_model = end_model
@@ -3055,12 +3076,14 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_line_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        start_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
-        end_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change Line End"), command_id="change_line_end")
-        self._x0_model = DisplayItemCalibratedDimensionValueModel(start_model, self.__display_item, dimension_index=1, is_size=False)
-        self._y0_model = DisplayItemCalibratedDimensionValueModel(start_model, self.__display_item, dimension_index=0, is_size=False)
-        self._x1_model = DisplayItemCalibratedDimensionValueModel(end_model, self.__display_item, dimension_index=1, is_size=False)
-        self._y1_model = DisplayItemCalibratedDimensionValueModel(end_model, self.__display_item, dimension_index=0, is_size=False)
+        start_model = GraphicPropertyCommandModel[Geometry.FloatPoint](self.__document_controller, self.__display_item, self.__graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
+        end_model = GraphicPropertyCommandModel[Geometry.FloatPoint](self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change Line End"), command_id="change_line_end")
+        start_tuple_model = FloatPointToTuplePropertyModel(start_model)
+        end_tuple_model = FloatPointToTuplePropertyModel(end_model)
+        self._x0_model = DisplayItemCalibratedDimensionValueModel(start_tuple_model, self.__display_item, dimension_index=1, is_size=False)
+        self._y0_model = DisplayItemCalibratedDimensionValueModel(start_tuple_model, self.__display_item, dimension_index=0, is_size=False)
+        self._x1_model = DisplayItemCalibratedDimensionValueModel(end_tuple_model, self.__display_item, dimension_index=1, is_size=False)
+        self._y1_model = DisplayItemCalibratedDimensionValueModel(end_tuple_model, self.__display_item, dimension_index=0, is_size=False)
         self._length_model = LineLengthModel(start_model, end_model, self.__display_item)
         self._angle_model = LineAngleModel(start_model, end_model, self.__display_item)
 
