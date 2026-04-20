@@ -2734,13 +2734,11 @@ class DisplayItemCalibratedDimensionValueModel(Model.ValueModel[str]):
                 else:
                     new_value = calibration.convert_from_calibrated_value(value) / data_size / self.__factor
         value_tuple = self.__property_model.value
-        new_value_tuple = value_tuple
-        if value_tuple is not None and new_value is not None:
+        # Only update the model if the value at the dimension has changed.
+        if value_tuple is not None and new_value is not None and value_tuple[self.__dimension_index] != new_value:
             value_list = list(value_tuple)
             value_list[self.__dimension_index] = new_value
-            new_value_tuple = tuple(value_list)
-        if new_value_tuple != value_tuple:
-            self.__property_model.value = new_value_tuple
+            self.__property_model.value = tuple(value_list)
 
 
 class TupleToFloatPropertyElementModel(Model.ValueModel[float]):
