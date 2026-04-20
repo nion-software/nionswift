@@ -326,6 +326,46 @@ class TestInspectorClass(unittest.TestCase):
             self.assertAlmostEqual(line_region.end[0], -0.25, 3)
             self.assertAlmostEqual(line_region.end[1], 0.5, 3)
 
+    def test_line_angle_field_updates_when_setting_positions(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((100, 100), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            line_region = Graphics.LineGraphic()
+            line_region.start = (0, 0)
+            line_region.end = (1, 1)
+            display_item.add_graphic(line_region)
+            display_item.calibration_style_id = "calibrated"
+            # find the inspector panel
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+            data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+            document_controller.periodic()  # needed to update the inspector
+            line_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
+            line_handler._x0_model.value = "10"
+            line_handler._x1_model.value = "90"
+            line_handler._y0_model.value = "10"
+            line_handler._y1_model.value = "90"
+            self.assertAlmostEqual(line_region.start[0], 0.1)
+            self.assertAlmostEqual(line_region.start[1], 0.1)
+            self.assertAlmostEqual(line_region.end[0], 0.9)
+            self.assertAlmostEqual(line_region.end[1], 0.9)
+            self.assertEqual(line_handler._angle_model.value, "-45.0000\N{DEGREE SIGN}")
+            line_handler._x0_model.value = "20 mm"
+            line_handler._x1_model.value = "80 mm"
+            line_handler._y0_model.value = "20 mm"
+            line_handler._y1_model.value = "80 mm"
+            self.assertAlmostEqual(line_region.start[0], 0.2)
+            self.assertAlmostEqual(line_region.start[1], 0.2)
+            self.assertAlmostEqual(line_region.end[0], 0.8)
+            self.assertAlmostEqual(line_region.end[1], 0.8)
+            self.assertEqual(line_handler._angle_model.value, "-45.0000\N{DEGREE SIGN}")
+
     def test_graphics_inspector_uses_non_calibrated_units_for_non_uniformly_calibrated_data(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
