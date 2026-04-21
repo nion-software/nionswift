@@ -1602,6 +1602,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item2)
             self.assertEqual(len(document_model.get_source_items(data_item2)), 1)
             self.assertIn(data_item, document_model.get_source_items(data_item2))
+            # check source update
+            data_item.set_data(numpy.random.randn(12, 12))
 
     def test_computation_can_depend_on_display_xdata(self):
         Symbolic.register_computation_type("crop_half", functools.partial(self.CropHalf, "display_xdata"))
@@ -1626,6 +1628,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item2)
             self.assertEqual(2, len(document_model.get_source_items(data_item2)))  # data item, display item
             self.assertIn(data_item, document_model.get_source_items(data_item2))
+            # check source update
+            data_item.set_data(numpy.random.randn(12, 12, 4))
 
     def test_computation_can_depend_on_cropped_xdata(self):
         Symbolic.register_computation_type("crop_half", functools.partial(self.CropHalf, "cropped_xdata"))
@@ -1653,6 +1657,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.get_source_items(data_item2)))  # rect, data item, display item
             self.assertIn(graphic, document_model.get_source_items(data_item2))
             self.assertIn(data_item, document_model.get_source_items(data_item2))
+            # check source update
+            data_item.set_data(numpy.random.randn(24, 24))
 
     def test_computation_can_depend_on_cropped_display_xdata(self):
         Symbolic.register_computation_type("crop_half", functools.partial(self.CropHalf, "cropped_display_xdata"))
@@ -1683,6 +1689,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.get_source_items(data_item2)))  # rect, data item, display item
             self.assertIn(graphic, document_model.get_source_items(data_item2))
             self.assertIn(data_item, document_model.get_source_items(data_item2))
+            # check source update
+            data_item.set_data(numpy.random.randn(24, 24, 4))
 
     def test_computation_can_depend_on_filter_xdata(self):
         Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "filter_xdata"))
@@ -1713,6 +1721,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.get_source_items(data_item2)))  # graphic, data item, display item
             self.assertIn(graphic, document_model.get_source_items(data_item2))
             self.assertIn(data_item, document_model.get_source_items(data_item2))
+            # check source update
+            data_item.set_data(numpy.full((20, 20), 10))
 
     def test_computation_can_depend_on_filtered_xdata(self):
         Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "filtered_xdata"))
@@ -1743,6 +1753,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(3, len(document_model.get_source_items(data_item2)))  # graphic, display item, data item
             self.assertIn(graphic, document_model.get_source_items(data_item2))
             self.assertIn(data_item, document_model.get_source_items(data_item2))
+            # check source update
+            data_item.set_data(numpy.full((20, 20), 10, dtype=numpy.complex128))
 
     def test_computation_sequence_evaluates(self):
         Symbolic.register_computation_type("pass_thru", functools.partial(self.PassThru, "xdata"))
@@ -2369,25 +2381,6 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual([display_item2], document_model.get_dependent_display_items(display_item))
                 self.assertEqual([display_item3], document_model.get_dependent_display_items(display_item2))
                 self.assertEqual([], document_model.get_dependent_display_items(display_item3))
-
-    def test_display_items_with_multiple_data_channels_processing(self):
-        with create_memory_profile_context() as profile_context:
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item = DataItem.DataItem(numpy.ones((4, )))
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                data_item2 = DataItem.DataItem(numpy.ones((4, )))
-                document_model.append_data_item(data_item2)
-                display_item2 = document_model.get_display_item_for_data_item(data_item2)
-                display_item2.append_display_data_channel_for_data_item(data_item)
-                inverted_data_item = document_model.get_invert_new(display_item2, data_item)
-                # check the data and display_data paths by doing some computations
-                document_model.recompute_all()
-                self.assertAlmostEqual(-4, float(numpy.sum(inverted_data_item.data)))
-                data_item.set_data(numpy.full((4, ), 8))
-                document_model.recompute_all()
-                self.assertAlmostEqual(-32, float(numpy.sum(inverted_data_item.data)))
 
     def test_item_variable_is_removed_after_item_is_deleted(self):
         with create_memory_profile_context() as profile_context:

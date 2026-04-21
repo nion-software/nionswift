@@ -122,14 +122,14 @@ class LinePlotDisplayInfo:
             self,
             display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
             display_properties: Persistence.PersistentDictType,
-            display_values_list: typing.Sequence[DisplayItem.DisplayValues | None],
+            display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
             display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
             graphics: typing.Sequence[Graphics.Graphic],
             graphic_selection: DisplayItem.GraphicSelection | None
     ) -> None:
         self.__display_calibration_info = display_calibration_info
         self.__display_properties = copy.deepcopy(display_properties)
-        self.__display_values_list = list(display_values_list)
+        self.__display_data_info_list = list(display_data_info_list)
         self.__display_layers = list(display_layers)
         self.__graphics = list(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
@@ -249,18 +249,18 @@ class LinePlotDisplayInfo:
     def xdata_list(self) -> typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]]:
         if self.__xdata_list is None:
             display_calibration_info = self.__display_calibration_info
-            display_values_list = self.__display_values_list
-            if display_calibration_info and display_values_list:
+            display_data_info_list = self.__display_data_info_list
+            if display_calibration_info and display_data_info_list:
                 self.__xdata_list = list()
-                for display_values in display_values_list:
+                for display_data_info in display_data_info_list:
                     # for each xdata in display values, create a new xdata (with a numpy array) where the
                     # calibration is set from the calibration style in display_calibration_info. each xdata will
                     # have to look at its metadata and create the calibration specific to it. the xdata should
                     # support the given calibration style, but falls back to the default calibration if it doesn't.
                     # handles both intensity and dimensional calibrations.
-                    xdata = display_values.display_data_and_metadata if display_values else None
-                    calibration_styles = display_values.get_calibration_styles() if display_values else list()
-                    intensity_calibration_styles = display_values.get_intensity_calibration_styles() if display_values else list()
+                    xdata = display_data_info.display_data_and_metadata if display_data_info else None
+                    calibration_styles = display_data_info.calibration_styles if display_data_info else tuple()
+                    intensity_calibration_styles = display_data_info.intensity_calibration_styles if display_data_info else tuple()
                     calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
                     intensity_calibration_style: typing.Optional[DisplayItem.CalibrationStyle] = None
                     for calibration_style_ in calibration_styles:
@@ -392,9 +392,9 @@ class LinePlotDisplayInfo:
 
     @property
     def frame_index(self) -> int:
-        for display_values in self.__display_values_list:
-            if display_values:
-                data_metadata = display_values.element_data_metadata
+        for display_data_info in self.__display_data_info_list:
+            if display_data_info:
+                data_metadata = display_data_info.data_metadata
                 if data_metadata:
                     # allow registered metadata_display components to populate a dictionary
                     # the line plot canvas item will look at "frame_index"
@@ -410,12 +410,12 @@ class LinePlotDisplayInfo:
 
         display_calibration_info = display_data_delta.display_calibration_info if display_data_delta.display_calibration_info_changed else self.__display_calibration_info
         display_properties = copy.deepcopy(display_data_delta.display_properties if display_data_delta.display_properties_changed else self.__display_properties)
-        display_values_list = list(display_data_delta.display_values_list if display_data_delta.display_values_list_changed else self.__display_values_list)
+        display_data_info_list = list(display_data_delta.display_data_info_list if display_data_delta.display_data_info_list_changed else self.__display_data_info_list)
         display_layers = list(display_data_delta.display_layers_list if display_data_delta.display_layers_list_changed else self.__display_layers)
         graphics = list(display_data_delta.graphics if display_data_delta.graphics_changed else self.__graphics)
         graphic_selection = copy.copy(display_data_delta.graphic_selection if display_data_delta.graphic_selection_changed else self.__graphic_selection)
 
-        return LinePlotDisplayInfo(display_calibration_info, display_properties, display_values_list, display_layers, graphics, graphic_selection)
+        return LinePlotDisplayInfo(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
 
 
 class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -540,7 +540,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.add_canvas_item(self.__display_controls)
         self.add_canvas_item(self.__frame_rate_canvas_item)
 
-        self.__display_values_list: typing.List[typing.Optional[DisplayItem.DisplayValues]] = list()
+        self.__display_data_info_list: typing.List[DisplayItem.DisplayDataInfo | None] = list()
 
         # used for tracking undo
         self.__undo_command: typing.Optional[Undo.UndoableCommand] = None
@@ -573,7 +573,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__undo_command = None
         with self.__closing_lock:
             self.__closed = True
-        self.__display_values_list = typing.cast(typing.Any, None)
+        self.__display_data_info_list = typing.cast(typing.Any, None)
         super().close()
 
     @property

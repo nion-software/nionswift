@@ -1157,7 +1157,7 @@ class ImageDataInspectorModel(Observable.Observable):
         self.data_range_high_model = Model.PropertyModel[float]()
 
         def update_data_range_models(display_data_info: DisplayItem.DisplayDataInfo | None) -> None:
-            if display_data_info is not None:
+            if display_data_info:
                 data_range = display_data_info.data_range
                 if data_range is not None:
                     self.data_range_low_model.value = data_range[0]

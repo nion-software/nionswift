@@ -1038,14 +1038,14 @@ class ImageDisplayInfo:
             self,
             display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
             display_properties: Persistence.PersistentDictType,
-            display_values_list: typing.Sequence[DisplayItem.DisplayValues | None],
+            display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
             display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
             graphics: typing.Sequence[Graphics.Graphic],
             graphic_selection: DisplayItem.GraphicSelection | None
     ) -> None:
         self.__display_calibration_info = display_calibration_info
         self.__display_properties = copy.deepcopy(display_properties)
-        self.__display_values_list = list(display_values_list)
+        self.__display_data_info_list = list(display_data_info_list)
         self.__display_layers = list(display_layers)
         self.__graphics = list(graphics)
         self.__graphic_selection = copy.copy(graphic_selection) if graphic_selection else DisplayItem.GraphicSelection()
@@ -1064,8 +1064,8 @@ class ImageDisplayInfo:
         return self.__display_layers
 
     @property
-    def display_values(self) -> DisplayItem.DisplayValues | None:
-        return self.__display_values_list[0] if len(self.__display_values_list) > 0 else None
+    def display_data_info(self) -> DisplayItem.DisplayDataInfo | None:
+        return self.__display_data_info_list[0] if len(self.__display_data_info_list) > 0 else None
 
     @property
     def graphics(self) -> typing.Sequence[Graphics.Graphic]:
@@ -1109,8 +1109,8 @@ class ImageDisplayInfo:
 
     @property
     def dimensional_calibration(self) -> Calibration.Calibration:
-        display_values = self.display_values
-        data_metadata = display_values.data_metadata if display_values else None
+        display_data_info = self.display_data_info
+        data_metadata = display_data_info.data_metadata if display_data_info else None
         if data_metadata:
             display_calibration_info = self.display_calibration_info
             displayed_dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations if display_calibration_info else list()
@@ -1137,8 +1137,8 @@ class ImageDisplayInfo:
 
     @property
     def frame_info(self) -> FrameInfo:
-        display_values = self.display_values
-        data_metadata = display_values.data_metadata if display_values else None
+        display_data_info = self.display_data_info
+        data_metadata = display_data_info.data_metadata if display_data_info else None
         if data_metadata:
             return get_frame_info(data_metadata)
         return FrameInfo(0, list())
@@ -1148,12 +1148,12 @@ class ImageDisplayInfo:
 
         display_calibration_info = display_data_delta.display_calibration_info if display_data_delta.display_calibration_info_changed else self.__display_calibration_info
         display_properties = copy.deepcopy(display_data_delta.display_properties if display_data_delta.display_properties_changed else self.__display_properties)
-        display_values_list = list(display_data_delta.display_values_list if display_data_delta.display_values_list_changed else self.__display_values_list)
+        display_data_info_list = list(display_data_delta.display_data_info_list if display_data_delta.display_data_info_list_changed else self.__display_data_info_list)
         display_layers = list(display_data_delta.display_layers_list if display_data_delta.display_layers_list_changed else self.__display_layers)
         graphics = list(display_data_delta.graphics if display_data_delta.graphics_changed else self.__graphics)
         graphic_selection = copy.copy(display_data_delta.graphic_selection if display_data_delta.graphic_selection_changed else self.__graphic_selection)
 
-        return ImageDisplayInfo(display_calibration_info, display_properties, display_values_list, display_layers, graphics, graphic_selection)
+        return ImageDisplayInfo(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
 
 
 class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -1306,14 +1306,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__composite_canvas_item.update()
 
             # update the display values
-            display_values = image_display_info.display_values
-            if display_values is not None:
-                if display_values != self.__last_image_display_info.display_values:
-                    display_data = display_values.adjusted_data_and_metadata
+            display_data_info = image_display_info.display_data_info
+            if display_data_info:
+                if display_data_info != self.__last_image_display_info.display_data_info:
+                    derived_display_values = display_data_info.derived_display_values
+                    display_data = derived_display_values.adjusted_data_and_metadata
                     if display_data:
                         if display_data.data_dtype == numpy.float32:
-                            display_range = display_values.transformed_display_range
-                            color_map_data = display_values.color_map_data
+                            display_range = derived_display_values.transformed_display_range
+                            color_map_data = derived_display_values.color_map_data
                             color_map_rgba: typing.Optional[DrawingContext.RGBA32Type]
                             if color_map_data is not None:
                                 color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
@@ -1330,11 +1331,11 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                                 display_data_data = numpy.array(display_data_data)
                             self.__bitmap_canvas_item.set_data(display_data_data, display_range, color_map_rgba)
                         else:
-                            data_rgba = display_values.display_rgba
+                            data_rgba = derived_display_values.display_rgba
                             self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba)
                     else:
                         self.__bitmap_canvas_item.set_rgba_bitmap_data(None)
-                    data_metadata = display_values.data_metadata
+                    data_metadata = display_data_info.data_metadata
                     metadata_d = data_metadata.metadata if data_metadata else dict()
                     timestamp_ns = metadata_d.get("hardware_source", dict()).get("system_time_ns", time.perf_counter_ns()) if self.__display_latency_model.value else 0
                     self.__timestamp_canvas_item.timestamp_ns = timestamp_ns
@@ -1359,8 +1360,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # enter key has been pressed. calculate best display limits and set them.
         delegate = self.delegate
         if delegate:
-            display_values = self.__last_image_display_info.display_values
-            display_data_and_metadata = display_values.display_data_and_metadata if display_values else None
+            display_data_info = self.__last_image_display_info.display_data_info
+            display_data_and_metadata = display_data_info.display_data_and_metadata if display_data_info else None
             data = display_data_and_metadata.data if display_data_and_metadata else None
             if data is not None:
                 # The old algorithm was a problem during EELS where the signal data
@@ -1673,8 +1674,8 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return self.__bitmap_canvas_item
 
     @property
-    def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
-        return self.__last_image_display_info.display_values
+    def _display_data_info(self) -> DisplayItem.DisplayDataInfo | None:
+        return self.__last_image_display_info.display_data_info
 
     def __apply_display_properties_command(self, display_properties: Persistence.PersistentDictType) -> None:
         delegate = self.delegate
