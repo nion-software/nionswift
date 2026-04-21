@@ -47,8 +47,6 @@ class ExportDialogViewModel:
         self.directory = Model.PropertyModel(directory)
         self.writer = Model.PropertyModel(writer)
         self.is_directory_invalid = Model.PropertyModel(not self.validate_directory())
-        if self.is_directory_invalid.value:
-            self.directory.value = ''
 
         def on_directory_changed(_: str | None) -> None:
             self.is_directory_invalid.value = not self.validate_directory()
@@ -85,6 +83,9 @@ class ExportDialog(Declarative.Handler):
 
         # perform export, but save the last used writer
         def handle_export_clicked() -> bool:
+            if not self.viewmodel.validate_directory():
+                self.viewmodel.is_directory_invalid.value = True
+                return False
             selected_writer = self.viewmodel.writer.value
             writer_id = selected_writer.io_handler_id if selected_writer else "png-io-handler"
             self.export_clicked(display_items, self.viewmodel, ui, document_controller)
@@ -102,8 +103,9 @@ class ExportDialog(Declarative.Handler):
         dialog.show()
 
         def handle_is_invalid_changed(is_invalid: bool | None) -> None:
-            assert (is_invalid is not None)
+            assert is_invalid is not None
             self.export_button.enabled = not is_invalid
+
         self.viewmodel.is_directory_invalid.on_value_changed = handle_is_invalid_changed
 
     def choose_directory(self, widget: Declarative.UIWidget) -> None:
@@ -112,6 +114,7 @@ class ExportDialog(Declarative.Handler):
         if selected_directory:
             self.viewmodel.directory.value = selected_directory
             self.ui.set_persistent_string("export_directory", selected_directory)
+            self.viewmodel.is_directory_invalid.value = not self.viewmodel.validate_directory()
 
     def on_writer_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
         writer = self.__writers[current_index]
@@ -124,7 +127,7 @@ class ExportDialog(Declarative.Handler):
         directory_label = u.create_row(u.create_label(text="Location:", font='bold'))
         directory_text = u.create_row(u.create_column(
             u.create_label(text=f"@binding(viewmodel.directory.value)", min_width=280, height=48, word_wrap=True, size_policy_horizontal='min-expanding', text_alignment_vertical='top'),
-            u.create_label(text=_(f"Warning: Directory is not valid."), color="red", visible="@binding(viewmodel.is_directory_invalid.value)"),
+            u.create_label(text=_("Warning: Directory does not exist."), color="red", visible="@binding(viewmodel.is_directory_invalid.value)"),
         ))
         self.directory_text_label = directory_text
         directory_button = u.create_row(u.create_push_button(text=_("Select Path..."), on_clicked="choose_directory"), u.create_stretch())
@@ -223,41 +226,43 @@ class ExportDialog(Declarative.Handler):
             export_results = list()
             is_directory_valid = viewmodel.validate_directory()
             for index, display_item in enumerate(display_items):
-                if is_directory_valid:
-                    data_item = display_item.data_item
-                    try:
-                        components = list()
-                        if viewmodel.prefix.value is not None and viewmodel.prefix.value != '':
-                            components.append(str(viewmodel.prefix.value))
-                        if viewmodel.include_title.value:
-                            title = unicodedata.normalize('NFKC', display_item.displayed_title)
-                            title = re.sub(r'[^\w\s-]', '', title, flags=re.U).strip()
-                            title = re.sub(r'[-\s]+', '-', title, flags=re.U)
-                            components.append(title)
-                        if viewmodel.include_date.value:
-                            # prefer the data item created date, but fall back to the display item created date.
-                            created_local = data_item.created_local if data_item else display_item.created_local
-                            components.append(created_local.isoformat().replace(':', '').replace('.', '_'))
-                        if viewmodel.include_dimensions.value and data_item:
-                            components.append("x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
-                        if viewmodel.include_sequence.value:
-                            components.append(str(index))
-                        filepath = ExportDialog.build_filepath(components, writer.extensions[0], directory_path=directory_path)
-                        file_extension = filepath.suffix[1:].lower()
-                        if writer.can_write_display_item(display_item, file_extension):
-                            ImportExportManager.ImportExportManager().write_display_item_with_writer(writer, display_item, filepath)
-                            export_results.append(ExportResult(display_item.displayed_title))
-                        else:
-                            error_message = _("Cannot export this data to file format")
-                            export_results.append(ExportResult(display_item.displayed_title, f"{error_message} {writer.name}"))
-                    except Exception as e:
-                        logging.debug("Could not export image %s / %s", str(data_item), str(e))
-                        traceback.print_exc()
-                        traceback.print_stack()
-                        export_results.append(ExportResult(display_item.displayed_title, str(e)))
-                else:
+                if not is_directory_valid:
                     error_message = _("Directory does not exist")
                     export_results.append(ExportResult(display_item.displayed_title, f"{error_message}"))
+                    continue
+
+                data_item = display_item.data_item
+                try:
+                    components = list()
+                    if viewmodel.prefix.value is not None and viewmodel.prefix.value != '':
+                        components.append(str(viewmodel.prefix.value))
+                    if viewmodel.include_title.value:
+                        title = unicodedata.normalize('NFKC', display_item.displayed_title)
+                        title = re.sub(r'[^\w\s-]', '', title, flags=re.U).strip()
+                        title = re.sub(r'[-\s]+', '-', title, flags=re.U)
+                        components.append(title)
+                    if viewmodel.include_date.value:
+                        # prefer the data item created date, but fall back to the display item created date.
+                        created_local = data_item.created_local if data_item else display_item.created_local
+                        components.append(created_local.isoformat().replace(':', '').replace('.', '_'))
+                    if viewmodel.include_dimensions.value and data_item:
+                        components.append("x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
+                    if viewmodel.include_sequence.value:
+                        components.append(str(index))
+                    filepath = ExportDialog.build_filepath(components, writer.extensions[0], directory_path=directory_path)
+                    file_extension = filepath.suffix[1:].lower()
+                    if writer.can_write_display_item(display_item, file_extension):
+                        ImportExportManager.ImportExportManager().write_display_item_with_writer(writer, display_item, filepath)
+                        export_results.append(ExportResult(display_item.displayed_title))
+                    else:
+                        error_message = _("Cannot export this data to file format")
+                        export_results.append(ExportResult(display_item.displayed_title, f"{error_message} {writer.name}"))
+                except Exception as e:
+                    logging.debug("Could not export image %s / %s", str(data_item), str(e))
+                    traceback.print_exc()
+                    traceback.print_stack()
+                    export_results.append(ExportResult(display_item.displayed_title, str(e)))
+
             ExportResultDialog(ui, document_controller, export_results, directory_path)
 
     def cancel(self) -> bool:
