@@ -1,8 +1,19 @@
+"""A display item represents the display of a data item.
+
+The display calculation goes through the following steps:
+
+1. start with raw data
+2. extract the raw data element using sequence and/or collection indexes and/or slices if required
+3. produce display data by applying complex to real conversion if required
+4. apply adjustments by normalizing display data and performing adjustment operation
+5. calculate rgb display data by scaling display range and applying color table
+
+data -> element -> display -> normalized -> adjusted -> display_rgba
+"""
+
 from __future__ import annotations
 
 # standard libraries
-import asyncio
-import concurrent.futures
 import contextlib
 import copy
 import dataclasses
@@ -734,34 +745,19 @@ class TransformedDataProcessor(ProcessorBase):
         self.set_result("data", transformed_data_and_metadata)
 
 
-
 class DisplayValues:
-    """Calculate display data used to render the display.
+    """Calculates element, display data, range, display range, all used to render the display."""
 
-    The display calculation goes through the following steps:
-
-    1. start with raw data
-    2. extract the raw data element using sequence and/or collection indexes and/or slices if required
-    3. produce display data by applying complex to real conversion if required
-    4. apply adjustments by normalizing display data and performing adjustment operation
-    5. calculate rgb display data by scaling display range and applying color table
-
-    data -> element -> display -> normalized -> adjusted -> display_rgba
-
-    Display renderers may request data at any stage of this pipeline.
-    """
     _count = 0
 
-    def __init__(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], sequence_index: int,
-                 collection_index: typing.Optional[DataAndMetadata.PositionType], slice_center: int, slice_width: int,
-                 display_limits: DisplayLimitsType,
-                 complex_display_type: typing.Optional[str],
-                 color_map_data: typing.Optional[_RGBA32Type], brightness: float, contrast: float,
+    def __init__(self, data_and_metadata: DataAndMetadata.DataAndMetadata | None, sequence_index: int,
+                 collection_index: DataAndMetadata.PositionType | None, slice_center: int, slice_width: int,
+                 display_limits: DisplayLimitsType, complex_display_type: str | None,
+                 color_map_data: _RGBA32Type | None, brightness: float, contrast: float,
                  adjustments: typing.Sequence[Persistence.PersistentDictType]) -> None:
         DisplayValues._count += 1
 
         self.__data_and_metadata = data_and_metadata
-        self.__color_map_data = color_map_data
 
         data_metadata = data_and_metadata.data_metadata if data_and_metadata else None
 
@@ -786,20 +782,129 @@ class DisplayValues:
             data_range=ProcessorConnection(self.__data_range_processor, "data_range"),
         )
 
+        self.color_map_data = color_map_data
+        self.brightness = brightness
+        self.contrast = contrast
+        self.adjustments = adjustments
+
+        def finalize() -> None:
+            DisplayValues._count -= 1
+
+        weakref.finalize(self, finalize)
+
+    @property
+    def data_metadata(self) -> DataAndMetadata.DataMetadata | None:
+        return self.__data_and_metadata.data_metadata if self.__data_and_metadata else None
+
+    @property
+    def element_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata | None:
+        return typing.cast(DataAndMetadata.DataAndMetadata | None, self.__element_data_processor.get_result("data"))
+
+    @property
+    def display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata | None:
+        return typing.cast(DataAndMetadata.DataAndMetadata | None, self.__display_data_processor.get_result("data"))
+
+    @property
+    def data_range(self) -> tuple[float, float] | None:
+        return typing.cast(tuple[float, float] | None, self.__data_range_processor.get_result("data_range"))
+
+    @property
+    def display_range(self) -> tuple[float, float] | None:
+        return typing.cast(tuple[float, float] | None, self.__display_range_processor.get_result("display_range"))
+
+    @property
+    def calibration_styles(self) -> tuple[CalibrationStyle, ...]:
+        display_xdata = self.display_data_and_metadata
+        return tuple(get_calibration_styles([display_xdata.data_metadata if display_xdata else None]))
+
+    @property
+    def intensity_calibration_styles(self) -> tuple[CalibrationStyle, ...]:
+        display_xdata = self.display_data_and_metadata
+        return tuple(get_intensity_calibration_styles([display_xdata.data_metadata if display_xdata else None]))
+
+    @property
+    def display_data_info(self) -> DisplayDataInfo:
+        return DisplayDataInfo(
+            self.element_data_and_metadata,
+            self.display_data_and_metadata,
+            self.display_range,
+            self.data_range,
+            self.data_metadata,
+            self.calibration_styles,
+            self.intensity_calibration_styles,
+            self.color_map_data,
+            self.brightness,
+            self.contrast,
+            self.adjustments
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class DisplayDataInfo:
+    """A dataclass containing the calculated element data, display data, ranges, calibrations, and adjustment parameters used to render the display data."""
+    element_data_and_metadata: DataAndMetadata.DataAndMetadata | None
+    display_data_and_metadata: DataAndMetadata.DataAndMetadata | None
+    display_range: tuple[float, float] | None
+    data_range: tuple[float, float] | None
+    data_metadata: DataAndMetadata.DataMetadata | None
+    calibration_styles: tuple[CalibrationStyle, ...]
+    intensity_calibration_styles: tuple[CalibrationStyle, ...]
+    # for computed display values
+    color_map_data: _RGBA32Type | None
+    brightness: float
+    contrast: float
+    adjustments: typing.Sequence[Persistence.PersistentDictType]
+
+    def __eq__(self, other: typing.Any) -> bool:
+        if not isinstance(other, DisplayDataInfo):
+            return NotImplemented
+        if (self.color_map_data is None) != (other.color_map_data is None):
+            return False
+        if self.color_map_data is not None and other.color_map_data is not None and not numpy.array_equal(self.color_map_data, other.color_map_data):
+            return False
+        return (self.element_data_and_metadata == other.element_data_and_metadata and
+                self.display_data_and_metadata == other.display_data_and_metadata and
+                self.display_range == other.display_range and
+                self.data_range == other.data_range and
+                self.data_metadata == other.data_metadata and
+                self.calibration_styles == other.calibration_styles and
+                self.intensity_calibration_styles == other.intensity_calibration_styles and
+                self.brightness == other.brightness and
+                self.contrast == other.contrast and
+                self.adjustments == other.adjustments)
+
+    @property
+    def derived_display_values(self) -> DerivedDisplayValues:
+        return DerivedDisplayValues(self, self.color_map_data, self.brightness, self.contrast, self.adjustments)
+
+
+class DerivedDisplayValues:
+    """Calculate derived display values such as normalized data, adjusted data, display rgba, and transformed display range based on the provided display data info."""
+
+    _count = 0
+
+    def __init__(self,
+                 display_data_info: DisplayDataInfo | None,
+                 color_map_data: _RGBA32Type | None,
+                 brightness: float, contrast: float,
+                 adjustments: typing.Sequence[Persistence.PersistentDictType]) -> None:
+        self.__display_data_info = display_data_info
+        self.__color_map_data = color_map_data
+
         self.__normalized_data_processor = NormalizedDataProcessor(
-            display_data=ProcessorConnection(self.__display_data_processor, "data", "display_data"),
-            display_range=ProcessorConnection(self.__display_range_processor, "display_range"),
+            display_data=display_data_info.display_data_and_metadata if display_data_info else None,
+            display_range=display_data_info.display_range if display_data_info else None,
         )
 
         self.__adjusted_data_processor = AdjustedDataProcessor(
             normalized_data=ProcessorConnection(self.__normalized_data_processor, "data", "normalized_data"),
-            display_data=ProcessorConnection(self.__display_data_processor, "data", "display_data"),
-            display_range=ProcessorConnection(self.__display_range_processor, "display_range"),
+            display_data=display_data_info.display_data_and_metadata if display_data_info else None,
+            display_range=display_data_info.display_range if display_data_info else None,
             adjustments=adjustments,
         )
 
         self.__adjusted_display_range_processor = AdjustedDisplayRangeProcessor(
-            display_range=ProcessorConnection(self.__display_range_processor, "display_range"),
+            display_range=display_data_info.display_range if display_data_info else None,
             adjustments=adjustments
         )
 
@@ -811,7 +916,7 @@ class DisplayValues:
 
         self.__display_rgb_processor = DisplayRGBProcessor(
             adjusted_data=ProcessorConnection(self.__adjusted_data_processor, "data", "adjusted_data"),
-            data_range=ProcessorConnection(self.__data_range_processor, "data_range"),
+            data_range=display_data_info.data_range if display_data_info else None,
             display_range=ProcessorConnection(self.__transformed_display_range_processor, "display_range"),
             color_map_data=color_map_data
         )
@@ -821,38 +926,9 @@ class DisplayValues:
             transformed_display_range=ProcessorConnection(self.__transformed_display_range_processor, "display_range", "transformed_display_range"),
         )
 
-        def finalize() -> None:
-            DisplayValues._count -= 1
-
-        weakref.finalize(self, finalize)
-
     @property
     def color_map_data(self) -> typing.Optional[_RGBA32Type]:
         return self.__color_map_data
-
-    @property
-    def data_metadata(self) -> DataAndMetadata.DataMetadata | None:
-        return self.__data_and_metadata.data_metadata if self.__data_and_metadata else None
-
-    @property
-    def element_data_metadata(self) -> DataAndMetadata.DataMetadata | None:
-        return self.__element_data_processor.get_data_metadata()
-
-    @property
-    def element_data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], self.__element_data_processor.get_result("data"))
-
-    @property
-    def display_data_and_metadata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], self.__display_data_processor.get_result("data"))
-
-    @property
-    def data_range(self) -> typing.Optional[typing.Tuple[float, float]]:
-        return typing.cast(typing.Optional[typing.Tuple[float, float]], self.__data_range_processor.get_result("data_range"))
-
-    @property
-    def display_range(self) -> typing.Optional[typing.Tuple[float, float]]:
-        return typing.cast(typing.Optional[typing.Tuple[float, float]], self.__display_range_processor.get_result("display_range"))
 
     @property
     def display_rgba(self) -> typing.Optional[_ImageDataType]:
@@ -877,14 +953,6 @@ class DisplayValues:
     @property
     def transformed_display_range(self) -> typing.Tuple[float, float]:
         return typing.cast(typing.Tuple[float, float], self.__transformed_display_range_processor.get_result("display_range"))
-
-    def get_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        display_xdata = self.display_data_and_metadata
-        return get_calibration_styles([display_xdata.data_metadata if display_xdata else None])
-
-    def get_intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        display_xdata = self.display_data_and_metadata
-        return get_intensity_calibration_styles([display_xdata.data_metadata if display_xdata else None])
 
 
 class DisplayDataChannel(Persistence.PersistentObject):
@@ -923,17 +991,13 @@ class DisplayDataChannel(Persistence.PersistentObject):
         self.modified_state = 0
 
         self.data_item_proxy_changed_event = Event.Event()
-
-        # fields for computing display values on a thread. there are two streams: one for uncomputed values and one
-        # for computed values. the caller must subscribe to either stream. the computed values stream is only started
-        # when there are subscribers.
-        self.__closing = False
-        self.__display_values_stream = Stream.ValueStream[DisplayValues]()
-
         self.data_item_will_change_event = Event.Event()
         self.data_item_did_change_event = Event.Event()
         self.data_item_changed_event = Event.Event()
         self.data_item_description_changed_event = Event.Event()
+
+        # special event to let display item know that display_data_and_metadata for this display data channel changed.
+        self.display_data_and_metadata_changed = Event.Event()
 
         self.__data_item_property_changed_event_listener: typing.Optional[Event.EventListener] = None
         self.__data_item_will_change_listener: typing.Optional[Event.EventListener] = None
@@ -983,9 +1047,6 @@ class DisplayDataChannel(Persistence.PersistentObject):
         if self.__data_item_reference.item:
             connect_data_item(typing.cast(DataItem.DataItem, self.__data_item_reference.item))
 
-        # update the initial display values stream value
-        self.__update_display_values_stream_value()
-
     def close(self) -> None:
         # ensure display data channel is disconnected from the data item in case it was never added to document
         # and subsequently about_to_be_removed is not called.
@@ -994,8 +1055,6 @@ class DisplayDataChannel(Persistence.PersistentObject):
             self.__is_data_item_connected = False
         self.__data_item_reference.on_item_registered = None
         self.__data_item_reference.on_item_unregistered = None
-        self.__closing = True
-        self.__display_values_stream = typing.cast(typing.Any, None)
         # continue close.
         self.__disconnect_data_item_events()
         self.__current_data_item = None
@@ -1137,8 +1196,6 @@ class DisplayDataChannel(Persistence.PersistentObject):
             if callable(display_data_channel.__data_item_reference.on_item_registered):
                 display_data_channel.__data_item_reference.on_item_registered(self.__data_item)
         memo[id(self)] = display_data_channel
-        # update the display values stream value since we have new properties that were not handled in the regular way
-        display_data_channel.__update_display_values_stream_value()
         return display_data_channel
 
     @property
@@ -1493,7 +1550,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         # when one of the defined properties changes, this gets called
         self.notify_property_changed(property_name)
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "brightness", "contrast", "adjustments", "color_map_data"):
-            self.__update_display_values_stream_value()
+            self.display_data_and_metadata_changed.fire()
 
     def save_properties(self) -> typing.Tuple[typing.Any, ...]:
         return (
@@ -1525,28 +1582,22 @@ class DisplayDataChannel(Persistence.PersistentObject):
         if self.__data_item != self.__current_data_item or (self.__data_item and self.__data_item.modified_count != self.__current_data_item_modified_count):
             self.__current_data_item = self.__data_item
             self.__current_data_item_modified_count = self.__data_item.modified_count if self.__data_item else 0
-            self.__update_display_values_stream_value()
-
-    @property
-    def display_values_stream(self) -> Stream.ValueStream[DisplayValues]:
-        return self.__display_values_stream
+            self.display_data_and_metadata_changed.fire()
 
     @property
     def display_values(self) -> DisplayValues | None:
-        return self.__display_values_stream.value
-
-    def __update_display_values_stream_value(self) -> None:
-        # update the display values stream with a new display values stream value.
         if self.__data_item:
-            display_values = DisplayValues(self.__data_item.xdata,
-                                           self.sequence_index,
-                                           self.collection_index,
-                                           self.slice_center, self.slice_width,
-                                           self.display_limits,
-                                           self.complex_display_type,
-                                           self.__color_map_data, self.brightness,
-                                           self.contrast, self.adjustments)
-            self.__display_values_stream.send_value(display_values)
+            return DisplayValues(self.__data_item.xdata,
+                                 self.sequence_index,
+                                 self.collection_index,
+                                 self.slice_center, self.slice_width,
+                                 self.display_limits,
+                                 self.complex_display_type,
+                                 self.__color_map_data,
+                                 self.brightness,
+                                 self.contrast,
+                                 self.adjustments)
+        return None
 
     def increment_display_ref_count(self, amount: int = 1) -> None:
         """Increment display reference count to indicate this library item is currently displayed."""
@@ -1800,13 +1851,13 @@ class DisplayDataDelta:
     graphics: typing.Sequence[Graphics.Graphic]
     graphic_selection: GraphicSelection
     display_calibration_info: DisplayCalibrationInfo
-    display_values_list: typing.Sequence[typing.Optional[DisplayValues]]
+    display_data_info_list: typing.Sequence[DisplayDataInfo | None]
     display_properties: Persistence.PersistentDictType
     display_layers_list: typing.Sequence[DisplayLayerInfo]
     graphics_changed: bool = False
     graphic_selection_changed: bool = False
     display_calibration_info_changed: bool = False
-    display_values_list_changed: bool = False
+    display_data_info_list_changed: bool = False
     display_properties_changed: bool = False
     display_layers_list_changed: bool = False
 
@@ -1814,7 +1865,7 @@ class DisplayDataDelta:
         self.graphics_changed = True
         self.graphic_selection_changed = True
         self.display_calibration_info_changed = True
-        self.display_values_list_changed = True
+        self.display_data_info_list_changed = True
         self.display_properties_changed = True
         self.display_layers_list_changed = True
 
@@ -1827,8 +1878,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
     the graphic selection, the display layers, and the display properties.
 
     This class tracks the list of display data channels in the display item. For each display data channel, this class
-    tracks the display values. The display values are used to update the core values of this stream in the __update
-    method.
+    tracks the display values.
 
     The calibrations from the first display values are transformed by the calibration style to produce the display
     calibrations.
@@ -1843,10 +1893,9 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
 
         self.__display_item_ref = weakref.ref(display_item)
 
-        self.__display_values_list = list[typing.Optional[DisplayValues]]()
-        self.__display_data_channel_actions = list[typing.Optional[Stream.ValueStreamAction[DisplayValues]]]()
+        self.__display_data_channels = list[DisplayDataChannel | None]()
+        self.__display_data_channel_listeners = list[Event.EventListener | None]()
 
-        self.__data_metadata_list = list[DataAndMetadata.DataMetadata | None]()
         self.__graphics = list[Graphics.Graphic]()
         self.__graphic_selection = copy.copy(display_item.graphic_selection)
         self.__display_layers = list[DisplayLayer]()
@@ -1881,14 +1930,23 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         for index, display_layer in enumerate(display_item.display_layers):
             self.__display_item_item_inserted("display_layers", display_layer, index)
 
-        self.__update()
         self.__send_delta()
 
     def __send_delta(self) -> None:
+        display_values_list = [display_data_channel.display_values if display_data_channel else None for display_data_channel in self.__display_data_channels]
+
+        display_data_info_list = tuple(display_values.display_data_info if display_values else None for display_values in display_values_list)
+
+        data_metadata_list = tuple(display_values.data_metadata if display_values else None for display_values in display_values_list)
+
+        display_calibration_info = DisplayCalibrationInfo(data_metadata_list,
+                                                          self.__calibration_style_id_stream.value,
+                                                          self.__intensity_calibration_style_id_stream.value)
+
         display_data_delta = DisplayDataDelta(tuple(self.graphics),
                                               copy.copy(self.graphic_selection),
-                                              self.__get_display_calibration_info(),
-                                              tuple(self.__display_values_list),
+                                              display_calibration_info,
+                                              display_data_info_list,
                                               copy.deepcopy(self.display_properties),
                                               tuple(self.display_layers))
         if self.__last_display_data_delta:
@@ -1898,8 +1956,8 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                 display_data_delta.graphic_selection_changed = True
             if display_data_delta.display_calibration_info != self.__last_display_data_delta.display_calibration_info:
                 display_data_delta.display_calibration_info_changed = True
-            if display_data_delta.display_values_list != self.__last_display_data_delta.display_values_list:
-                display_data_delta.display_values_list_changed = True
+            if display_data_delta.display_data_info_list != self.__last_display_data_delta.display_data_info_list:
+                display_data_delta.display_data_info_list_changed = True
             if display_data_delta.display_properties != self.__last_display_data_delta.display_properties:
                 display_data_delta.display_properties_changed = True
             if len(display_data_delta.display_layers_list) != len(self.__last_display_data_delta.display_layers_list) or any(not display_layer_info_equal(x, y) for x, y in zip(display_data_delta.display_layers_list, self.__last_display_data_delta.display_layers_list)):
@@ -1928,32 +1986,24 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
     def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == "display_data_channels":
             display_data_channel = typing.cast(typing.Optional[DisplayDataChannel], item)
-            display_values_stream = display_data_channel.display_values_stream if display_data_channel else None
-            display_values = display_values_stream.value if display_values_stream else None
-            self.__display_values_list.insert(index, display_values)
-            self.__display_data_channel_actions.insert(index, Stream.ValueStreamAction(display_values_stream, ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_data_channel_display_values_changed, self, display_data_channel)) if display_values_stream else None)
-            # send the update
-            self.__update()
+            self.__display_data_channels.insert(index, display_data_channel)
+            self.__display_data_channel_listeners.insert(index, display_data_channel.display_data_and_metadata_changed.listen(ReferenceCounting.weak_partial(self.__class__.__send_delta, self)) if display_data_channel else None)
             self.__send_delta()
         elif key == "graphics":
             self.__graphics.insert(index, item)
             self.__graphic_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__graphic_changed, self)))
-            self.__update()
             self.__send_delta()
         elif key == "display_layers":
             display_item = self.__display_item
             self.__display_layers.insert(index, item)
             self.__display_layers_list = display_item.display_layer_info_list
             self.__display_layer_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_layer_changed, self)))
-            self.__update()
             self.__send_delta()
 
     def __display_item_item_removed(self, key: str, item: typing.Any, index: int) -> None:
         if key == "display_data_channels":
-            self.__display_values_list.pop(index)
-            self.__display_data_channel_actions.pop(index)
-            # send the update
-            self.__update()
+            self.__display_data_channels.pop(index)
+            self.__display_data_channel_listeners.pop(index)
             self.__send_delta()
         elif key == "graphics":
             self.__graphics.pop(index)
@@ -1965,14 +2015,6 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
             self.__display_layers_list = display_item.display_layer_info_list
             self.__display_layer_changed_listeners.pop(index)
             self.__send_delta()
-
-    def __display_data_channel_display_values_changed(self, display_data_channel: DisplayDataChannel, display_values: typing.Optional[DisplayValues]) -> None:
-        display_item = self.__display_item
-        index = display_item.display_data_channels.index(display_data_channel)
-        self.__display_values_list[index] = display_values
-        # send the update
-        self.__update()
-        self.__send_delta()
 
     def __graphic_changed(self, name: str) -> None:
         self.__send_delta()
@@ -2005,23 +2047,11 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                 self.__display_properties = copy.deepcopy(new_display_properties)
                 self.__send_delta()
 
-    def __update(self) -> None:
-        display_values_list = self.__display_values_list
-        self.__data_metadata_list = [display_values.data_metadata if display_values else None for display_values in display_values_list]
-        self.__display_layers_list = self.__display_item.display_layer_info_list
-
-    def __get_display_calibration_info(self) -> DisplayCalibrationInfo:
-        return DisplayCalibrationInfo(self.__data_metadata_list,
-                                      self.__calibration_style_id_stream.value,
-                                      self.__intensity_calibration_style_id_stream.value)
-
     def __update_display_calibration_info(self, value: typing.Optional[str]) -> None:
-        self.__update()
         self.__send_delta()
 
     def reset(self) -> None:
         self.__last_display_data_delta = None
-        self.__update()
         self.__send_delta()
 
 
@@ -2106,7 +2136,6 @@ class DisplayItem(Persistence.PersistentObject):
         self.graphic_selection = GraphicSelection()
         self.graphic_selection_changed_event = Event.Event()
         self.graphics_changed_event = Event.Event()
-        self.display_values_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
 
         self.__display_data_delta_stream = DisplayDataDeltaStream(
@@ -2125,12 +2154,11 @@ class DisplayItem(Persistence.PersistentObject):
             if value is not None:
                 if display_calibration_info_stream.value is None or value.display_calibration_info_changed:
                     display_calibration_info_stream.value = value.display_calibration_info
-                if data_info_stream.value is None or value.display_values_list_changed:
-                    display_values_list = value.display_values_list
-                    display_values = display_values_list[0] if len(display_values_list) == 1 else None
-                    if display_values:
-                        data_info = DisplayDataInfo(display_values.display_data_and_metadata, display_values.display_range, display_values.data_range)
-                        data_info_stream.value = data_info
+                if data_info_stream.value is None or value.display_data_info_list_changed:
+                    display_data_info_list = value.display_data_info_list
+                    display_data_info = display_data_info_list[0] if len(display_data_info_list) == 1 else None
+                    if display_data_info:
+                        data_info_stream.value = display_data_info
                     else:
                         data_info_stream.value = None
             else:
@@ -2304,7 +2332,6 @@ class DisplayItem(Persistence.PersistentObject):
         self.__property_changed(name, value)
         # the order here is important; display values must come before display changed
         # so that the display canvas item is updated properly.
-        self.display_values_changed_event.fire()
         self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
         if self.used_display_type == "line_plot":
@@ -3489,13 +3516,6 @@ class DisplayCalibrationInfo:
                            potential_dimensional_calibrations):
                         return potential_dimensional_calibrations
         return None
-
-
-@dataclasses.dataclass
-class DisplayDataInfo:
-    display_data_and_metadata: DataAndMetadata.DataAndMetadata | None
-    display_range: tuple[float, float] | None
-    data_range: tuple[float, float] | None
 
 
 def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:

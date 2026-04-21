@@ -594,11 +594,11 @@ class StandardImportExportHandler(ImportExportHandler):
         return len(data_metadata.dimensional_shape) == 2
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
-        display_data_channel = display_item.display_data_channel
-        assert display_data_channel
-        display_values = display_data_channel.display_values
-        assert display_values
-        data = display_values.display_rgba  # export the display rather than the data for these types
+        display_data_info = display_item.display_data_info
+        assert display_data_info
+        derived_display_values = display_data_info.derived_display_values
+        assert derived_display_values
+        data = derived_display_values.display_rgba  # export the display rather than the data for these types
         assert data is not None
         imageio.imwrite(path, numpy.flip(Image.get_rgb_view(data), 2), extension="." + extension)
 

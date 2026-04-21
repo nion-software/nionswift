@@ -1621,7 +1621,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.display_canvas_item._update_canvas_items()
             display_item.display_type = "image"
             display_panel.display_canvas_item._update_canvas_items()
-            self.assertIsNotNone(display_panel.display_canvas_item._display_values)
+            self.assertIsNotNone(display_panel.display_canvas_item._display_data_info)
 
     def test_display_2d_update_with_no_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -2233,7 +2233,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.display_canvas_item.refresh_layout_immediate()
             document_controller.periodic()
             # everything should be updated
-            self.assertIsNotNone(display_panel.display_canvas_item._display_values)
+            self.assertIsNotNone(display_panel.display_canvas_item._display_data_info)
 
     def test_line_plot_data_from_processing_initially_displays(self):
         with TestContext.create_memory_context() as test_context:
@@ -3327,7 +3327,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             with contextlib.closing(display_item.snapshot()) as display_item_snapshot:
                 drawing_context = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item_snapshot, Geometry.IntSize(256, 256))
-                self.assertIsNotNone(display_item_snapshot.display_data_channels[0].display_values_stream.value)
+                self.assertIsNotNone(display_item_snapshot.display_data_channels[0].display_values)
 
     def test_adding_fourier_filter_is_undoable(self):
         with TestContext.create_memory_context() as test_context:
