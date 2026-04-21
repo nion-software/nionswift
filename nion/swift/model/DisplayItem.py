@@ -1899,9 +1899,9 @@ class DisplayDataDelta:
     graphics: typing.Sequence[Graphics.Graphic]
     graphic_selection: GraphicSelection
     display_calibration_info: DisplayCalibrationInfo
-    display_values_list: typing.List[typing.Optional[DisplayValues]]
+    display_values_list: typing.Sequence[typing.Optional[DisplayValues]]
     display_properties: Persistence.PersistentDictType
-    display_layers_list: typing.List[DisplayLayerInfo]
+    display_layers_list: typing.Sequence[DisplayLayerInfo]
     graphics_changed: bool = False
     graphic_selection_changed: bool = False
     display_calibration_info_changed: bool = False
@@ -1984,12 +1984,12 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         self.__send_delta()
 
     def __send_delta(self) -> None:
-        display_data_delta = DisplayDataDelta(list(self.graphics),
+        display_data_delta = DisplayDataDelta(tuple(self.graphics),
                                               copy.copy(self.graphic_selection),
                                               self.__get_display_calibration_info(),
-                                              list(self.__display_values_list),
+                                              tuple(self.__display_values_list),
                                               copy.deepcopy(self.display_properties),
-                                              list(self.display_layers))
+                                              tuple(self.display_layers))
         if self.__last_display_data_delta:
             if display_data_delta.graphics != self.__last_display_data_delta.graphics:
                 display_data_delta.graphics_changed = True

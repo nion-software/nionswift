@@ -1079,13 +1079,13 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self, ui_settings: UISettings.UISettings) -> None:
         super().__init__()
-        self.__regions: typing.List[RegionInfo] = list()
-        self.__axes: typing.Optional[LineGraphAxes] = None
+        self.__regions = tuple[RegionInfo]()
+        self.__axes: LineGraphAxes | None = None
         self.__is_focused = False
         self.__ui_settings = ui_settings
 
     @property
-    def _axes(self) -> typing.Optional[LineGraphAxes]:  # for testing only
+    def _axes(self) -> LineGraphAxes | None:  # for testing only
         return self.__axes
 
     def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LineGraphLayer]) -> None:
@@ -1095,8 +1095,9 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def set_regions(self, regions: typing.Sequence[RegionInfo]) -> None:
+        regions = tuple(regions)
         if (self.__regions is None and regions is not None) or (self.__regions != regions):
-            self.__regions = list(regions)
+            self.__regions = regions
             self.update()
 
     def set_is_focused(self, is_focused: bool) -> None:

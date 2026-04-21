@@ -632,8 +632,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.update()
 
     def _update_canvas_items(self) -> None:
-        # this is a separate method so that it can be used from tests.
-
         line_plot_display_info = self.__line_plot_display_info
 
         with self.batch_update():
