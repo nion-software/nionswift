@@ -430,14 +430,14 @@ class ExportSizeModel(Observable.Observable):
     @property
     def shape_str(self) -> typing.Optional[str]:
         """Return the pixel shape as a string."""
-        shape_str = "(" + self.__display_item.data_info.data_shape_str + ")"
+        shape_str = "(" + self.__display_item.export_data_info.data_shape_str + ")"
         return shape_str
 
     @property
     def calibrated_shape_str(self) -> typing.Optional[str]:
         """Return the calculated shape as a string."""
-        if self.__display_item.data_info.calibrated_dimensional_calibrations_str:
-            calibration_str = "(" + self.__display_item.data_info.calibrated_dimensional_calibrations_str + ")"
+        if self.__display_item.export_data_info.calibrated_dimensional_calibrations_str:
+            calibration_str = "(" + self.__display_item.export_data_info.calibrated_dimensional_calibrations_str + ")"
             return calibration_str
         else:
             return ""

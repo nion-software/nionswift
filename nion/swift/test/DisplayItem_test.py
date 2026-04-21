@@ -674,12 +674,12 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                self.assertIsNone(display_item.data_info.calibrated_dimensional_calibrations)
+                self.assertIsNone(display_item.export_data_info.calibrated_dimensional_calibrations)
                 data_item.dimensional_calibrations = [Calibration.Calibration(3.0, 0.5, "nm")]
-                self.assertEqual(1, len(display_item.data_info.calibrated_dimensional_calibrations))
-                self.assertEqual("nm", display_item.data_info.calibrated_dimensional_calibrations[0].units)
+                self.assertEqual(1, len(display_item.export_data_info.calibrated_dimensional_calibrations))
+                self.assertEqual("nm", display_item.export_data_info.calibrated_dimensional_calibrations[0].units)
                 display_item.calibration_style_id = "pixels-center"
-                self.assertEqual("nm", display_item.data_info.calibrated_dimensional_calibrations[0].units)
+                self.assertEqual("nm", display_item.export_data_info.calibrated_dimensional_calibrations[0].units)
 
     def test_data_info_for_calibrated_image(self):
         with create_memory_profile_context() as profile_context:
@@ -688,24 +688,24 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertIsNone(None, data_info.calibrated_dimensional_calibrations_str)
                 data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "nm"))
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("2 nm, 4", data_info.calibrated_dimensional_calibrations_str)
                 data_item.set_dimensional_calibration(1, Calibration.Calibration(3.0, 0.5, "nm"))
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("2 nm, 2 nm", data_info.calibrated_dimensional_calibrations_str)
                 data_item.set_dimensional_calibration(0, Calibration.Calibration())
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("4, 2 nm", data_info.calibrated_dimensional_calibrations_str)
                 data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "nm"))
                 display_item.calibration_style_id = "pixels-center"
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("2 nm, 2 nm", data_info.calibrated_dimensional_calibrations_str)
 
@@ -716,15 +716,15 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("8", data_info.data_shape_str)
                 self.assertIsNone(None, data_info.calibrated_dimensional_calibrations_str)
                 data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 0.5, "nm"))
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("8", data_info.data_shape_str)
                 self.assertEqual("4 nm", data_info.calibrated_dimensional_calibrations_str)
                 display_item.calibration_style_id = "pixels-center"
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("8", data_info.data_shape_str)
                 self.assertEqual("4 nm", data_info.calibrated_dimensional_calibrations_str)
 
@@ -735,18 +735,18 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("8", data_info.data_shape_str)
                 self.assertIsNone(data_info.calibrated_dimensional_calibrations_str)
                 data_item.set_dimensional_calibration(0, Calibration.Calibration(0.0, 2.0, "nm"))
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("8", data_info.data_shape_str)
                 self.assertEqual("16 nm", data_info.calibrated_dimensional_calibrations_str)
                 data_item2 = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
                 document_model.append_data_item(data_item2)
                 display_item.append_display_data_channel_for_data_item(data_item2)
                 data_item2.set_dimensional_calibration(0, Calibration.Calibration(8.0, 4.0, "nm"))
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("20", data_info.data_shape_str)
                 self.assertEqual("40 nm", data_info.calibrated_dimensional_calibrations_str)
                 data_item3 = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
@@ -754,7 +754,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item3.set_dimensional_calibration(0, Calibration.Calibration(0.0, 1.0, "nm"))
                 data_item3.set_dimensional_calibration(1, Calibration.Calibration(0.0, 1.0, "nm"))
                 display_item3 = document_model.get_display_item_for_data_item(data_item3)
-                data_info = display_item3.data_info
+                data_info = display_item3.export_data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("4 nm, 4 nm", data_info.calibrated_dimensional_calibrations_str)
 
@@ -771,7 +771,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item.set_dimensional_calibration(2, Calibration.Calibration(3.0, 0.5, "eV"))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("3, 3", data_info.data_shape_str)
                 self.assertEqual("1.5 nm, 1.5 nm", data_info.calibrated_dimensional_calibrations_str)
                 # test non-sequence of compound data
@@ -784,7 +784,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item.set_dimensional_calibration(3, Calibration.Calibration(3.0, 0.5, "rad"))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("2 rad, 2 rad", data_info.calibrated_dimensional_calibrations_str)
                 # test sequence of compound data
@@ -798,7 +798,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 data_item.set_dimensional_calibration(4, Calibration.Calibration(3.0, 0.5, "rad"))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                data_info = display_item.data_info
+                data_info = display_item.export_data_info
                 self.assertEqual("4, 4", data_info.data_shape_str)
                 self.assertEqual("2 rad, 2 rad", data_info.calibrated_dimensional_calibrations_str)
 

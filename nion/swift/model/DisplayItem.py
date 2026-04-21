@@ -3057,17 +3057,17 @@ class DisplayItem(Persistence.PersistentObject):
         return self.__display_calibration_info_stream.value
 
     @dataclasses.dataclass
-    class DataInfo:
+    class ExportDataInfo:
         data_shape: typing.Tuple[int, ...]
         calibrated_dimensional_calibrations: typing.Optional[typing.Sequence[Calibration.Calibration]]
         data_shape_str: str
         calibrated_dimensional_calibrations_str: typing.Optional[str]
 
     @property
-    def data_info(self) -> DisplayItem.DataInfo:
+    def export_data_info(self) -> DisplayItem.ExportDataInfo:
         display_calibration_info = self.display_calibration_info
         if not display_calibration_info:
-            return DisplayItem.DataInfo(
+            return DisplayItem.ExportDataInfo(
                 data_shape=tuple(),
                 calibrated_dimensional_calibrations=None,
                 data_shape_str=str(),
@@ -3095,7 +3095,7 @@ class DisplayItem(Persistence.PersistentObject):
                     calibrated_value = converter.convert_to_calibrated_value(1.0)
                     calibrated_dimensional_calibration_str_list.append(converter.convert_calibrated_value_to_str(calibrated_value))
         calibrated_dimensional_calibrations_str = ", ".join(calibrated_dimensional_calibration_str_list) if calibrated_dimensional_calibration_str_list else None
-        return DisplayItem.DataInfo(
+        return DisplayItem.ExportDataInfo(
             data_shape=display_data_shape,
             calibrated_dimensional_calibrations=calibrated_dimensional_calibrations,
             data_shape_str=", ".join(str(d) for d in display_data_shape),
