@@ -2074,8 +2074,6 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         self.__send_delta()
 
     def __graphic_changed(self, name: str) -> None:
-        if self.__last_display_data_delta:
-            self.__last_display_data_delta.graphics = list()
         self.__send_delta()
 
     def __display_layer_changed(self, name: str) -> None:
