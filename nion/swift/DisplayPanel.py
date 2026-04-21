@@ -3113,7 +3113,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         assert self.__display_item
         display_data_channel = self.__display_item.display_data_channel
         assert display_data_channel
-        display_values = display_data_channel.get_latest_computed_display_values()
+        display_values = display_data_channel.display_values
         assert display_values
         element_data_and_metadata = display_values.element_data_and_metadata
         assert element_data_and_metadata
@@ -3153,7 +3153,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         assert self.__display_item
         display_data_channel = self.__display_item.display_data_channel
         assert display_data_channel
-        display_values = display_data_channel.get_latest_computed_display_values()
+        display_values = display_data_channel.display_values
         assert display_values
         element_data_and_metadata = display_values.element_data_and_metadata
         assert element_data_and_metadata

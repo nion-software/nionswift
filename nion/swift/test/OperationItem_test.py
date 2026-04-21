@@ -1145,7 +1145,7 @@ class TestProcessingClass(unittest.TestCase):
                     display_data_channel = display_item.display_data_channel
                     document_model.get_processing_new(window_type, display_item, display_item.data_item)
                     document_model.recompute_all()
-                    display_values = display_data_channel.get_latest_computed_display_values()
+                    display_values = display_data_channel.display_values
                     element_xdata = display_values.element_data_and_metadata
                     self.assertEqual(element_xdata.data_shape, document_model.data_items[-1].data_shape)
                     self.assertFalse(document_model.computations[-1].error_text)

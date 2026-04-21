@@ -45,7 +45,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_canvas_item.update_layout((0, 0), (80, 300))
             # test
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (200, 650))
+            self.assertEqual(display_data_channel.display_values.display_range, (200, 650))
             self.assertIsNone(display_data_channel.display_limits)
             histogram_panel._histogram_processor._evaluate_immediate()
             # drag
@@ -53,7 +53,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_canvas_item.mouse_position_changed(80, 58, 0)
             histogram_canvas_item.mouse_released(90, 58, 0)
             self.assertIsNotNone(display_data_channel.display_limits)
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (290, 320))
+            self.assertEqual(display_data_channel.display_values.display_range, (290, 320))
             # double click and return to None
             histogram_canvas_item.mouse_pressed(121, 51, 0)
             histogram_canvas_item.mouse_released(121, 51, 0)
@@ -61,7 +61,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_canvas_item.mouse_double_clicked(121, 51, 0)
             histogram_canvas_item.mouse_released(121, 51, 0)
             self.assertIsNone(display_data_channel.display_limits)
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (200, 650))
+            self.assertEqual(display_data_channel.display_values.display_range, (200, 650))
 
     def test_changing_source_data_marks_histogram_as_dirty_then_recomputes_via_model(self):
         with TestContext.create_memory_context() as test_context:
@@ -267,7 +267,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             histogram_processor = HistogramPanel.HistogramProcessor(document_controller.event_loop)
             with contextlib.closing(histogram_processor):
                 display_data_channel = display_item.display_data_channel
-                display_values = display_data_channel.get_latest_computed_display_values()
+                display_values = display_data_channel.display_values
                 histogram_processor.display_data_and_metadata = display_values.display_data_and_metadata
                 histogram_processor.display_range = display_values.display_range
                 histogram_processor.display_data_range = display_values.data_range

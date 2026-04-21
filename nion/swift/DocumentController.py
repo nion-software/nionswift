@@ -2960,7 +2960,7 @@ class GraphicFactoryBase:
     def _get_calibrated_origin_image_norm(self, display_item: DisplayItem.DisplayItem) -> Geometry.FloatPoint:
         display_data_channel = display_item.display_data_channel
         assert display_data_channel
-        display_values = display_data_channel.get_latest_computed_display_values()
+        display_values = display_data_channel.display_values
         assert display_values
         element_data_and_metadata = display_values.element_data_and_metadata
         assert element_data_and_metadata

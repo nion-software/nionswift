@@ -826,19 +826,29 @@ class HistogramPanel(Panel.Panel):
         def extract_displayed_intensity_calibration(display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo]) -> typing.Optional[Calibration.Calibration]:
             return display_calibration_info.displayed_intensity_calibration if display_calibration_info else None
 
+        def extract_data_info_display_data_and_metadata(data_info: DisplayItem.DisplayDataInfo | None) -> DataAndMetadata.DataAndMetadata | None:
+            return data_info.display_data_and_metadata if data_info else None
+
+        def extract_data_info_display_range(data_info: DisplayItem.DisplayDataInfo | None) -> tuple[float, float] | None:
+            return data_info.display_range if data_info else None
+
+        def extract_data_info_data_range(data_info: DisplayItem.DisplayDataInfo | None) -> tuple[float, float] | None:
+            return data_info.data_range if data_info else None
+
         display_item_stream = TargetDisplayItemStream(document_controller)
         display_item = display_item_stream.value
         display_data_channel_stream = StreamPropertyStream[DisplayItem.DisplayDataChannel](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "display_data_channel")
-        display_values_stream = DisplayDataChannelDisplayValuesStream(display_data_channel_stream)
-        display_data_and_metadata_stream = DisplayValuesValueStream[DataAndMetadata.DataAndMetadata](display_values_stream, "display_data_and_metadata", cmp=compare_data)
-        display_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "display_range")
-        display_data_range_stream = DisplayValuesValueStream[typing.Tuple[float, float]](display_values_stream, "data_range")
-        display_calibration_info_stream = Stream.FollowStream[DisplayItem.DisplayCalibrationInfo](display_item.display_calibration_info_stream if display_item else None)
+        display_calibration_info_stream = Stream.FollowStream(display_item.display_calibration_info_stream if display_item else None)
+        display_data_info_stream = Stream.FollowStream(display_item.display_data_info_stream if display_item else None)
+        display_data_and_metadata_stream = Stream.MapStream(display_data_info_stream, extract_data_info_display_data_and_metadata)
+        display_range_stream = Stream.MapStream(display_data_info_stream, extract_data_info_display_range)
+        display_data_range_stream = Stream.MapStream(display_data_info_stream, extract_data_info_data_range)
         displayed_intensity_calibration_stream = Stream.MapStream[DisplayItem.DisplayCalibrationInfo, Calibration.Calibration](display_calibration_info_stream, extract_displayed_intensity_calibration)
 
         # configure the display_calibration_info_stream to update when the display item changes, since the calibration info stream is based on the display item stream.
         def handle_display_item_changed(display_item: DisplayItem.DisplayItem | None) -> None:
             display_calibration_info_stream.stream = display_item.display_calibration_info_stream if display_item else None
+            display_data_info_stream.stream = display_item.display_data_info_stream if display_item else None
 
         self.__display_item_stream_action = Stream.ValueStreamAction(display_item_stream, handle_display_item_changed)
 
@@ -904,6 +914,7 @@ class HistogramPanel(Panel.Panel):
 
 
 class TargetDisplayItemStream(Stream.AbstractStream[DisplayItem.DisplayItem]):
+    """A stream that tracks the selected display item."""
 
     def __init__(self, document_controller: DocumentController.DocumentController):
         super().__init__()
@@ -1092,55 +1103,3 @@ class StreamPropertyStream(ConcatStream[T], typing.Generic[T]):
             assert x
             return Stream.PropertyChangedEventStream[T](x, property_name, cmp)
         super().__init__(stream, fn)
-
-
-class DisplayDataChannelDisplayValuesStream(Stream.ValueStream[DisplayItem.DisplayValues]):
-    def __init__(self, display_data_channel_stream: Stream.AbstractStream[DisplayItem.DisplayDataChannel]) -> None:
-        super().__init__()
-        # initialize
-        self.__display_values_subscription: typing.Optional[DisplayItem.DisplayValuesSubscription] = None
-        # listen for display changes
-        self.__display_data_channel_stream = display_data_channel_stream.add_ref()
-        self.__display_data_channel_stream_listener = display_data_channel_stream.value_stream.listen(ReferenceCounting.weak_partial(DisplayDataChannelDisplayValuesStream.__display_data_channel_changed, self))
-        self.__display_data_channel_changed(display_data_channel_stream.value)
-
-    def about_to_delete(self) -> None:
-        self.__display_values_subscription = None
-        self.__display_data_channel_stream_listener.close()
-        self.__display_data_channel_stream_listener = typing.cast(typing.Any, None)
-        self.__display_data_channel_stream.remove_ref()
-        self.__display_data_channel_stream = typing.cast(typing.Any, None)
-        super().about_to_delete()
-
-    def __display_values_changed(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
-        self.send_value(display_values)
-
-    def __display_data_channel_changed(self, display_data_channel: typing.Optional[DisplayItem.DisplayDataChannel]) -> None:
-        if display_data_channel:
-            self.__display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(ReferenceCounting.weak_partial(DisplayDataChannelDisplayValuesStream.__display_values_changed, self))
-            self.__display_values_changed(display_data_channel.get_latest_computed_display_values())
-        else:
-            self.__display_values_subscription = None
-            self.send_value(None)
-
-
-class DisplayValuesValueStream(Stream.ValueStream[T]):
-    def __init__(self, display_value_stream: Stream.AbstractStream[DisplayItem.DisplayValues], property_name: str, cmp: typing.Optional[typing.Callable[[typing.Optional[T], typing.Optional[T]], bool]] = None) -> None:
-        super().__init__()
-        self.__property_name = property_name
-        self.__cmp: typing.Callable[[typing.Optional[T], typing.Optional[T]], bool] = cmp if cmp else typing.cast(typing.Callable[[typing.Optional[T], typing.Optional[T]], bool], operator.eq)
-        # listen for display changes
-        self.__display_value_stream = display_value_stream
-        self.__display_value_stream_listener = display_value_stream.value_stream.listen(ReferenceCounting.weak_partial(DisplayValuesValueStream.__display_values_changed, self))
-        self.__display_values_changed(display_value_stream.value)
-
-    def about_to_delete(self) -> None:
-        self.__display_value_stream_listener.close()
-        self.__display_value_stream_listener = typing.cast(typing.Any, None)
-        self.__display_value_stream = typing.cast(typing.Any, None)
-        super().about_to_delete()
-
-    def __display_values_changed(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
-        new_value = getattr(display_values, self.__property_name) if display_values else None
-        if not self.__cmp(new_value, self.value):
-            self.send_value(new_value)
