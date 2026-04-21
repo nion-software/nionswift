@@ -1155,8 +1155,17 @@ class ImageDataInspectorModel(Observable.Observable):
 
         self.data_range_low_model = Model.PropertyModel[float]()
         self.data_range_high_model = Model.PropertyModel[float]()
-        self.__display_values_subscription = self._display_data_channel.subscribe_to_latest_computed_display_values(ReferenceCounting.weak_partial(ImageDataInspectorModel.__update_data_range, self))
-        self.__update_data_range(self._display_data_channel.get_latest_computed_display_values())
+
+        def update_data_range_models(display_data_info: DisplayItem.DisplayDataInfo | None) -> None:
+            if display_data_info is not None:
+                data_range = display_data_info.data_range
+                if data_range is not None:
+                    self.data_range_low_model.value = data_range[0]
+                    self.data_range_high_model.value = data_range[1]
+
+        self.__display_data_info_action = Stream.ValueStreamAction(display_item.display_data_info_stream, update_data_range_models)
+
+        update_data_range_models(display_item.display_data_info)
 
         display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
         self.display_limits_low_model = ImageDisplayLimitsModel(display_data_channel, display_limits_model, 0)
@@ -1184,12 +1193,6 @@ class ImageDataInspectorModel(Observable.Observable):
         self.gamma_model = DisplayDataChannelAdjustmentPropertyCommandModel(document_controller, display_data_channel, "gamma", 1.0)
 
         self.listener = self._display_data_channel.property_changed_event.listen(ReferenceCounting.weak_partial(ImageDataInspectorModel.__property_changed, self))
-
-    def __update_data_range(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
-        if display_values is not None and display_values.data_range is not None:
-            data_range = display_values.data_range
-            self.data_range_low_model.value = data_range[0]
-            self.data_range_high_model.value = data_range[1]
 
     def _get_gamma_visibility(self) -> bool:
         return self.get_current_adjustment_id() == "gamma"

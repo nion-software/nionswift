@@ -51,6 +51,7 @@ from nion.utils import Geometry
 from nion.utils import Observable
 from nion.utils import Process
 from nion.utils import ReferenceCounting
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift import Facade
@@ -1117,7 +1118,7 @@ class DataSource:
         self.__graphic_bounds = graphic.bounds if isinstance(graphic, Graphics.RectangleTypeGraphic) else None
         self.__graphic_rotation = graphic.rotation if isinstance(graphic, Graphics.RectangleTypeGraphic) else 0.0
         self.__graphic_interval = graphic.interval if isinstance(graphic, Graphics.IntervalGraphic) else None
-        self.__display_values = display_data_channel.get_latest_display_values() if display_data_channel else None
+        self.__display_values = display_data_channel.display_values if display_data_channel else None
 
     def close(self) -> None:
         self.__display_values = None
@@ -1359,17 +1360,17 @@ class BoundDisplayDataChannelBase(BoundItemBase):
 
         self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier.reference_uuid if specifier else None))
         self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(secondary_specifier.reference_uuid if secondary_specifier else None))
-        self.__display_values_subscription: typing.Optional[DisplayItem.DisplayValuesSubscription] = None
+        self.__display_values_stream_action: Stream.ValueStreamAction[DisplayItem.DisplayValues] | None = None
 
         def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
             self.data_event.fire(BoundDataEventType.DISPLAY_DATA)
 
         def maintain_data_source() -> None:
-            self.__display_values_subscription = None
+            self.__display_values_stream_action = None
             display_data_channel = self._display_data_channel
             if display_data_channel:
-                self.__display_values_subscription = display_data_channel.subscribe_to_latest_display_values(handle_display_values)
-            self.valid = self.__display_values_subscription is not None
+                self.__display_values_stream_action = Stream.ValueStreamAction(display_data_channel.display_values_stream, handle_display_values)
+            self.valid = self.__display_values_stream_action is not None
             self._update_base_items(self._get_base_items())
 
         def item_registered(item: Persistence.PersistentObject) -> None:
@@ -1387,7 +1388,7 @@ class BoundDisplayDataChannelBase(BoundItemBase):
         maintain_data_source()
 
     def close(self) -> None:
-        self.__display_values_subscription = None
+        self.__display_values_stream_action = None
         self.__item_reference.on_item_registered = None
         self.__item_reference.on_item_unregistered = None
         self.__graphic_reference.on_item_registered = None
@@ -1411,7 +1412,7 @@ class BoundDisplayDataChannelBase(BoundItemBase):
 
     @property
     def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
-        return self._display_data_channel.get_latest_display_values() if self._display_data_channel else None
+        return self._display_data_channel.display_values if self._display_data_channel else None
 
     @property
     def _graphic(self) -> typing.Optional[Graphics.Graphic]:
@@ -1447,7 +1448,7 @@ class BoundDataSource(BoundItemBase):
         self.__graphic_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(secondary_specifier.reference_uuid if secondary_specifier else None))
 
         self.__data_changed_event_listener: Event.EventListener | None = None
-        self.__display_values_subscription: DisplayItem.DisplayValuesSubscription | None = None
+        self.__display_values_stream_action: Stream.ValueStreamAction[DisplayItem.DisplayValues] | None = None
         self.__property_changed_listener: Event.EventListener | None = None
         self.__graphic_property_changed_listeners = list[Event.EventListener | None]()
         self.__graphic_inserted_event_listener: Event.EventListener | None = None
@@ -1473,7 +1474,7 @@ class BoundDataSource(BoundItemBase):
         self.__graphic_reference.on_item_registered = None
         self.__graphic_reference.on_item_unregistered = None
         self.__data_changed_event_listener = None
-        self.__display_values_subscription = None
+        self.__display_values_stream_action = None
         self.__property_changed_listener = None
         self.__graphic_property_changed_listeners.clear()
         self.__graphic_inserted_event_listener = None
@@ -1503,7 +1504,7 @@ class BoundDataSource(BoundItemBase):
             def handle_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
                 self.data_event.fire(BoundDataEventType.DISPLAY_DATA)
 
-            self.__display_values_subscription = display_data_channel.subscribe_to_latest_display_values(handle_display_values)
+            self.__display_values_stream_action = Stream.ValueStreamAction(display_data_channel.display_values_stream, handle_display_values)
 
             def property_changed(key: str) -> None:
                 self.data_event.fire(BoundDataEventType.CROP_REGION)
@@ -1547,7 +1548,7 @@ class BoundDataSource(BoundItemBase):
         else:
             self.valid = False
             self.__data_changed_event_listener = None
-            self.__display_values_subscription = None
+            self.__display_values_stream_action = None
             self.__property_changed_listener = None
             self.__graphic_property_changed_listeners.clear()
             self.__graphic_inserted_event_listener = None
@@ -1638,7 +1639,7 @@ class BoundFilterLikeData(BoundItemBase):
         super().__init__(specifier)
 
         self.__item_reference = container.create_item_reference(item_specifier=Persistence.read_persistent_specifier(specifier.reference_uuid if specifier else None))
-        self.__display_values_subscription: typing.Optional[DisplayItem.DisplayValuesSubscription] = None
+        self.__display_values_stream_action: Stream.ValueStreamAction[DisplayItem.DisplayValues] | None = None
         self.__display_item_item_inserted_event_listener: typing.Optional[Event.EventListener] = None
         self.__display_item_item_removed_event_listener: typing.Optional[Event.EventListener] = None
 
@@ -1646,7 +1647,7 @@ class BoundFilterLikeData(BoundItemBase):
             self.data_event.fire(BoundDataEventType.DISPLAY_DATA)
 
         def maintain_data_source() -> None:
-            self.__display_values_subscription = None
+            self.__display_values_stream_action = None
             if self.__display_item_item_inserted_event_listener:
                 self.__display_item_item_inserted_event_listener.close()
                 self.__display_item_item_inserted_event_listener = None
@@ -1655,7 +1656,7 @@ class BoundFilterLikeData(BoundItemBase):
                 self.__display_item_item_removed_event_listener = None
             display_data_channel = self._display_data_channel
             if display_data_channel:
-                self.__display_values_subscription = display_data_channel.subscribe_to_latest_display_values(handle_display_values)
+                self.__display_values_stream_action = Stream.ValueStreamAction(display_data_channel.display_values_stream, handle_display_values)
                 display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_data_channel.container)
                 if display_item:
                     def maintain(name: str, value: typing.Any, index: int) -> None:
@@ -1664,7 +1665,7 @@ class BoundFilterLikeData(BoundItemBase):
 
                     self.__display_item_item_inserted_event_listener = display_item.item_inserted_event.listen(maintain)
                     self.__display_item_item_removed_event_listener = display_item.item_removed_event.listen(maintain)
-            self.valid = self.__display_values_subscription is not None
+            self.valid = self.__display_values_stream_action is not None
             self._update_base_items(self._get_base_items())
 
         def item_registered(item: Persistence.PersistentObject) -> None:
@@ -1679,7 +1680,7 @@ class BoundFilterLikeData(BoundItemBase):
         maintain_data_source()
 
     def close(self) -> None:
-        self.__display_values_subscription = None
+        self.__display_values_stream_action = None
         if self.__display_item_item_inserted_event_listener:
             self.__display_item_item_inserted_event_listener.close()
             self.__display_item_item_inserted_event_listener = None
@@ -1710,7 +1711,7 @@ class BoundFilterLikeData(BoundItemBase):
 
     @property
     def _display_values(self) -> typing.Optional[DisplayItem.DisplayValues]:
-        return self._display_data_channel.get_latest_display_values() if self._display_data_channel else None
+        return self._display_data_channel.display_values if self._display_data_channel else None
 
     @property
     def value(self) -> typing.Optional[DataItem.DataItem]:

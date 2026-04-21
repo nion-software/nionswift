@@ -3327,7 +3327,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             with contextlib.closing(display_item.snapshot()) as display_item_snapshot:
                 drawing_context = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item_snapshot, Geometry.IntSize(256, 256))
-                self.assertIsNotNone(display_item_snapshot.display_data_channels[0].get_display_values_stream().value)
+                self.assertIsNotNone(display_item_snapshot.display_data_channels[0].display_values_stream.value)
 
     def test_adding_fourier_filter_is_undoable(self):
         with TestContext.create_memory_context() as test_context:

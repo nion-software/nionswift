@@ -887,12 +887,7 @@ class DisplayValues:
         return get_intensity_calibration_styles([display_xdata.data_metadata if display_xdata else None])
 
 
-DisplayValuesSubscription = object
-
-
 class DisplayDataChannel(Persistence.PersistentObject):
-    _executor = concurrent.futures.ThreadPoolExecutor()
-    _force_sync = 0  # for running tests
 
     def __init__(self, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
         super().__init__()
@@ -933,12 +928,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         # for computed values. the caller must subscribe to either stream. the computed values stream is only started
         # when there are subscribers.
         self.__closing = False
-        self.__display_values_update_lock = threading.RLock()
-        self.__display_values_future: typing.Optional[concurrent.futures.Future[typing.Optional[DisplayValues]]] = None
-        self.__has_pending_display_values = False
         self.__display_values_stream = Stream.ValueStream[DisplayValues]()
-        self.__computed_display_values_stream = Stream.ValueStream[DisplayValues]()
-        self.__computed_display_values_subscription_count = 0
 
         self.data_item_will_change_event = Event.Event()
         self.data_item_did_change_event = Event.Event()
@@ -1005,15 +995,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         self.__data_item_reference.on_item_registered = None
         self.__data_item_reference.on_item_unregistered = None
         self.__closing = True
-        # wait for display values threads to finish. first notify the thread that we are closing, then wait for it
-        # to complete by getting the future and waiting for it to complete. then clear the streams to release any
-        # resources (display values).
-        with self.__display_values_update_lock:
-            display_values_future = self.__display_values_future
-        if display_values_future:
-            display_values_future.result()
         self.__display_values_stream = typing.cast(typing.Any, None)
-        self.__computed_display_values_stream = typing.cast(typing.Any, None)
         # continue close.
         self.__disconnect_data_item_events()
         self.__current_data_item = None
@@ -1511,7 +1493,7 @@ class DisplayDataChannel(Persistence.PersistentObject):
         # when one of the defined properties changes, this gets called
         self.notify_property_changed(property_name)
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "brightness", "contrast", "adjustments", "color_map_data"):
-            self.__queue_display_values_update()
+            self.__update_display_values_stream_value()
 
     def save_properties(self) -> typing.Tuple[typing.Any, ...]:
         return (
@@ -1543,109 +1525,28 @@ class DisplayDataChannel(Persistence.PersistentObject):
         if self.__data_item != self.__current_data_item or (self.__data_item and self.__data_item.modified_count != self.__current_data_item_modified_count):
             self.__current_data_item = self.__data_item
             self.__current_data_item_modified_count = self.__data_item.modified_count if self.__data_item else 0
-            self.__queue_display_values_update()
+            self.__update_display_values_stream_value()
 
-    def get_latest_computed_display_values(self) -> typing.Optional[DisplayValues]:
-        # returns the latest computed display values.
-        return self.__computed_display_values_stream.value
-
-    def subscribe_to_latest_computed_display_values(self, callback: typing.Callable[[typing.Optional[DisplayValues]], None]) -> DisplayValuesSubscription:
-        # returns a subscription to the latest computed display values.
-        # track the subscription count to only compute display values when there is at least one subscriber.
-
-        self.__computed_display_values_subscription_count += 1
-        subscription = Stream.ValueStreamAction(self.__computed_display_values_stream, callback)
-
-        def subscription_finalized(display_data_channel: DisplayDataChannel) -> None:
-            display_data_channel.__computed_display_values_subscription_count -= 1
-
-        weakref.finalize(subscription, ReferenceCounting.weak_partial(subscription_finalized, self))
-
-        return subscription
-
-    def get_display_values_stream(self) -> Stream.ValueStream[DisplayValues]:
-        # returns the latest possibly-not-yet-computed display values.
+    @property
+    def display_values_stream(self) -> Stream.ValueStream[DisplayValues]:
         return self.__display_values_stream
 
-    def get_latest_display_values(self) -> typing.Optional[DisplayValues]:
-        # returns the latest possibly-not-yet-computed display values.
+    @property
+    def display_values(self) -> DisplayValues | None:
         return self.__display_values_stream.value
 
-    def subscribe_to_latest_display_values(self, callback: typing.Callable[[typing.Optional[DisplayValues]], None]) -> DisplayValuesSubscription:
-        return Stream.ValueStreamAction(self.__display_values_stream, callback)
-
-    def __update_display_values_stream_value(self) -> DisplayValues | None:
+    def __update_display_values_stream_value(self) -> None:
         # update the display values stream with a new display values stream value.
-        with self.__display_values_update_lock:
-            if self.__data_item:
-                display_values = DisplayValues(self.__data_item.xdata,
-                                               self.sequence_index,
-                                               self.collection_index,
-                                               self.slice_center, self.slice_width,
-                                               self.display_limits,
-                                               self.complex_display_type,
-                                               self.__color_map_data, self.brightness,
-                                               self.contrast, self.adjustments)
-                self.__has_pending_display_values = True
-                self.__display_values_stream.send_value(display_values)
-                return display_values
-        return None
-
-    def __queue_display_values_update(self) -> None:
-        # queue a display values update.
-        # there are two display values streams: one for the latest possibly-not-yet-computed display values, and one
-        # for the latest computed display values.
-        # the latest possibly-not-yet-computed display values are computed on a background thread, and the latest
-        # computed display values are computed on the callers thread (which should not be the main thread).
-        # an overarching goal is to never compute the display values on the main thread, which would prevent the
-        # rest of the UI from activity, which would prevent smooth updating.
-
-        # the method to compute the display values on the background thread.
-        # as long as this display data channel is not closing, check whether there are pending display values to
-        # compute, and if so, compute them up to the adjusted_data_and_metadata level.
-        # a future change may allow the subscriber to specify the level of computation, but for now, this is the
-        # only level of computation.
-        def compute_display_values() -> None:
-            while not self.__closing:
-                display_values: typing.Optional[DisplayValues] = None
-                with self.__display_values_update_lock:
-                    if self.__has_pending_display_values:
-                        display_values = self.__display_values_stream.value
-                        self.__has_pending_display_values = False
-                if display_values:
-                    try:
-                        with Process.audit("compute_display_values"):
-                            # getattr(display_values, "display_rgba")  # too slow and not needed in most cases.
-                            getattr(display_values, "adjusted_data_and_metadata")
-                    except Exception as e:
-                        pass
-                    self.__computed_display_values_stream.send_value(display_values)
-                with self.__display_values_update_lock:
-                    if not self.__has_pending_display_values:
-                        self.__display_values_future = None
-                        break
-
-        # use this only for _force_sync below.
-        display_values_future: typing.Optional[concurrent.futures.Future[typing.Optional[DisplayValues]]] = None
-
-        with self.__display_values_update_lock:
-            display_values = self.__update_display_values_stream_value()
-            if not self.__display_values_future:
-                if self.__computed_display_values_subscription_count > 0:
-                    # if not already computing display values, start computing display values on the background thread.
-                    display_values_future = DisplayDataChannel._executor.submit(functools.partial(compute_display_values))
-                    self.__display_values_future = display_values_future
-                else:
-                    # if no subscribers, send to the computed display values stream immediately. this allows future
-                    # subscribers to get the proper value at the cost of a little extra computation in the caller's
-                    # thread.
-                    self.__computed_display_values_stream.send_value(display_values)
-                    self.__has_pending_display_values = False
-
-        # force sync is used for testing where we want to ensure that the display values are computed before continuing.
-        if DisplayDataChannel._force_sync:
-            if display_values_future:
-                display_values_future.result()
+        if self.__data_item:
+            display_values = DisplayValues(self.__data_item.xdata,
+                                           self.sequence_index,
+                                           self.collection_index,
+                                           self.slice_center, self.slice_width,
+                                           self.display_limits,
+                                           self.complex_display_type,
+                                           self.__color_map_data, self.brightness,
+                                           self.contrast, self.adjustments)
+            self.__display_values_stream.send_value(display_values)
 
     def increment_display_ref_count(self, amount: int = 1) -> None:
         """Increment display reference count to indicate this library item is currently displayed."""
@@ -2027,7 +1928,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
     def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == "display_data_channels":
             display_data_channel = typing.cast(typing.Optional[DisplayDataChannel], item)
-            display_values_stream = display_data_channel.get_display_values_stream() if display_data_channel else None
+            display_values_stream = display_data_channel.display_values_stream if display_data_channel else None
             display_values = display_values_stream.value if display_values_stream else None
             self.__display_values_list.insert(index, display_values)
             self.__display_data_channel_actions.insert(index, Stream.ValueStreamAction(display_values_stream, ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_data_channel_display_values_changed, self, display_data_channel)) if display_values_stream else None)
@@ -2216,15 +2117,30 @@ class DisplayItem(Persistence.PersistentObject):
 
         # configure the display_calibration_info_stream.
 
-        def handle_display_data_delta_stream(display_calibration_info_stream: Stream.ValueStream[DisplayCalibrationInfo], value: DisplayDataDelta | None) -> None:
+        def handle_display_data_delta_stream(
+                display_calibration_info_stream: Stream.ValueStream[DisplayCalibrationInfo],
+                data_info_stream: Stream.ValueStream[DisplayDataInfo],
+                value: DisplayDataDelta | None
+        ) -> None:
             if value is not None:
                 if display_calibration_info_stream.value is None or value.display_calibration_info_changed:
                     display_calibration_info_stream.value = value.display_calibration_info
+                if data_info_stream.value is None or value.display_values_list_changed:
+                    display_values_list = value.display_values_list
+                    display_values = display_values_list[0] if len(display_values_list) == 1 else None
+                    if display_values:
+                        data_info = DisplayDataInfo(display_values.display_data_and_metadata, display_values.display_range, display_values.data_range)
+                        data_info_stream.value = data_info
+                    else:
+                        data_info_stream.value = None
             else:
                 display_calibration_info_stream.value = None
+                data_info_stream.value = None
 
         self.__display_calibration_info_stream = Stream.ValueStream[DisplayCalibrationInfo]()
-        self.__display_data_delta_stream_action = Stream.ValueStreamAction(self.__display_data_delta_stream, functools.partial(handle_display_data_delta_stream, self.__display_calibration_info_stream))
+        self.__data_info_stream = Stream.ValueStream[DisplayDataInfo]()
+
+        self.__display_data_delta_stream_action = Stream.ValueStreamAction(self.__display_data_delta_stream, functools.partial(handle_display_data_delta_stream, self.__display_calibration_info_stream, self.__data_info_stream))
 
         # configure the graphic selection changes listener.
 
@@ -3056,6 +2972,14 @@ class DisplayItem(Persistence.PersistentObject):
     def display_calibration_info(self) -> DisplayCalibrationInfo | None:
         return self.__display_calibration_info_stream.value
 
+    @property
+    def display_data_info_stream(self) -> Stream.ValueStream[DisplayDataInfo]:
+        return self.__data_info_stream
+
+    @property
+    def display_data_info(self) -> DisplayDataInfo | None:
+        return self.__data_info_stream.value
+
     @dataclasses.dataclass
     class ExportDataInfo:
         data_shape: typing.Tuple[int, ...]
@@ -3565,6 +3489,13 @@ class DisplayCalibrationInfo:
                            potential_dimensional_calibrations):
                         return potential_dimensional_calibrations
         return None
+
+
+@dataclasses.dataclass
+class DisplayDataInfo:
+    display_data_and_metadata: DataAndMetadata.DataAndMetadata | None
+    display_range: tuple[float, float] | None
+    data_range: tuple[float, float] | None
 
 
 def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:

@@ -77,13 +77,13 @@ class TestDisplayClass(unittest.TestCase):
             display_data_channel = display_item.display_data_channels[0]
             data_item.set_data(numpy.array(range(1,5)))
             display_data_channel.display_limits = None
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (1.0, 4.0))
+            self.assertEqual(display_data_channel.display_values.display_range, (1.0, 4.0))
             display_data_channel.display_limits = (2.0, None)
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (2.0, 4.0))
+            self.assertEqual(display_data_channel.display_values.display_range, (2.0, 4.0))
             display_data_channel.display_limits = (None, 3.0)
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (1.0, 3.0))
+            self.assertEqual(display_data_channel.display_values.display_range, (1.0, 3.0))
             display_data_channel.display_limits = (2.0, 3.0)
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (2.0, 3.0))
+            self.assertEqual(display_data_channel.display_values.display_range, (2.0, 3.0))
 
     def test_display_range_with_zero_display_limits_range_and_adjustment_succeeds(self):
         with TestContext.create_memory_context() as test_context:
@@ -94,7 +94,7 @@ class TestDisplayClass(unittest.TestCase):
             display_data_channel = display_item.display_data_channels[0]
             display_data_channel.display_limits = 0.0, 0.0
             display_data_channel.adjustments = [{"type": "equalized", "uuid": str(uuid.uuid4())}]
-            self.assertIsNotNone(display_data_channel.get_latest_computed_display_values().adjusted_data_and_metadata)
+            self.assertIsNotNone(display_data_channel.display_values.adjusted_data_and_metadata)
 
     def test_display_range_with_numpy_array_display_limits_and_adjustment_succeeds(self):
         with TestContext.create_memory_context() as test_context:
@@ -105,7 +105,7 @@ class TestDisplayClass(unittest.TestCase):
             display_data_channel = display_item.display_data_channels[0]
             display_data_channel.display_limits = numpy.array([0.0, 1.0])
             display_data_channel.adjustments = [{"type": "equalized", "uuid": str(uuid.uuid4())}]
-            self.assertIsNotNone(display_data_channel.get_latest_computed_display_values().adjusted_data_and_metadata)
+            self.assertIsNotNone(display_data_channel.display_values.adjusted_data_and_metadata)
 
     def test_display_produces_valid_preview_when_viewing_3d_data_set(self):
         with TestContext.create_memory_context() as test_context:
@@ -113,7 +113,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), float))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertIsNotNone(display_item.display_data_channels[0].get_latest_computed_display_values().display_data_and_metadata)
+            self.assertIsNotNone(display_item.display_data_channels[0].display_values.display_data_and_metadata)
 
     def test_preview_2d_shape_of_3d_data_set_has_correct_dimensions(self):
         with TestContext.create_memory_context() as test_context:
@@ -135,7 +135,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item.set_dimensional_calibrations([dim0_calibration, dim1_calibration, dim2_calibration])
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_data_and_metadata = display_item.display_data_channels[0].get_latest_computed_display_values().display_data_and_metadata
+            display_data_and_metadata = display_item.display_data_channels[0].display_values.display_data_and_metadata
             self.assertEqual(display_data_and_metadata.dimensional_shape, (16, 16))
             self.assertEqual(display_data_and_metadata.intensity_calibration, intensity_calibration)
             self.assertEqual(display_data_and_metadata.dimensional_calibrations[0], dim0_calibration)
@@ -149,11 +149,11 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (0, 15))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (0, 15))
+            self.assertEqual(display_data_channel.display_values.display_range, (0, 15))
+            self.assertEqual(display_data_channel.display_values.data_range, (0, 15))
             display_item.data_item.set_data(irow // 2 + 4)
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (4, 11))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (4, 11))
+            self.assertEqual(display_data_channel.display_values.display_range, (4, 11))
+            self.assertEqual(display_data_channel.display_values.data_range, (4, 11))
 
     def test_changing_sequence_index_updates_display_range(self):
         with TestContext.create_memory_context() as test_context:
@@ -166,11 +166,11 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (0, 0))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (0, 0))
+            self.assertEqual(display_data_channel.display_values.display_range, (0, 0))
+            self.assertEqual(display_data_channel.display_values.data_range, (0, 0))
             display_data_channel.sequence_index = 1
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (1, 1))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (1, 1))
+            self.assertEqual(display_data_channel.display_values.display_range, (1, 1))
+            self.assertEqual(display_data_channel.display_values.data_range, (1, 1))
 
     def test_changing_data_notifies_data_and_display_range_change(self):
         with TestContext.create_memory_context() as test_context:
@@ -180,22 +180,21 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(icol)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            display_data_channel = display_item.display_data_channels[0]
             class Observer(object):
                 def __init__(self) -> None:
                     self.data_range = None
                     self.display_range = None
-                def next_calculated_display_values(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
-                    assert display_values
-                    self.display_range = display_values.display_range
-                    self.data_range = display_values.data_range
+                def next_calculated_display_values(self, display_data_info: DisplayItem.DisplayDataInfo | None) -> None:
+                    assert display_data_info
+                    self.display_range = display_data_info.display_range
+                    self.data_range = display_data_info.data_range
             o = Observer()
             # wait for initial display values to update.
-            display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(o.next_calculated_display_values)
-            o.next_calculated_display_values(display_data_channel.get_latest_computed_display_values())
-            display_item.data_item.set_data(irow // 2 + 4)
-            self.assertEqual(o.data_range, (4, 11))
-            self.assertEqual(o.display_range, (4, 11))
+            with contextlib.closing(Stream.ValueStreamAction(display_item.display_data_info_stream, o.next_calculated_display_values)):
+                o.next_calculated_display_values(display_item.display_data_info)
+                display_item.data_item.set_data(irow // 2 + 4)
+                self.assertEqual(o.data_range, (4, 11))
+                self.assertEqual(o.display_range, (4, 11))
 
     def test_changing_graphic_does_not_notify_display_values_change(self):
         with TestContext.create_memory_context() as test_context:
@@ -206,20 +205,18 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             graphic = Graphics.RectangleGraphic()
             display_item.add_graphic(graphic)
-            display_data_channel = display_item.display_data_channels[0]
             class Observer:
                 def __init__(self) -> None:
                     self.count = 0
-                def next_calculated_display_values(self, display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+                def next_calculated_display_values(self, display_data_info: DisplayItem.DisplayDataInfo | None) -> None:
                     self.count += 1
             o = Observer()
-            display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(o.next_calculated_display_values)
-            o.next_calculated_display_values(display_data_channel.get_latest_computed_display_values())
-            display_data_channel.get_latest_computed_display_values()
-            self.assertEqual(1, o.count)  # 1 will be sent when adding the listener
-            with display_item.display_item_changes():
-                graphic.bounds = ((0, 0), (1, 1))
-            self.assertEqual(1, o.count)  # 1 will be sent when adding the listener
+            with contextlib.closing(Stream.ValueStreamAction(display_item.display_data_info_stream, o.next_calculated_display_values)):
+                o.next_calculated_display_values(display_item.display_data_info)
+                self.assertEqual(1, o.count)  # 1 will be sent when adding the listener
+                with display_item.display_item_changes():
+                    graphic.bounds = ((0, 0), (1, 1))
+                self.assertEqual(1, o.count)  # 1 will be sent when adding the listener
 
     def test_data_item_copy_initialized_display_data_range(self):
         with TestContext.create_memory_context() as test_context:
@@ -229,7 +226,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = copy.deepcopy(source_data_item)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertIsNotNone(display_item.display_data_channels[0].get_latest_computed_display_values().data_range)
+            self.assertIsNotNone(display_item.display_data_channels[0].display_values.data_range)
 
     def test_data_item_setting_slice_width_validates_when_invalid(self):
         with TestContext.create_memory_context() as test_context:
@@ -318,10 +315,10 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (0, 0))
+            self.assertEqual(display_data_channel.display_values.data_range, (0, 0))
             display_data_channel.slice_center = 2
             display_data_channel.slice_width = 4
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().data_range, (6, 6))
+            self.assertEqual(display_data_channel.display_values.data_range, (6, 6))
 
     def test_changing_slice_interval_via_graphic_updates_slice_center_and_width(self):
         with TestContext.create_memory_context() as test_context:
@@ -351,7 +348,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item.display_data_channels[0].get_latest_computed_display_values().display_data_and_metadata.data_dtype, float)
+            self.assertEqual(display_item.display_data_channels[0].display_values.display_data_and_metadata.data_dtype, float)
 
     def test_display_data_is_scalar_for_2d_complex(self):
         with TestContext.create_memory_context() as test_context:
@@ -361,7 +358,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertEqual(display_item.display_data_channels[0].get_latest_computed_display_values().display_data_and_metadata.data_dtype, float)
+            self.assertEqual(display_item.display_data_channels[0].display_values.display_data_and_metadata.data_dtype, float)
 
     def test_display_data_is_rgba_for_2d_rgba(self):
         with TestContext.create_memory_context() as test_context:
@@ -372,8 +369,8 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype, numpy.uint8)
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape[-1], 4)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_dtype, numpy.uint8)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_shape[-1], 4)
 
     def test_create_rgba_sequence_should_work(self):
         with TestContext.create_memory_context() as test_context:
@@ -384,8 +381,8 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype, numpy.uint8)
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape[-1], 3)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_dtype, numpy.uint8)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_shape[-1], 3)
 
     def test_display_data_is_2d_for_3d(self):
         with TestContext.create_memory_context() as test_context:
@@ -396,8 +393,8 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype, float)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_shape, (16, 16))
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_dtype, float)
 
     def test_display_data_is_2d_scalar_for_3d_complex(self):
         with TestContext.create_memory_context() as test_context:
@@ -408,8 +405,8 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype, float)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_shape, (16, 16))
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_dtype, float)
 
     def test_image_with_no_data_displays_gracefully(self):
         with TestContext.create_memory_context() as test_context:
@@ -468,7 +465,7 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNotNone(display_data_channel.display_limits)  # check assumptions
             display_data_channel.reset_display_limits()
             self.assertIsNone(display_data_channel.display_limits)
-            preview = display_data_channel.get_latest_computed_display_values().display_rgba
+            preview = display_data_channel.display_values.display_rgba
             self.assertIsNotNone(preview)
 
     def test_display_rgba_for_various_data_types_is_valid(self):
@@ -482,7 +479,7 @@ class TestDisplayClass(unittest.TestCase):
                 display_data_channel = display_item.display_data_channels[0]
                 for display_limits in ((0, 1), (0.5, 1.5)):
                     display_data_channel.display_limits = display_limits
-                    display_rgba = display_data_channel.get_latest_computed_display_values().display_rgba
+                    display_rgba = display_data_channel.display_values.display_rgba
                     self.assertTrue(display_rgba.dtype == numpy.uint32)
 
     def test_reset_display_limits_on_various_value_types_write_to_clean_json(self):
@@ -508,10 +505,10 @@ class TestDisplayClass(unittest.TestCase):
             display_data_channel = display_item.display_data_channels[0]
             display_data_channel.reset_display_limits()
             # the display limit should never be less than the display data minimum
-            display_range = display_data_channel.get_latest_computed_display_values().display_range
-            self.assertLessEqual(numpy.amin(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data), display_range[0])
+            display_range = display_data_channel.display_values.display_range
+            self.assertLessEqual(numpy.amin(display_data_channel.display_values.display_data_and_metadata.data), display_range[0])
             self.assertAlmostEqual(numpy.amax(
-                display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data), display_range[1])
+                display_data_channel.display_values.display_data_and_metadata.data), display_range[1])
 
     def test_data_range_still_valid_after_reset_display_limits(self):
         with TestContext.create_memory_context() as test_context:
@@ -521,10 +518,10 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            data_range = display_data_channel.get_latest_computed_display_values().data_range
+            data_range = display_data_channel.display_values.data_range
             self.assertIsNotNone(data_range)
             display_data_channel.reset_display_limits()
-            self.assertEqual(data_range, display_data_channel.get_latest_computed_display_values().data_range)
+            self.assertEqual(data_range, display_data_channel.display_values.data_range)
 
     def test_auto_display_limits_works(self):
         with TestContext.create_memory_context() as test_context:
@@ -560,7 +557,7 @@ class TestDisplayClass(unittest.TestCase):
             display_panel.display_canvas_item._update_canvas_items()
             display_panel.enter_key_pressed()
             self.assertEqual(type(0), type(display_item.display_data_channels[0].display_limits[0]))
-            self.assertEqual(type(0), type(display_item.display_data_channels[0].get_latest_computed_display_values().data_range[0]))
+            self.assertEqual(type(0), type(display_item.display_data_channels[0].display_values.data_range[0]))
 
     def test_auto_display_limits_on_rgb(self):
         with TestContext.create_memory_context() as test_context:
@@ -582,11 +579,11 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (1, 1))
+            self.assertEqual(display_data_channel.display_values.display_range, (1, 1))
             with data_item.data_ref() as dr:
                 dr.data[0,0] = 16
                 dr.data_updated()
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (1, 16))
+            self.assertEqual(display_data_channel.display_values.display_range, (1, 16))
 
     def test_display_range_is_correct_on_complex_data_display_as_absolute(self):
         with TestContext.create_memory_context() as test_context:
@@ -598,7 +595,7 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
             display_data_channel.complex_display_type = "absolute"
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_range, (0, 5))
+            self.assertEqual(display_data_channel.display_values.display_range, (0, 5))
 
     def test_display_range_is_correct_on_complex_data_display_as_log_absolute(self):
         with TestContext.create_memory_context() as test_context:
@@ -609,8 +606,8 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
             min_ = numpy.log(numpy.abs(0).astype(float) + numpy.nextafter(0,1))
-            self.assertAlmostEqual(display_data_channel.get_latest_computed_display_values().display_range[0], min_)
-            self.assertAlmostEqual(display_data_channel.get_latest_computed_display_values().display_range[1], math.log(9))
+            self.assertAlmostEqual(display_data_channel.display_values.display_range[0], min_)
+            self.assertAlmostEqual(display_data_channel.display_values.display_range[1], math.log(9))
 
     def test_display_data_is_2d_for_2d_sequence(self):
         with TestContext.create_memory_context() as test_context:
@@ -622,8 +619,8 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.data_item.set_xdata(data_and_metadata)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype, float)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_shape, (16, 16))
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_dtype, float)
             self.assertEqual(display_data_channel.display_data_shape, (16, 16))
 
     def test_display_data_is_2d_for_2d_collection_with_2d_datum(self):
@@ -636,8 +633,8 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.data_item.set_xdata(data_and_metadata)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape, (8, 8))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype, float)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_shape, (8, 8))
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_dtype, float)
             self.assertEqual(display_data_channel.display_data_shape, (8, 8))
 
     def test_display_data_is_2d_for_sequence_of_2d_collection_with_2d_datum(self):
@@ -650,8 +647,8 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.data_item.set_xdata(data_and_metadata)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape, (8, 8))
-            self.assertEqual(display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype, float)
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_shape, (8, 8))
+            self.assertEqual(display_data_channel.display_values.display_data_and_metadata.data_dtype, float)
             self.assertEqual(display_data_channel.display_data_shape, (8, 8))
 
     def test_display_data_is_1d_for_collection_of_1d_datum(self):
@@ -664,8 +661,8 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
-            self.assertEqual((8,), display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_shape)
-            self.assertEqual(float, display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data_dtype)
+            self.assertEqual((8,), display_data_channel.display_values.display_data_and_metadata.data_shape)
+            self.assertEqual(float, display_data_channel.display_values.display_data_and_metadata.data_dtype)
             self.assertEqual((8,), display_data_channel.display_data_shape)
             self.assertEqual(1, len(display_data_channel.datum_calibrations))
 
@@ -680,12 +677,12 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
             display_data_channel.sequence_index = 3
-            display_data = display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data
+            display_data = display_data_channel.display_values.display_data_and_metadata.data
             self.assertTrue(numpy.array_equal(display_data, d[3, ...]))
             d2 = numpy.random.randn(2, 3, 3)
             data_and_metadata2 = DataAndMetadata.new_data_and_metadata(d2, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             display_item.data_item.set_xdata(data_and_metadata2)
-            display_data2 = display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data
+            display_data2 = display_data_channel.display_values.display_data_and_metadata.data
             self.assertTrue(numpy.array_equal(display_data2, d2[1, ...]))
 
     def test_collection_index_validates_when_data_changes(self):
@@ -699,12 +696,12 @@ class TestDisplayClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_data_channel = display_item.display_data_channels[0]
             display_data_channel.collection_index = 3, 3
-            display_data = display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data
+            display_data = display_data_channel.display_values.display_data_and_metadata.data
             self.assertTrue(numpy.array_equal(display_data, d[3, 3, ...]))
             d2 = numpy.random.randn(2, 2, 3, 3)
             data_and_metadata2 = DataAndMetadata.new_data_and_metadata(d2, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
             display_item.data_item.set_xdata(data_and_metadata2)
-            display_data2 = display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data
+            display_data2 = display_data_channel.display_values.display_data_and_metadata.data
             self.assertTrue(numpy.array_equal(display_data2, d2[1, 1, ...]))
 
     def test_exception_during_calculate_display_values_recovers_gracefully(self):
@@ -717,19 +714,19 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
 
-            def next_calculated_display_values(display_values: typing.Optional[DisplayItem.DisplayValues]) -> None:
+            def next_calculated_display_values(display_data_info: DisplayItem.DisplayDataInfo | None) -> None:
                 pass
 
             display_data_channel = display_item.display_data_channels[0]
-            display_values_subscription = display_data_channel.subscribe_to_latest_computed_display_values(next_calculated_display_values)
-            next_calculated_display_values(display_data_channel.get_latest_computed_display_values())
-            display_data = display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data
-            # now run the test
-            display_data_channel.collection_index = 2, 2  # should trigger the thread
-            display_data = display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data
-            display_data_channel.collection_index = 2, 2
-            display_data = display_data_channel.get_latest_computed_display_values().display_data_and_metadata.data
-            self.assertTrue(numpy.array_equal(display_data, d[2, 2, ...]))
+            with contextlib.closing(Stream.ValueStreamAction(display_item.display_data_info_stream, next_calculated_display_values)):
+                next_calculated_display_values(display_item.display_data_info)
+                display_data = display_item.display_data_info.display_data_and_metadata.data
+                # now run the test
+                display_data_channel.collection_index = 2, 2  # should trigger the thread
+                display_data = display_item.display_data_info.display_data_and_metadata.data
+                display_data_channel.collection_index = 2, 2
+                display_data = display_item.display_data_info.display_data_and_metadata.data
+                self.assertTrue(numpy.array_equal(display_data, d[2, 2, ...]))
 
 
 if __name__ == '__main__':
