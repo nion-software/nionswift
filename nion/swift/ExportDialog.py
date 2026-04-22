@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import dataclasses
+import datetime
 import gettext
 import logging
 import os
@@ -17,6 +18,7 @@ import unicodedata
 # None
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift import DocumentController
@@ -84,6 +86,65 @@ class ExportDialogViewModel:
         self.__prefix_action = Stream.ValueStreamAction(prefix_stream, update_export_button)
 
         update_export_button(None)
+
+    @property
+    def directory_path_object(self) -> pathlib.Path:
+        return pathlib.Path(self.directory.value or str())
+
+    def build_filepath(self, displayed_title: str, date: datetime.datetime, dimensional_shape: DataAndMetadata.ShapeType | None, index: int) -> pathlib.Path:
+        filename_components = list()
+
+        if self.prefix.value is not None and self.prefix.value != '':
+            filename_components.append(str(self.prefix.value))
+        if self.include_title.value:
+            title = unicodedata.normalize('NFKC', displayed_title)
+            title = re.sub(r'[^\w\s-]', '', title, flags=re.U).strip()
+            title = re.sub(r'[-\s]+', '-', title, flags=re.U)
+            filename_components.append(title)
+        if self.include_date.value:
+            filename_components.append(date.isoformat().replace(':', '').replace('.', '_'))
+        if self.include_dimensions.value and dimensional_shape:
+            filename_components.append("x".join([str(shape_n) for shape_n in dimensional_shape]))
+        if self.include_sequence.value:
+            filename_components.append(str(index))
+
+        directory_path = self.directory_path_object
+        assert directory_path.is_dir()
+
+        writer = self.writer.value
+        assert writer is not None
+        extension = writer.extensions[0]
+        # if extension doesn't start with a '.', add one, so we always know it is there
+        if not extension.startswith('.'):
+            extension = '.' + extension
+
+        # stick filename_components together for the first part of the filename, underscore delimited excluding blank component
+        filename = "_".join(s for s in filename_components if s)
+        filename = filename.replace(".", "_")
+        filename = Utility.simplify_filename(str(pathlib.Path(filename).with_suffix(extension)))
+
+        # check to see if filename is available, if so return that
+        test_filepath = directory_path / pathlib.Path(filename)
+        if not test_filepath.exists():
+            return test_filepath
+
+        # file must already exist
+        next_index = 1
+        max_index = 9999
+        last_test_filepath: pathlib.Path | None = None
+        while next_index <= max_index:
+            filename_stem = pathlib.Path(filename).stem
+            test_filepath = directory_path / pathlib.Path(f"{filename_stem} {next_index}").with_suffix(extension)
+            if not test_filepath.exists():
+                return test_filepath
+            if test_filepath == last_test_filepath:
+                break
+            last_test_filepath = test_filepath  # in case we have a bug
+            next_index = next_index + 1
+
+        # We have no option here but to just overwrite, either we ran out of index options or had none to begin with
+        print(f"Warning: Overwriting file {test_filepath}")
+        return test_filepath
 
 
 class ExportDialog(Declarative.Handler):
@@ -214,48 +275,9 @@ class ExportDialog(Declarative.Handler):
         self.ui_view = column
 
     @staticmethod
-    def build_filepath(components: typing.List[str], extension: str, directory_path: pathlib.Path) -> pathlib.Path:
-        assert directory_path.is_dir()
-
-        # if extension doesn't start with a '.', add one, so we always know it is there
-        if not extension.startswith('.'):
-            extension = '.' + extension
-
-        # stick components together for the first part of the filename, underscore delimited excluding blank component
-        filename = "_".join(s for s in components if s)
-        filename.replace(".", "_")
-
-        filename = Utility.simplify_filename(str(pathlib.Path(filename).with_suffix(extension)))
-
-        # check to see if filename is available, if so return that
-        test_filepath = directory_path / pathlib.Path(filename)
-        if not test_filepath.exists():
-            return test_filepath
-
-        # file must already exist
-        next_index = 1
-        max_index = 9999
-        last_test_filepath: typing.Optional[pathlib.Path] = None
-        while next_index <= max_index:
-            filename_stem = pathlib.Path(filename).stem
-            test_filepath = directory_path / pathlib.Path(f"{filename_stem} {next_index}").with_suffix(extension)
-            if not test_filepath.exists():
-                return test_filepath
-            if test_filepath == last_test_filepath:
-                break
-            last_test_filepath = test_filepath  # in case we have a bug
-            next_index = next_index + 1
-
-        # We have no option here but to just overwrite, either we ran out of index options or had none to begin with
-        print(f"Warning: Overwriting file {test_filepath}")
-        return test_filepath
-
-    @staticmethod
     def export_clicked(display_items: typing.Sequence[DisplayItem.DisplayItem], viewmodel: ExportDialogViewModel,
                        ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController) -> None:
-        directory_path = pathlib.Path(viewmodel.directory.value or str())
-        writer_model = viewmodel.writer
-        writer = writer_model.value
+        writer = viewmodel.writer.value
         if writer:
             export_results = list()
             is_directory_valid = viewmodel.is_directory_valid.value or False
@@ -267,23 +289,11 @@ class ExportDialog(Declarative.Handler):
 
                 data_item = display_item.data_item
                 try:
-                    components = list()
-                    if viewmodel.prefix.value is not None and viewmodel.prefix.value != '':
-                        components.append(str(viewmodel.prefix.value))
-                    if viewmodel.include_title.value:
-                        title = unicodedata.normalize('NFKC', display_item.displayed_title)
-                        title = re.sub(r'[^\w\s-]', '', title, flags=re.U).strip()
-                        title = re.sub(r'[-\s]+', '-', title, flags=re.U)
-                        components.append(title)
-                    if viewmodel.include_date.value:
-                        # prefer the data item created date, but fall back to the display item created date.
-                        created_local = data_item.created_local if data_item else display_item.created_local
-                        components.append(created_local.isoformat().replace(':', '').replace('.', '_'))
-                    if viewmodel.include_dimensions.value and data_item:
-                        components.append("x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
-                    if viewmodel.include_sequence.value:
-                        components.append(str(index))
-                    filepath = ExportDialog.build_filepath(components, writer.extensions[0], directory_path=directory_path)
+                    displayed_title = display_item.displayed_title
+                    # prefer the data item created date, but fall back to the display item created date.
+                    date = data_item.created_local if data_item else display_item.created_local
+                    dimensional_shape = data_item.dimensional_shape if data_item else None
+                    filepath = viewmodel.build_filepath(displayed_title, date, dimensional_shape, index)
                     file_extension = filepath.suffix[1:].lower()
                     if writer.can_write_display_item(display_item, file_extension):
                         ImportExportManager.ImportExportManager().write_display_item_with_writer(writer, display_item, filepath)
@@ -297,7 +307,7 @@ class ExportDialog(Declarative.Handler):
                     traceback.print_stack()
                     export_results.append(ExportResult(display_item.displayed_title, str(e)))
 
-            ExportResultDialog(ui, document_controller, export_results, directory_path)
+            ExportResultDialog(ui, document_controller, export_results, viewmodel.directory_path_object)
 
     def cancel(self) -> bool:
         return True
