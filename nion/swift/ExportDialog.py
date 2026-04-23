@@ -410,6 +410,7 @@ class ExportSizeModel(Observable.Observable):
         self.__unit_id_model = unit_id_model
         display_size = calculate_display_size_in_pixels(display_item)
         self.__aspect_ratio = (display_size.width / display_size.height if display_size.height > 0 else 1.0) if display_size.width > 0 else 1.0
+        self.aspect_ratio_mode = Model.PropertyModel("original")
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'
         unit_description = pixel_unit_description
@@ -444,6 +445,21 @@ class ExportSizeModel(Observable.Observable):
             return ""
 
     @property
+    def aspect_ratio_mode_index(self) -> int:
+        modes = ["original", "16:9", "4:3", "1:1", "custom"]
+        try:
+            mode = self.aspect_ratio_mode.value or "original"
+            return modes.index(mode)
+        except ValueError:
+            return 0
+
+    @aspect_ratio_mode_index.setter
+    def aspect_ratio_mode_index(self, index: int) -> None:
+        modes = ["original", "16:9", "4:3", "1:1", "custom"]
+        if 0 <= index < len(modes):
+            self.set_aspect_ratio_mode(modes[index])
+
+    @property
     def _width(self) -> float:
         """Return the width in pixels.
 
@@ -462,7 +478,7 @@ class ExportSizeModel(Observable.Observable):
     def _height(self) -> float:
         """Return the height in pixels.
 
-        If the primary field is height or aspect ratio unlocked, return the last quantity value directly.
+        If the primary field is height, return the last quantity value directly.
 
         Otherwise, calculated the height from the last quantity value and the aspect ratio.
 
@@ -486,8 +502,7 @@ class ExportSizeModel(Observable.Observable):
 
     @width_text.setter
     def width_text(self, value_str: typing.Optional[str]) -> None:
-        """"If aspect ratio locked sets the width from a string, sets the primary field to width
-        and updates the height and width quantity.
+        """Sets the width from a string and sets the primary field to width.
 
         Else sets the width from string and updates the width quantity.
 
@@ -609,13 +624,43 @@ class ExportSizeModel(Observable.Observable):
         self.notify_property_changed("placeholder_width_text")
         self.notify_property_changed("placeholder_height_text")
 
+    def set_aspect_ratio_mode(self, mode: str) -> None:
+        self.aspect_ratio_mode.value = mode
+        if mode == "original":
+            display_size = calculate_display_size_in_pixels(self.__display_item)
+            self.__aspect_ratio = display_size.width / display_size.height
+            self.aspect_ratio_locked.value = True
+            self.snap_dimensions_to_aspect_ratio()
+
+        elif mode == "16:9":
+            self.__aspect_ratio = 16 / 9
+            self.aspect_ratio_locked.value = True
+            self.snap_dimensions_to_aspect_ratio()
+
+        elif mode == "4:3":
+            self.__aspect_ratio = 4 / 3
+            self.aspect_ratio_locked.value = True
+            self.snap_dimensions_to_aspect_ratio()
+
+        elif mode == "1:1":
+            self.__aspect_ratio = 1.0
+            self.aspect_ratio_locked.value = True
+            self.snap_dimensions_to_aspect_ratio()
+
+        elif mode == "custom":
+            # unlock
+            self.aspect_ratio_locked.value = False
+
+        self.notify_property_changed("aspect_ratio_mode")
+        self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
+
 
 class ExportSVGHandler(Declarative.Handler):
     def __init__(self, model: ExportSizeModel, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
         self.model = model
         u = Declarative.DeclarativeUI()
-        self.show_aspect_checkbox = bool(model.is_line_plot)
         left_column_width = get_font_metrics_fn("normal", "Shape (calibrated units)").width + 20
 
         right_column_strings = [model.title, model.shape_str, model.calibrated_shape_str]
@@ -648,6 +693,17 @@ class ExportSVGHandler(Declarative.Handler):
                 visible="@binding(has_calibrated_shape_str)"
             ),
             u.create_row(
+                u.create_label(text=_("Aspect Ratio"), width=left_column_width),
+                u.create_combo_box(
+                    items=["Original", "16:9", "4:3", "1:1", "Custom"],
+                    current_index="@binding(model.aspect_ratio_mode_index)",
+                    on_current_index_changed="on_aspect_ratio_changed",
+                    width=140
+                ),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
                 u.create_label(text=_("Width"), width=left_column_width),
                 u.create_line_edit(
                     placeholder_text="@binding(model.placeholder_width_text)",
@@ -668,16 +724,6 @@ class ExportSVGHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Width/Height Linked"), width=left_column_width),
-                u.create_check_box(
-                    checked="@binding(model.aspect_ratio_locked.value)",
-                    on_check_state_changed="on_lock_check_changed"
-                ),
-                u.create_stretch(),
-                spacing=8,
-                visible="@binding(show_aspect_checkbox)"
-            ),
-            u.create_row(
                 u.create_label(text=_("Units"), width=left_column_width),
                 u.create_combo_box(
                     items=unit_titles,
@@ -690,6 +736,11 @@ class ExportSVGHandler(Declarative.Handler):
             spacing=8,
             margin=12,
         )
+
+    def on_aspect_ratio_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        modes = ["original", "16:9", "4:3", "1:1", "custom"]
+        mode = modes[current_index] if 0 <= current_index < len(modes) else "original"
+        self.model.set_aspect_ratio_mode(mode)
 
     def on_lock_check_changed(self, widget: Declarative.UIWidget, check_state: str) -> None:
         if check_state == "checked":
