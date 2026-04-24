@@ -99,7 +99,7 @@ class TestGraphicsClass(unittest.TestCase):
             line_graphic.start = (0.25, 0.25)
             line_graphic.end = (0.75, 0.75)
             display_item.add_graphic(line_graphic)
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
 
             display_panel.display_canvas_item.simulate_click((250, 250))
             document_controller.periodic()
@@ -163,7 +163,7 @@ class TestGraphicsClass(unittest.TestCase):
             line_graphic.end = (0.75, 0.75)
             line_graphic.is_position_locked = True
             display_item.add_graphic(line_graphic)
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             display_panel.display_canvas_item.simulate_click((500, 500))
             document_controller.periodic()
             # Save original positions
@@ -423,7 +423,7 @@ class TestGraphicsClass(unittest.TestCase):
             # set up mask graphic
             spot_graphic = Graphics.SpotGraphic()
             display_item.add_graphic(spot_graphic)
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             initial_bounds = Geometry.FloatRect.from_center_and_size((0.10, 0.25), (0.1, 0.1))
             spot_graphic.bounds = initial_bounds
             origin = Geometry.FloatPoint(500, 500)
@@ -461,7 +461,7 @@ class TestGraphicsClass(unittest.TestCase):
             # set up mask graphic
             wedge_graphic = Graphics.WedgeGraphic()
             display_item.add_graphic(wedge_graphic)
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             wedge_graphic.start_angle = math.radians(30)
             wedge_graphic.end_angle = math.radians(60)
             origin = Geometry.IntPoint(500, 500)
@@ -502,7 +502,7 @@ class TestGraphicsClass(unittest.TestCase):
             # set up mask graphic
             ring_graphic = Graphics.RingGraphic()
             display_item.add_graphic(ring_graphic)
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             ring_graphic.radius_1 = 0.2
             ring_graphic.radius_2 = 0.3
             origin = Geometry.FloatPoint(500, 500)
@@ -539,7 +539,7 @@ class TestGraphicsClass(unittest.TestCase):
             # set up mask graphic
             lattice_graphic = Graphics.LatticeGraphic()
             display_item.add_graphic(lattice_graphic)
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             lattice_graphic.u_pos = Geometry.FloatPoint(0.1, 0.3)
             lattice_graphic.v_pos = Geometry.FloatPoint(-0.2, -0.2)
             lattice_graphic.radius = 0.05
@@ -577,7 +577,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_panel.layout_immediate((1000 + header_height, 1000))
             spot_graphic = Graphics.SpotGraphic()
             display_item.add_graphic(spot_graphic)
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             initial_bounds = Geometry.FloatRect.from_center_and_size((0.25, 0.25), (0.25, 0.25))
             spot_graphic.bounds = initial_bounds
             # test dragging middle, then inverted middle
@@ -787,7 +787,7 @@ class TestGraphicsClass(unittest.TestCase):
                         region.is_position_locked = True
                 display_item.add_graphic(region)
                 display_item.graphic_selection.set(0)
-                display_panel.display_canvas_item._update_canvas_items()
+                display_panel.display_canvas_item.update_canvas_items()
                 display_panel.display_canvas_item.simulate_drag(*d["drag"])
                 document_controller.periodic()
                 for property, expected_value in d["output"]["properties"].items():
@@ -816,7 +816,7 @@ class TestGraphicsClass(unittest.TestCase):
                         else:
                             raise Exception("Unknown value type %s", type(actual_value))
                 display_item.remove_graphic(region).close()
-                display_panel.display_canvas_item._update_canvas_items()
+                display_panel.display_canvas_item.update_canvas_items()
 
             def rotate(p, o, angle):
                 origin = Geometry.FloatPoint.make(o)
@@ -1466,7 +1466,7 @@ class TestGraphicsClass(unittest.TestCase):
             display_item.add_graphic(rect_graphic1)
             display_item.add_graphic(rect_graphic2)
             display_item.graphic_selection.set(0)
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             # now the smaller rectangle (selected) is behind the larger one
             display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
             document_controller.periodic()

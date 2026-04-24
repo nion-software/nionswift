@@ -29,6 +29,7 @@ from nion.swift import Thumbnails
 from nion.swift import Undo
 from nion.swift.model import Changes
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -1008,12 +1009,12 @@ class MissingCanvasItem(CanvasItem.AbstractCanvasItem):
 class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """ Canvas item to draw background_color. """
     def __init__(self, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
-        super().__init__()
-        self.__delegate = delegate
+        super().__init__(delegate)
         self.add_canvas_item(MissingCanvasItem())
+        self._finish_init()
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
-        return self.__delegate.show_display_context_menu(gx, gy) if self.__delegate else False
+        return self.delegate.show_display_context_menu(gx, gy) if self.delegate else False
 
     @property
     def key_contexts(self) -> typing.Sequence[str]:
@@ -1025,6 +1026,15 @@ class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def handle_auto_display(self) -> bool:
         # enter key has been pressed
         return False
+
+    def _temporary_create_display_info(self) -> DisplayInfo.DisplayInfo:
+        return DisplayInfo.DisplayInfo(None, dict(), list(), list(), list(), None)
+
+    def _display_info_updated(self) -> None:
+        pass
+
+    def _update_canvas_items(self) -> None:
+        pass
 
 
 class InsertGraphicsCommand(Undo.UndoableCommand):
@@ -2481,7 +2491,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     self.__display_property_changed_event_listener = display_item.property_changed_event.listen(display_item_property_changed)
                     new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self, document_controller.event_loop, True)
                     threaded_canvas_item = CanvasItem.ThreadedCanvasItem(new_display_canvas_item)
-                    threaded_canvas_item.on_will_repaint = new_display_canvas_item._update_canvas_items
+                    threaded_canvas_item.on_will_repaint = new_display_canvas_item.update_canvas_items
                     self.__display_composition_canvas_item.add_canvas_item(threaded_canvas_item)
                     add_display_controls(new_display_canvas_item)
                     # whenever focus or the display canvas item changes, update the focused status
@@ -2497,7 +2507,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     # force an update of the display canvas item with the current display data delta by marking it changed.
                     display_data_delta = display_data_delta_stream.value
                     assert display_data_delta
-                    display_data_delta.mark_changed()
                     handle_display_data_delta(display_data_delta)
 
             configure_display_canvas_item(display_item)
@@ -3296,9 +3305,8 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
         with contextlib.closing(display_canvas_item):
             display_data_delta = display_item.display_data_delta_stream.value
             assert display_data_delta
-            display_data_delta.mark_changed()
             display_canvas_item.update_display_data_delta(display_data_delta)
             with drawing_context.saver():
-                display_canvas_item._update_canvas_items()
+                display_canvas_item.update_canvas_items()
                 display_canvas_item.repaint_immediate(drawing_context, pixel_shape)
     return drawing_context

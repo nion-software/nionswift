@@ -17,7 +17,7 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import DisplayCanvasItem
-from nion.swift.model import DisplayItem
+from nion.swift.model import DisplayItem, DisplayInfo
 from nion.swift.model import Graphics
 from nion.swift.model import ImageDisplay
 from nion.swift.model import UISettings
@@ -1037,10 +1037,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def __init__(self, ui_settings: UISettings.UISettings,
                  delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
                  event_loop: typing.Optional[asyncio.AbstractEventLoop], draw_background: bool = True) -> None:
-        super().__init__()
+        super().__init__(delegate)
 
         self.__ui_settings = ui_settings
-        self.delegate = delegate
         self.__event_loop = event_loop
 
         self.wants_mouse_events = True
@@ -1086,11 +1085,10 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__mouse_in = False
         self.__mouse_handler: typing.Optional[MouseHandler] = None
 
-        self.__image_display_info = ImageDisplay.ImageDisplayInfo(None, dict(), list(), list(), list(), None)
-        self.__last_image_display_info = self.__image_display_info
-
         # frame rate and latency
         self.__display_latency_model = Model.PropertyModel[bool](False)
+
+        self._finish_init()
 
     def close(self) -> None:
         with self.__closing_lock:
@@ -1104,14 +1102,24 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None:
         self.__overlay_canvas_item.add_canvas_item(display_control_canvas_item)
 
-    def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
-        """Update the state of the display by updating image_display_info and then calling update()."""
+    def _temporary_create_display_info(self) -> DisplayInfo.DisplayInfo:
+        return ImageDisplay.ImageDisplayInfo(None, dict(), list(), list(), list(), None)
 
-        # update the display info.
-        image_display_info = self.__image_display_info.apply_display_data_delta(display_data_delta)
-        assert isinstance(image_display_info, ImageDisplay.ImageDisplayInfo)
-        self.__image_display_info = image_display_info
+    @property
+    def __image_display_info(self) -> ImageDisplay.ImageDisplayInfo:
+        display_info = self.display_info
+        if isinstance(display_info, ImageDisplay.ImageDisplayInfo):
+            return display_info
+        return ImageDisplay.ImageDisplayInfo(None, dict(), list(), list(), list(), None)
 
+    @property
+    def __last_image_display_info(self) -> ImageDisplay.ImageDisplayInfo:
+        last_display_info = self.last_display_info
+        if isinstance(last_display_info, ImageDisplay.ImageDisplayInfo):
+            return last_display_info
+        return ImageDisplay.ImageDisplayInfo(None, dict(), list(), list(), list(), None)
+
+    def _display_info_updated(self) -> None:
         # update the cursor info
         self.__update_cursor_info()
 
@@ -1208,8 +1216,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                                                                  datum_calibrations,
                                                                  image_display_info.graphics,
                                                                  graphic_selection)
-
-        self.__last_image_display_info = image_display_info
 
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.

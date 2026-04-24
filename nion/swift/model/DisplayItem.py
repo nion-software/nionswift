@@ -14,6 +14,7 @@ data -> element -> display -> normalized -> adjusted -> display_rgba
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import contextlib
 import copy
 import dataclasses
@@ -1696,15 +1697,6 @@ class DisplayLayerInfo:
     stroke_width: int | None
 
 
-def display_layer_info_equal(layer1: DisplayLayerInfo, layer2: DisplayLayerInfo) -> bool:
-    return (layer1.data_row == layer2.data_row and
-            layer1.label == layer2.label and
-            layer1.stroke_color == layer2.stroke_color and
-            layer1.fill_color == layer2.fill_color and
-            layer1.stroke_width == layer2.stroke_width and
-            layer1.data_index == layer2.data_index)
-
-
 @dataclasses.dataclass
 class DisplayItemSaveProperties:
     display_properties: Persistence.PersistentDictType
@@ -1846,7 +1838,7 @@ def get_intensity_calibration_styles(data_metadata_list: typing.Sequence[DataAnd
     return calibration_styles
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class DisplayDataDelta:
     graphics: typing.Sequence[Graphics.Graphic]
     graphic_selection: GraphicSelection
@@ -1854,20 +1846,6 @@ class DisplayDataDelta:
     display_data_info_list: typing.Sequence[DisplayDataInfo | None]
     display_properties: Persistence.PersistentDictType
     display_layers_list: typing.Sequence[DisplayLayerInfo]
-    graphics_changed: bool = False
-    graphic_selection_changed: bool = False
-    display_calibration_info_changed: bool = False
-    display_data_info_list_changed: bool = False
-    display_properties_changed: bool = False
-    display_layers_list_changed: bool = False
-
-    def mark_changed(self) -> None:
-        self.graphics_changed = True
-        self.graphic_selection_changed = True
-        self.display_calibration_info_changed = True
-        self.display_data_info_list_changed = True
-        self.display_properties_changed = True
-        self.display_layers_list_changed = True
 
 
 class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
@@ -1901,8 +1879,6 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         self.__display_layers = list[DisplayLayer]()
         self.__display_layers_list = list[DisplayLayerInfo]()
         self.__display_properties = copy.deepcopy(display_item.display_properties)
-
-        self.__last_display_data_delta: typing.Optional[DisplayDataDelta] = None
 
         self.__calibration_style_id_stream = calibration_style_id_stream
         self.__intensity_calibration_style_id_stream = intensity_calibration_style_id_stream
@@ -1949,22 +1925,7 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                                               display_data_info_list,
                                               copy.deepcopy(self.display_properties),
                                               tuple(self.display_layers))
-        if self.__last_display_data_delta:
-            if display_data_delta.graphics != self.__last_display_data_delta.graphics:
-                display_data_delta.graphics_changed = True
-            if display_data_delta.graphic_selection != self.__last_display_data_delta.graphic_selection:
-                display_data_delta.graphic_selection_changed = True
-            if display_data_delta.display_calibration_info != self.__last_display_data_delta.display_calibration_info:
-                display_data_delta.display_calibration_info_changed = True
-            if display_data_delta.display_data_info_list != self.__last_display_data_delta.display_data_info_list:
-                display_data_delta.display_data_info_list_changed = True
-            if display_data_delta.display_properties != self.__last_display_data_delta.display_properties:
-                display_data_delta.display_properties_changed = True
-            if len(display_data_delta.display_layers_list) != len(self.__last_display_data_delta.display_layers_list) or any(not display_layer_info_equal(x, y) for x, y in zip(display_data_delta.display_layers_list, self.__last_display_data_delta.display_layers_list)):
-                display_data_delta.display_layers_list_changed = True
-        else:
-            display_data_delta.mark_changed()
-        self.__last_display_data_delta = display_data_delta
+
         self.send_value(display_data_delta)
 
     @property
@@ -2051,7 +2012,6 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         self.__send_delta()
 
     def reset(self) -> None:
-        self.__last_display_data_delta = None
         self.__send_delta()
 
 
@@ -2152,15 +2112,13 @@ class DisplayItem(Persistence.PersistentObject):
                 value: DisplayDataDelta | None
         ) -> None:
             if value is not None:
-                if display_calibration_info_stream.value is None or value.display_calibration_info_changed:
-                    display_calibration_info_stream.value = value.display_calibration_info
-                if data_info_stream.value is None or value.display_data_info_list_changed:
-                    display_data_info_list = value.display_data_info_list
-                    display_data_info = display_data_info_list[0] if len(display_data_info_list) == 1 else None
-                    if display_data_info:
-                        data_info_stream.value = display_data_info
-                    else:
-                        data_info_stream.value = None
+                display_calibration_info_stream.value = value.display_calibration_info
+                display_data_info_list = value.display_data_info_list
+                display_data_info = display_data_info_list[0] if len(display_data_info_list) == 1 else None
+                if display_data_info:
+                    data_info_stream.value = display_data_info
+                else:
+                    data_info_stream.value = None
             else:
                 display_calibration_info_stream.value = None
                 data_info_stream.value = None

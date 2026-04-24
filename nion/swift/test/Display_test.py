@@ -538,7 +538,7 @@ class TestDisplayClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             display_panel.enter_key_pressed()
             low, high = display_item.display_data_channels[0].display_limits
             self.assertAlmostEqual(low, 0.0)
@@ -554,7 +554,7 @@ class TestDisplayClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
-            display_panel.display_canvas_item._update_canvas_items()
+            display_panel.display_canvas_item.update_canvas_items()
             display_panel.enter_key_pressed()
             self.assertEqual(type(0), type(display_item.display_data_channels[0].display_limits[0]))
             self.assertEqual(type(0), type(display_item.display_data_channels[0].display_values.data_range[0]))
