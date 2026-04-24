@@ -695,7 +695,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
             self.__legend_entries = legend_entries
         return self.__legend_entries
 
-    def _apply_display_info(
+    def apply_display_info(
             self,
             display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
             display_properties: Persistence.PersistentDictType,

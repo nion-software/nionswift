@@ -36,7 +36,10 @@ def get_frame_info(data_metadata: DataAndMetadata.DataMetadata) -> FrameInfo:
 
 
 class DisplayInfo:
-    """Base class for display info."""
+    """Base class for display info.
+
+    All methods are immutable and do not trigger any lengthy computations.
+    """
 
     def __init__(
             self,
@@ -94,19 +97,7 @@ class DisplayInfo:
             return get_frame_info(data_metadata)
         return FrameInfo(0, list())
 
-    def apply_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> DisplayInfo:
-        """Apply the display data delta changes to this display info and return a new display info with the changes applied."""
-
-        display_calibration_info = display_data_delta.display_calibration_info if display_data_delta.display_calibration_info_changed else self.__display_calibration_info
-        display_properties = copy.deepcopy(display_data_delta.display_properties if display_data_delta.display_properties_changed else self.__display_properties)
-        display_data_info_list = list(display_data_delta.display_data_info_list if display_data_delta.display_data_info_list_changed else self.__display_data_info_list)
-        display_layers = list(display_data_delta.display_layers_list if display_data_delta.display_layers_list_changed else self.__display_layers)
-        graphics = list(display_data_delta.graphics if display_data_delta.graphics_changed else self.__graphics)
-        graphic_selection = copy.copy(display_data_delta.graphic_selection if display_data_delta.graphic_selection_changed else self.__graphic_selection)
-
-        return self._apply_display_info(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
-
-    def _apply_display_info(
+    def apply_display_info(
             self,
             display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
             display_properties: Persistence.PersistentDictType,
@@ -115,4 +106,5 @@ class DisplayInfo:
             graphics: typing.Sequence[Graphics.Graphic],
             graphic_selection: DisplayItem.GraphicSelection | None
     ) -> DisplayInfo:
-        raise NotImplementedError()
+        """Apply the display data delta changes to this display info and return a new display info with the changes applied."""
+        return self

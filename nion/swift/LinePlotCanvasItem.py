@@ -16,6 +16,7 @@ from nion.data import DataAndMetadata
 from nion.swift import DisplayCanvasItem
 from nion.swift import LineGraphCanvasItem
 from nion.swift import MimeTypes
+from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import LinePlotDisplay
@@ -100,12 +101,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     painting = PaintFunction(layout, plot)
     """
 
-    def __init__(self, ui_settings: UISettings.UISettings,
-                 delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
-        super().__init__()
+    def __init__(self, ui_settings: UISettings.UISettings, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
+        super().__init__(delegate)
 
         self.__ui_settings = ui_settings
-        self.delegate = delegate
 
         self.wants_mouse_events = True
 
@@ -222,13 +221,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__graphic_drag_start_pos: Geometry.IntPoint = Geometry.IntPoint()
         self.__graphic_drag_changed = False
 
-        # track last axes separately to avoid having to calculate it on the main thread.
-        # calculating axes can trigger a display computation.
-        self.__last_axes: LinePlotDisplay.LineGraphAxes | None = None
-
-        self.__line_plot_display_info = LinePlotDisplay.LinePlotDisplayInfo(None, dict(), list(), list(), list(), None)
-
         self.__pending_interval: typing.Optional[Graphics.IntervalGraphic] = None
+
+        self._finish_init()
 
     def close(self) -> None:
         if self.__undo_command:
@@ -277,19 +272,28 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         else:
             self.__display_controls.add_canvas_item(display_control_canvas_item)
 
-    def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
-        """Update the state of the display.
+    def _temporary_create_display_info(self) -> DisplayInfo.DisplayInfo:
+        return LinePlotDisplay.LinePlotDisplayInfo(None, dict(), list(), list(), list(), None)
 
-        display_data_delta contains changes to the state of the display. For any item that is marked as changed,
-        update the corresponding state in this canvas item. After updating the state, trigger an update of the display by
-        calling update().
-        """
+    @property
+    def __line_plot_display_info(self) -> LinePlotDisplay.LinePlotDisplayInfo:
+        display_info = self.display_info
+        if isinstance(display_info, LinePlotDisplay.LinePlotDisplayInfo):
+            return display_info
+        return LinePlotDisplay.LinePlotDisplayInfo(None, dict(), list(), list(), list(), None)
 
-        # update the line plot display info.
-        line_plot_display_info = self.__line_plot_display_info.apply_display_data_delta(display_data_delta)
-        assert isinstance(line_plot_display_info, LinePlotDisplay.LinePlotDisplayInfo)
-        self.__line_plot_display_info = line_plot_display_info
+    @property
+    def __last_line_plot_display_info(self) -> LinePlotDisplay.LinePlotDisplayInfo:
+        last_display_info = self.last_display_info
+        if isinstance(last_display_info, LinePlotDisplay.LinePlotDisplayInfo):
+            return last_display_info
+        return LinePlotDisplay.LinePlotDisplayInfo(None, dict(), list(), list(), list(), None)
 
+    @property
+    def __last_axes(self) -> LinePlotDisplay.LineGraphAxes:
+        return self.__last_line_plot_display_info.axes
+
+    def _display_info_updated(self) -> None:
         # update the cursor info
         self.__update_cursor_info()
 
@@ -331,8 +335,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # update frame rate info
             if self.__frame_rate_canvas_item.display_frame_rate_id:
                 self.__frame_rate_canvas_item.frame_tick(line_plot_display_info.frame_info.frame_index)
-
-        self.__last_axes = line_plot_display_info.axes
 
     def set_focused(self, is_focused: bool) -> None:
         self.__line_graph_regions_canvas_item.set_is_focused(is_focused)

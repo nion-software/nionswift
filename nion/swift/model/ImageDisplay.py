@@ -95,7 +95,7 @@ class ImageDisplayInfo(DisplayInfo.DisplayInfo):
             return dimensional_calibration
         return Calibration.Calibration()
 
-    def _apply_display_info(
+    def apply_display_info(
             self,
             display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
             display_properties: Persistence.PersistentDictType,
