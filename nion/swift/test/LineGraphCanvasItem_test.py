@@ -12,10 +12,10 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import LineGraphCanvasItem
-from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import LinePlotDisplay
 from nion.swift.test import TestContext
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -83,8 +83,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
             xdata = DataAndMetadata.new_data_and_metadata(data)
-            scaled_data_min, scaled_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, None)
-            axes = LineGraphCanvasItem.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 100, None, None, None, y_ticker)
+            scaled_data_min, scaled_data_max, y_ticker = LinePlotDisplay.calculate_y_axis([xdata], None, None, None)
+            axes = LinePlotDisplay.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 100, None, None, None, y_ticker)
             self.assertEqual(axes.uncalibrated_data_min, expected_uncalibrated_data_min)
             self.assertEqual(axes.uncalibrated_data_max, expected_uncalibrated_data_max)
 
@@ -104,8 +104,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 data = numpy.linspace(data_in[0], data_in[1], 100, endpoint=False)
                 axis_scale_id = "log"
                 xdata = DataAndMetadata.new_data_and_metadata(data)
-                scaled_data_min, scaled_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, axis_scale_id)
-                axes = LineGraphCanvasItem.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 100, None, None, axis_scale_id, y_ticker)
+                scaled_data_min, scaled_data_max, y_ticker = LinePlotDisplay.calculate_y_axis([xdata], None, None, axis_scale_id)
+                axes = LinePlotDisplay.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 100, None, None, axis_scale_id, y_ticker)
                 self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
                 self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
                 scaled_data = axes.convert_calibrated_array_to_scaled_array(DataAndMetadata.new_data_and_metadata(data)).data
@@ -131,8 +131,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
                 intensity_calibration = Calibration.Calibration(-5, 2)
                 axis_scale_id = "log"
                 xdata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration)
-                scaled_data_min, scaled_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, axis_scale_id)
-                axes = LineGraphCanvasItem.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 100, None, intensity_calibration, axis_scale_id, y_ticker)
+                scaled_data_min, scaled_data_max, y_ticker = LinePlotDisplay.calculate_y_axis([xdata], None, None, axis_scale_id)
+                axes = LinePlotDisplay.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 100, None, intensity_calibration, axis_scale_id, y_ticker)
                 self.assertAlmostEqual(axes.uncalibrated_data_min, data_out[0], places=1)
                 self.assertAlmostEqual(axes.uncalibrated_data_max, data_out[1], places=1)
                 scaled_data = axes.convert_calibrated_array_to_scaled_array(DataAndMetadata.new_data_and_metadata(data)).data
@@ -146,7 +146,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data = numpy.linspace(0, 10, 100, endpoint=False)
         intensity_calibration = Calibration.Calibration()
         xdata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration=intensity_calibration)
-        scaled_data_min, scaled_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], -2, 12, "log")
+        scaled_data_min, scaled_data_max, y_ticker = LinePlotDisplay.calculate_y_axis([xdata], -2, 12, "log")
         # the mapped calibrated data min should be 0.0 (a reasonable value for negative data)
         # the unmapped mapped calibrated data max should match the upper display limit (12).
         self.assertAlmostEqual(0.0, scaled_data_min)
@@ -158,7 +158,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         xdata = DataAndMetadata.new_data_and_metadata(data)
         # at some point, calculate_y_axis failed to return without exception when the data type was int.
         # so the main point of this test is to ensure that the function returns without exception.
-        scaled_data_min, scaled_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([xdata], None, None, axis_scale_id)
+        scaled_data_min, scaled_data_max, y_ticker = LinePlotDisplay.calculate_y_axis([xdata], None, None, axis_scale_id)
         # the asserts below are a sanity check to ensure that the function is returning reasonable values.
         # note: these are calibrated values for the AXES not the original data. furthermore they will be log10.
         # so checking that the first value is negative (original axes value is less than 1), and the second value
@@ -175,7 +175,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data[3:] = range(3,16,1)
         segments, baseline = LineGraphCanvasItem.calculate_line_graph(
             100, 32, 0, 0, DataAndMetadata.new_data_and_metadata(data),
-            0, 16, 0, 16, Calibration.Calibration(), None, LineGraphCanvasItem._get_axis_scale("linear")
+            0, 16, 0, 16, Calibration.Calibration(), None, LinePlotDisplay._get_axis_scale("linear")
         )
         self.assertEqual(2, len(segments))
         # make a rough check to ensure that the first segment is minimal; and the second one has some content.
@@ -317,11 +317,11 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes_for_testing
             drawing_context = DrawingContext.DrawingContext()
-            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
+            line_graph_layer = LinePlotDisplay.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
             canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
             composer_cache = CanvasItem.ComposerCache()
-            line_graph_layer.draw_fills(drawing_context, canvas_bounds, composer_cache)
-            line_graph_layer.draw_strokes(drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
@@ -341,11 +341,11 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             axes = display_panel.display_canvas_item._axes_for_testing
             self.assertEqual(axes.axis_scale.axis_scale_id, "log")
             drawing_context = DrawingContext.DrawingContext()
-            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
+            line_graph_layer = LinePlotDisplay.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
             canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
             composer_cache = CanvasItem.ComposerCache()
-            line_graph_layer.draw_fills(drawing_context, canvas_bounds, composer_cache)
-            line_graph_layer.draw_strokes(drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
@@ -421,11 +421,11 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.layout_immediate((640, 480))
             axes = display_panel.display_canvas_item._axes_for_testing
             drawing_context = DrawingContext.DrawingContext()
-            line_graph_layer = LineGraphCanvasItem.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
+            line_graph_layer = LinePlotDisplay.LineGraphLayer(data_item.xdata, axes, Color.Color("black"), Color.Color("black"), None)
             canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
             composer_cache = CanvasItem.ComposerCache()
-            line_graph_layer.draw_fills(drawing_context, canvas_bounds, composer_cache)
-            line_graph_layer.draw_strokes(drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
