@@ -286,7 +286,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         """
 
         # update the line plot display info.
-        self.__line_plot_display_info = self.__line_plot_display_info.apply_display_data_delta(display_data_delta)
+        line_plot_display_info = self.__line_plot_display_info.apply_display_data_delta(display_data_delta)
+        assert isinstance(line_plot_display_info, LinePlotDisplay.LinePlotDisplayInfo)
+        self.__line_plot_display_info = line_plot_display_info
 
         # update the cursor info
         self.__update_cursor_info()
@@ -328,7 +330,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             # update frame rate info
             if self.__frame_rate_canvas_item.display_frame_rate_id:
-                self.__frame_rate_canvas_item.frame_tick(line_plot_display_info.frame_index)
+                self.__frame_rate_canvas_item.frame_tick(line_plot_display_info.frame_info.frame_index)
 
         self.__last_axes = line_plot_display_info.axes
 

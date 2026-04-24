@@ -1108,7 +1108,9 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         """Update the state of the display by updating image_display_info and then calling update()."""
 
         # update the display info.
-        self.__image_display_info = self.__image_display_info.apply_display_data_delta(display_data_delta)
+        image_display_info = self.__image_display_info.apply_display_data_delta(display_data_delta)
+        assert isinstance(image_display_info, ImageDisplay.ImageDisplayInfo)
+        self.__image_display_info = image_display_info
 
         # update the cursor info
         self.__update_cursor_info()
@@ -1200,10 +1202,12 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__scale_marker_canvas_item.scale_marker_text_color = scale_marker_text_color
             self.__scale_marker_canvas_item.scale_marker_background_color = scale_marker_background_color
 
+            graphic_selection = image_display_info.graphic_selection or DisplayItem.GraphicSelection()
+
             self.__graphics_canvas_item.update_coordinate_system(display_data_shape,
                                                                  datum_calibrations,
                                                                  image_display_info.graphics,
-                                                                 image_display_info.graphic_selection)
+                                                                 graphic_selection)
 
         self.__last_image_display_info = image_display_info
 
@@ -1235,7 +1239,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
     @property
     def graphic_selection(self) -> DisplayItem.GraphicSelection:
-        return self.__last_image_display_info.graphic_selection
+        return self.__last_image_display_info.graphic_selection or DisplayItem.GraphicSelection()
 
     @property
     def ui_settings(self) -> UISettings.UISettings:

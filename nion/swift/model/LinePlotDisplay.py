@@ -18,9 +18,13 @@ from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import DisplayInfo
 from nion.utils import Color
 from nion.utils import Geometry
 from nion.utils import Registry
+
+if typing.TYPE_CHECKING:
+    from nion.swift.model import Persistence
 
 
 @dataclasses.dataclass
@@ -435,7 +439,7 @@ class LineGraphLayer:
 MAX_LAYER_COUNT = 16
 
 
-class LinePlotDisplayInfo:
+class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
     """Represents the information needed to display a line plot, including the data, calibrations, axes and legend information.
 
     This object is effectively immutable, i.e. outside of caching.
@@ -450,12 +454,7 @@ class LinePlotDisplayInfo:
             graphics: typing.Sequence[Graphics.Graphic],
             graphic_selection: DisplayItem.GraphicSelection | None
     ) -> None:
-        self.__display_calibration_info = display_calibration_info
-        self.__display_properties = copy.deepcopy(display_properties)
-        self.__display_data_info_list = list(display_data_info_list)
-        self.__display_layers = list(display_layers)
-        self.__graphics = list(graphics)
-        self.__graphic_selection = copy.copy(graphic_selection)
+        super().__init__(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
 
         # cached values
         self.__y_min: float | None = display_properties.get("y_min", None)
@@ -474,28 +473,12 @@ class LinePlotDisplayInfo:
         self._has_valid_drawn_graph_data = False
 
     @property
-    def is_valid(self) -> bool:
-        return self.__display_calibration_info is not None
-
-    @property
-    def display_layers(self) -> typing.Sequence[DisplayItem.DisplayLayerInfo]:
-        return self.__display_layers
-
-    @property
-    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
-        return self.__graphics
-
-    @property
-    def graphic_selection(self) -> DisplayItem.GraphicSelection | None:
-        return self.__graphic_selection
-
-    @property
     def regions(self) -> typing.Sequence[RegionInfo]:
-        display_calibration_info = self.__display_calibration_info
+        display_calibration_info = self.display_calibration_info
         if self.__regions is None and display_calibration_info:
             dimensional_scales = display_calibration_info.displayed_dimensional_scales
-            graphics = self.__graphics
-            graphic_selection = self.__graphic_selection or DisplayItem.GraphicSelection()
+            graphics = self.graphics
+            graphic_selection = self.graphic_selection or DisplayItem.GraphicSelection()
             regions = list[RegionInfo]()
             if dimensional_scales and graphics:
                 data_scale = dimensional_scales[-1]
@@ -547,12 +530,12 @@ class LinePlotDisplayInfo:
 
     @property
     def data_scale(self) -> float:
-        display_calibration_info = self.__display_calibration_info
+        display_calibration_info = self.display_calibration_info
         return display_calibration_info.displayed_dimensional_scales[-1] if display_calibration_info and display_calibration_info.displayed_dimensional_scales else 1.0
 
     @property
     def displayed_dimensional_calibration(self) -> Calibration.Calibration:
-        display_calibration_info = self.__display_calibration_info
+        display_calibration_info = self.display_calibration_info
         if display_calibration_info:
             displayed_dimensional_scales: typing.Tuple[float, ...] = display_calibration_info.displayed_dimensional_scales or tuple()
             displayed_dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations
@@ -563,7 +546,7 @@ class LinePlotDisplayInfo:
 
     @property
     def displayed_intensity_calibration(self) -> Calibration.Calibration:
-        display_calibration_info = self.__display_calibration_info
+        display_calibration_info = self.display_calibration_info
         if display_calibration_info:
             return display_calibration_info.displayed_intensity_calibration
         return Calibration.Calibration()
@@ -571,8 +554,8 @@ class LinePlotDisplayInfo:
     @property
     def xdata_list(self) -> typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]]:
         if self.__xdata_list is None:
-            display_calibration_info = self.__display_calibration_info
-            display_data_info_list = self.__display_data_info_list
+            display_calibration_info = self.display_calibration_info
+            display_data_info_list = self.display_data_info_list
             if display_calibration_info and display_data_info_list:
                 self.__xdata_list = list()
                 for display_data_info in display_data_info_list:
@@ -665,7 +648,7 @@ class LinePlotDisplayInfo:
 
             axes = self.axes
 
-            for index, display_layer in enumerate(self.__display_layers[0:MAX_LAYER_COUNT]):
+            for index, display_layer in enumerate(self.display_layers[0:MAX_LAYER_COUNT]):
                 fill_color_str = display_layer.fill_color
                 stroke_color_str = display_layer.stroke_color
                 stroke_width = display_layer.stroke_width
@@ -695,7 +678,7 @@ class LinePlotDisplayInfo:
     def legend_entries(self) -> typing.List[LegendEntry]:
         if self.__legend_entries is None:
             legend_entries = list()
-            for index, display_layer in enumerate(self.__display_layers[0:MAX_LAYER_COUNT]):
+            for index, display_layer in enumerate(self.display_layers[0:MAX_LAYER_COUNT]):
                 data_index = display_layer.data_index
                 data_row = display_layer.data_row
                 label = display_layer.label
@@ -712,29 +695,13 @@ class LinePlotDisplayInfo:
             self.__legend_entries = legend_entries
         return self.__legend_entries
 
-    @property
-    def frame_index(self) -> int:
-        for display_data_info in self.__display_data_info_list:
-            if display_data_info:
-                data_metadata = display_data_info.data_metadata
-                if data_metadata:
-                    # allow registered metadata_display components to populate a dictionary
-                    # the line plot canvas item will look at "frame_index"
-                    d: typing.Dict[str, typing.Any] = dict()
-                    for component in Registry.get_components_by_type("metadata_display"):
-                        component.populate(d, data_metadata)
-                    # pull out the frame_index key
-                    return typing.cast(int, d.get("frame_index", 0))
-        return 0
-
-    def apply_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> LinePlotDisplayInfo:
-        """Apply the display data delta changes to this display info and return a new display info with the changes applied."""
-
-        display_calibration_info = display_data_delta.display_calibration_info if display_data_delta.display_calibration_info_changed else self.__display_calibration_info
-        display_properties = copy.deepcopy(display_data_delta.display_properties if display_data_delta.display_properties_changed else self.__display_properties)
-        display_data_info_list = list(display_data_delta.display_data_info_list if display_data_delta.display_data_info_list_changed else self.__display_data_info_list)
-        display_layers = list(display_data_delta.display_layers_list if display_data_delta.display_layers_list_changed else self.__display_layers)
-        graphics = list(display_data_delta.graphics if display_data_delta.graphics_changed else self.__graphics)
-        graphic_selection = copy.copy(display_data_delta.graphic_selection if display_data_delta.graphic_selection_changed else self.__graphic_selection)
-
+    def _apply_display_info(
+            self,
+            display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
+            display_properties: Persistence.PersistentDictType,
+            display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
+            display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
+            graphics: typing.Sequence[Graphics.Graphic],
+            graphic_selection: DisplayItem.GraphicSelection | None
+    ) -> DisplayInfo.DisplayInfo:
         return LinePlotDisplayInfo(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
