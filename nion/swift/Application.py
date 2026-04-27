@@ -998,6 +998,36 @@ class FeaturesPreferencePanel:
 PreferencesDialog.PreferencesManager().register_preference_pane(FeaturesPreferencePanel())
 
 
+def verify_project_name(text: str, base_directory: str, profile: Profile.Profile) -> str | None:
+    """Verify that a project name is a valid filename and doesn't already exist.
+
+    Returns None when valid, and an error message otherwise.
+    """
+    suffix = ".nsproj"
+    error_str = Utility.verify_filename_is_legal(text, suffix, base_directory, error_prefix="Project Name")
+    if error_str is not None:
+        return error_str
+    project_name = f"{text}{suffix}"
+    new_project_path = pathlib.Path(*[base_directory, project_name])
+    new_data_path = new_project_path.parent / f"{text} Data"
+    project_path_exists = new_project_path.exists()
+    data_path_exists = new_data_path.is_dir()
+
+    if project_path_exists or data_path_exists:
+        # Either the project file or data folder already exist so name cannot be used.
+        error_parts: list[str] = [_("Project File ") + f"\"{project_name}\""] if project_path_exists else []
+        if data_path_exists:
+            error_parts.append(_("Data Folder ") + f"\"{text} " + _("Data\""))
+        error_str = _(" and ").join(error_parts) + _(" already exists")
+        return error_str
+
+    if profile.get_project_reference_by_path(new_project_path) is not None:
+        error_str = _("Project Reference already exists, remove it via Choose Project before proceeding")
+        return error_str
+
+    return None  # The project can be created
+
+
 class NewProjectAction(UIWindow.Action):
     action_id = "project.new_project"
     action_name = _("New Project...")
@@ -1040,17 +1070,16 @@ class NewProjectAction(UIWindow.Action):
                     self.request_close()
                     return True
 
-                def verify_project_name(text: str) -> None:
-                    valid = text == Utility.simplify_filename(text)
-                    if valid:
+                def update_project_status_label(text: str) -> None:
+                    error_response = verify_project_name(text, self.directory, profile=application.profile)
+                    if error_response is None:  # The name is valid and doesn't already exist.
                         create_project_button.enabled = True
                         create_project_button.tool_tip = None
                         project_name_status_label.text = None
-                    else:
+                    else:  # Display the error message.
                         create_project_button.enabled = False
-                        invalid_chars_str = _("Invalid Characters in Project Name")
-                        create_project_button.tool_tip = invalid_chars_str
-                        project_name_status_label.text = invalid_chars_str
+                        create_project_button.tool_tip = error_response
+                        project_name_status_label.text = error_response
                         project_name_status_label.text_color = "red"
                 column = self.ui.create_column_widget()
 
@@ -1086,7 +1115,7 @@ class NewProjectAction(UIWindow.Action):
                 project_name_field.text = self.project_name
                 project_name_field.on_return_pressed = handle_new_and_close
                 project_name_field.on_escape_pressed = handle_close
-                project_name_field.on_text_edited = verify_project_name
+                project_name_field.on_text_edited = update_project_status_label
                 project_name_row.add(project_name_field)
                 project_name_row.add_stretch()
                 project_name_row.add_spacing(13)
@@ -1128,7 +1157,7 @@ class NewProjectAction(UIWindow.Action):
                 self.content.add(column)
 
                 self.__project_name_field = project_name_field
-
+                update_project_status_label(self.project_name)  # Update the label at when the dialog is first opened
             def close(self) -> None:
                 if self.app:
                     self.app._exit_prevent_close_state()

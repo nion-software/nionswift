@@ -73,6 +73,24 @@ class TestUtilityClass(unittest.TestCase):
             finally:
                 os.remove(file_path)
 
+    def test_verify_filename(self):
+        test_filenames = [("", "Filename cannot not be empty"),
+                          ("file.", "Filename cannot end with a period"),
+                          ("file ", "Filename cannot end with a whitespace"),
+                          ("COM¹", "Filename \"COM¹\" is illegal as it is reserved on some platforms"),
+                          (r"5/3/2024", "Filename contained illegal character \"/\""),
+                          ("1234567890" * 13, "Filename exceeds the allowed length of 128 characters"),
+                          ("NUL", "Filename \"NUL\" is illegal as it is reserved on some platforms"),
+                          ("abc\n\rdef", "Filename contained illegal characters ['\\n', '\\r']")]
+
+        current_working_directory = os.getcwd()
+        for test, expected in test_filenames:
+            error_str = Utility.verify_filename_is_legal(test, ".txt")
+            self.assertEqual(error_str, expected)
+
+        error_str = Utility.verify_filename_is_legal("1234567890" * 12, ".txt", "/".join([current_working_directory, "1234567890" * 15]), error_prefix="Long Filename")
+        self.assertEqual(error_str, "Long Filename exceeds the maximum path of 260 characters on some platforms")
+
 
 if __name__ == '__main__':
     unittest.main()

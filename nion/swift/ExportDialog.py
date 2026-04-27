@@ -66,8 +66,9 @@ class ExportDialogViewModel:
             invalid_reasons = list[str]()
 
             prefix_str = self.prefix.value or str()
-            if prefix_str != Utility.simplify_filename(prefix_str):
-                invalid_reasons.append(_("Prefix contains invalid characters"))
+            illegal_chars =  re.findall(Utility.ILLEGAL_FILENAME_CHARS_REGEX, prefix_str)
+            if len(illegal_chars) != 0:
+                invalid_reasons.append(_(f"Prefix contains invalid characters: {illegal_chars}"))
 
             is_directory_valid = self.is_directory_valid.value or False
             if not is_directory_valid:
