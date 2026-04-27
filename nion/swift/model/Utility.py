@@ -457,13 +457,13 @@ def verify_filename_is_legal(filename: str, suffix: str | None, directory: str |
 
     None means the filename is legal.
     Otherwise, the error message is returned.
-    error_prefix is appended to the start of the returned error, i.e: "Filename" + " cannot end with whitespace"
     Checks the filename is not in ILLEGAL_FILENAMES and no matches in the ILLEGAL_FILENAME_CHARS_REGEX.
+    error_prefix is appended to the start of the returned error, i.e: "Filename" + " cannot end with whitespace"
     If the directory and suffix are provided then it checks if the total path length would exceed the 260-character path length limit on some platforms.
     See https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
     """
     if directory is not None and suffix is not None:
-        total_path_length = len(directory) + len(filename) + len(suffix)
+        total_path_length = len(directory) + 1 + len(filename) + len(suffix)  # Add 1 for the path separator
         if total_path_length > 260:
             return error_prefix + _(" exceeds the maximum path of 260 characters on some platforms")
 
@@ -476,7 +476,7 @@ def verify_filename_is_legal(filename: str, suffix: str | None, directory: str |
     if len(filename) > 1 and filename.endswith("."):  # You could name a file "." if you so desire.
         return error_prefix + _(" cannot end with a period")
     if filename == "":
-        return error_prefix + _(" cannot not be empty")
+        return error_prefix + _(" cannot be empty")
     if filename.upper() in ILLEGAL_FILENAMES:
         return error_prefix + f" \"{filename}\"" + _(" is illegal as it is reserved on some platforms")
     matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)

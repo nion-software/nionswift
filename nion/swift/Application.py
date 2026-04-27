@@ -1008,7 +1008,7 @@ def verify_project_name(text: str, base_directory: str, profile: Profile.Profile
     if error_str is not None:
         return error_str
     project_name = f"{text}{suffix}"
-    new_project_path = pathlib.Path(*[base_directory, project_name])
+    new_project_path = pathlib.Path(base_directory, project_name)
     new_data_path = new_project_path.parent / f"{text} Data"
     project_path_exists = new_project_path.exists()
     data_path_exists = new_data_path.is_dir()
@@ -1076,7 +1076,7 @@ class NewProjectAction(UIWindow.Action):
                         create_project_button.enabled = True
                         create_project_button.tool_tip = None
                         project_name_status_label.text = None
-                    else:  # Display the error message.
+                    else:
                         create_project_button.enabled = False
                         create_project_button.tool_tip = error_response
                         project_name_status_label.text = error_response
