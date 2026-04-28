@@ -84,11 +84,13 @@ class TestUtilityClass(unittest.TestCase):
                           ("abc\n\rdef", "Filename contained illegal characters ['\\n', '\\r']")]
 
         for test, expected in test_filenames:
-            error_str = Utility.verify_filename_is_legal(test, ".txt")
+            is_valid, error_str = Utility.verify_filename_is_legal(test, ".txt")
+            self.assertFalse(is_valid)
             self.assertEqual(error_str, expected)
 
         current_working_directory = os.getcwd()
-        error_str = Utility.verify_filename_is_legal("1234567890" * 12, ".txt", "/".join([current_working_directory, "1234567890" * 15]), error_prefix="Long Filename")
+        is_valid, error_str = Utility.verify_filename_is_legal("1234567890" * 12, ".txt", "/".join([current_working_directory, "1234567890" * 15]), error_prefix="Long Filename")
+        self.assertFalse(is_valid)
         self.assertEqual(error_str, "Long Filename exceeds the maximum path of 260 characters on some platforms")
 
 

@@ -998,15 +998,16 @@ class FeaturesPreferencePanel:
 PreferencesDialog.PreferencesManager().register_preference_pane(FeaturesPreferencePanel())
 
 
-def verify_project_name(text: str, base_directory: str, profile: Profile.Profile) -> str | None:
+def verify_project_name(text: str, base_directory: str, profile: Profile.Profile) -> tuple[bool, str | None]:
     """Verify that a project name is a valid filename and doesn't already exist.
 
-    Returns None when valid, and an error message otherwise.
+    Returns a tuple with the first element being a bool set to True if the filename is valid or False if it was invalid.
+    The second element is the error message if the filename is invalid.
     """
     suffix = ".nsproj"
-    error_str = Utility.verify_filename_is_legal(text, suffix, base_directory, error_prefix="Project Name")
-    if error_str is not None:
-        return error_str
+    is_valid, error_str = Utility.verify_filename_is_legal(text, suffix, base_directory, error_prefix="Project Name")
+    if not is_valid:
+        return False, error_str
     project_name = f"{text}{suffix}"
     new_project_path = pathlib.Path(base_directory, project_name)
     new_data_path = new_project_path.parent / f"{text} Data"
@@ -1019,13 +1020,13 @@ def verify_project_name(text: str, base_directory: str, profile: Profile.Profile
         if data_path_exists:
             error_parts.append(_("Data Folder ") + f"\"{text} " + _("Data\""))
         error_str = _(" and ").join(error_parts) + _(" already exists")
-        return error_str
+        return False, error_str
 
     if profile.get_project_reference_by_path(new_project_path) is not None:
         error_str = _("Project Reference already exists, remove it via Choose Project before proceeding")
-        return error_str
+        return False, error_str
 
-    return None  # The project can be created
+    return True, None  # The project can be created
 
 
 class NewProjectAction(UIWindow.Action):
@@ -1071,13 +1072,12 @@ class NewProjectAction(UIWindow.Action):
                     return True
 
                 def update_project_status_label(text: str) -> None:
-                    error_response = verify_project_name(text, self.directory, profile=application.profile)
-                    if error_response is None:  # The name is valid and doesn't already exist.
-                        create_project_button.enabled = True
+                    is_valid, error_response = verify_project_name(text, self.directory, profile=application.profile)
+                    create_project_button.enabled = is_valid
+                    if error_response is None:
                         create_project_button.tool_tip = None
                         project_name_status_label.text = None
                     else:
-                        create_project_button.enabled = False
                         create_project_button.tool_tip = error_response
                         project_name_status_label.text = error_response
                         project_name_status_label.text_color = "red"
@@ -1158,6 +1158,7 @@ class NewProjectAction(UIWindow.Action):
 
                 self.__project_name_field = project_name_field
                 update_project_status_label(self.project_name)  # Update the label at when the dialog is first opened
+
             def close(self) -> None:
                 if self.app:
                     self.app._exit_prevent_close_state()

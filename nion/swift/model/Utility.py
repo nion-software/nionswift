@@ -452,11 +452,12 @@ ILLEGAL_FILENAMES = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4',
                      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9', 'COM¹', 'COM²', 'COM³', 'LPT¹', 'LPT²', 'LPT³']
 
 
-def verify_filename_is_legal(filename: str, suffix: str | None, directory: str | None = None, maximum_length: int = 128, error_prefix: str = "Filename") -> str | None:
-    """Check if a filename is legal.
+def verify_filename_is_legal(filename: str, suffix: str | None, directory: str | None = None,
+                             maximum_length: int = 128, error_prefix: str = "Filename") -> tuple[bool, str | None]:
+    """Check if a filename is legal and get an appropriate error message.
 
-    None means the filename is legal.
-    Otherwise, the error message is returned.
+    Returns a tuple with the first element being a bool set to True if the filename is valid or False if it was invalid.
+    The second element is the error message if the filename is invalid.
     Checks the filename is not in ILLEGAL_FILENAMES and no matches in the ILLEGAL_FILENAME_CHARS_REGEX.
     error_prefix is appended to the start of the returned error, i.e: "Filename" + " cannot end with whitespace"
     If the directory and suffix are provided then it checks if the total path length would exceed the 260-character path length limit on some platforms.
@@ -465,27 +466,27 @@ def verify_filename_is_legal(filename: str, suffix: str | None, directory: str |
     if directory is not None and suffix is not None:
         total_path_length = len(directory) + 1 + len(filename) + len(suffix)  # Add 1 for the path separator
         if total_path_length > 260:
-            return error_prefix + _(" exceeds the maximum path of 260 characters on some platforms")
+            return False, error_prefix + _(" exceeds the maximum path of 260 characters on some platforms")
 
     assert maximum_length > 5
     if len(filename) > maximum_length:
-        return error_prefix + _(" exceeds the allowed length of") + f" {maximum_length} characters"
+        return False, error_prefix + _(" exceeds the allowed length of") + f" {maximum_length} characters"
 
     if filename.endswith(" "):
-        return error_prefix + _(" cannot end with a whitespace")
+        return False, error_prefix + _(" cannot end with a whitespace")
     if len(filename) > 1 and filename.endswith("."):  # You could name a file "." if you so desire.
-        return error_prefix + _(" cannot end with a period")
+        return False, error_prefix + _(" cannot end with a period")
     if filename == "":
-        return error_prefix + _(" cannot be empty")
+        return False, error_prefix + _(" cannot be empty")
     if filename.upper() in ILLEGAL_FILENAMES:
-        return error_prefix + f" \"{filename}\"" + _(" is illegal as it is reserved on some platforms")
+        return False, error_prefix + f" \"{filename}\"" + _(" is illegal as it is reserved on some platforms")
     matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
     matches = sorted(set(matches))
     if matches:
         if len(matches) == 1:
-            return error_prefix + _(" contained illegal character") + f" \"{matches[0]}\""
-        return error_prefix + _(" contained illegal characters") + f" {matches}"
-    return None
+            return False, error_prefix + _(" contained illegal character") + f" \"{matches[0]}\""
+        return False, error_prefix + _(" contained illegal characters") + f" {matches}"
+    return True, None
 
 
 def simplify_filename(filename: str, replacement_char: str = '_', maximum_length: int = 128) -> str:
