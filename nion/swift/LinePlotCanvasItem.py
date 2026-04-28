@@ -274,9 +274,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def _display_info_updated(self, display_info: DisplayInfo.DisplayInfo) -> None:
         self.__line_plot_display_info = LinePlotDisplay.LinePlotDisplayInfo(display_info)
 
-        # update the cursor info
-        self.__update_cursor_info()
-
     def _update_canvas_items(self) -> None:
         line_plot_display_info = self.__line_plot_display_info
 
@@ -423,7 +420,6 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if super().mouse_exited():
             return True
         self.__mouse_in = False
-        self.__update_cursor_info()
         if self.delegate:  # allow display to work without delegate
             # whenever the cursor exits, clear the cursor display
             self.delegate.cursor_changed(None)
@@ -487,7 +483,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         elif delegate and delegate.tool_mode == "interval":
             self.cursor_shape = "cross"
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
-        self.__update_cursor_info()
+        if self.delegate:
+            self.delegate.cursor_changed(self.cursor_position)
         new_rescale = modifiers.control
         if self.__tracking_horizontal and self.__tracking_rescale != new_rescale:
             self.end_tracking(modifiers)
@@ -739,7 +736,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     self.__undo_command = delegate.create_change_graphics_command()
             # x,y already have transform applied
             self.__last_mouse = copy.copy(pos)
-            self.__update_cursor_info()
+            delegate.cursor_changed(self.cursor_position)
             if self.__graphic_drag_items:
                 widget_mapping = self.__get_mouse_mapping()
                 delegate.adjust_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
@@ -831,14 +828,11 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__tracking_selections = False
         self.__pending_interval = None
 
-    def __update_cursor_info(self) -> None:
-        """ Map the mouse to the 1-d position within the line graph. """
-
-        if not self.delegate:  # allow display to work without delegate
-            return
-
+    @property
+    def cursor_position(self) -> tuple[int, ...] | None:
+        """Map the mouse to the 1-d position within the line graph."""
+        pos_1d = None
         if self.__mouse_in and self.__last_mouse:
-            pos_1d = None
             axes = self.__last_axes
             line_graph_layers_canvas_item = self.line_graph_layers_canvas_item
             if axes:
@@ -849,7 +843,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     x = float(mouse.x) / canvas_bounds.width
                     px = axes.drawn_left_channel + int(x * (axes.drawn_right_channel - axes.drawn_left_channel))
                     pos_1d = px,
-            self.delegate.cursor_changed(pos_1d)
+        return pos_1d
 
     def get_drop_regions_map(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[typing.Mapping[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]]:
         # partial logic overlap in if chain with display_item.used_display_type

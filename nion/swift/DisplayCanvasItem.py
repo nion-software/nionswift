@@ -173,6 +173,10 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     @property
     def mouse_mapping(self) -> Graphics.CoordinateMappingLike: raise NotImplementedError()
 
+    @property
+    def cursor_position(self) -> tuple[int, ...] | None:
+        return None
+
     @abc.abstractmethod
     def add_display_control(self, display_control_canvas_item: CanvasItem.AbstractCanvasItem, role: typing.Optional[str] = None) -> None: ...
 

@@ -4,9 +4,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
+import dataclasses
 import functools
 import gettext
 import math
+import operator
 import random
 import string
 import threading
@@ -16,6 +18,7 @@ import weakref
 
 import numpy.typing
 
+from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import DataItemThumbnailWidget
@@ -1765,6 +1768,120 @@ class CreateGraphicInteractiveTask(DisplayCanvasItem.InteractiveTask):
         self.__display_panel.document_controller.push_undo_command(undo_command)
 
 
+@dataclasses.dataclass(frozen=True)
+class PositionAndValueText:
+    position_text: str = str()
+    value_text: str = str()
+
+    def as_rendered_text_lines(self) -> list[str] | None:
+        """Return text lines suitable for DocumentController.cursor_changed. If position_text is empty, return None to indicate that no text should be shown."""
+        if self.position_text:
+            position_and_value_text_lines = []
+            position_and_value_text_lines.append(_("Position: ") + self.position_text)
+            if self.value_text:
+                position_and_value_text_lines.append(_("Value: ") + self.value_text)
+            return position_and_value_text_lines
+        return None
+
+
+def get_position_and_value_text(display_data_channel: DisplayItem.DisplayDataChannel | None, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, pos: tuple[int, ...] | None) -> PositionAndValueText:
+    """Get the value and position text to display in the status bar based on the display data channel, calibration info, and cursor position.
+
+    This function should not be called from the main thread as it may involve an expensive operation to access the
+    data itself. See the note in `cursor_changed`.
+    """
+    dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations if display_calibration_info else tuple()
+    intensity_calibration = display_calibration_info.displayed_intensity_calibration if display_calibration_info else Calibration.Calibration()
+
+    if not all(map(operator.attrgetter("is_valid"), dimensional_calibrations)):
+        dimensional_calibrations = [Calibration.Calibration() for _ in dimensional_calibrations]
+
+    if not intensity_calibration.is_valid:
+        intensity_calibration = Calibration.Calibration()
+
+    if display_data_channel is None or pos is None:
+        if display_calibration_info and display_calibration_info.is_composite_data and (pos is not None and len(pos) == 1):
+            return PositionAndValueText(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0]))
+        return PositionAndValueText()
+
+    # pass in the position of the cursor as reported by the display. it will be 1D or 2D position.
+    # convert it to a position that is an index into the data.
+    pos = display_data_channel.get_display_position_as_data_position(pos)
+
+    def get_calibrated_value_text(value: float | None, intensity_calibration: Calibration.Calibration) -> str:
+        if value is not None:
+            return intensity_calibration.convert_to_calibrated_value_str(value)
+        return _("N/A")
+
+    position_text = ""
+    value_text = ""
+    dimensional_shape = display_data_channel.dimensional_shape  # don't include the RGB part of the shape
+    if len(pos) == 5 and dimensional_shape:
+        # 5d image
+        # make sure the position is within the bounds of the image
+        if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < dimensional_shape[2] and 0 <= pos[3] < dimensional_shape[3] and 0 <= pos[4] < dimensional_shape[4]:
+            position_text = "{0}, {1}, {2}, {3}, {4}".format(
+                dimensional_calibrations[4].convert_to_calibrated_value_str(pos[4], value_range=(0, dimensional_shape[4]), samples=dimensional_shape[4]),
+                dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, dimensional_shape[3]), samples=dimensional_shape[3]),
+                dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
+                dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
+                dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
+            value_text = get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
+
+    if len(pos) == 4 and dimensional_shape:
+        # 4d image
+        # make sure the position is within the bounds of the image
+        if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < dimensional_shape[2] and 0 <= pos[3] < dimensional_shape[3]:
+            position_text = "{0}, {1}, {2}, {3}".format(
+                dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, dimensional_shape[3]), samples=dimensional_shape[3]),
+                dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
+                dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
+                dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
+            value_text = get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
+    if len(pos) == 3 and dimensional_shape:
+        # 3d image
+        # make sure the position is within the bounds of the image
+        if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < dimensional_shape[2]:
+            position_text = "{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
+                dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
+                dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
+            value_text = get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
+    if len(pos) == 2 and dimensional_shape:
+        # 2d image
+        # make sure the position is within the bounds of the image
+        if len(dimensional_shape) == 1:
+            if pos[-1] >= 0 and pos[-1] < dimensional_shape[-1]:
+                position_text = "{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, dimensional_shape[-1]), samples=dimensional_shape[-1]))
+                full_pos = [0, ] * len(dimensional_shape)
+                full_pos[-1] = pos[-1]
+                value_text = get_calibrated_value_text(display_data_channel.get_data_value(tuple(full_pos)), intensity_calibration)
+        else:
+            if pos[0] >= 0 and pos[0] < dimensional_shape[0] and pos[1] >= 0 and pos[1] < dimensional_shape[1]:
+                is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
+                if is_polar:
+                    # pos will represent the top-left of the pixel, so add 0.5 to get the center of the pixel
+                    # which is what the user expects for polar coordinates.
+                    x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1] + 0.5)
+                    y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0] + 0.5)
+                    r = math.sqrt(x * x + y * y)
+                    angle = -math.atan2(y, x)
+                    r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0], display_inverted=True)
+                    position_text = "{0}, {1:.4f}° ({2})".format(r_str, math.degrees(angle), _("polar"))
+                else:
+                    position_text = "{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1], display_inverted=True),
+                        dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0], display_inverted=True))
+                value_text = get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
+    if len(pos) == 1 and dimensional_shape:
+        # 1d plot
+        # make sure the position is within the bounds of the line plot
+        if pos[0] >= 0 and pos[0] < dimensional_shape[-1]:
+            position_text = "{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[-1]), samples=dimensional_shape[-1]))
+            full_pos = [0, ] * len(dimensional_shape)
+            full_pos[-1] = pos[0]
+            value_text = get_calibrated_value_text(display_data_channel.get_data_value(tuple(full_pos)), intensity_calibration)
+    return PositionAndValueText(position_text, value_text)
+
+
 class DisplayPanelListCanvasItem(ListCanvasItem.ListCanvasItem2):
     def key_pressed(self, key: UserInterface.Key) -> bool:
         if key.is_backtab:
@@ -1800,6 +1917,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.uuid = uuid.UUID(d.get("uuid", str(new_uuid if new_uuid else uuid.uuid4())))
         self.__identifier: str = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)])) or str()
         self.ui = document_controller.ui
+
+        self.__cursor_task_set: set[asyncio.Task[None]] = set()
+        self.__futures_set: set[asyncio.Future[PositionAndValueText]] = set()
 
         self.on_contents_changed: typing.Optional[typing.Callable[[], None]] = None  # useful for writing changes to disk quickly
 
@@ -2095,12 +2215,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__mapped_item_listener = DocumentModel.MappedItemManager().changed_event.listen(ReferenceCounting.weak_partial(DisplayPanel.__update_title, self))
 
-        self.__cursor_task: typing.Optional[asyncio.Task[None]] = None
-
     def close(self) -> None:
-        if self.__cursor_task:
-            self.__cursor_task.cancel()
-            self.__cursor_task = None
+        for future in self.__futures_set:
+            future.cancel()
+
+        for task in self.__cursor_task_set:
+            task.cancel()
 
         self.on_contents_changed = None
 
@@ -2460,6 +2580,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 # display canvas item.
                 if display_info is not None and self.__display_canvas_item is not None:
                     self.__display_canvas_item.update_display_info(display_info)
+                    cursor_position = self.__display_canvas_item.cursor_position
+                    if cursor_position is not None:
+                        self.cursor_changed(cursor_position)
 
             def handle_display_changed(display_item: DisplayItem.DisplayItem) -> None:
                 # This is called in response to a display change event, which may indicate a change in the display type.
@@ -2961,6 +3084,15 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return False
 
     def cursor_changed(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> None:
+        """Update the cursor position in the UI.
+
+        This method is called via the delegate in display canvas items.
+
+        This method is not thread safe and must be called from the main thread.
+
+        The pos is a data position in the data space of the display item.
+        """
+
         # displaying the cursor position is one of a few places where the UI thread
         # accesses the data directly. however, some data may not give access immediately.
         # so put the update into an async method and access the data in a blocked async
@@ -2970,39 +3102,36 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # and it will be locked out until the pick computation is complete, resulting
         # in stuttering. this async solution avoids this specific case.
 
-        def update_cursor_(document_controller: typing.Optional[DocumentController.DocumentController], position_text: str, value_text: str) -> None:
-            with Process.audit("update_cursor"):
-                self.__cursor_task = None
-                position_and_value_text = []
-                if position_text:
-                    position_and_value_text.append(_("Position: ") + position_text)
-                if value_text:
-                    position_and_value_text.append(_("Value: ") + value_text)
-                if document_controller:
-                    if len(position_text) == 0:
-                        document_controller.cursor_changed(None)
-                    else:
-                        document_controller.cursor_changed(position_and_value_text)
+        # when this method is called, it triggers a call to the async function `update_cursor` below so that
+        # `get_position_and_value_text` can be called on a thread via `run_in_executor`. when that finishes,
+        # the cursor is updated (on the main thread).
 
-        if not self.__cursor_task:
-            if threading.current_thread() == threading.main_thread():
+        # in order to allow display panel shutdown, each call to `run_in_executor` appends the future to a list and
+        # removes it when complete. on shutdown, the futures are cancelled so that the display panel can close
+        # without waiting for the thread to finish.
 
-                # Python 3.9+: weakref typing
-                async def update_cursor(document_controller_ref: typing.Any, display_item_ref: typing.Any) -> None:
-                    document_controller = typing.cast(typing.Optional["DocumentController.DocumentController"], document_controller_ref())
-                    display_item = typing.cast(typing.Optional[DisplayItem.DisplayItem], display_item_ref())
-                    position_text, value_text = str(), str()
-                    if pos is not None and display_item:
-                        position_text, value_text = await display_item.get_value_and_position_text_async(pos)
-                    update_cursor_(document_controller, position_text, value_text)
+        assert threading.current_thread() == threading.main_thread(), "cursor_changed should only be called from the main thread"
 
-                self.__cursor_task = asyncio.get_event_loop().create_task(update_cursor(weakref.ref(self.__document_controller), weakref.ref(self.__display_item)))
-            else:
-                display_item = self.__display_item
-                position_text, value_text = str(), str()
-                if pos is not None and display_item:
-                    position_text, value_text = display_item.get_value_and_position_text(pos)
-                update_cursor_(self.__document_controller, position_text, value_text)
+        # check to ensure only one cursor task is running at a time. this is not perfect since it can miss some
+        # updates, but for cursor handling it is sufficient.
+        if not self.__cursor_task_set:
+            async def update_cursor(document_controller: DocumentController.DocumentController, display_data_channel: DisplayItem.DisplayDataChannel, display_info: DisplayInfo.DisplayInfo, futures_set: set[asyncio.Future[PositionAndValueText]], pos: tuple[int, ...] | None) -> None:
+                value_and_position_text = PositionAndValueText()
+                if pos is not None:
+                    future = document_controller.event_loop.run_in_executor(None, get_position_and_value_text, display_data_channel, display_info.display_calibration_info, pos)
+                    futures_set.add(future)
+                    future.add_done_callback(futures_set.discard)
+                    value_and_position_text = await future
+                document_controller.cursor_changed(value_and_position_text.as_rendered_text_lines())
+
+            display_data_channel = self.__display_item.display_data_channel if self.__display_item else None
+            display_canvas_item = self.display_canvas_item
+            if display_data_channel and display_canvas_item:
+                # Set up the task that allows us to get_value_and_position on a thread.  Also register a finished
+                # callback to clear self.__cursor_task_set.
+                cursor_task = self.__document_controller.event_loop.create_task(update_cursor(self.__document_controller, display_data_channel, display_canvas_item.last_display_info, self.__futures_set, pos))
+                self.__cursor_task_set.add(cursor_task)
+                cursor_task.add_done_callback(self.__cursor_task_set.discard)
 
     def drag_graphics(self, graphics: typing.Sequence[Graphics.Graphic]) -> None:
         display_item = self.display_item

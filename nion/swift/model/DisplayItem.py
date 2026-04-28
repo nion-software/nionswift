@@ -2071,11 +2071,6 @@ class DisplayItem(Persistence.PersistentObject):
         self.__in_transaction_state = False
         self.__write_delay_modified_count = 0
 
-        # some async methods (cursor info) may run in a thread. these two variables allow the display item to
-        # prevent closing until any outstanding threads that access this object are finished.
-        self.__outstanding_condition = threading.Condition()
-        self.__outstanding_thread_count = 0
-
         # configure the title logic
 
         # the specified title is the title property that is set on the display item. it may override other derived titles.
@@ -2133,10 +2128,6 @@ class DisplayItem(Persistence.PersistentObject):
 
     def close(self) -> None:
         self.display_item_will_close_event.fire()  # let the thumbnail shut itself down
-        # wait for outstanding threads to finish
-        with self.__outstanding_condition:
-            while self.__outstanding_thread_count:
-                self.__outstanding_condition.wait()
         self.__single_data_item_title_stream = typing.cast(typing.Any, None)
         self.__single_data_item_placeholder_title_stream = typing.cast(typing.Any, None)
         self.displayed_title_stream = typing.cast(typing.Any, None)
@@ -3126,129 +3117,6 @@ class DisplayItem(Persistence.PersistentObject):
         else:
             self.set_display_property("y_min", data_min * 1.2)
             self.set_display_property("y_max", data_max * 1.2)
-
-    def __get_calibrated_value_text(self, value: float, intensity_calibration: Calibration.Calibration) -> str:
-        if value is not None:
-            return intensity_calibration.convert_to_calibrated_value_str(value)
-        elif value is None:
-            return _("N/A")
-        else:
-            return str(value)
-
-    def get_value_and_position_text(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> typing.Tuple[str, str]:
-        display_data_channel = self.display_data_channel
-        display_calibration_info = self.display_calibration_info
-        dimensional_calibrations = display_calibration_info.displayed_dimensional_calibrations if display_calibration_info else tuple()
-        intensity_calibration = display_calibration_info.displayed_intensity_calibration if display_calibration_info else Calibration.Calibration()
-
-        if not all(map(operator.attrgetter("is_valid"), dimensional_calibrations)):
-            dimensional_calibrations = [Calibration.Calibration() for _ in dimensional_calibrations]
-
-        if not intensity_calibration.is_valid:
-            intensity_calibration = Calibration.Calibration()
-
-        if display_data_channel is None or pos is None:
-            if display_calibration_info and display_calibration_info.is_composite_data and (pos is not None and len(pos) == 1):
-                return u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0])), str()
-            return str(), str()
-
-        # pass in the position of the cursor as reported by the display. it will be 1D or 2D position.
-        # convert it to a position that is an index into the data.
-        assert pos is not None
-        pos = display_data_channel.get_display_position_as_data_position(pos)
-
-        position_text = ""
-        value_text = ""
-        dimensional_shape = display_data_channel.dimensional_shape  # don't include the RGB part of the shape
-        if len(pos) == 5 and dimensional_shape:
-            # 5d image
-            # make sure the position is within the bounds of the image
-            if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < dimensional_shape[2] and 0 <= pos[3] < dimensional_shape[3] and 0 <= pos[4] < dimensional_shape[4]:
-                position_text = u"{0}, {1}, {2}, {3}, {4}".format(
-                    dimensional_calibrations[4].convert_to_calibrated_value_str(pos[4], value_range=(0, dimensional_shape[4]), samples=dimensional_shape[4]),
-                    dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, dimensional_shape[3]), samples=dimensional_shape[3]),
-                    dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
-                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
-                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
-                value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
-
-        if len(pos) == 4 and dimensional_shape:
-            # 4d image
-            # make sure the position is within the bounds of the image
-            if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < dimensional_shape[2] and 0 <= pos[3] < dimensional_shape[3]:
-                position_text = u"{0}, {1}, {2}, {3}".format(
-                    dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, dimensional_shape[3]), samples=dimensional_shape[3]),
-                    dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
-                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
-                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
-                value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
-        if len(pos) == 3 and dimensional_shape:
-            # 3d image
-            # make sure the position is within the bounds of the image
-            if 0 <= pos[0] < dimensional_shape[0] and 0 <= pos[1] < dimensional_shape[1] and 0 <= pos[2] < dimensional_shape[2]:
-                position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, dimensional_shape[2]), samples=dimensional_shape[2]),
-                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1]),
-                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0]))
-                value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
-        if len(pos) == 2 and dimensional_shape:
-            # 2d image
-            # make sure the position is within the bounds of the image
-            if len(dimensional_shape) == 1:
-                if pos[-1] >= 0 and pos[-1] < dimensional_shape[-1]:
-                    position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, dimensional_shape[-1]), samples=dimensional_shape[-1]))
-                    full_pos = [0, ] * len(dimensional_shape)
-                    full_pos[-1] = pos[-1]
-                    value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(tuple(full_pos)), intensity_calibration)
-            else:
-                if pos[0] >= 0 and pos[0] < dimensional_shape[0] and pos[1] >= 0 and pos[1] < dimensional_shape[1]:
-                    is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
-                    if is_polar:
-                        # pos will represent the top-left of the pixel, so add 0.5 to get the center of the pixel
-                        # which is what the user expects for polar coordinates.
-                        x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1] + 0.5)
-                        y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0] + 0.5)
-                        r = math.sqrt(x * x + y * y)
-                        angle = -math.atan2(y, x)
-                        r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0], display_inverted=True)
-                        position_text = u"{0}, {1:.4f}° ({2})".format(r_str, math.degrees(angle), _("polar"))
-                    else:
-                        position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, dimensional_shape[1]), samples=dimensional_shape[1], display_inverted=True),
-                            dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[0]), samples=dimensional_shape[0], display_inverted=True))
-                    value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(pos), intensity_calibration)
-        if len(pos) == 1 and dimensional_shape:
-            # 1d plot
-            # make sure the position is within the bounds of the line plot
-            if pos[0] >= 0 and pos[0] < dimensional_shape[-1]:
-                position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0], value_range=(0, dimensional_shape[-1]), samples=dimensional_shape[-1]))
-                full_pos = [0, ] * len(dimensional_shape)
-                full_pos[-1] = pos[0]
-                value_text = self.__get_calibrated_value_text(display_data_channel.get_data_value(tuple(full_pos)), intensity_calibration)
-        return position_text, value_text
-
-    async def get_value_and_position_text_async(self, pos: typing.Optional[typing.Tuple[int, ...]]) -> typing.Tuple[str, str]:
-        def get_cursor_value(display_item: DisplayItem) -> typing.Tuple[str, str]:
-            try:
-                with Process.audit("get_value_and_position_text"):
-                    return display_item.get_value_and_position_text(pos)
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                return str(), str()
-            finally:
-                # decrement the outstanding thread count and notify listeners (the close method) that it has changed
-                with display_item.__outstanding_condition:
-                    display_item.__outstanding_thread_count -= 1
-                    display_item.__outstanding_condition.notify_all()
-
-        # avoid race condition around close by checking if already closed. this method and close must always be
-        # called on the same thread for this to be effective.
-        if not self._closed:
-            # assume close cannot be happening at the same time; so if not closed, increment the outstanding
-            # thread count to prevent close until the executor finishes the get cursor value call.
-            with self.__outstanding_condition:
-                self.__outstanding_thread_count += 1
-            return await asyncio.get_event_loop().run_in_executor(None, get_cursor_value, self)
-        return str(), str()
 
 
 @dataclasses.dataclass
