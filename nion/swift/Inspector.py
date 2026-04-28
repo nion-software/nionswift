@@ -29,6 +29,7 @@ from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
+from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Feature
@@ -1156,16 +1157,18 @@ class ImageDataInspectorModel(Observable.Observable):
         self.data_range_low_model = Model.PropertyModel[float]()
         self.data_range_high_model = Model.PropertyModel[float]()
 
-        def update_data_range_models(display_data_info: DisplayItem.DisplayDataInfo | None) -> None:
-            if display_data_info:
-                data_range = display_data_info.data_range
-                if data_range is not None:
-                    self.data_range_low_model.value = data_range[0]
-                    self.data_range_high_model.value = data_range[1]
+        def update_data_range_models(display_info: DisplayInfo.DisplayInfo | None) -> None:
+            if display_info:
+                display_data_info = display_info.display_data_info
+                if display_data_info:
+                    data_range = display_data_info.data_range
+                    if data_range is not None:
+                        self.data_range_low_model.value = data_range[0]
+                        self.data_range_high_model.value = data_range[1]
 
-        self.__display_data_info_action = Stream.ValueStreamAction(display_item.display_data_info_stream, update_data_range_models)
+        self.__display_info_action = Stream.ValueStreamAction(display_item.display_info_stream, update_data_range_models)
 
-        update_data_range_models(display_item.display_data_info)
+        update_data_range_models(display_item.cached_display_info)
 
         display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
         self.display_limits_low_model = ImageDisplayLimitsModel(display_data_channel, display_limits_model, 0)
@@ -1742,37 +1745,35 @@ class CalibrationStyleModel(Observable.Observable):
         self.__index: int | None = None
         self.__items: tuple[str, ...] = tuple()
         self.__calibration_styles: tuple[DisplayItem.CalibrationStyle, ...] = tuple()
-        display_calibration_info_stream = display_item.display_calibration_info_stream
-        self.__display_calibration_info_stream_action = Stream.ValueStreamAction(display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_calibration_info_changed, self))
-        self.__update_items_and_index(display_calibration_info_stream.value)
+        display_info_stream = display_item.display_info_stream
+        self.__display_info_stream_action = Stream.ValueStreamAction(display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
+        self.__handle_display_info_changed(display_info_stream.value)
 
-    def __update_items_and_index(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
-        calibration_style = self.__adapter.get_calibration_style(display_calibration_info) if display_calibration_info else None
-        calibration_styles = self.__adapter.get_calibration_styles(display_calibration_info) if display_calibration_info else tuple()
-        index = calibration_styles.index(calibration_style) if calibration_style in calibration_styles else None
-        items = list[str]()
-        for calibration_style_ in calibration_styles:
-            calibration_style_label = calibration_style_.label
-            if calibration_style_.is_calibrated:
-                calibrations = self.__adapter.get_calibrations(display_calibration_info, calibration_style_) if display_calibration_info else tuple()
-                units = [c.units or "-" for c in calibrations]
-                if units and all(unit == units[0] for unit in units):
-                    calibration_style_label += " (" + units[0] + ")"
-                else:
-                    calibration_style_label += " (" + "/".join(units) + ")"
-            items.append(calibration_style_label)
-        items_tuple = tuple(items)
-        if items_tuple != self.__items:
-            self.__items = items_tuple
-            self.notify_property_changed("items")
-        if index != self.__index:
-            self.__index = index
-            self.notify_property_changed("index")
-        self.__calibration_styles = tuple(calibration_styles)
-
-    def __handle_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+    def __handle_display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        display_calibration_info = display_info.display_calibration_info if display_info else None
         if self.__last_display_calibration_info != display_calibration_info:
-            self.__update_items_and_index(display_calibration_info)
+            calibration_style = self.__adapter.get_calibration_style(display_calibration_info) if display_calibration_info else None
+            calibration_styles = self.__adapter.get_calibration_styles(display_calibration_info) if display_calibration_info else tuple()
+            index = calibration_styles.index(calibration_style) if calibration_style in calibration_styles else None
+            items = list[str]()
+            for calibration_style_ in calibration_styles:
+                calibration_style_label = calibration_style_.label
+                if calibration_style_.is_calibrated:
+                    calibrations = self.__adapter.get_calibrations(display_calibration_info, calibration_style_) if display_calibration_info else tuple()
+                    units = [c.units or "-" for c in calibrations]
+                    if units and all(unit == units[0] for unit in units):
+                        calibration_style_label += " (" + units[0] + ")"
+                    else:
+                        calibration_style_label += " (" + "/".join(units) + ")"
+                items.append(calibration_style_label)
+            items_tuple = tuple(items)
+            if items_tuple != self.__items:
+                self.__items = items_tuple
+                self.notify_property_changed("items")
+            if index != self.__index:
+                self.__index = index
+                self.notify_property_changed("index")
+            self.__calibration_styles = tuple(calibration_styles)
             self.__last_display_calibration_info = display_calibration_info
 
     @property
@@ -2503,16 +2504,18 @@ class CalibratedBinding(Binding.Binding):
     """
     def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding, dimension_index: int) -> None:
         super().__init__(None)
-        self.__display_calibration_info = display_item.display_calibration_info
+        display_info = display_item.cached_display_info
+        self.__display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__dimension_index = dimension_index
-        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__on_display_calibration_info_changed, self))
+        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__value_binding = value_binding
         self.__value_binding.target_setter = ReferenceCounting.weak_partial(self.__class__.__update_target, self)
 
     def __update_target(self, value: typing.Any) -> None:
         self.update_target_direct(self.get_target_value())
 
-    def __on_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+    def __handle_display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_calibration_info = display_calibration_info
         if display_calibration_info:
             self.__update_target(display_calibration_info.displayed_display_data_calibrations)
@@ -2620,8 +2623,9 @@ class CalibratedAngleBinding(CalibratedBinding):
 class CalibratedLengthBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
-        self.__display_calibration_info = display_item.display_calibration_info
-        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__on_display_calibration_info_changed, self))
+        display_info = display_item.cached_display_info
+        self.__display_calibration_info = display_info.display_calibration_info if display_info else None
+        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__start_binding = start_binding
         self.__end_binding = end_binding
         self.__start_binding.target_setter = ReferenceCounting.weak_partial(self.__class__.__update_target, self)
@@ -2630,7 +2634,8 @@ class CalibratedLengthBinding(Binding.Binding):
     def __update_target(self, value: typing.Any) -> None:
         self.update_target_direct(self.get_target_value())
 
-    def __on_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+    def __handle_display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_calibration_info = display_calibration_info
         if display_calibration_info:
             self.__update_target(display_calibration_info.displayed_display_data_calibrations)
@@ -2682,8 +2687,9 @@ class DisplayItemCalibratedDimensionValueModel(Model.ValueModel[str]):
         self.__is_size = is_size
         self.__uniform = uniform
         self.__factor = factor
-        self.__display_calibration_info = self.__display_item.display_calibration_info
-        self.__display_item_listener = Stream.ValueStreamAction(self.__display_item.display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__on_display_calibration_info_changed, self))
+        display_info = display_item.cached_display_info
+        self.__display_calibration_info = display_info.display_calibration_info if display_info else None
+        self.__display_item_listener = Stream.ValueStreamAction(self.__display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__property_listener = self.__property_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__on_value_changed, self))
         self.__value_str: str | None = None
         self.__update()
@@ -2712,7 +2718,8 @@ class DisplayItemCalibratedDimensionValueModel(Model.ValueModel[str]):
             self.__value_str = new_value
             self.notify_property_changed("value")
 
-    def __on_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+    def __handle_display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_calibration_info = display_calibration_info
         self.__update()
 
@@ -2822,8 +2829,9 @@ class LineLengthModel(Model.PropertyModel[float]):
         super().__init__()
         self.__start_model = start_model
         self.__end_model = end_model
-        self.__display_calibration_info = display_item.display_calibration_info
-        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__on_display_calibration_info_changed, self))
+        display_info = display_item.cached_display_info
+        self.__display_calibration_info = display_info.display_calibration_info if display_info else None
+        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__start_listener = self.__start_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__handle_model_changed, self))
         self.__end_listener = self.__end_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__handle_model_changed, self))
 
@@ -2836,7 +2844,8 @@ class LineLengthModel(Model.PropertyModel[float]):
     def __handle_model_changed(self, property: str) -> None:
         self.notify_property_changed("value")
 
-    def __on_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+    def __handle_display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_calibration_info = display_calibration_info
         self.notify_property_changed("value")
 
@@ -2876,8 +2885,9 @@ class LineAngleModel(Model.PropertyModel[float]):
         super().__init__()
         self.__start_model = start_model
         self.__end_model = end_model
-        self.__display_calibration_info = display_item.display_calibration_info
-        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_calibration_info_stream, ReferenceCounting.weak_partial(self.__class__.__on_display_calibration_info_changed, self))
+        display_info = display_item.cached_display_info
+        self.__display_calibration_info = display_info.display_calibration_info if display_info else None
+        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__start_listener = self.__start_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__handle_model_changed, self))
         self.__end_listener = self.__end_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__handle_model_changed, self))
 
@@ -2890,7 +2900,8 @@ class LineAngleModel(Model.PropertyModel[float]):
     def __handle_model_changed(self, property: str) -> None:
         self.notify_property_changed("value")
 
-    def __on_display_calibration_info_changed(self, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None) -> None:
+    def __handle_display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_calibration_info = display_calibration_info
         self.notify_property_changed("value")
 
@@ -3061,7 +3072,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_line_profile_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        display_calibration_info = self.__display_item.display_calibration_info
+        display_info = self.__display_item.cached_display_info
+        display_calibration_info = display_info.display_calibration_info if display_info else None
         display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
         factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
         line_profile_width_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "width", title=_("Change Width"), command_id="change_line_profile_width")

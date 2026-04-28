@@ -130,7 +130,8 @@ class ThumbnailSource:
         ui = self._ui
         try:
             display_item = self.__display_item
-            display_calibration_info = display_item.display_calibration_info
+            display_info = display_item.display_info
+            display_calibration_info = display_info.display_calibration_info
             display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
             if display_data_shape and len(display_data_shape) == 2:
                 pixel_shape = Geometry.IntSize(height=512, width=512)

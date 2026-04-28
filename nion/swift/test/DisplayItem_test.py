@@ -822,7 +822,7 @@ class TestDisplayItemClass(unittest.TestCase):
                 for expected, shape, is_sequence, collection_dimension_count, datum_dimension_count in l:
                     data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones(shape), data_descriptor=DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)))
                     document_model.append_data_item(data_item)
-                    display_calibration_info = document_model.display_items[-1].display_calibration_info
+                    display_calibration_info = document_model.display_items[-1].display_info.display_calibration_info
                     self.assertEqual(len(expected), len(display_calibration_info.displayed_display_data_calibrations))
                     self.assertEqual(expected, DisplayItem.DisplayDataShapeCalculator(data_item.data_metadata).indexes)
 

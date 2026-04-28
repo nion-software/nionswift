@@ -2500,10 +2500,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     self.__display_info_stream_action = display_info_stream_action
                     # set up a listener to handle display type changes.
                     self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(handle_display_changed, display_item))
-                    # force an update of the display canvas item with the current display data delta by marking it changed.
-                    display_info = display_info_stream.value
-                    assert display_info
-                    handle_display_info(display_info)
+                    # force display_info to be computed and update the display canvas item with it.
+                    handle_display_info(display_item.display_info)
 
             configure_display_canvas_item(display_item)
 
@@ -3299,8 +3297,7 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
     display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            display_info = display_item.display_info_stream.value
-            assert display_info
+            display_info = display_item.display_info
             display_canvas_item.update_display_info(display_info)
             with drawing_context.saver():
                 display_canvas_item.update_canvas_items()

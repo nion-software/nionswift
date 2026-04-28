@@ -594,7 +594,8 @@ class StandardImportExportHandler(ImportExportHandler):
         return len(data_metadata.dimensional_shape) == 2
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path, extension: str) -> None:
-        display_data_info = display_item.display_data_info
+        display_info = display_item.display_info
+        display_data_info = display_info.display_data_info
         assert display_data_info
         derived_display_values = display_data_info.derived_display_values
         assert derived_display_values
