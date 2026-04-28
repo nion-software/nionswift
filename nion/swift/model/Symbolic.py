@@ -1118,7 +1118,8 @@ class DataSource:
         self.__graphic_bounds = graphic.bounds if isinstance(graphic, Graphics.RectangleTypeGraphic) else None
         self.__graphic_rotation = graphic.rotation if isinstance(graphic, Graphics.RectangleTypeGraphic) else 0.0
         self.__graphic_interval = graphic.interval if isinstance(graphic, Graphics.IntervalGraphic) else None
-        self.__display_data_info = display_item.display_data_info if display_item else None
+        display_info = display_item.display_info if display_item else None
+        self.__display_data_info = display_info.display_data_info if display_info else None
         self.__derived_display_values = self.__display_data_info.derived_display_values if self.__display_data_info else None
 
     def close(self) -> None:

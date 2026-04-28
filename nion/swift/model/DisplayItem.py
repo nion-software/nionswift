@@ -2047,32 +2047,10 @@ class DisplayItem(Persistence.PersistentObject):
         self.graphics_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
 
+        # configure the display info stream and controller.
+
         self.__display_info_stream = Stream.ValueStream[DisplayInfo.DisplayInfo]()
         self.__display_info_stream_controller = DisplayInfoStreamController(self, self.__display_info_stream)
-
-        # configure the display_calibration_info_stream.
-
-        def handle_display_info_stream(
-                display_calibration_info_stream: Stream.ValueStream[DisplayCalibrationInfo],
-                data_info_stream: Stream.ValueStream[DisplayDataInfo],
-                display_info: DisplayInfo.DisplayInfo | None
-        ) -> None:
-            if display_info is not None:
-                display_calibration_info_stream.value = display_info.display_calibration_info
-                display_data_info_list = display_info.display_data_info_list
-                display_data_info = display_data_info_list[0] if len(display_data_info_list) == 1 else None
-                if display_data_info:
-                    data_info_stream.value = display_data_info
-                else:
-                    data_info_stream.value = None
-            else:
-                display_calibration_info_stream.value = None
-                data_info_stream.value = None
-
-        self.__display_calibration_info_stream = Stream.ValueStream[DisplayCalibrationInfo]()
-        self.__data_info_stream = Stream.ValueStream[DisplayDataInfo]()
-
-        self.__display_info_stream_action = Stream.ValueStreamAction(self.__display_info_stream, functools.partial(handle_display_info_stream, self.__display_calibration_info_stream, self.__data_info_stream))
 
         # configure the graphic selection changes listener.
 
@@ -2173,7 +2151,20 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def display_info_stream(self) -> Stream.AbstractStream[DisplayInfo.DisplayInfo]:
+        """Return the stream of display info for this display item. The stream will update whenever the display info changes."""
         return self.__display_info_stream
+
+    @property
+    def cached_display_info(self) -> DisplayInfo.DisplayInfo | None:
+        """Return the most recently computed display info, which may be None if it has not been computed yet."""
+        return self.display_info_stream.value
+
+    @property
+    def display_info(self) -> DisplayInfo.DisplayInfo:
+        """Return computed display info. Wait for it to be computed if necessary."""
+        display_info = self.display_info_stream.value
+        assert display_info
+        return display_info
 
     @property
     def calibration_style_id(self) -> str:
@@ -2240,7 +2231,8 @@ class DisplayItem(Persistence.PersistentObject):
         self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
         if self.used_display_type == "line_plot":
-            display_calibration_info = self.display_calibration_info
+            display_info = self.cached_display_info
+            display_calibration_info = display_info.display_calibration_info if display_info else None
             display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
             if display_data_shape and len(display_data_shape) == 2:
                 for display_layer in self.display_layers:
@@ -2896,22 +2888,6 @@ class DisplayItem(Persistence.PersistentObject):
     def __graphic_changed(self, graphic: Graphics.Graphic) -> None:
         self.graphics_changed_event.fire(self.graphic_selection)
 
-    @property
-    def display_calibration_info_stream(self) -> Stream.ValueStream[DisplayCalibrationInfo]:
-        return self.__display_calibration_info_stream
-
-    @property
-    def display_calibration_info(self) -> DisplayCalibrationInfo | None:
-        return self.__display_calibration_info_stream.value
-
-    @property
-    def display_data_info_stream(self) -> Stream.ValueStream[DisplayDataInfo]:
-        return self.__data_info_stream
-
-    @property
-    def display_data_info(self) -> DisplayDataInfo | None:
-        return self.__data_info_stream.value
-
     @dataclasses.dataclass
     class ExportDataInfo:
         data_shape: typing.Tuple[int, ...]
@@ -2921,7 +2897,8 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def export_data_info(self) -> DisplayItem.ExportDataInfo:
-        display_calibration_info = self.display_calibration_info
+        display_info = self.display_info
+        display_calibration_info = display_info.display_calibration_info if display_info else None
         if not display_calibration_info:
             return DisplayItem.ExportDataInfo(
                 data_shape=tuple(),

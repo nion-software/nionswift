@@ -19,6 +19,7 @@ from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import Panel
+from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.ui import CanvasItem
@@ -823,32 +824,34 @@ class HistogramPanel(Panel.Panel):
         def compare_data(a: typing.Any, b: typing.Any) -> bool:
             return numpy.array_equal(a.data if a else None, b.data if b else None)  # type: ignore
 
-        def extract_displayed_intensity_calibration(display_calibration_info: typing.Optional[DisplayItem.DisplayCalibrationInfo]) -> typing.Optional[Calibration.Calibration]:
+        def extract_displayed_intensity_calibration(display_info: DisplayInfo.DisplayInfo | None) -> Calibration.Calibration | None:
+            display_calibration_info = display_info.display_calibration_info if display_info else None
             return display_calibration_info.displayed_intensity_calibration if display_calibration_info else None
 
-        def extract_data_info_display_data_and_metadata(data_info: DisplayItem.DisplayDataInfo | None) -> DataAndMetadata.DataAndMetadata | None:
-            return data_info.display_data_and_metadata if data_info else None
+        def extract_data_info_display_data_and_metadata(display_info: DisplayInfo.DisplayInfo | None) -> DataAndMetadata.DataAndMetadata | None:
+            display_data_info = display_info.display_data_info if display_info else None
+            return display_data_info.display_data_and_metadata if display_data_info else None
 
-        def extract_data_info_display_range(data_info: DisplayItem.DisplayDataInfo | None) -> tuple[float, float] | None:
-            return data_info.display_range if data_info else None
+        def extract_data_info_display_range(display_info: DisplayInfo.DisplayInfo | None) -> tuple[float, float] | None:
+            display_data_info = display_info.display_data_info if display_info else None
+            return display_data_info.display_range if display_data_info else None
 
-        def extract_data_info_data_range(data_info: DisplayItem.DisplayDataInfo | None) -> tuple[float, float] | None:
-            return data_info.data_range if data_info else None
+        def extract_data_info_data_range(display_info: DisplayInfo.DisplayInfo | None) -> tuple[float, float] | None:
+            display_data_info = display_info.display_data_info if display_info else None
+            return display_data_info.data_range if display_data_info else None
 
         display_item_stream = TargetDisplayItemStream(document_controller)
         display_item = display_item_stream.value
         display_data_channel_stream = StreamPropertyStream[DisplayItem.DisplayDataChannel](typing.cast(Stream.AbstractStream[Observable.Observable], display_item_stream), "display_data_channel")
-        display_calibration_info_stream = Stream.FollowStream(display_item.display_calibration_info_stream if display_item else None)
-        display_data_info_stream = Stream.FollowStream(display_item.display_data_info_stream if display_item else None)
-        display_data_and_metadata_stream = Stream.MapStream(display_data_info_stream, extract_data_info_display_data_and_metadata)
-        display_range_stream = Stream.MapStream(display_data_info_stream, extract_data_info_display_range)
-        display_data_range_stream = Stream.MapStream(display_data_info_stream, extract_data_info_data_range)
-        displayed_intensity_calibration_stream = Stream.MapStream[DisplayItem.DisplayCalibrationInfo, Calibration.Calibration](display_calibration_info_stream, extract_displayed_intensity_calibration)
+        display_info_stream = Stream.FollowStream(display_item.display_info_stream if display_item else None)
+        display_data_and_metadata_stream = Stream.MapStream(display_info_stream, extract_data_info_display_data_and_metadata)
+        display_range_stream = Stream.MapStream(display_info_stream, extract_data_info_display_range)
+        display_data_range_stream = Stream.MapStream(display_info_stream, extract_data_info_data_range)
+        displayed_intensity_calibration_stream = Stream.MapStream(display_info_stream, extract_displayed_intensity_calibration)
 
-        # configure the display_calibration_info_stream to update when the display item changes, since the calibration info stream is based on the display item stream.
+        # configure the display_info_stream to update when the display item changes, since the calibration info stream is based on the display item stream.
         def handle_display_item_changed(display_item: DisplayItem.DisplayItem | None) -> None:
-            display_calibration_info_stream.stream = display_item.display_calibration_info_stream if display_item else None
-            display_data_info_stream.stream = display_item.display_data_info_stream if display_item else None
+            display_info_stream.stream = display_item.display_info_stream if display_item else None
 
         self.__display_item_stream_action = Stream.ValueStreamAction(display_item_stream, handle_display_item_changed)
 
@@ -872,9 +875,8 @@ class HistogramPanel(Panel.Panel):
             if not canvas_x:
                 document_controller.cursor_changed(None)
             if display_item_stream and display_item_stream.value and canvas_x:
-                display_calibration_info = display_calibration_info_stream.value
-                if display_range is not None and display_calibration_info is not None:  # can be None with empty data
-                    displayed_intensity_calibration = display_calibration_info.displayed_intensity_calibration
+                displayed_intensity_calibration = extract_displayed_intensity_calibration(display_info_stream.value)
+                if display_range is not None and displayed_intensity_calibration is not None:
                     adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
                     adjusted_x_str = displayed_intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
                     document_controller.cursor_changed([_('Intensity: ') + adjusted_x_str])
