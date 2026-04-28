@@ -4,7 +4,6 @@ from __future__ import annotations
 import copy
 import math
 import operator
-import threading
 import typing
 
 # third party libraries
@@ -110,8 +109,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         font_size = 12
 
-        self.__closing_lock = threading.RLock()
-        self.__closed = False
+        self.__line_plot_display_info = LinePlotDisplay.LinePlotDisplayInfo(self.display_info)
+        self.__last_line_plot_display_info = self.__line_plot_display_info
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
@@ -223,14 +222,10 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__pending_interval: typing.Optional[Graphics.IntervalGraphic] = None
 
-        self._finish_init()
-
     def close(self) -> None:
         if self.__undo_command:
             self.__undo_command.close()
             self.__undo_command = None
-        with self.__closing_lock:
-            self.__closed = True
         self.__display_data_info_list = typing.cast(typing.Any, None)
         super().close()
 
@@ -272,33 +267,15 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         else:
             self.__display_controls.add_canvas_item(display_control_canvas_item)
 
-    def _temporary_create_display_info(self) -> DisplayInfo.DisplayInfo:
-        return LinePlotDisplay.LinePlotDisplayInfo(None, dict(), list(), list(), list(), None)
-
-    @property
-    def __line_plot_display_info(self) -> LinePlotDisplay.LinePlotDisplayInfo:
-        display_info = self.display_info
-        if isinstance(display_info, LinePlotDisplay.LinePlotDisplayInfo):
-            return display_info
-        return LinePlotDisplay.LinePlotDisplayInfo(None, dict(), list(), list(), list(), None)
-
-    @property
-    def __last_line_plot_display_info(self) -> LinePlotDisplay.LinePlotDisplayInfo:
-        last_display_info = self.last_display_info
-        if isinstance(last_display_info, LinePlotDisplay.LinePlotDisplayInfo):
-            return last_display_info
-        return LinePlotDisplay.LinePlotDisplayInfo(None, dict(), list(), list(), list(), None)
-
     @property
     def __last_axes(self) -> LinePlotDisplay.LineGraphAxes:
         return self.__last_line_plot_display_info.axes
 
-    def _display_info_updated(self) -> None:
+    def _display_info_updated(self, display_info: DisplayInfo.DisplayInfo) -> None:
+        self.__line_plot_display_info = LinePlotDisplay.LinePlotDisplayInfo(display_info)
+
         # update the cursor info
         self.__update_cursor_info()
-
-        # trigger an update
-        self.update()
 
     def _update_canvas_items(self) -> None:
         line_plot_display_info = self.__line_plot_display_info
@@ -335,6 +312,9 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             # update frame rate info
             if self.__frame_rate_canvas_item.display_frame_rate_id:
                 self.__frame_rate_canvas_item.frame_tick(line_plot_display_info.frame_info.frame_index)
+
+        # this goes at the end so that the previous values are still available to determine changes during the update.
+        self.__last_line_plot_display_info = line_plot_display_info
 
     def set_focused(self, is_focused: bool) -> None:
         self.__line_graph_regions_canvas_item.set_is_focused(is_focused)

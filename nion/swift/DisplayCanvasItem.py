@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import abc
-import copy
 import types
 import typing
 
@@ -16,7 +15,6 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Geometry
-from nion.utils import Stream
 
 
 class InteractiveTask:
@@ -94,7 +92,10 @@ class DisplayCanvasItemDelegate(typing.Protocol):
 
 
 class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
-    """Allow display canvas items (tools) to bypass multi-select.
+    """Canvas item to display a display item.
+
+    Listens to the display_item display_info stream and calls _display_info_updated when it is updated. Subclasses
+    should implement _display_info_updated to update the canvas items based on the display info.
 
     In cases where only_shift is used in the tool, the tool should bypass multi-select and the result will be as if
     the user clicked in the target display panel without modifiers. For instance, if the user shift-clicks using the
@@ -106,34 +107,21 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, delegate: typing.Optional[DisplayCanvasItemDelegate]) -> None:
         super().__init__()
         self.delegate = delegate
-        self.__display_info: DisplayInfo.DisplayInfo | None = None
-        self.__last_display_info: DisplayInfo.DisplayInfo | None = None
-
-    def _finish_init(self) -> None:
-        self.__display_info = self._temporary_create_display_info()
+        self.__display_info = DisplayInfo.DisplayInfo(None, dict(), list(), list(), list(), None)
         self.__last_display_info = self.__display_info
-        if self.delegate:
-            pass
-
-    def _temporary_create_display_info(self) -> DisplayInfo.DisplayInfo:
-        raise NotImplementedError()
 
     @property
     def display_info(self) -> DisplayInfo.DisplayInfo:
         # display info is the latest display info.
-        assert self.__display_info
         return self.__display_info
 
     @property
     def last_display_info(self) -> DisplayInfo.DisplayInfo:
         # last display info is what was last used when the canvas items were updated.
-        assert self.__last_display_info
         return self.__last_display_info
 
     def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
         """Update the state of the display by updating display info and the subclass."""
-
-        assert self.__display_info
 
         display_calibration_info = self.__display_info.display_calibration_info
         display_properties = self.__display_info.display_properties
@@ -153,21 +141,24 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
         if display_data_delta.display_calibration_info != display_calibration_info:
             display_calibration_info = display_data_delta.display_calibration_info
         if display_data_delta.display_properties != display_properties:
-            display_properties = copy.deepcopy(display_data_delta.display_properties)
+            display_properties = display_data_delta.display_properties
         if display_data_delta.display_data_info_list != display_data_info_list:
-            display_data_info_list = list(display_data_delta.display_data_info_list)
+            display_data_info_list = display_data_delta.display_data_info_list
         if len(display_data_delta.display_layers_list) != len(display_layers) or any(not display_layer_info_equal(x, y) for x, y in zip(display_data_delta.display_layers_list, display_layers)):
-            display_layers = list(display_data_delta.display_layers_list)
+            display_layers = display_data_delta.display_layers_list
         if display_data_delta.graphics != graphics:
-            graphics = list(display_data_delta.graphics)
+            graphics = display_data_delta.graphics
         if display_data_delta.graphic_selection != graphic_selection:
-            graphic_selection = copy.copy(display_data_delta.graphic_selection)
+            graphic_selection = display_data_delta.graphic_selection
 
-        # update the display info.
-        self.__display_info = self.__display_info.apply_display_info(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
+        # update the display info. all items will be copied in the DisplayInfo constructor.
+        self.__display_info = DisplayInfo.DisplayInfo(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
 
         # inform the subclass
-        self._display_info_updated()
+        self._display_info_updated(self.__display_info)
+
+        # update the canvas items.
+        self.update()
 
     @property
     def key_contexts(self) -> typing.Sequence[str]:
@@ -189,7 +180,7 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def handle_auto_display(self) -> bool:
         raise NotImplementedError()
 
-    def _display_info_updated(self) -> None:
+    def _display_info_updated(self, display_info: DisplayInfo.DisplayInfo) -> None:
         raise NotImplementedError()
 
     def set_focused(self, is_focused: bool) -> None:

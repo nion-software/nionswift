@@ -44,7 +44,7 @@ class DisplayInfo:
     def __init__(
             self,
             display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
-            display_properties: Persistence.PersistentDictType,
+            display_properties: typing.Mapping[str, typing.Any],
             display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
             display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
             graphics: typing.Sequence[Graphics.Graphic],
@@ -66,12 +66,12 @@ class DisplayInfo:
         return self.__display_calibration_info is not None
 
     @property
-    def display_properties(self) -> Persistence.PersistentDictType:
-        return copy.deepcopy(self.__display_properties)
+    def display_properties(self) -> typing.Mapping[str, typing.Any]:
+        return self.__display_properties
 
     @property
     def display_data_info_list(self) -> typing.Sequence[DisplayItem.DisplayDataInfo | None]:
-        return list(self.__display_data_info_list)
+        return self.__display_data_info_list
 
     @property
     def display_data_info(self) -> DisplayItem.DisplayDataInfo | None:
@@ -96,15 +96,3 @@ class DisplayInfo:
         if data_metadata:
             return get_frame_info(data_metadata)
         return FrameInfo(0, list())
-
-    def apply_display_info(
-            self,
-            display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
-            display_properties: Persistence.PersistentDictType,
-            display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
-            display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
-            graphics: typing.Sequence[Graphics.Graphic],
-            graphic_selection: DisplayItem.GraphicSelection | None
-    ) -> DisplayInfo:
-        """Apply the display data delta changes to this display info and return a new display info with the changes applied."""
-        return self

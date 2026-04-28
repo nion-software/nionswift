@@ -1011,7 +1011,6 @@ class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def __init__(self, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
         super().__init__(delegate)
         self.add_canvas_item(MissingCanvasItem())
-        self._finish_init()
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         return self.delegate.show_display_context_menu(gx, gy) if self.delegate else False
@@ -1027,10 +1026,7 @@ class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # enter key has been pressed
         return False
 
-    def _temporary_create_display_info(self) -> DisplayInfo.DisplayInfo:
-        return DisplayInfo.DisplayInfo(None, dict(), list(), list(), list(), None)
-
-    def _display_info_updated(self) -> None:
+    def _display_info_updated(self, display_info: DisplayInfo.DisplayInfo) -> None:
         pass
 
     def _update_canvas_items(self) -> None:
