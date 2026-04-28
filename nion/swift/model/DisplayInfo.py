@@ -86,7 +86,7 @@ class DisplayInfo:
         return self.__graphics
 
     @property
-    def graphic_selection(self) -> DisplayItem.GraphicSelection | None:
+    def graphic_selection(self) -> DisplayItem.GraphicSelection:
         return self.__graphic_selection
 
     @property

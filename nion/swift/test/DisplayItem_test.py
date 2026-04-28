@@ -11,15 +11,14 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
-from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DynamicString
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
-from nion.ui import TestUI
 
 
 Facade.initialize()
@@ -511,11 +510,11 @@ class TestDisplayItemClass(unittest.TestCase):
 
                 change_count = 0
 
-                def handle_display_data_delta_stream_change(display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+                def handle_display_info_stream_change(display_info: DisplayInfo.DisplayInfo) -> None:
                     nonlocal change_count
                     change_count += 1
 
-                with display_item.display_data_delta_stream.value_stream.listen(handle_display_data_delta_stream_change):
+                with display_item.display_info_stream.value_stream.listen(handle_display_info_stream_change):
                     display_item.display_layers[0].stroke_width = 2
                     display_item.display_layers[1].stroke_width = 2
 
@@ -538,11 +537,11 @@ class TestDisplayItemClass(unittest.TestCase):
 
                 change_count = 0
 
-                def handle_display_data_delta_stream_change(display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+                def handle_display_info_stream_change(display_info: DisplayInfo.DisplayInfo) -> None:
                     nonlocal change_count
                     change_count += 1
 
-                with display_item.display_data_delta_stream.value_stream.listen(handle_display_data_delta_stream_change):
+                with display_item.display_info_stream.value_stream.listen(handle_display_info_stream_change):
                     display_item.graphics[0].label = "label"
                     display_item.graphics[1].label = "label"
 

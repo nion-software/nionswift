@@ -1925,8 +1925,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__display_canvas_item: DisplayCanvasItem.DisplayCanvasItem | None = None
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
-        self.__display_data_delta_stream: DisplayItem.DisplayDataDeltaStream | None = None
-        self.__display_data_delta_stream_action: Stream.ValueStreamAction[DisplayItem.DisplayDataDelta] | None = None
+        self.__display_info_stream: Stream.AbstractStream[DisplayInfo.DisplayInfo] | None = None
+        self.__display_info_stream_action: Stream.ValueStreamAction[DisplayInfo.DisplayInfo] | None = None
         self.__display_type: str | None = None
         self.__display_changed_event_listener: Event.EventListener | None = None
         self.__display_about_to_be_removed_event_listener: Event.EventListener | None = None
@@ -2455,11 +2455,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 if key == "displayed_title":
                     self.__update_title()
 
-            def handle_display_data_delta(display_data_delta: DisplayItem.DisplayDataDelta | None) -> None:
+            def handle_display_info(display_info: DisplayInfo.DisplayInfo | None) -> None:
                 # This is called when the display data delta stream produces a new value. The value is passed on to the
                 # display canvas item.
-                if display_data_delta is not None and self.__display_canvas_item is not None:
-                    self.__display_canvas_item.update_display_data_delta(display_data_delta)
+                if display_info is not None and self.__display_canvas_item is not None:
+                    self.__display_canvas_item.update_display_info(display_info)
 
             def handle_display_changed(display_item: DisplayItem.DisplayItem) -> None:
                 # This is called in response to a display change event, which may indicate a change in the display type.
@@ -2472,8 +2472,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 # Clear the existing display canvas item and display item listeners.
                 self.__display_canvas_item = None
                 self.__display_type = None
-                self.__display_data_delta_stream = None
-                self.__display_data_delta_stream_action = None
+                self.__display_info_stream = None
+                self.__display_info_stream_action = None
                 self.__display_changed_event_listener = None
                 self.__display_about_to_be_removed_event_listener = None
                 self.__display_property_changed_event_listener = None
@@ -2494,16 +2494,16 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     new_display_canvas_item.set_focused(self.__content_canvas_item.focused)
                     self.__display_canvas_item = new_display_canvas_item
                     # configure the display data stream and listener to update the display canvas item when the display data changes.
-                    display_data_delta_stream = display_item.display_data_delta_stream
-                    display_data_delta_stream_action = Stream.ValueStreamAction(display_data_delta_stream, handle_display_data_delta)
-                    self.__display_data_delta_stream = display_data_delta_stream
-                    self.__display_data_delta_stream_action = display_data_delta_stream_action
+                    display_info_stream = display_item.display_info_stream
+                    display_info_stream_action = Stream.ValueStreamAction(display_info_stream, handle_display_info)
+                    self.__display_info_stream = display_info_stream
+                    self.__display_info_stream_action = display_info_stream_action
                     # set up a listener to handle display type changes.
                     self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(handle_display_changed, display_item))
                     # force an update of the display canvas item with the current display data delta by marking it changed.
-                    display_data_delta = display_data_delta_stream.value
-                    assert display_data_delta
-                    handle_display_data_delta(display_data_delta)
+                    display_info = display_info_stream.value
+                    assert display_info
+                    handle_display_info(display_info)
 
             configure_display_canvas_item(display_item)
 
@@ -3299,9 +3299,9 @@ def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.Displa
     display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            display_data_delta = display_item.display_data_delta_stream.value
-            assert display_data_delta
-            display_canvas_item.update_display_data_delta(display_data_delta)
+            display_info = display_item.display_info_stream.value
+            assert display_info
+            display_canvas_item.update_display_info(display_info)
             with drawing_context.saver():
                 display_canvas_item.update_canvas_items()
                 display_canvas_item.repaint_immediate(drawing_context, pixel_shape)
