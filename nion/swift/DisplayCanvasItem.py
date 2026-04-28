@@ -120,7 +120,7 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
         # last display info is what was last used when the canvas items were updated.
         return self.__last_display_info
 
-    def update_display_data_delta(self, display_data_delta: DisplayItem.DisplayDataDelta) -> None:
+    def update_display_info(self, display_info: DisplayInfo.DisplayInfo) -> None:
         """Update the state of the display by updating display info and the subclass."""
 
         display_calibration_info = self.__display_info.display_calibration_info
@@ -138,18 +138,18 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
                     layer1.stroke_width == layer2.stroke_width and
                     layer1.data_index == layer2.data_index)
 
-        if display_data_delta.display_calibration_info != display_calibration_info:
-            display_calibration_info = display_data_delta.display_calibration_info
-        if display_data_delta.display_properties != display_properties:
-            display_properties = display_data_delta.display_properties
-        if display_data_delta.display_data_info_list != display_data_info_list:
-            display_data_info_list = display_data_delta.display_data_info_list
-        if len(display_data_delta.display_layers_list) != len(display_layers) or any(not display_layer_info_equal(x, y) for x, y in zip(display_data_delta.display_layers_list, display_layers)):
-            display_layers = display_data_delta.display_layers_list
-        if display_data_delta.graphics != graphics:
-            graphics = display_data_delta.graphics
-        if display_data_delta.graphic_selection != graphic_selection:
-            graphic_selection = display_data_delta.graphic_selection
+        if display_info.display_calibration_info != display_calibration_info:
+            display_calibration_info = display_info.display_calibration_info
+        if display_info.display_properties != display_properties:
+            display_properties = display_info.display_properties
+        if display_info.display_data_info_list != display_data_info_list:
+            display_data_info_list = display_info.display_data_info_list
+        if len(display_info.display_layers) != len(display_layers) or any(not display_layer_info_equal(x, y) for x, y in zip(display_info.display_layers, display_layers)):
+            display_layers = display_info.display_layers
+        if display_info.graphics != graphics:
+            graphics = display_info.graphics
+        if display_info.graphic_selection != graphic_selection:
+            graphic_selection = display_info.graphic_selection
 
         # update the display info. all items will be copied in the DisplayInfo constructor.
         self.__display_info = DisplayInfo.DisplayInfo(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)

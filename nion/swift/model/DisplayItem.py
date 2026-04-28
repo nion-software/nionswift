@@ -41,6 +41,7 @@ from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayInfo
 from nion.swift.model import Graphics
 from nion.swift.model import Model
 from nion.swift.model import Persistence
@@ -1838,38 +1839,10 @@ def get_intensity_calibration_styles(data_metadata_list: typing.Sequence[DataAnd
     return calibration_styles
 
 
-@dataclasses.dataclass(frozen=True)
-class DisplayDataDelta:
-    graphics: typing.Sequence[Graphics.Graphic]
-    graphic_selection: GraphicSelection
-    display_calibration_info: DisplayCalibrationInfo
-    display_data_info_list: typing.Sequence[DisplayDataInfo | None]
-    display_properties: Persistence.PersistentDictType
-    display_layers_list: typing.Sequence[DisplayLayerInfo]
-
-
-class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
-    """Display data tracker.
-
-    Observe a data item form the dimensional calibrations, intensity calibration, scales, dimensional
-    shape, and is composite data properties of the display item, the display values list, the graphics,
-    the graphic selection, the display layers, and the display properties.
-
-    This class tracks the list of display data channels in the display item. For each display data channel, this class
-    tracks the display values.
-
-    The calibrations from the first display values are transformed by the calibration style to produce the display
-    calibrations.
-    """
-
-    def __init__(self,
-                 display_item: DisplayItem,
-                 calibration_style_id_stream: Stream.PropertyChangedEventStream[str],
-                 intensity_calibration_style_id_stream: Stream.PropertyChangedEventStream[str],
-                 ) -> None:
-        super().__init__()
-
-        self.__display_item_ref = weakref.ref(display_item)
+class DisplayInfoStreamController:
+    def __init__(self, display_item: DisplayItem, display_info_stream: Stream.ValueStream[DisplayInfo.DisplayInfo]) -> None:
+        self.__display_item = display_item
+        self.__display_info_stream = display_info_stream
 
         self.__display_data_channels = list[DisplayDataChannel | None]()
         self.__display_data_channel_listeners = list[Event.EventListener | None]()
@@ -1880,22 +1853,25 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         self.__display_layers_list = list[DisplayLayerInfo]()
         self.__display_properties = copy.deepcopy(display_item.display_properties)
 
+        calibration_style_id_stream = Stream.PropertyChangedEventStream[str](display_item, "calibration_style_id")
+        intensity_calibration_style_id_stream = Stream.PropertyChangedEventStream[str](display_item, "intensity_calibration_style_id")
+
         self.__calibration_style_id_stream = calibration_style_id_stream
         self.__intensity_calibration_style_id_stream = intensity_calibration_style_id_stream
 
-        self.__display_item_item_inserted_listener = display_item.item_inserted_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_item_item_inserted, self))
-        self.__display_item_item_removed_listener = display_item.item_removed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_item_item_removed, self))
+        self.__display_item_item_inserted_listener = display_item.item_inserted_event.listen(ReferenceCounting.weak_partial(self.__class__.__display_item_item_inserted, self))
+        self.__display_item_item_removed_listener = display_item.item_removed_event.listen(ReferenceCounting.weak_partial(self.__class__.__display_item_item_removed, self))
         self.__graphic_changed_listeners = list[typing.Optional[Event.EventListener]]()
         self.__display_layer_changed_listeners = list[typing.Optional[Event.EventListener]]()
 
-        self.__graphic_selection_changed_event_listener = display_item.graphic_selection_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__graphic_selection_changed, self))
-        self.__graphic_changed_event_listener = display_item.graphics_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__graphics_changed, self))
+        self.__graphic_selection_changed_event_listener = display_item.graphic_selection_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__graphic_selection_changed, self))
+        self.__graphic_changed_event_listener = display_item.graphics_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__graphics_changed, self))
 
-        self.__display_properties_changed_event_listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_item_properties_changed, self))
+        self.__display_properties_changed_event_listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__display_item_properties_changed, self))
 
-        self.__calibration_style_id_stream_action = Stream.ValueStreamAction(calibration_style_id_stream, ReferenceCounting.weak_partial(DisplayDataDeltaStream.__update_display_calibration_info, self))
+        self.__calibration_style_id_stream_action = Stream.ValueStreamAction(calibration_style_id_stream, ReferenceCounting.weak_partial(self.__class__.__update_display_calibration_info, self))
 
-        self.__intensity_calibration_style_id_stream_action = Stream.ValueStreamAction(intensity_calibration_style_id_stream, ReferenceCounting.weak_partial(DisplayDataDeltaStream.__update_display_calibration_info, self))
+        self.__intensity_calibration_style_id_stream_action = Stream.ValueStreamAction(intensity_calibration_style_id_stream, ReferenceCounting.weak_partial(self.__class__.__update_display_calibration_info, self))
 
         for index, display_data_channel in enumerate(display_item.display_data_channels):
             self.__display_item_item_inserted("display_data_channels", display_data_channel, index)
@@ -1919,30 +1895,9 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
                                                           self.__calibration_style_id_stream.value,
                                                           self.__intensity_calibration_style_id_stream.value)
 
-        display_data_delta = DisplayDataDelta(tuple(self.graphics),
-                                              copy.copy(self.graphic_selection),
-                                              display_calibration_info,
-                                              display_data_info_list,
-                                              copy.deepcopy(self.display_properties),
-                                              tuple(self.display_layers))
+        display_info = DisplayInfo.DisplayInfo(display_calibration_info, self.__display_properties, display_data_info_list, self.__display_layers_list, self.__graphics, self.__graphic_selection)
 
-        self.send_value(display_data_delta)
-
-    @property
-    def graphics(self) -> typing.Sequence[Graphics.Graphic]:
-        return self.__graphics
-
-    @property
-    def graphic_selection(self) -> GraphicSelection:
-        return self.__graphic_selection
-
-    @property
-    def display_layers(self) -> typing.Sequence[DisplayLayerInfo]:
-        return self.__display_layers_list
-
-    @property
-    def display_properties(self) -> Persistence.PersistentDictType:
-        return self.__display_properties
+        self.__display_info_stream.send_value(display_info)
 
     def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == "display_data_channels":
@@ -1952,13 +1907,13 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
             self.__send_delta()
         elif key == "graphics":
             self.__graphics.insert(index, item)
-            self.__graphic_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__graphic_changed, self)))
+            self.__graphic_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__graphic_changed, self)))
             self.__send_delta()
         elif key == "display_layers":
             display_item = self.__display_item
             self.__display_layers.insert(index, item)
             self.__display_layers_list = display_item.display_layer_info_list
-            self.__display_layer_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayDataDeltaStream.__display_layer_changed, self)))
+            self.__display_layer_changed_listeners.insert(index, item.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__display_layer_changed, self)))
             self.__send_delta()
 
     def __display_item_item_removed(self, key: str, item: typing.Any, index: int) -> None:
@@ -1984,12 +1939,6 @@ class DisplayDataDeltaStream(Stream.ValueStream[DisplayDataDelta]):
         display_item = self.__display_item
         self.__display_layers_list = display_item.display_layer_info_list
         self.__send_delta()
-
-    @property
-    def __display_item(self) -> DisplayItem:
-        display_item = self.__display_item_ref()
-        assert display_item
-        return display_item
 
     def __graphic_selection_changed(self, graphic_selection: GraphicSelection) -> None:
         self.__graphic_selection = copy.copy(graphic_selection)
@@ -2098,22 +2047,19 @@ class DisplayItem(Persistence.PersistentObject):
         self.graphics_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
 
-        self.__display_data_delta_stream = DisplayDataDeltaStream(
-            self,
-            Stream.PropertyChangedEventStream[str](self, "calibration_style_id"),
-            Stream.PropertyChangedEventStream[str](self, "intensity_calibration_style_id"),
-        )
+        self.__display_info_stream = Stream.ValueStream[DisplayInfo.DisplayInfo]()
+        self.__display_info_stream_controller = DisplayInfoStreamController(self, self.__display_info_stream)
 
         # configure the display_calibration_info_stream.
 
-        def handle_display_data_delta_stream(
+        def handle_display_info_stream(
                 display_calibration_info_stream: Stream.ValueStream[DisplayCalibrationInfo],
                 data_info_stream: Stream.ValueStream[DisplayDataInfo],
-                value: DisplayDataDelta | None
+                display_info: DisplayInfo.DisplayInfo | None
         ) -> None:
-            if value is not None:
-                display_calibration_info_stream.value = value.display_calibration_info
-                display_data_info_list = value.display_data_info_list
+            if display_info is not None:
+                display_calibration_info_stream.value = display_info.display_calibration_info
+                display_data_info_list = display_info.display_data_info_list
                 display_data_info = display_data_info_list[0] if len(display_data_info_list) == 1 else None
                 if display_data_info:
                     data_info_stream.value = display_data_info
@@ -2126,7 +2072,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.__display_calibration_info_stream = Stream.ValueStream[DisplayCalibrationInfo]()
         self.__data_info_stream = Stream.ValueStream[DisplayDataInfo]()
 
-        self.__display_data_delta_stream_action = Stream.ValueStreamAction(self.__display_data_delta_stream, functools.partial(handle_display_data_delta_stream, self.__display_calibration_info_stream, self.__data_info_stream))
+        self.__display_info_stream_action = Stream.ValueStreamAction(self.__display_info_stream, functools.partial(handle_display_info_stream, self.__display_calibration_info_stream, self.__data_info_stream))
 
         # configure the graphic selection changes listener.
 
@@ -2150,7 +2096,8 @@ class DisplayItem(Persistence.PersistentObject):
         self.__single_data_item_placeholder_title_stream = typing.cast(typing.Any, None)
         self.displayed_title_stream = typing.cast(typing.Any, None)
         self.__displayed_title_stream_action = typing.cast(typing.Any, None)
-        self.__display_data_delta_stream = typing.cast(typing.Any, None)
+        self.__display_info_stream = typing.cast(typing.Any, None)
+        self.__display_info_stream_controller = typing.cast(typing.Any, None)
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = typing.cast(typing.Any, None)
         for display_data_channel in copy.copy(self.display_data_channels):
@@ -2225,8 +2172,8 @@ class DisplayItem(Persistence.PersistentObject):
         self._set_persistent_property_value("display_type", value)
 
     @property
-    def display_data_delta_stream(self) -> DisplayDataDeltaStream:
-        return self.__display_data_delta_stream
+    def display_info_stream(self) -> Stream.AbstractStream[DisplayInfo.DisplayInfo]:
+        return self.__display_info_stream
 
     @property
     def calibration_style_id(self) -> str:
@@ -2731,7 +2678,7 @@ class DisplayItem(Persistence.PersistentObject):
         # display_data_channel to be correct in order to send the correct display index. there is probably a better
         # way to do this in the future, perhaps directly pointing to the display data channel rather than requiring
         # the index. future work.
-        self.__display_data_delta_stream.reset()
+        self.__display_info_stream_controller.reset()
 
     def __get_used_str_value(self, key: str, default_value: str) -> str:
         if self._get_persistent_property_value(key) is not None:
