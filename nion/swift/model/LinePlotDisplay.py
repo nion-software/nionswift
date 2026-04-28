@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # standard libraries
-import copy
 import dataclasses
 import math
 import typing
@@ -21,10 +20,6 @@ from nion.swift.model import Graphics
 from nion.swift.model import DisplayInfo
 from nion.utils import Color
 from nion.utils import Geometry
-from nion.utils import Registry
-
-if typing.TYPE_CHECKING:
-    from nion.swift.model import Persistence
 
 
 @dataclasses.dataclass
@@ -445,18 +440,11 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
     This object is effectively immutable, i.e. outside of caching.
     """
 
-    def __init__(
-            self,
-            display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
-            display_properties: typing.Dict[str, typing.Any],
-            display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
-            display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
-            graphics: typing.Sequence[Graphics.Graphic],
-            graphic_selection: DisplayItem.GraphicSelection | None
-    ) -> None:
-        super().__init__(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
+    def __init__(self, display_info: DisplayInfo.DisplayInfo) -> None:
+        super().__init__(display_info.display_calibration_info, display_info.display_properties, display_info.display_data_info_list, display_info.display_layers, display_info.graphics, display_info.graphic_selection)
 
         # cached values
+        display_properties = self.display_properties
         self.__y_min: float | None = display_properties.get("y_min", None)
         self.__y_max: float | None = display_properties.get("y_max", None)
         self.__y_axis_scale_id: str | None = display_properties.get("y_style", "linear")  # 'y_style' for backward compatibility
@@ -694,14 +682,3 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                 legend_entries.append(LegendEntry(label, fill_color, stroke_color))
             self.__legend_entries = legend_entries
         return self.__legend_entries
-
-    def apply_display_info(
-            self,
-            display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
-            display_properties: Persistence.PersistentDictType,
-            display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
-            display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
-            graphics: typing.Sequence[Graphics.Graphic],
-            graphic_selection: DisplayItem.GraphicSelection | None
-    ) -> DisplayInfo.DisplayInfo:
-        return LinePlotDisplayInfo(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)

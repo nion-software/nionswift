@@ -6,12 +6,7 @@ import typing
 # local libraries
 from nion.data import Calibration
 from nion.swift.model import DisplayInfo
-from nion.swift.model import DisplayItem
-from nion.swift.model import Graphics
 from nion.utils import Geometry
-
-if typing.TYPE_CHECKING:
-    from nion.swift.model import Persistence
 
 
 class ImageDisplayInfo(DisplayInfo.DisplayInfo):
@@ -19,18 +14,11 @@ class ImageDisplayInfo(DisplayInfo.DisplayInfo):
 
     This object is effectively immutable, i.e. outside of caching.
     """
-    def __init__(
-            self,
-            display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
-            display_properties: Persistence.PersistentDictType,
-            display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
-            display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
-            graphics: typing.Sequence[Graphics.Graphic],
-            graphic_selection: DisplayItem.GraphicSelection | None
-    ) -> None:
-        super().__init__(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
+    def __init__(self, display_info: DisplayInfo.DisplayInfo) -> None:
+        super().__init__(display_info.display_calibration_info, display_info.display_properties, display_info.display_data_info_list, display_info.display_layers, display_info.graphics, display_info.graphic_selection)
 
         # cached values
+        display_properties = self.display_properties
         self.__image_zoom = typing.cast(float, display_properties.get("image_zoom", 1.0))
         self.__image_position = Geometry.FloatPoint.make(display_properties.get("image_position", (0.5, 0.5)))
         self.__image_canvas_mode = typing.cast(str, display_properties.get("image_canvas_mode", "fit"))
@@ -94,14 +82,3 @@ class ImageDisplayInfo(DisplayInfo.DisplayInfo):
                     dimensional_calibration = Calibration.Calibration()
             return dimensional_calibration
         return Calibration.Calibration()
-
-    def apply_display_info(
-            self,
-            display_calibration_info: DisplayItem.DisplayCalibrationInfo | None,
-            display_properties: Persistence.PersistentDictType,
-            display_data_info_list: typing.Sequence[DisplayItem.DisplayDataInfo | None],
-            display_layers: typing.Sequence[DisplayItem.DisplayLayerInfo],
-            graphics: typing.Sequence[Graphics.Graphic],
-            graphic_selection: DisplayItem.GraphicSelection | None
-    ) -> DisplayInfo.DisplayInfo:
-        return ImageDisplayInfo(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_selection)
