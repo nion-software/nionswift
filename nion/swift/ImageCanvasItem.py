@@ -1099,9 +1099,6 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def _display_info_updated(self, display_info: DisplayInfo.DisplayInfo) -> None:
         self.__image_display_info = ImageDisplay.ImageDisplayInfo(display_info)
 
-        # update the cursor info
-        self.__update_cursor_info()
-
     def _update_canvas_items(self) -> None:
         image_display_info = self.__image_display_info
 
@@ -1402,7 +1399,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         # x,y already have transform applied
         self.__last_mouse = mouse_pos.to_int_point()
-        self.__update_cursor_info()
+        delegate.cursor_changed(self.cursor_position)
         if self.__mouse_handler:
             self.__mouse_handler.mouse_position_changed(Geometry.IntPoint(y, x), modifiers)
         return True
@@ -1495,15 +1492,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def _last_data_shape(self) -> Geometry.IntSize | None:
         return self.__last_image_display_info.data_shape
 
-    def __update_cursor_info(self) -> None:
-        delegate = self.delegate
-        if delegate:
+    @property
+    def cursor_position(self) -> tuple[int, ...] | None:
+        """Map the mouse to the position within the image."""
+        pos_2d = None
+        if self.__mouse_in and self.__last_mouse:
             data_shape = self.__last_image_display_info.data_shape
-            if self.__mouse_in and self.__last_mouse:
-                pos_2d = None
-                if data_shape is not None:
-                    pos_2d = self.map_widget_to_image(self.__last_mouse)
-                delegate.cursor_changed(pos_2d)
+            if data_shape is not None:
+                pos_2d = self.map_widget_to_image(self.__last_mouse)
+        return pos_2d
 
     @property
     def image_canvas_mode(self) -> str:

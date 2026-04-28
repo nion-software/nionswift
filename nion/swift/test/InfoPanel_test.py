@@ -11,7 +11,7 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Facade
-from nion.swift import LineGraphCanvasItem
+from nion.swift import DisplayPanel
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
@@ -72,7 +72,8 @@ class TestInfoPanelClass(unittest.TestCase):
 
     def test_cursor_over_1d_composite_image(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((32,)))
             data_item2 = DataItem.DataItem(numpy.zeros((32,)))
             document_model.append_data_item(data_item)
@@ -81,9 +82,14 @@ class TestInfoPanelClass(unittest.TestCase):
             display_item.display_type = "line_plot"
             display_item.append_display_data_channel(DisplayItem.DisplayDataChannel(data_item=data_item2))
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text((25, ))
-            self.assertEqual("25", p)
-            self.assertEqual("", v)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_data_channel = display_item.display_data_channel
+            display_calibration_info = display_panel.display_canvas_item.last_display_info.display_calibration_info
+            pv = DisplayPanel.get_position_and_value_text(display_data_channel, display_calibration_info, (25, ))
+            self.assertEqual("25", pv.position_text)
+            self.assertEqual("", pv.value_text)
 
     def test_cursor_over_1d_data_displays_without_exception(self):
         with TestContext.create_memory_context() as test_context:
@@ -145,61 +151,91 @@ class TestInfoPanelClass(unittest.TestCase):
 
     def test_cursor_over_1d_multiple_data_displays_without_exception(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text((500,))
-            self.assertEqual(p, "500.0, 0.0")
-            self.assertEqual(v, "0")
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_data_channel = display_item.display_data_channel
+            display_calibration_info = display_panel.display_canvas_item.last_display_info.display_calibration_info
+            pv = DisplayPanel.get_position_and_value_text(display_data_channel, display_calibration_info, (500, ))
+            self.assertEqual(pv.position_text, "500.0, 0.0")
+            self.assertEqual(pv.value_text, "0")
 
     def test_cursor_over_1d_multiple_data_but_2_datum_dimensions_displays_without_exception(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text((500,))
-            self.assertEqual(p, "500.0, 0.0")
-            self.assertEqual(v, "0")
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_data_channel = display_item.display_data_channel
+            display_calibration_info = display_panel.display_canvas_item.last_display_info.display_calibration_info
+            pv = DisplayPanel.get_position_and_value_text(display_data_channel, display_calibration_info, (500,))
+            self.assertEqual(pv.position_text, "500.0, 0.0")
+            self.assertEqual(pv.value_text, "0")
 
     def test_cursor_over_1d_sequence_data_displays_without_exception(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text((500,))
-            self.assertEqual(p, "500.0, 0.0")
-            self.assertEqual(v, "0")
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_data_channel = display_item.display_data_channel
+            display_calibration_info = display_panel.display_canvas_item.last_display_info.display_calibration_info
+            pv = DisplayPanel.get_position_and_value_text(display_data_channel, display_calibration_info, (500,))
+            self.assertEqual(pv.position_text, "500.0, 0.0")
+            self.assertEqual(pv.value_text, "0")
 
     def test_cursor_over_1d_image_without_exception(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.zeros((50,)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.calibration_style_id = "pixels-top-left"
-            p, v = display_item.get_value_and_position_text((25, ))
-            self.assertEqual(p, "25.0")
-            self.assertEqual(v, "0")
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_data_channel = display_item.display_data_channel
+            display_calibration_info = display_panel.display_canvas_item.last_display_info.display_calibration_info
+            pv = DisplayPanel.get_position_and_value_text(display_data_channel, display_calibration_info, (25,))
+            self.assertEqual(pv.position_text, "25.0")
+            self.assertEqual(pv.value_text, "0")
 
     def test_cursor_over_1d_image_without_exception_x(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 25)), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1)))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             display_item.display_type = "image"
-            p, v = display_item.get_value_and_position_text((2, 20))
-            self.assertEqual(p, "20.0, 2.0")
-            self.assertEqual(v, "0")
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_data_channel = display_item.display_data_channel
+            display_calibration_info = display_panel.display_canvas_item.last_display_info.display_calibration_info
+            pv = DisplayPanel.get_position_and_value_text(display_data_channel, display_calibration_info, (2, 20))
+            self.assertEqual(pv.position_text, "20.0, 2.0")
+            self.assertEqual(pv.value_text, "0")
 
     def test_cursor_over_3d_data_displays_without_exception(self):
         with TestContext.create_memory_context() as test_context:
@@ -293,9 +329,14 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             header_height = display_panel.header_canvas_item.header_height
             display_panel.layout_immediate((1000 + header_height, 1000))
-            p, v = display_item.get_value_and_position_text((2, 2))
-            self.assertEqual("2.0, 2.0", p)
-            self.assertEqual(v, "0")
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_data_channel = display_item.display_data_channel
+            display_calibration_info = display_panel.display_canvas_item.last_display_info.display_calibration_info
+            pv = DisplayPanel.get_position_and_value_text(display_data_channel, display_calibration_info, (2, 2))
+            self.assertEqual(pv.position_text, "2.0, 2.0")
+            self.assertEqual(pv.value_text, "0")
 
     def test_cursor_over_4d_data_sequence_displays_correct_ordering_of_indices(self):
         with TestContext.create_memory_context() as test_context:
@@ -330,7 +371,8 @@ class TestInfoPanelClass(unittest.TestCase):
 
     def test_cursor_over_fft_displays_polar_correctly(self):
         with TestContext.create_memory_context() as test_context:
-            document_model = test_context.create_document_model()
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
             data_item = DataItem.DataItem(numpy.random.randn(12, 12))
             data_item2 = DataItem.DataItem(numpy.random.randn(11, 11))
             data_item.set_dimensional_calibrations([Calibration.Calibration(scale=1.0, units="a"), Calibration.Calibration(scale=1.0, units="a")])
@@ -344,15 +386,27 @@ class TestInfoPanelClass(unittest.TestCase):
             document_model.recompute_all()
             fft_display_item = document_model.get_display_item_for_data_item(fft_data_item)
             fft_display_item2 = document_model.get_display_item_for_data_item(fft_data_item2)
+            # set up variables
+            # display item 1
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(fft_display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            fft_display_data_channel = fft_display_item.display_data_channel
+            fft_display_calibration_info = display_panel.display_canvas_item.last_display_info.display_calibration_info
+            # display item 2
+            display_panel.set_display_panel_display_item(fft_display_item2)
+            display_panel.display_canvas_item.update_canvas_items()
+            fft_display_data_channel2 = fft_display_item2.display_data_channel
+            fft_display_calibration_info2 = display_panel.display_canvas_item.last_display_info.display_calibration_info
             # the sign of the angle zero is not guaranteed, so don't check the sign
-            self.assertEqual("0.000 1/a, 0.0000° (polar)", fft_display_item.get_value_and_position_text((6, 6))[0].replace("-", ""))
-            self.assertEqual("0.000 1/a, 0.0000° (polar)", fft_display_item2.get_value_and_position_text((5, 5))[0].replace("-", ""))
+            self.assertEqual("0.000 1/a, 0.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel, fft_display_calibration_info, (6, 6)).position_text.replace("-", ""))
+            self.assertEqual("0.000 1/a, 0.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel2, fft_display_calibration_info2, (5, 5)).position_text.replace("-", ""))
             # the distance is in 'a' not '1/a', when the distance > 0
-            self.assertEqual("12.00 a, 0.0000° (polar)", fft_display_item.get_value_and_position_text((6, 7))[0].replace("-", ""))
-            self.assertEqual("12.00 a, -180.0000° (polar)", fft_display_item.get_value_and_position_text((6, 5))[0])
-            self.assertEqual("12.00 a, -90.0000° (polar)", fft_display_item.get_value_and_position_text((7, 6))[0])
-            self.assertEqual("12.00 a, 90.0000° (polar)", fft_display_item.get_value_and_position_text((5, 6))[0])
-            self.assertEqual("11.00 a, 0.0000° (polar)", fft_display_item2.get_value_and_position_text((5, 6))[0].replace("-", ""))
-            self.assertEqual("11.00 a, -180.0000° (polar)", fft_display_item2.get_value_and_position_text((5, 4))[0])
-            self.assertEqual("11.00 a, -90.0000° (polar)", fft_display_item2.get_value_and_position_text((6, 5))[0])
-            self.assertEqual("11.00 a, 90.0000° (polar)", fft_display_item2.get_value_and_position_text((4, 5))[0])
+            self.assertEqual("12.00 a, 0.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel, fft_display_calibration_info, (6, 7)).position_text.replace("-", ""))
+            self.assertEqual("12.00 a, -180.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel, fft_display_calibration_info, (6, 5)).position_text)
+            self.assertEqual("12.00 a, -90.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel, fft_display_calibration_info, (7, 6)).position_text)
+            self.assertEqual("12.00 a, 90.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel, fft_display_calibration_info, (5, 6)).position_text)
+            self.assertEqual("11.00 a, 0.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel2, fft_display_calibration_info2, (5, 6)).position_text.replace("-", ""))
+            self.assertEqual("11.00 a, -180.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel2, fft_display_calibration_info2, (5, 4)).position_text)
+            self.assertEqual("11.00 a, -90.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel2, fft_display_calibration_info2, (6, 5)).position_text)
+            self.assertEqual("11.00 a, 90.0000° (polar)", DisplayPanel.get_position_and_value_text(fft_display_data_channel2, fft_display_calibration_info2, (4, 5)).position_text)
