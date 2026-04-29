@@ -453,39 +453,52 @@ ILLEGAL_FILENAMES = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4',
 
 
 def verify_filename_is_legal(filename: str, suffix: str | None, directory: str | None = None,
-                             maximum_length: int = 128, error_prefix: str = "Filename") -> tuple[bool, str | None]:
+                             maximum_length: int = 128, error_prefix: str = "Filename") -> tuple[bool, list[str] | None]:
     """Check if a filename is legal and get an appropriate error message.
 
     Returns a tuple with the first element being a bool set to True if the filename is valid or False if it was invalid.
-    The second element is the error message if the filename is invalid.
+    The second element is a list of error messages if the filename is invalid or warnings if it is valid.
     Checks the filename is not in ILLEGAL_FILENAMES and no matches in the ILLEGAL_FILENAME_CHARS_REGEX.
     error_prefix is appended to the start of the returned error, i.e: "Filename" + " cannot end with whitespace"
     If the directory and suffix are provided then it checks if the total path length would exceed the 260-character path length limit on some platforms.
     See https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
     """
+    errors = []
+    warnings = []
     if directory is not None and suffix is not None:
         total_path_length = len(directory) + 1 + len(filename) + len(suffix)  # Add 1 for the path separator
         if total_path_length > 260:
-            return False, error_prefix + _(" exceeds the maximum path of 260 characters on some platforms")
+            errors.append(error_prefix + _(" exceeds the maximum path of 260 characters on some platforms"))
 
     assert maximum_length > 5
     if len(filename) > maximum_length:
-        return False, error_prefix + _(" exceeds the allowed length of") + f" {maximum_length} characters"
+        errors.append(error_prefix + _(" exceeds the allowed length of") + f" {maximum_length} characters")
 
-    if filename.endswith(" "):
-        return False, error_prefix + _(" cannot end with a whitespace")
-    if len(filename) > 1 and filename.endswith("."):  # You could name a file "." if you so desire.
-        return False, error_prefix + _(" cannot end with a period")
-    if filename == "":
-        return False, error_prefix + _(" cannot be empty")
+    if len(filename) > 1 and filename.endswith(" "):
+        errors.append(error_prefix + _(" cannot end with a whitespace"))
+    if len(filename) > 1 and filename.endswith("."):
+        errors.append(error_prefix + _(" cannot end with a period"))
+    if filename == "" or " ":
+        errors.append(error_prefix + _(" cannot be empty"))
     if filename.upper() in ILLEGAL_FILENAMES:
-        return False, error_prefix + f" \"{filename}\"" + _(" is illegal as it is reserved on some platforms")
+        errors.append(error_prefix + f" \"{filename}\"" + _(" is illegal as it is reserved on some platforms"))
     matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
     matches = sorted(set(matches))
     if matches:
         if len(matches) == 1:
-            return False, error_prefix + _(" contained illegal character") + f" \"{matches[0]}\""
-        return False, error_prefix + _(" contained illegal characters") + f" {matches}"
+            errors.append(error_prefix + _(" contained illegal character") + f" \"{matches[0]}\"")
+        else:
+            errors.append(error_prefix + _(" contained illegal characters") + f" {matches}")
+
+    if filename.startswith(" "):
+        warnings.append(_("Warning: ") + error_prefix + _(" will be replaced with ") + f"\"_{filename[1:]}\"" + _(" as leading whitespaces are removed on some platforms" ))
+    elif filename.startswith("."):
+        warnings.append(_("Warning: ") + error_prefix + _(" will be replaced with ") + f"\"_{filename[1:]}\"" + _(" as leading periods cause files to be hidden on some platforms" ))
+
+    if len(errors) > 0:
+        return False, errors
+    elif len(warnings) > 0:
+        return True, warnings
     return True, None
 
 
