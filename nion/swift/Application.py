@@ -1062,7 +1062,8 @@ class NewProjectAction(UIWindow.Action):
                 # this is invoked by the button. the dialog will be closed by returning True. see Dialog.add_button.
                 # it should not explicitly close the dialog.
                 def handle_new() -> bool:
-                    app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text or "untitled")
+                    filename = Utility.simplify_filename(self.__project_name_field.text or "untitled")
+                    app.create_project_reference(pathlib.Path(self.directory), filename)
                     return True
 
                 # this is invoked by pressing return in the project name field. it will create the project and close the dialog.

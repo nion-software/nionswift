@@ -478,7 +478,7 @@ def verify_filename_is_legal(filename: str, suffix: str | None, directory: str |
         errors.append(error_prefix + _(" cannot end with a whitespace"))
     if len(filename) > 1 and filename.endswith("."):
         errors.append(error_prefix + _(" cannot end with a period"))
-    if filename == "" or " ":
+    if filename == "" or filename == " ":
         errors.append(error_prefix + _(" cannot be empty"))
     if filename.upper() in ILLEGAL_FILENAMES:
         errors.append(error_prefix + f" \"{filename}\"" + _(" is illegal as it is reserved on some platforms"))
@@ -486,14 +486,14 @@ def verify_filename_is_legal(filename: str, suffix: str | None, directory: str |
     matches = sorted(set(matches))
     if matches:
         if len(matches) == 1:
-            errors.append(error_prefix + _(" contained illegal character") + f" \"{matches[0]}\"")
+            errors.append(error_prefix + _(" contained illegal character") + f" '{matches[0]}'")
         else:
             errors.append(error_prefix + _(" contained illegal characters") + f" {matches}")
 
     if filename.startswith(" "):
-        warnings.append(_("Warning: ") + error_prefix + _(" will be replaced with ") + f"\"_{filename[1:]}\"" + _(" as leading whitespaces are removed on some platforms" ))
+        warnings.append(_("Warning: Leading whitespaces are removed on some platforms\n") + error_prefix + _(" will be replaced with ") + f"\"_{filename[1:]}\"")
     elif filename.startswith("."):
-        warnings.append(_("Warning: ") + error_prefix + _(" will be replaced with ") + f"\"_{filename[1:]}\"" + _(" as leading periods cause files to be hidden on some platforms" ))
+        warnings.append(_("Warning: Leading periods cause files to be hidden on some platforms\n") + error_prefix + _(" will be replaced with ") + f"\"_{filename[1:]}\"")
 
     if len(errors) > 0:
         return False, errors

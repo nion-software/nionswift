@@ -75,24 +75,52 @@ class TestUtilityClass(unittest.TestCase):
 
     def test_verify_filename(self):
         test_filenames = [("", "Filename cannot be empty"),
+                          (" ", "Filename cannot be empty"),
                           ("file.", "Filename cannot end with a period"),
                           ("file ", "Filename cannot end with a whitespace"),
                           ("COM¹", "Filename \"COM¹\" is illegal as it is reserved on some platforms"),
-                          (r"5/3/2024", "Filename contained illegal character \"/\""),
+                          (r"5/3/2024", "Filename contained illegal character '/'"),
                           ("1234567890" * 13, "Filename exceeds the allowed length of 128 characters"),
                           ("NUL", "Filename \"NUL\" is illegal as it is reserved on some platforms"),
-                          ("abc\n\rdef", "Filename contained illegal characters ['\\n', '\\r']")]
+                          ("abc\n\rdef", "Filename contained illegal characters ['\\n', '\\r']"),
+                          (" file.", "Filename cannot end with a period")]  # The warning doesn't show when there are errors
 
         for test, expected in test_filenames:
-            is_valid, error_str = Utility.verify_filename_is_legal(test, ".txt")
+            is_valid, errors = Utility.verify_filename_is_legal(test, ".txt")
             self.assertFalse(is_valid)
-            self.assertEqual(error_str, expected)
+            self.assertEqual(errors, [expected])
 
         current_working_directory = os.getcwd()
-        is_valid, error_str = Utility.verify_filename_is_legal("1234567890" * 12, ".txt", "/".join([current_working_directory, "1234567890" * 15]), error_prefix="Long Filename")
+        is_valid, error = Utility.verify_filename_is_legal("1234567890" * 12, ".txt", "/".join([current_working_directory, "1234567890" * 15]), error_prefix="Long Filename")
         self.assertFalse(is_valid)
-        self.assertEqual(error_str, "Long Filename exceeds the maximum path of 260 characters on some platforms")
+        self.assertEqual(error, ["Long Filename exceeds the maximum path of 260 characters on some platforms"])
 
+        multi_error_filenames = [("/file.", ["Filename cannot end with a period", "Filename contained illegal character '/'"]),
+                                 ("*>" + "1234567890" * 13, ["Filename exceeds the allowed length of 128 characters", r"Filename contained illegal characters ['*', '>']"]),
+        ]
+
+        for test, expected in multi_error_filenames:
+            is_valid, errors = Utility.verify_filename_is_legal(test, ".txt")
+            self.assertFalse(is_valid)
+            self.assertEqual(errors, expected)
+
+        valid_filenames = ["file",
+                           "file",
+                           "file.name",
+                           "1234567890" * 12,
+                           "NUL123"]
+        for test in valid_filenames:
+            is_valid, errors = Utility.verify_filename_is_legal(test, ".txt")
+            self.assertTrue(is_valid)
+            self.assertEqual(errors, None)
+
+        warning_filenames = [(" file", "Warning: Leading whitespaces are removed on some platforms\nFilename will be replaced with \"_file\""),
+                             (".file", "Warning: Leading periods cause files to be hidden on some platforms\nFilename will be replaced with \"_file\"")]
+
+        for test, expected in warning_filenames:
+            is_valid, errors = Utility.verify_filename_is_legal(test, ".txt")
+            self.assertTrue(is_valid)
+            self.assertEqual(errors, [expected])
 
 if __name__ == '__main__':
     unittest.main()
