@@ -242,6 +242,38 @@ class TestExportSizeModel(unittest.TestCase):
             self.assertEqual(model.pixel_shape.height, 350)
             self.assertEqual(model.pixel_shape.width, expected_w)
 
+    def test_aspect_ratio_locked_focus_change_does_not_zero_dimensions(self):
+        with TestContext.create_memory_context() as test_context:
+            model = self._make_line_plot_model(test_context, unit_id="pixels")[0]
+            # Force non-zero size
+            original_width = model.pixel_shape.width
+            original_height = model.pixel_shape.height
+            self.assertGreater(original_width, 0)
+            self.assertGreater(original_height, 0)
+            model.set_aspect_ratio_mode("16:9")
+            self.assertTrue(model.aspect_ratio_locked.value)
+            # Simulate focus change with empty string
+            model.height_text = ""
+            model.width_text = ""
+            pixel_shape = model.pixel_shape
+            self.assertEqual(pixel_shape.width, original_width)
+            self.assertEqual(pixel_shape.height, original_width*9/16)
+
+    def test_primary_field_only_changes_on_valid_edit(self):
+        with TestContext.create_memory_context() as test_context:
+            model = self._make_line_plot_model(test_context)[0]
+            model.set_aspect_ratio_mode("16:9")
+            initial_shape = model.pixel_shape
+            # Empty edit must not change anything
+            model.width_text = ""
+            self.assertEqual(model.pixel_shape, initial_shape)
+            # Valid edit should update and propagate
+            model.width_text = "300"
+            updated_shape = model.pixel_shape
+            self.assertEqual(updated_shape.width, 300)
+            self.assertGreater(updated_shape.height, 0)
+            self.assertEqual(updated_shape.height, round(300 * 9 / 16))
+
 
 if __name__ == '__main__':
     unittest.main()
