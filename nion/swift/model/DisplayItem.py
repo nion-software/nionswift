@@ -1839,10 +1839,43 @@ def get_intensity_calibration_styles(data_metadata_list: typing.Sequence[DataAnd
     return calibration_styles
 
 
-class DisplayInfoStreamController:
-    def __init__(self, display_item: DisplayItem, display_info_stream: Stream.ValueStream[DisplayInfo.DisplayInfo]) -> None:
+@dataclasses.dataclass(frozen=True)
+class DisplayInfoComputationInputs:
+    display_data_channels: typing.Sequence[DisplayDataChannel | None]
+    display_properties: typing.Mapping[str, typing.Any]
+    display_layers_list: typing.Sequence[DisplayLayerInfo]
+    graphics: typing.Sequence[Graphics.Graphic]
+    graphic_selection: GraphicSelection
+    calibration_style_id: str | None
+    intensity_calibration_style_id: str | None
+
+    def compute_display_info(self) -> DisplayInfo.DisplayInfo:
+        display_values_list = [display_data_channel.display_values if display_data_channel else None for display_data_channel in self.display_data_channels]
+
+        display_data_info_list = tuple(display_values.display_data_info if display_values else None for display_values in display_values_list)
+
+        data_metadata_list = tuple(display_values.data_metadata if display_values else None for display_values in display_values_list)
+
+        display_calibration_info = DisplayCalibrationInfo(data_metadata_list,
+                                                          self.calibration_style_id,
+                                                          self.intensity_calibration_style_id)
+
+        return DisplayInfo.DisplayInfo(display_calibration_info,
+                                       self.display_properties, display_data_info_list, self.display_layers_list,
+                                       self.graphics, self.graphic_selection)
+
+
+def compute_display_info(display_info_computation_inputs: DisplayInfoComputationInputs | None) -> DisplayInfo.DisplayInfo | None:
+    if display_info_computation_inputs:
+        return display_info_computation_inputs.compute_display_info()
+    return None
+
+
+class DisplayInfoComputationInputsStream(Stream.ValueStream[DisplayInfoComputationInputs]):
+    def __init__(self, display_item: DisplayItem) -> None:
+        super().__init__()
+
         self.__display_item = display_item
-        self.__display_info_stream = display_info_stream
 
         self.__display_data_channels = list[DisplayDataChannel | None]()
         self.__display_data_channel_listeners = list[Event.EventListener | None]()
@@ -1885,19 +1918,14 @@ class DisplayInfoStreamController:
         self.__send_delta()
 
     def __send_delta(self) -> None:
-        display_values_list = [display_data_channel.display_values if display_data_channel else None for display_data_channel in self.__display_data_channels]
-
-        display_data_info_list = tuple(display_values.display_data_info if display_values else None for display_values in display_values_list)
-
-        data_metadata_list = tuple(display_values.data_metadata if display_values else None for display_values in display_values_list)
-
-        display_calibration_info = DisplayCalibrationInfo(data_metadata_list,
-                                                          self.__calibration_style_id_stream.value,
-                                                          self.__intensity_calibration_style_id_stream.value)
-
-        display_info = DisplayInfo.DisplayInfo(display_calibration_info, self.__display_properties, display_data_info_list, self.__display_layers_list, self.__graphics, self.__graphic_selection)
-
-        self.__display_info_stream.send_value(display_info)
+        display_info_computation_inputs = DisplayInfoComputationInputs(self.__display_data_channels,
+                                                                       self.__display_properties,
+                                                                       self.__display_layers_list,
+                                                                       self.__graphics,
+                                                                       self.__graphic_selection,
+                                                                       self.__calibration_style_id_stream.value,
+                                                                       self.__intensity_calibration_style_id_stream.value)
+        self.send_value(display_info_computation_inputs)
 
     def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == "display_data_channels":
@@ -1961,6 +1989,7 @@ class DisplayInfoStreamController:
         self.__send_delta()
 
     def reset(self) -> None:
+        self.__display_layers_list = self.__display_item.display_layer_info_list
         self.__send_delta()
 
 
@@ -2049,8 +2078,7 @@ class DisplayItem(Persistence.PersistentObject):
 
         # configure the display info stream and controller.
 
-        self.__display_info_stream = Stream.ValueStream[DisplayInfo.DisplayInfo]()
-        self.__display_info_stream_controller = DisplayInfoStreamController(self, self.__display_info_stream)
+        self.__display_info_stream = Stream.MapStream(DisplayInfoComputationInputsStream(self), compute_display_info)
 
         # configure the graphic selection changes listener.
 
@@ -2075,7 +2103,6 @@ class DisplayItem(Persistence.PersistentObject):
         self.displayed_title_stream = typing.cast(typing.Any, None)
         self.__displayed_title_stream_action = typing.cast(typing.Any, None)
         self.__display_info_stream = typing.cast(typing.Any, None)
-        self.__display_info_stream_controller = typing.cast(typing.Any, None)
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = typing.cast(typing.Any, None)
         for display_data_channel in copy.copy(self.display_data_channels):
@@ -2397,7 +2424,6 @@ class DisplayItem(Persistence.PersistentObject):
     def display_layer_info_list(self) -> list[DisplayLayerInfo]:
         display_layer_list = list[DisplayLayerInfo]()
         for display_layer in self.display_layers:
-            display_layer_c = copy.deepcopy(display_layer)
             # the check for display data channel still being in display data channels is a hack needed because the
             # removal of a display layer can cascade remove a display data channel and leave the display data channel
             # of the display layer dangling during the cascade. hack it here.
@@ -2670,7 +2696,7 @@ class DisplayItem(Persistence.PersistentObject):
         # display_data_channel to be correct in order to send the correct display index. there is probably a better
         # way to do this in the future, perhaps directly pointing to the display data channel rather than requiring
         # the index. future work.
-        self.__display_info_stream_controller.reset()
+        self.__display_properties_layers_graphics_stream.reset()
 
     def __get_used_str_value(self, key: str, default_value: str) -> str:
         if self._get_persistent_property_value(key) is not None:
