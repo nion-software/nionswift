@@ -393,7 +393,7 @@ def calculate_display_size_in_pixels(display_item: DisplayItem.DisplayItem) -> G
 
     If the display item is a line plot, use the hardcoded value of 5x3 inches.
     """
-    display_info = display_item.cached_display_info
+    display_info = display_item.display_info
     display_calibration_info = display_info.display_calibration_info if display_info else None
     display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
     if display_data_shape and display_item.used_display_type != "line_plot":
