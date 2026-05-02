@@ -1,5 +1,4 @@
 # standard libraries
-import contextlib
 import typing
 import unittest
 
@@ -9,13 +8,11 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
-from nion.swift import Application
 from nion.swift import Facade
-from nion.swift.model import DocumentModel
+from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
-from nion.ui import TestUI
 from nion.utils import Geometry
 
 
@@ -283,12 +280,17 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(api.application.document_windows[0].display_data_item(data_item1_ref)._display_panel, display_panel)
 
     def test_create_data_item_from_data_copies_data(self):
+        # data will only be a copy once it is written to storage, all references have been released, and then
+        # it is reloaded. thumbnails can upset this process; so explicitly ensure the thumbnail is computed.
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller_with_application()
             document_model = document_controller.document_model
             api = Facade.get_api("~1.0", "~1.0")
             data = numpy.random.randn(2, 2)
             data_item = api.library.create_data_item_from_data(data)
+            display_item = document_model.get_display_item_for_data_item(data_item._data_item)
+            Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(document_controller.ui, display_item).recompute_data()
+            self.assertNotEqual(id(data), id(data_item.data))
             data[:, :] = numpy.random.randn(2, 2)
             self.assertFalse(numpy.array_equal(data, data_item.data))
 

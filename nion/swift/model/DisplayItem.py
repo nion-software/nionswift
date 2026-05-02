@@ -2078,7 +2078,9 @@ class DisplayItem(Persistence.PersistentObject):
 
         # configure the display info stream and controller.
 
-        self.__display_info_stream = Stream.MapStream(DisplayInfoComputationInputsStream(self), compute_display_info)
+        self.__display_info_stream: Stream.MapStream[DisplayInfoComputationInputs, DisplayInfo.DisplayInfo] | None = None
+        self.__display_info_stream_lock = threading.Lock()
+        self.__display_info_stream_count = 0
 
         # configure the graphic selection changes listener.
 
@@ -2179,12 +2181,20 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def display_info_stream(self) -> Stream.AbstractStream[DisplayInfo.DisplayInfo]:
         """Return the stream of display info for this display item. The stream will update whenever the display info changes."""
-        return self.__display_info_stream
 
-    @property
-    def cached_display_info(self) -> DisplayInfo.DisplayInfo | None:
-        """Return the most recently computed display info, which may be None if it has not been computed yet."""
-        return self.display_info_stream.value
+        def finalize(display_item: DisplayItem) -> None:
+            with display_item.__display_info_stream_lock:
+                display_item.__display_info_stream_count -= 1
+                if display_item.__display_info_stream_count == 0:
+                    display_item.__display_info_stream = None
+
+        with self.__display_info_stream_lock:
+            if self.__display_info_stream_count == 0:
+                self.__display_info_stream = Stream.MapStream(DisplayInfoComputationInputsStream(self), compute_display_info)
+            self.__display_info_stream_count += 1
+            display_info_stream = Stream.FollowStream(self.__display_info_stream)
+            weakref.finalize(display_info_stream, ReferenceCounting.weak_partial(finalize, self))
+            return display_info_stream
 
     @property
     def display_info(self) -> DisplayInfo.DisplayInfo:
@@ -2258,7 +2268,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
         if self.used_display_type == "line_plot":
-            display_info = self.cached_display_info
+            display_info = self.display_info
             display_calibration_info = display_info.display_calibration_info if display_info else None
             display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
             if display_data_shape and len(display_data_shape) == 2:

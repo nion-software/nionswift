@@ -1820,7 +1820,7 @@ class DocumentController(Window.Window):
 
             # copy the data item as SVG
 
-            display_info = display_item.cached_display_info
+            display_info = display_item.display_info
             display_calibration_info = display_info.display_calibration_info if display_info else None
             display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
             if display_data_shape and len(display_data_shape) == 2:

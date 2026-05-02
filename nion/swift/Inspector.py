@@ -1168,7 +1168,7 @@ class ImageDataInspectorModel(Observable.Observable):
 
         self.__display_info_action = Stream.ValueStreamAction(display_item.display_info_stream, update_data_range_models)
 
-        update_data_range_models(display_item.cached_display_info)
+        update_data_range_models(display_item.display_info)
 
         display_limits_model = DisplayDataChannelPropertyCommandModel(document_controller, display_data_channel, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
         self.display_limits_low_model = ImageDisplayLimitsModel(display_data_channel, display_limits_model, 0)
@@ -2504,7 +2504,7 @@ class CalibratedBinding(Binding.Binding):
     """
     def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding, dimension_index: int) -> None:
         super().__init__(None)
-        display_info = display_item.cached_display_info
+        display_info = display_item.display_info
         self.__display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__dimension_index = dimension_index
         self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
@@ -2623,7 +2623,7 @@ class CalibratedAngleBinding(CalibratedBinding):
 class CalibratedLengthBinding(Binding.Binding):
     def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
         super().__init__(None)
-        display_info = display_item.cached_display_info
+        display_info = display_item.display_info
         self.__display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__start_binding = start_binding
@@ -2687,7 +2687,7 @@ class DisplayItemCalibratedDimensionValueModel(Model.ValueModel[str]):
         self.__is_size = is_size
         self.__uniform = uniform
         self.__factor = factor
-        display_info = display_item.cached_display_info
+        display_info = display_item.display_info
         self.__display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_item_listener = Stream.ValueStreamAction(self.__display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__property_listener = self.__property_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__on_value_changed, self))
@@ -2829,7 +2829,7 @@ class LineLengthModel(Model.PropertyModel[float]):
         super().__init__()
         self.__start_model = start_model
         self.__end_model = end_model
-        display_info = display_item.cached_display_info
+        display_info = display_item.display_info
         self.__display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__start_listener = self.__start_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__handle_model_changed, self))
@@ -2885,7 +2885,7 @@ class LineAngleModel(Model.PropertyModel[float]):
         super().__init__()
         self.__start_model = start_model
         self.__end_model = end_model
-        display_info = display_item.cached_display_info
+        display_info = display_item.display_info
         self.__display_calibration_info = display_info.display_calibration_info if display_info else None
         self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
         self.__start_listener = self.__start_model.property_changed_event.listen(ReferenceCounting.weak_partial(self.__class__.__handle_model_changed, self))
@@ -3072,7 +3072,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_line_profile_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        display_info = self.__display_item.cached_display_info
+        display_info = self.__display_item.display_info
         display_calibration_info = display_info.display_calibration_info if display_info else None
         display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
         factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
