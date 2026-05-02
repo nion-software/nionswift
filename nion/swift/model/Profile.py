@@ -155,7 +155,7 @@ class ProjectReference(Persistence.PersistentObject):
                     self.__project_state = project.project_state
             self.__has_project_info_been_read = True
 
-    def load_project(self, profile_context: typing.Optional[ProfileContext], event_loop: asyncio.AbstractEventLoop, cache_dir_path: typing.Optional[pathlib.Path], *, cache_factory: typing.Optional[Cache.CacheFactory]) -> None:
+    def load_project(self, profile_context: typing.Optional[ProfileContext], event_loop: asyncio.AbstractEventLoop, cache_dir_path: typing.Optional[pathlib.Path], *, cache_factory: typing.Optional[Cache.CacheFactory], threaded_display: bool = True) -> None:
         """Read project.
 
         The profile context is used during testing.
@@ -183,7 +183,7 @@ class ProjectReference(Persistence.PersistentObject):
                 project = Project.Project(project_storage_system, cache_factory)
 
             if project:
-                self.__document_model = DocumentModel.DocumentModel(project, event_loop)
+                self.__document_model = DocumentModel.DocumentModel(project, event_loop, threaded_display)
 
                 project.prepare_read_project()  # sets up the uuid, used next.
 
@@ -452,11 +452,13 @@ class Profile(Persistence.PersistentObject):
                  storage_system: typing.Optional[Persistence.PersistentStorageInterface] = None,
                  cache_dir_path: typing.Optional[pathlib.Path] = None, *,
                  cache_factory: typing.Optional[Cache.CacheFactory] = None,
-                 profile_context: typing.Optional[ProfileContext] = None) -> None:
+                 profile_context: typing.Optional[ProfileContext] = None,
+                 threaded_display: bool = True) -> None:
         super().__init__()
         self.__class__.count += 1
 
         self.__event_loop = event_loop
+        self.__threaded_display = threaded_display
 
         self.define_root_context()
         self.define_type("profile")
@@ -610,7 +612,7 @@ class Profile(Persistence.PersistentObject):
             self.storage_system.set_property(self, "version", FileStorageSystem.PROFILE_VERSION)
 
     def read_project(self, project_reference: ProjectReference) -> None:
-        project_reference.load_project(self.profile_context, self.__event_loop, self.__cache_dir_path, cache_factory=self.__cache_factory)
+        project_reference.load_project(self.profile_context, self.__event_loop, self.__cache_dir_path, cache_factory=self.__cache_factory, threaded_display=self.__threaded_display)
 
     def create_project(self, project_dir: pathlib.Path, library_name: str) -> typing.Optional[ProjectReference]:
         # the library name may contain multiple periods. be careful with using `with_suffix` which will treat

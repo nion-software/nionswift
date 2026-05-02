@@ -26,7 +26,6 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
-from nion.swift.model import Feature
 from nion.swift.model import Graphics
 from nion.swift.model import Observer
 from nion.swift.model import Persistence
@@ -39,7 +38,6 @@ from nion.utils import Observable
 from nion.utils import Process
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
-from nion.utils import ThreadPool
 
 _ = gettext.gettext
 
@@ -581,10 +579,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     """
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, project: Project.Project, event_loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, project: Project.Project, event_loop: asyncio.AbstractEventLoop, threaded_drawing: bool = True) -> None:
         super().__init__()
         self.__class__.count += 1
 
+        self.__threaded_drawing = threaded_drawing
         self.__event_loop = event_loop
 
         self.about_to_close_event = Event.Event()
@@ -1024,8 +1023,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def __handle_display_item_inserted(self, display_item: DisplayItem.DisplayItem) -> None:
         assert display_item is not None
         assert display_item not in self.__display_items
-        # data item bookkeeping
+        # bookkeeping
         display_item.set_storage_cache(self.__project.storage_cache)
+        if self.__threaded_drawing:
+            display_item._display_relay_stream = DisplayItem.AsyncRelayStream[DisplayItem.DisplayDataAndCalibrationInfo](self.__event_loop)
+            display_item._display_executor = DisplayItem.ComputedValueStreamThreadPoolExecutor[DisplayItem.DisplayDataChannelsAndCalibrationStyle]()
         # insert in internal list
         before_index = len(self.__display_items)
         self.__display_items.append(display_item)
