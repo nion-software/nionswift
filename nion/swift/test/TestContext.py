@@ -152,7 +152,7 @@ class MemoryProfileContext:
             library_properties = {"version": FileStorageSystem.PROFILE_VERSION}
             storage_system = self.__storage_system
             storage_system.set_library_properties(library_properties)
-            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache))
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache), threaded_display=False)
             profile.storage_system = storage_system
             profile.profile_context = self
             if add_project:
@@ -163,7 +163,7 @@ class MemoryProfileContext:
         else:
             storage_system = self.__storage_system
             storage_system.load_properties()
-            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache))
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache), threaded_display=False)
             profile.storage_system = storage_system
             profile.profile_context = self
             self.__items_exit.append(profile.close)

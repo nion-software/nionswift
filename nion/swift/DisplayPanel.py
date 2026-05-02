@@ -2047,6 +2047,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
         self.__display_info_stream: Stream.AbstractStream[DisplayInfo.DisplayInfo] | None = None
         self.__display_info_stream_action: Stream.ValueStreamAction[DisplayInfo.DisplayInfo] | None = None
+        self.__display_info_stream_direct_action: Stream.ValueStreamAction[DisplayInfo.DisplayInfo] | None = None
         self.__display_type: str | None = None
         self.__display_changed_event_listener: Event.EventListener | None = None
         self.__display_about_to_be_removed_event_listener: Event.EventListener | None = None
@@ -2576,10 +2577,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     self.__update_title()
 
             def handle_display_info(display_info: DisplayInfo.DisplayInfo | None) -> None:
-                # This is called when the display data delta stream produces a new value. The value is passed on to the
-                # display canvas item.
+                # This is called when the display data delta stream produces a new value on a thread. The value is
+                # passed on to the display canvas item.
                 if display_info is not None and self.__display_canvas_item is not None:
                     self.__display_canvas_item.update_display_info(display_info)
+
+            def handle_cursor(display_info: DisplayInfo.DisplayInfo | None) -> None:
+                # This is called when the display data delta stream produces a new value on the main thread.
+                if self.__display_canvas_item is not None:
                     cursor_position = self.__display_canvas_item.cursor_position
                     if cursor_position is not None:
                         self.cursor_changed(cursor_position)
@@ -2597,6 +2602,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 self.__display_type = None
                 self.__display_info_stream = None
                 self.__display_info_stream_action = None
+                self.__display_info_stream_direct_action = None
                 self.__display_changed_event_listener = None
                 self.__display_about_to_be_removed_event_listener = None
                 self.__display_property_changed_event_listener = None
@@ -2618,13 +2624,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     self.__display_canvas_item = new_display_canvas_item
                     # configure the display data stream and listener to update the display canvas item when the display data changes.
                     display_info_stream = display_item.display_info_stream
-                    display_info_stream_action = Stream.ValueStreamAction(display_info_stream, handle_display_info)
                     self.__display_info_stream = display_info_stream
-                    self.__display_info_stream_action = display_info_stream_action
+                    self.__display_info_stream_action = Stream.ValueStreamAction(display_info_stream, handle_cursor)
+                    self.__display_info_stream_direct_action = Stream.ValueStreamAction(display_item._display_info_stream_direct, handle_display_info)
                     # set up a listener to handle display type changes.
                     self.__display_changed_event_listener = display_item.display_changed_event.listen(functools.partial(handle_display_changed, display_item))
-                    # force display_info to be computed and update the display canvas item with it.
-                    handle_display_info(display_item.display_info)
+                    # update the display info the first time.
+                    handle_display_info(display_item._display_info_stream_direct.value)
 
             configure_display_canvas_item(display_item)
 

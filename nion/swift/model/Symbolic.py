@@ -51,7 +51,6 @@ from nion.utils import Geometry
 from nion.utils import Observable
 from nion.utils import Process
 from nion.utils import ReferenceCounting
-from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift import Facade
@@ -1118,13 +1117,27 @@ class DataSource:
         self.__graphic_bounds = graphic.bounds if isinstance(graphic, Graphics.RectangleTypeGraphic) else None
         self.__graphic_rotation = graphic.rotation if isinstance(graphic, Graphics.RectangleTypeGraphic) else 0.0
         self.__graphic_interval = graphic.interval if isinstance(graphic, Graphics.IntervalGraphic) else None
-        display_info = display_item.display_info if display_item else None
-        self.__display_data_info = display_info.display_data_info if display_info else None
-        self.__derived_display_values = self.__display_data_info.derived_display_values if self.__display_data_info else None
+        self.__display_item = display_item
+        self.__cached_display_data_info: DisplayItem.DisplayDataInfo | None = None
+        self.__cached_derived_display_values: DisplayItem.DerivedDisplayValues | None = None
 
     def close(self) -> None:
-        self.__display_data_info = None
-        self.__derived_display_values = None
+        self.__cached_display_data_info = None
+        self.__cached_derived_display_values = None
+
+    @property
+    def __display_data_info(self) -> DisplayItem.DisplayDataInfo | None:
+        if not self.__cached_display_data_info:
+            display_item = self.__display_item
+            self.__cached_display_data_info = display_item._display_data_info if display_item else None
+        return self.__cached_display_data_info
+
+    @property
+    def __derived_display_values(self) -> DisplayItem.DerivedDisplayValues | None:
+        display_data_info = self.__display_data_info
+        if display_data_info and not self.__cached_derived_display_values:
+            self.__cached_derived_display_values = display_data_info.derived_display_values
+        return self.__cached_derived_display_values
 
     @property
     def data(self) -> typing.Optional[DataAndMetadata._ImageDataType]:

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
+import concurrent.futures
 import contextlib
 import copy
 import dataclasses
@@ -52,7 +53,6 @@ from nion.utils import Converter
 from nion.utils import DateTime
 from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import Process
 from nion.utils import ReferenceCounting
 from nion.utils import Registry
 from nion.utils import Stream
@@ -523,26 +523,6 @@ class ElementDataProcessor(ProcessorBase):
                                                                              flag16=False)
         self.set_result("data", data_and_metadata)
 
-    def get_data_metadata(self) -> DataAndMetadata.DataMetadata | None:
-        maybe_data_and_metadata = self._get_parameter("data")
-        if isinstance(maybe_data_and_metadata, DataAndMetadata.DataAndMetadata):
-            data_metadata = maybe_data_and_metadata.data_metadata
-            display_data_shape_info = DisplayDataShapeCalculator(data_metadata)
-            display_data_shape = display_data_shape_info.shape
-            display_data_dimensional_calibrations = display_data_shape_info.calibrations
-            if display_data_shape and data_metadata.data_dtype:
-                return DataAndMetadata.DataMetadata(
-                    data_shape=display_data_shape,
-                    data_dtype=data_metadata.data_dtype,
-                    intensity_calibration=data_metadata.intensity_calibration,
-                    dimensional_calibrations=display_data_dimensional_calibrations,
-                    metadata=data_metadata.metadata,
-                    data_descriptor=DataAndMetadata.DataDescriptor(False, 0, len(display_data_shape)),
-                    timestamp=data_metadata.timestamp,
-                    timezone=data_metadata.timezone,
-                    timezone_offset=data_metadata.timezone_offset
-                )
-        return None
 
 class DisplayDataProcessor(ProcessorBase):
     def __init__(self, *,
@@ -805,6 +785,14 @@ class DisplayValues:
     @property
     def display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata | None:
         return typing.cast(DataAndMetadata.DataAndMetadata | None, self.__display_data_processor.get_result("data"))
+
+    @property
+    def display_data_metadata(self) -> DataAndMetadata.DataMetadata | None:
+        return self.data_metadata
+        # this is intentionally using data_metadata instead of display_data_and_metadata until a future change
+        # when display data metadata carries through calibration information.
+        # display_data_metadata = self.display_data_and_metadata
+        # return display_data_metadata.data_metadata if display_data_metadata else None
 
     @property
     def data_range(self) -> tuple[float, float] | None:
@@ -1840,7 +1828,7 @@ def get_intensity_calibration_styles(data_metadata_list: typing.Sequence[DataAnd
 
 
 @dataclasses.dataclass(frozen=True)
-class DisplayInfoComputationInputs:
+class DisplayPropertiesLayersGraphics:
     display_properties: typing.Mapping[str, typing.Any]
     display_layers_list: typing.Sequence[DisplayLayerInfo]
     graphics: typing.Sequence[Graphics.Graphic]
@@ -1848,46 +1836,55 @@ class DisplayInfoComputationInputs:
 
 
 @dataclasses.dataclass(frozen=True)
-class DisplayInfoComputationDataInputs:
+class DisplayDataChannelsAndCalibrationStyle:
     display_data_channels: typing.Sequence[DisplayDataChannel | None]
     calibration_style_id: str | None
     intensity_calibration_style_id: str | None
 
 
 @dataclasses.dataclass(frozen=True)
-class DisplayInfoComputationDataOutput:
+class DisplayDataAndCalibrationInfo:
     display_data_info_list: typing.Sequence[DisplayDataInfo | None]
     display_calibration_info: DisplayCalibrationInfo
 
 
-def compute_display_info_data(display_info_computation_data_inputs: DisplayInfoComputationDataInputs | None) -> DisplayInfoComputationDataOutput | None:
-    if display_info_computation_data_inputs:
-        display_values_list = [display_data_channel.display_values if display_data_channel else None for display_data_channel in display_info_computation_data_inputs.display_data_channels]
+def compute_display_data_rank(display_data_channels_and_calibration_style: DisplayDataChannelsAndCalibrationStyle | None) -> int:
+    if display_data_channels_and_calibration_style:
+        display_values_list = [display_data_channel.display_values if display_data_channel else None for display_data_channel in display_data_channels_and_calibration_style.display_data_channels]
+        data_metadata_list = tuple(display_values.data_metadata if display_values else None for display_values in display_values_list)
+        return data_metadata_list[0].datum_dimension_count if data_metadata_list and data_metadata_list[0] else 0
+    return 0
+
+
+def compute_display_data_and_calibration_info(display_data_channels_and_calibration_style: DisplayDataChannelsAndCalibrationStyle | None) -> DisplayDataAndCalibrationInfo | None:
+    if display_data_channels_and_calibration_style:
+        display_values_list = [display_data_channel.display_values if display_data_channel else None for display_data_channel in display_data_channels_and_calibration_style.display_data_channels]
 
         display_data_info_list = tuple(display_values.display_data_info if display_values else None for display_values in display_values_list)
 
-        data_metadata_list = tuple(display_values.data_metadata if display_values else None for display_values in display_values_list)
+        # this is an expensive operation and needs to occur on a thread.
+        display_data_metadata_list = tuple(display_values.display_data_metadata if display_values else None for display_values in display_values_list)
 
-        display_calibration_info = DisplayCalibrationInfo(data_metadata_list,
-                                                          display_info_computation_data_inputs.calibration_style_id,
-                                                          display_info_computation_data_inputs.intensity_calibration_style_id)
+        display_calibration_info = DisplayCalibrationInfo(display_data_metadata_list,
+                                                          display_data_channels_and_calibration_style.calibration_style_id,
+                                                          display_data_channels_and_calibration_style.intensity_calibration_style_id)
 
-        return DisplayInfoComputationDataOutput(display_data_info_list, display_calibration_info)
+        return DisplayDataAndCalibrationInfo(display_data_info_list, display_calibration_info)
     return None
 
 
-def compute_display_info(display_info_computation_data: DisplayInfoComputationDataOutput, display_info_computation_inputs: DisplayInfoComputationInputs | None) -> DisplayInfo.DisplayInfo | None:
-    if display_info_computation_inputs:
-        return DisplayInfo.DisplayInfo(display_info_computation_data.display_calibration_info if display_info_computation_data else None,
-                                       display_info_computation_inputs.display_properties,
-                                       display_info_computation_data.display_data_info_list if display_info_computation_data else tuple(),
-                                       display_info_computation_inputs.display_layers_list,
-                                       display_info_computation_inputs.graphics,
-                                       display_info_computation_inputs.graphic_selection)
+def compute_display_info(display_data_and_calibration_info: DisplayDataAndCalibrationInfo, display_properties_layers_graphics: DisplayPropertiesLayersGraphics | None) -> DisplayInfo.DisplayInfo | None:
+    if display_properties_layers_graphics:
+        return DisplayInfo.DisplayInfo(display_data_and_calibration_info.display_calibration_info if display_data_and_calibration_info else None,
+                                       display_properties_layers_graphics.display_properties,
+                                       display_data_and_calibration_info.display_data_info_list if display_data_and_calibration_info else tuple(),
+                                       display_properties_layers_graphics.display_layers_list,
+                                       display_properties_layers_graphics.graphics,
+                                       display_properties_layers_graphics.graphic_selection)
     return None
 
 
-class DisplayInfoComputationDataInputsStream(Stream.ValueStream[DisplayInfoComputationDataInputs]):
+class DisplayDataChannelsAndCalibrationStyleStream(Stream.ValueStream[DisplayDataChannelsAndCalibrationStyle]):
     def __init__(self, display_item: DisplayItem) -> None:
         super().__init__()
 
@@ -1915,10 +1912,11 @@ class DisplayInfoComputationDataInputsStream(Stream.ValueStream[DisplayInfoCompu
         self.__send_delta()
 
     def __send_delta(self) -> None:
-        display_info_computation_data_inputs = DisplayInfoComputationDataInputs(self.__display_data_channels,
-                                                                                self.__calibration_style_id_stream.value,
-                                                                                self.__intensity_calibration_style_id_stream.value)
-        self.send_value(display_info_computation_data_inputs)
+        display_data_channels_and_calibration_style = DisplayDataChannelsAndCalibrationStyle(
+            self.__display_data_channels,
+            self.__calibration_style_id_stream.value,
+            self.__intensity_calibration_style_id_stream.value)
+        self.send_value(display_data_channels_and_calibration_style)
 
     def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == "display_data_channels":
@@ -1940,7 +1938,7 @@ class DisplayInfoComputationDataInputsStream(Stream.ValueStream[DisplayInfoCompu
         self.__send_delta()
 
 
-class DisplayInfoComputationInputsStream(Stream.ValueStream[DisplayInfoComputationInputs]):
+class DisplayPropertiesLayersGraphicsStream(Stream.ValueStream[DisplayPropertiesLayersGraphics]):
     def __init__(self, display_item: DisplayItem) -> None:
         super().__init__()
 
@@ -1971,11 +1969,11 @@ class DisplayInfoComputationInputsStream(Stream.ValueStream[DisplayInfoComputati
         self.__send_delta()
 
     def __send_delta(self) -> None:
-        display_info_computation_inputs = DisplayInfoComputationInputs(self.__display_properties,
-                                                                       self.__display_layers_list,
-                                                                       self.__graphics,
-                                                                       self.__graphic_selection)
-        self.send_value(display_info_computation_inputs)
+        display_properties_layers_graphics = DisplayPropertiesLayersGraphics(self.__display_properties,
+                                                                             self.__display_layers_list,
+                                                                             self.__graphics,
+                                                                             self.__graphic_selection)
+        self.send_value(display_properties_layers_graphics)
 
     def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == "graphics":
@@ -2031,7 +2029,175 @@ class DisplayInfoComputationInputsStream(Stream.ValueStream[DisplayInfoComputati
         self.__send_delta()
 
 
+T = typing.TypeVar('T', covariant=True)
+OT = typing.TypeVar('OT', covariant=True)
+
+
+class RelayStream(Stream.ValueStream[T], typing.Generic[T]):
+    """Sends value from input stream. Input stream can be changed."""
+
+    def __init__(self, stream: Stream.AbstractStream[T] | None = None) -> None:
+        super().__init__()
+        self.__stream: Stream.AbstractStream[T]
+        self.__stream_action: Stream.ValueStreamAction[T]
+        self.stream = stream
+
+    @property
+    def stream(self) -> Stream.AbstractStream[T] | None:
+        return self.__stream
+
+    @stream.setter
+    def stream(self, stream: Stream.AbstractStream[T] | None) -> None:
+        stream = stream or Stream.ConstantStream[T](None)
+        self.__stream = stream
+        self.__stream_action = Stream.ValueStreamAction(self.__stream, ReferenceCounting.weak_partial(self.__class__._value_changed, self))
+        self._value_changed(self.__stream.value)
+
+    # define a stub and use weak_partial to avoid holding references to self.
+    def _value_changed(self, value: T | None) -> None:
+        self.value = value
+
+
+class AsyncRelayStream(RelayStream[T], typing.Generic[T]):
+    """A stream that relays values from an input stream but sends values via an event loop."""
+
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, stream: Stream.AbstractStream[T] | None = None) -> None:
+        self.__event_loop = event_loop
+        super().__init__(stream)
+
+    def _value_changed(self, value: T | None) -> None:
+        def send_value(stream: typing.Self, value: T | None) -> None:
+            stream.value = value
+
+        self.__event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(send_value, self, value))
+
+
+class ComputedValueStreamExecutor(typing.Generic[T]):
+    """Define a default class to submit a function to an executor."""
+
+    def submit(self, fn: typing.Callable[[T | None, int], None], value: T | None, index: int) -> concurrent.futures.Future[None]:
+        """Submit a function to be run and return a future that can be waited on for completion.
+
+        Default implementation is to execute the function immediately and return a completed future. Subclasses can
+        override this function to provide different behavior, such as running the function on a thread or process pool.
+        """
+        fn(value, index)
+        future = concurrent.futures.Future[None]()
+        future.set_result(None)
+        return future
+
+
+class ComputedValueStreamThreadPoolExecutor(ComputedValueStreamExecutor[T], typing.Generic[T]):
+    """A ComputedValueStreamExecutor that runs on a ThreadPoolExecutor."""
+
+    _executor = concurrent.futures.ThreadPoolExecutor()
+
+    def submit(self, fn: typing.Callable[[T | None, int], None], value: T | None, index: int) -> concurrent.futures.Future[None]:
+        return self.__class__._executor.submit(fn, value, index)
+
+
+class ComputedValueStream(Stream.ValueStream[OT], typing.Generic[T, OT]):
+    """A stream that computes its value using an executor when the input stream changes."""
+
+    def __init__(self, stream: Stream.AbstractStream[T], value_fn: typing.Callable[[T | None], OT | None], executor: ComputedValueStreamExecutor[T]) -> None:
+        super().__init__()
+        self.__stream = stream
+        self.__value_fn = value_fn
+        self.__executor = executor
+        self.__lock = threading.Lock()
+        self.__is_running = False
+        self.__is_pending = False
+        self.__is_shutdown = False
+        self.__index = 0
+        self.__pending_value: T | None = None
+        self.__pending_index = 0
+        self.__latest_result: OT | None = None
+        self.__latest_index = 0
+        self.__computed_once_event = threading.Event()
+        self.__change_condition = threading.Condition()
+        self.__listener = stream.value_stream.listen(ReferenceCounting.weak_partial(self.__class__.__update_value, self))
+        self.__future: concurrent.futures.Future[None] | None = None
+        self.__update_value(stream.value)
+
+    def close(self) -> None:
+        with self.__lock:
+            self.__is_shutdown = True
+            self.__listener = typing.cast(typing.Any, None)
+            future = self.__future
+            self.__future = None
+        if future:
+            future.result()
+
+    def __update_value(self, value: T | None) -> None:
+        with self.__lock:
+            self.__index += 1
+            self.__pending_value = value
+            self.__pending_index = self.__index
+            self.__is_pending = True
+            if not self.__is_running:
+                self.__submit()
+
+    def __submit(self) -> None:
+        # assumes lock is held
+        if self.__is_pending and not self.__is_shutdown:
+            value = self.__pending_value
+            index = self.__pending_index
+            self.__pending_value = None
+            self.__is_pending = False
+            self.__is_running = True
+            self.__lock.release()
+            try:
+                self.__future = self.__executor.submit(self.__run, value, index)
+            finally:
+                self.__lock.acquire()
+
+    def __run(self, value: T | None, index: int) -> None:
+        try:
+            latest_result = self.__value_fn(value)
+            with self.__lock:
+                if latest_result != self.__latest_result:
+                    if index > self.__latest_index:
+                        self.__latest_result = latest_result
+                        with self.__change_condition:
+                            self.__latest_index = index
+                            self.__change_condition.notify_all()
+                        self.__computed_once_event.set()
+                    if not self.__is_shutdown:
+                        # Release the lock to minimize deadlocks during value assignment and sending events.
+                        # is_running is still true, so there is no possibility of another thread triggering another
+                        # run while the lock is released.
+                        self.__lock.release()
+                        try:
+                            self.value = latest_result
+                        finally:
+                            self.__lock.acquire()
+        except Exception as e:
+            print(f"Error in ComputedValueStream computation: {e}")
+            raise
+        finally:
+            with self.__lock:
+                self.__is_running = False
+                self.__submit()  # check if there's a new pending value to process
+
+    def wait_value(self) -> OT | None:
+        """Wait for the computation to complete at least once. Threadsafe."""
+        self.__computed_once_event.wait()
+        return self.__latest_result
+
+    @property
+    def _pending_index(self) -> int:
+        with self.__lock:
+            return self.__pending_index
+
+    def _wait_for_change(self, pending_index: int) -> None:
+        with self.__change_condition:
+            while self.__latest_index <= pending_index:
+                self.__change_condition.wait()
+
+
 class DisplayItem(Persistence.PersistentObject):
+    """A display item to facilitate the display of display data channels and graphics."""
+
     DEFAULT_COLORS = ("dodgerblue", "red", "limegreen", "blue", "coral", "darkturquoise", "mediumvioletred", "gray", "darkred", "green", "darkblue", "darkgoldenrod", "olive", "darkcyan", "darkmagenta", "saddlebrown")
 
     def __init__(self, item_uuid: typing.Optional[uuid.UUID] = None, *, data_item: typing.Optional[DataItem.DataItem] = None) -> None:
@@ -2112,8 +2278,16 @@ class DisplayItem(Persistence.PersistentObject):
         # configure the display info stream and controller.
 
         self.__display_info_stream: Stream.AbstractStream[DisplayInfo.DisplayInfo] | None = None
+        self.__display_info_stream_direct: Stream.AbstractStream[DisplayInfo.DisplayInfo] | None = None
+        self.__display_data_and_calibration_info_computed_value_stream: ComputedValueStream[DisplayDataChannelsAndCalibrationStyle, DisplayDataAndCalibrationInfo] | None = None
         self.__display_info_stream_lock = threading.Lock()
         self.__display_info_stream_count = 0
+        self.__display_data_channels_and_calibration_style_stream = DisplayDataChannelsAndCalibrationStyleStream(self)
+        self.__display_properties_layers_graphics_stream = DisplayPropertiesLayersGraphicsStream(self)
+        self.__display_data_rank_stream = Stream.MapStream(self.__display_data_channels_and_calibration_style_stream, compute_display_data_rank)
+
+        self._display_relay_stream = RelayStream[DisplayDataAndCalibrationInfo]()
+        self._display_executor = ComputedValueStreamExecutor[DisplayDataChannelsAndCalibrationStyle]()
 
         # configure the graphic selection changes listener.
 
@@ -2134,6 +2308,13 @@ class DisplayItem(Persistence.PersistentObject):
         self.displayed_title_stream = typing.cast(typing.Any, None)
         self.__displayed_title_stream_action = typing.cast(typing.Any, None)
         self.__display_info_stream = None
+        self.__display_info_stream_direct = None
+        if self.__display_data_and_calibration_info_computed_value_stream:
+            self.__display_data_and_calibration_info_computed_value_stream.close()
+            self.__display_data_and_calibration_info_computed_value_stream = None
+        self.__display_data_channels_and_calibration_style_stream = typing.cast(typing.Any, None)
+        self.__display_properties_layers_graphics_stream = typing.cast(typing.Any, None)
+        self.__display_data_rank_stream = typing.cast(typing.Any, None)
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = typing.cast(typing.Any, None)
         for display_data_channel in copy.copy(self.display_data_channels):
@@ -2207,30 +2388,61 @@ class DisplayItem(Persistence.PersistentObject):
     def display_type(self, value: typing.Optional[str]) -> None:
         self._set_persistent_property_value("display_type", value)
 
+    def __release_display_info_stream(self) -> None:
+        with self.__display_info_stream_lock:
+            self.__display_info_stream_count -= 1
+            if self.__display_info_stream_count == 0:
+                self.__display_info_stream = None
+                self.__display_info_stream_direct = None
+                if self.__display_data_and_calibration_info_computed_value_stream:
+                    self.__display_data_and_calibration_info_computed_value_stream.close()
+                    self.__display_data_and_calibration_info_computed_value_stream = None
+
     @property
     def display_info_stream(self) -> Stream.AbstractStream[DisplayInfo.DisplayInfo]:
         """Return the stream of display info for this display item. The stream will update whenever the display info changes."""
-
-        def finalize(display_item: DisplayItem) -> None:
-            with display_item.__display_info_stream_lock:
-                display_item.__display_info_stream_count -= 1
-                if display_item.__display_info_stream_count == 0:
-                    display_item.__display_info_stream = None
-
         with self.__display_info_stream_lock:
             if self.__display_info_stream_count == 0:
-                self.__display_info_stream = Stream.CombineLatestStream([Stream.MapStream(DisplayInfoComputationDataInputsStream(self), compute_display_info_data), DisplayInfoComputationInputsStream(self)], compute_display_info)
+                self.__display_data_and_calibration_info_computed_value_stream = ComputedValueStream(self.__display_data_channels_and_calibration_style_stream, compute_display_data_and_calibration_info, self._display_executor)
+                self._display_relay_stream.stream = self.__display_data_and_calibration_info_computed_value_stream
+                self.__display_info_stream = Stream.CombineLatestStream([self._display_relay_stream, self.__display_properties_layers_graphics_stream], compute_display_info)
+                self.__display_info_stream_direct = Stream.CombineLatestStream([self.__display_data_and_calibration_info_computed_value_stream, self.__display_properties_layers_graphics_stream], compute_display_info)
             self.__display_info_stream_count += 1
-            display_info_stream = Stream.FollowStream(self.__display_info_stream)
-            weakref.finalize(display_info_stream, ReferenceCounting.weak_partial(finalize, self))
-            return display_info_stream
+            display_info_stream = self.__display_info_stream
+        display_info_follow_stream = Stream.FollowStream(display_info_stream)
+        weakref.finalize(display_info_follow_stream, ReferenceCounting.weak_partial(self.__class__.__release_display_info_stream, self))
+        return display_info_follow_stream
 
     @property
     def display_info(self) -> DisplayInfo.DisplayInfo:
         """Return computed display info. Wait for it to be computed if necessary."""
-        display_info = self.display_info_stream.value
+        display_info_stream = self.display_info_stream
+        assert self.__display_data_and_calibration_info_computed_value_stream
+        self.__display_data_and_calibration_info_computed_value_stream.wait_value()
+        display_info = display_info_stream.value
         assert display_info
         return display_info
+
+    @property
+    def _display_info_stream_direct(self) -> Stream.AbstractStream[DisplayInfo.DisplayInfo]:
+        """Return the display info stream directly. This is used for the thumbnail to avoid waiting for the computation to complete."""
+        display_info_stream = self.display_info_stream  # hold reference to ensure thread is started
+        with self.__display_info_stream_lock:
+            assert self.__display_info_stream_direct
+            self.__display_info_stream_count += 1
+            display_info_stream_direct = Stream.FollowStream(self.__display_info_stream_direct)
+            weakref.finalize(display_info_stream_direct, ReferenceCounting.weak_partial(self.__class__.__release_display_info_stream, self))
+            return display_info_stream_direct
+
+    @property
+    def _display_data_info(self) -> DisplayDataInfo | None:
+        """Return the display data info directly from thread."""
+        display_info_stream = self.display_info_stream  # hold reference to ensure thread is started
+        assert self.__display_data_and_calibration_info_computed_value_stream
+        display_data_and_calibration_info = self.__display_data_and_calibration_info_computed_value_stream.wait_value()
+        if display_data_and_calibration_info and display_data_and_calibration_info.display_data_info_list:
+            return display_data_and_calibration_info.display_data_info_list[0]
+        return None
 
     @property
     def calibration_style_id(self) -> str:
@@ -2297,10 +2509,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
         if self.used_display_type == "line_plot":
-            display_info = self.display_info
-            display_calibration_info = display_info.display_calibration_info if display_info else None
-            display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
-            if display_data_shape and len(display_data_shape) == 2:
+            if self.__display_data_rank_stream.value == 2:
                 for display_layer in self.display_layers:
                     # use the version of remove that does not cascade
                     self.remove_item("display_layers", typing.cast(Persistence.PersistentObject, display_layer))
@@ -2612,7 +2821,8 @@ class DisplayItem(Persistence.PersistentObject):
                 display_data_channel = DisplayDataChannel(data_item)
                 self.append_display_data_channel(display_data_channel, display_layer=DisplayLayer(display_layer_properties))
             except Exception as e:
-                import traceback; traceback.print_exc()
+                import traceback
+                traceback.print_exc()
 
     def save_properties(self) -> DisplayItemSaveProperties:
         return DisplayItemSaveProperties(self.display_properties, self.display_layers_list, self.calibration_style_id, self.intensity_calibration_style_id)
@@ -3133,7 +3343,7 @@ class DisplayCalibrationInfo:
     These objects can be tested for equality.
     """
     def __init__(self,
-                 data_metadata_list: typing.Sequence[DataAndMetadata.DataMetadata | None],
+                 display_data_metadata_list: typing.Sequence[DataAndMetadata.DataMetadata | None],
                  calibration_style_id: str | None,
                  intensity_calibration_style_id: str | None
                  ) -> None:
@@ -3142,39 +3352,39 @@ class DisplayCalibrationInfo:
         displayed_dimensional_scales = 0.0, 1.0
         dimensional_shape: typing.Optional[DataAndMetadata.ShapeType] = None
         display_data_metadata: DataAndMetadata.DataMetadata | None = None
-        if data_metadata_list:
-            data_metadata0 = data_metadata_list[0]
-            if data_metadata0 and len(data_metadata0.dimensional_calibrations) > 0:
-                dimensional_calibrations = list(data_metadata0.dimensional_calibrations)
+        if display_data_metadata_list:
+            display_data_metadata0 = display_data_metadata_list[0]
+            if display_data_metadata0 and len(display_data_metadata0.dimensional_calibrations) > 0:
+                dimensional_calibrations = list(display_data_metadata0.dimensional_calibrations)
                 if len(dimensional_calibrations) > 1:
-                    intensity_calibration = data_metadata0.intensity_calibration
-                    displayed_dimensional_scales = 0, data_metadata0.dimensional_shape[-1]
-                    dimensional_shape = data_metadata0.dimensional_shape
+                    intensity_calibration = display_data_metadata0.intensity_calibration
+                    displayed_dimensional_scales = 0, display_data_metadata0.dimensional_shape[-1]
+                    dimensional_shape = display_data_metadata0.dimensional_shape
                 else:
                     units = dimensional_calibrations[-1].units
                     mn = math.inf
                     mx = -math.inf
-                    for data_metadata_ in data_metadata_list:
-                        if data_metadata_ and data_metadata_.dimensional_calibrations[-1].units == units:
+                    for display_data_metadata_ in display_data_metadata_list:
+                        if display_data_metadata_ and display_data_metadata_.dimensional_calibrations[-1].units == units:
                             v = dimensional_calibrations[0].convert_from_calibrated_value(
-                                data_metadata_.dimensional_calibrations[-1].convert_to_calibrated_value(0))
+                                display_data_metadata_.dimensional_calibrations[-1].convert_to_calibrated_value(0))
                             mn = min(mn, v)
                             mx = max(mx, v)
                             v = dimensional_calibrations[0].convert_from_calibrated_value(
-                                data_metadata_.dimensional_calibrations[-1].convert_to_calibrated_value(data_metadata_.dimensional_shape[-1]))
+                                display_data_metadata_.dimensional_calibrations[-1].convert_to_calibrated_value(display_data_metadata_.dimensional_shape[-1]))
                             mn = min(mn, v)
                             mx = max(mx, v)
-                    intensity_calibration = data_metadata0.intensity_calibration
+                    intensity_calibration = display_data_metadata0.intensity_calibration
                     if math.isfinite(mn) and math.isfinite(mx):
                         displayed_dimensional_scales = mn, mx
                         dimensional_shape = (int(mx - mn),)
                     else:
-                        displayed_dimensional_scales = 0, data_metadata0.dimensional_shape[-1]
-                        dimensional_shape = data_metadata0.dimensional_shape
-            if data_metadata0 and len(data_metadata_list) == 1:
-                display_data_metadata = data_metadata0
-        is_composite_data = len(data_metadata_list) > 1
-        self.__data_metadata_list = tuple(data_metadata_list)
+                        displayed_dimensional_scales = 0, display_data_metadata0.dimensional_shape[-1]
+                        dimensional_shape = display_data_metadata0.dimensional_shape
+            if display_data_metadata0 and len(display_data_metadata_list) == 1:
+                display_data_metadata = display_data_metadata0
+        is_composite_data = len(display_data_metadata_list) > 1
+        self.__display_data_metadata_list = tuple(display_data_metadata_list)
         self.__dimensional_shape = dimensional_shape
         self.__dimensional_calibrations = dimensional_calibrations
         self.__intensity_calibration = intensity_calibration
@@ -3187,7 +3397,7 @@ class DisplayCalibrationInfo:
     def __eq__(self, other: typing.Any) -> bool:
         if not isinstance(other, DisplayCalibrationInfo):
             return False
-        if self.__data_metadata_list != other.__data_metadata_list:
+        if self.__display_data_metadata_list != other.__display_data_metadata_list:
             return False
         if self.__calibration_style_id != other.__calibration_style_id:
             return False
@@ -3291,11 +3501,11 @@ class DisplayCalibrationInfo:
 
     @property
     def calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return get_calibration_styles(self.__data_metadata_list)
+        return get_calibration_styles(self.__display_data_metadata_list)
 
     @property
     def intensity_calibration_styles(self) -> typing.Sequence[CalibrationStyle]:
-        return get_intensity_calibration_styles(self.__data_metadata_list)
+        return get_intensity_calibration_styles(self.__display_data_metadata_list)
 
     def get_dimension_calibration_and_data_size(self, dimension_index: int, *, uniform: bool = False) -> CalibrationAndDataSize:
         dimension_calibrations = self.displayed_display_data_calibrations
