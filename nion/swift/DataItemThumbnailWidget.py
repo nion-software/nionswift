@@ -13,13 +13,14 @@ from nion.swift import MimeTypes
 from nion.swift import Thumbnails
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
+from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
 from nion.ui import Widgets
-from nion.ui import CanvasItem
 from nion.utils import Geometry
 from nion.utils import Process
 from nion.utils import ReferenceCounting
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
@@ -36,19 +37,11 @@ _NDArray = numpy.typing.NDArray[typing.Any]
 class AbstractThumbnailSource:
 
     def __init__(self) -> None:
-        self.on_thumbnail_data_changed: typing.Optional[typing.Callable[[typing.Optional[_NDArray]], None]] = None
-        self.__thumbnail_data: typing.Optional[_NDArray] = None
+        self.on_thumbnail_bitmap_changed: typing.Callable[[Bitmap.Bitmap | None], None] | None = None
         self.overlay_canvas_items = list[CanvasItem.AbstractCanvasItem]()
 
     def close(self) -> None:
-        self.on_thumbnail_data_changed = None
-
-    @property
-    def thumbnail_data(self) -> typing.Optional[_NDArray]:
-        return self.__thumbnail_data
-
-    def _set_thumbnail_data(self, thumbnail_data: typing.Optional[_NDArray]) -> None:
-        self.__thumbnail_data = thumbnail_data
+        self.on_thumbnail_bitmap_changed = None
 
     def populate_mime_data_for_drag(self, mime_data: UserInterface.MimeData, size: Geometry.IntSize) -> typing.Tuple[bool, typing.Optional[_NDArray]]:
         return False, None
@@ -292,9 +285,9 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
             if valid:
                 on_drag(mime_data, thumbnail, x, y)
 
-    def __thumbnail_data_changed(self, thumbnail_data: typing.Optional[_NDArray]) -> None:
+    def __thumbnail_bitmap_changed(self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
         # update the bitmap canvas item with the new thumbnail data.
-        self.__bitmap_canvas_item.rgba_bitmap_data = thumbnail_data
+        self.__bitmap_canvas_item.bitmap = thumbnail_bitmap
 
     @property
     def thumbnail_source(self) -> AbstractThumbnailSource:
@@ -309,8 +302,8 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
                 for overlay_canvas_item in thumbnail_source.overlay_canvas_items:
                     overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
             self.__bitmap_overlay_canvas_item.set_overlay_canvas_items(thumbnail_source.overlay_canvas_items)
-            self.__thumbnail_source.on_thumbnail_data_changed = ReferenceCounting.weak_partial(ThumbnailCanvasItem.__thumbnail_data_changed, self)
-            self.__thumbnail_data_changed(self.__thumbnail_source.thumbnail_data)
+            self.__thumbnail_source.on_thumbnail_bitmap_changed = ReferenceCounting.weak_partial(self.__class__.__thumbnail_bitmap_changed, self)
+            self.__thumbnail_bitmap_changed(None)
 
     def close(self) -> None:
         self.__thumbnail_source.close()
@@ -434,8 +427,8 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
         self.__window = window
         self.__display_item_binding: typing.Optional[Binding.Binding] = None
-        self.__thumbnail_source: typing.Optional[Thumbnails.ThumbnailSource] = None
-        self.__thumbnail_updated_event_listener: typing.Optional[Event.EventListener] = None
+        self.__thumbnail_source: Thumbnails.ThumbnailSource | None = None
+        self.__thumbnail_source_action: Stream.ValueStreamAction[Bitmap.Bitmap] | None = None
         self.__display_item_changed_event: Event.EventListener | None = None
 
         self.is_live_overlay_canvas_item = IsLiveOverlayCanvasItem()
@@ -457,16 +450,13 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         super().close()
 
     def __detach_listeners(self) -> None:
-        self.__thumbnail_updated_event_listener = None
+        self.__thumbnail_source_action = None
         self.__thumbnail_source = None
 
-    def __update_thumbnail(self) -> None:
-        if self.__display_item:
-            self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display_item(self.__display_item))
-        else:
-            self._set_thumbnail_data(None)
-        if callable(self.on_thumbnail_data_changed):
-            self.on_thumbnail_data_changed(self.thumbnail_data)
+    def __update_thumbnail(self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
+        self.__thumbnail_bitmap = thumbnail_bitmap
+        if callable(self.on_thumbnail_bitmap_changed):
+            self.on_thumbnail_bitmap_changed(thumbnail_bitmap)
 
     def set_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> None:
         if self.__display_item != display_item:
@@ -474,11 +464,11 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
             self.__display_item = display_item
             if display_item:
                 self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.ui, display_item)
-                self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(self.__update_thumbnail)
+                self.__thumbnail_source_action = Stream.ValueStreamAction(self.__thumbnail_source, ReferenceCounting.weak_partial(self.__class__.__update_thumbnail, self))
                 self.__display_item_changed_event = display_item.item_changed_event.listen(self.__handle_display_item_changed_event)
             else:
                 self.__display_item_changed_event = None
-            self.__update_thumbnail()
+            self.__update_thumbnail(self.__thumbnail_source.value if self.__thumbnail_source else None)
             self.__handle_display_item_changed_event()
             if self.__display_item_binding:
                 self.__display_item_binding.update_source(display_item)
