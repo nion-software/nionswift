@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 # standard libraries
-import asyncio
-import copy
 import gettext
 import operator
 import pkgutil
-import threading
 import typing
 
 # third party libraries
@@ -17,7 +14,6 @@ from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
-from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
@@ -68,17 +64,16 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__display_item = display_item
         self.__ui = ui
         self.__font_metrics_fn = font_metrics_fn
-        self.__thumbnail: typing.Optional[Bitmap.Bitmap] = None
+        self.__thumbnail: Bitmap.Bitmap | None = None
 
-        def thumbnail_updated() -> None:
-            bitmap_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
-            self.__thumbnail = Bitmap.Bitmap(rgba_bitmap_data=bitmap_data)
+        def thumbnail_updated(canvas_item: typing.Self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
+            self.__thumbnail = thumbnail_bitmap
             self.update()
 
         self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item)
-        self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
+        self.__thumbnail_source_action = Stream.ValueStreamAction(self.__thumbnail_source, ReferenceCounting.weak_partial(thumbnail_updated, self))
 
-        thumbnail_updated()
+        thumbnail_updated(self, self.__thumbnail_source.value)
 
         self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelListItem.__item_changed, self))
 
@@ -86,7 +81,7 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         raise NotImplementedError()
 
     def close(self) -> None:
-        self.__thumbnail_updated_event_listener = typing.cast(typing.Any, None)
+        self.__thumbnail_source_action = typing.cast(typing.Any, None)
         self.__thumbnail_source = typing.cast(typing.Any, None)
         super().close()
 

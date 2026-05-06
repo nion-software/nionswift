@@ -6,11 +6,9 @@ from __future__ import annotations
 
 # standard libraries
 import concurrent.futures
-import functools
 import threading
 import typing
 import uuid
-import weakref
 
 # third-party libraries
 import numpy
@@ -18,18 +16,21 @@ import numpy.typing
 
 # local libraries
 from nion.swift import DisplayPanel
-from nion.swift.model import Utility
+from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
+from nion.swift.model import Utility
+from nion.ui import Bitmap
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ReferenceCounting
+from nion.utils import Stream
 
 _NDArray = numpy.typing.NDArray[typing.Any]
 
 
-class ThumbnailSource:
+class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
     """Produce a thumbnail for a display."""
     _executor = concurrent.futures.ThreadPoolExecutor()
 
@@ -42,8 +43,6 @@ class ThumbnailSource:
 
         self.width = 256
         self.height = 256
-
-        self.thumbnail_updated_event = Event.Event()
 
         self.__display_item = display_item
         self.__recompute_lock = threading.RLock()
@@ -58,8 +57,7 @@ class ThumbnailSource:
 
         self.thumbnail_dirty_event = Event.Event()  # for testing
 
-        self.__display_changed_event_listener = display_item.display_changed_event.listen(ReferenceCounting.weak_partial(ThumbnailSource.__thumbnail_changed, self))
-        self.__graphics_changed_event_listener = display_item.graphics_changed_event.listen(ReferenceCounting.weak_partial(ThumbnailSource.__graphics_changed, self))
+        self.__display_info_stream_action = Stream.ValueStreamAction(self.__display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__display_info_changed, self))
 
         # initial recompute, if required
         self.__recompute_on_thread()
@@ -71,7 +69,14 @@ class ThumbnailSource:
             self.__cache_thumbnail_data = typing.cast(typing.Optional[_NDArray], self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)) if self.__display_item else None
             self.__cache_is_dirty = self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name) if self.__display_item else False
             self.__cache_properties_known = True
-            self.thumbnail_updated_event.fire()
+            self.value = Bitmap.Bitmap(rgba_bitmap_data=self.thumbnail_data)
+
+    def __display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
+        self.thumbnail_dirty_event.fire()
+        self.__cache_is_dirty = True
+        self.__cache_properties_known = True
+        self.__recompute_on_thread()
 
     def __thumbnail_changed(self) -> None:
         self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
@@ -86,14 +91,10 @@ class ThumbnailSource:
                 if not self.__suppress_recompute:
                     self.__recompute_future = self._executor.submit(self.__recompute_data_if_needed)
 
-    def __graphics_changed(self, graphic_selection: DisplayItem.GraphicSelection) -> None:
-        self.__thumbnail_changed()
-
     def __display_item_will_close(self) -> None:
         # the display item is closing, so these messages should not be triggered, but just in case...
         self.__display_item_about_to_close_listener = typing.cast(typing.Any, None)
-        self.__display_changed_event_listener = typing.cast(typing.Any, None)
-        self.__graphics_changed_event_listener = typing.cast(typing.Any, None)
+        self.__display_info_stream_action = typing.cast(typing.Any, None)
         # shut down the thread, if any. avoid deadlock.
         # note: the __display_item still has to be valid to shut down the thread, in case it is still running.
         # clear the display item after shutting down the thread.
@@ -155,7 +156,7 @@ class ThumbnailSource:
             self.__cache_is_dirty = False
             self.__cache_properties_known = True
             self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data)
-        self.thumbnail_updated_event.fire()
+        self.value = Bitmap.Bitmap(rgba_bitmap_data=self.thumbnail_data)
 
     @property
     def _is_thumbnail_dirty(self) -> bool:
