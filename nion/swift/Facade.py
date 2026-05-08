@@ -2849,9 +2849,9 @@ class DocumentWindow(metaclass=SharedInstance):
         return self.__document_controller.create_task_context_manager(title, task_type)
 
     def show_get_string_message_box(self, caption: str, text: str, accepted_fn: typing.Callable[[str], None],
-                                    rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
-                                    accepted_text: typing.Optional[str] = None,
-                                    rejected_text: typing.Optional[str] = None) -> None:
+                                    rejected_fn: typing.Callable[[], None] | None = None,
+                                    accepted_text: str | None = None,
+                                    rejected_text: str | None = None) -> None:
         """Show a dialog box and ask for a string.
 
         Caption describes the user prompt. Text is the initial/default string.
@@ -2867,16 +2867,34 @@ class DocumentWindow(metaclass=SharedInstance):
         """
         workspace = self.__document_controller.workspace_controller
         if workspace:
-            workspace.pose_get_string_message_box(caption, text, accepted_fn, rejected_fn, accepted_text, rejected_text)
+            def completion_fn(returned_text: str | None) -> None:
+                if returned_text is not None:
+                    accepted_fn(returned_text)
+                elif rejected_fn:
+                    rejected_fn()
+
+            Dialog.pose_edit_string_popup(current_string=text, title=caption, completion_fn=completion_fn,
+                                          window=self.__document_controller, cancel_button_text=rejected_text,
+                                          accept_button_text=accepted_text, show_buttons=True,
+                                          parent_rect=workspace.get_workspace_rect())
 
     def show_confirmation_message_box(self, caption: str, accepted_fn: typing.Callable[[], None],
-                                      rejected_fn: typing.Optional[typing.Callable[[], None]] = None,
-                                      accepted_text: typing.Optional[str] = None,
-                                      rejected_text: typing.Optional[str] = None,
+                                      rejected_fn: typing.Callable[[], None] | None = None,
+                                      accepted_text: str | None = None,
+                                      rejected_text: str | None = None,
                                       display_rejected: bool = False) -> None:
         workspace = self.__document_controller.workspace_controller
         if workspace:
-            workspace.pose_confirmation_message_box(caption, accepted_fn, rejected_fn, accepted_text, rejected_text, display_rejected)
+            def completion_fn(confirmed: bool) -> None:
+                if confirmed:
+                    accepted_fn()
+                elif rejected_fn:
+                    rejected_fn()
+
+            Dialog.pose_confirmation_popup(completion_fn=completion_fn, window=self.__document_controller,
+                                           title=caption, show_buttons=True, accept_button_text=accepted_text,
+                                           cancel_button_text=rejected_text, parent_rect=workspace.get_workspace_rect(),
+                                           show_cancel_button=display_rejected)
 
     def show_modeless_dialog(self, item: Declarative.UIDescription, handler: typing.Optional[Declarative.HandlerLike] = None) -> None:
         if isinstance(item, dict) and item.get("type") == "modeless_dialog":

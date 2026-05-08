@@ -541,11 +541,11 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
                         command.perform()
                         self.__document_controller.push_undo_command(command)
 
-                Dialog.pose_edit_string_pop_up(data_group.title, handle_title_changed,
-                                               window=self.__document_controller,
-                                               title=_("Edit Group Name"),
-                                               position=item_rect.bottom_left + Geometry.IntPoint(4, 0),
-                                               size=Geometry.IntSize(30, item_rect.width))
+                Dialog.pose_edit_string_popup(data_group.title, handle_title_changed,
+                                              window=self.__document_controller,
+                                              title=_("Edit Group Name"),
+                                              position=item_rect.bottom_left + Geometry.IntPoint(4, 0),
+                                              size=Geometry.IntSize(30, item_rect.width))
 
 
 class CollectionsPanel(Panel.Panel):
