@@ -3209,7 +3209,7 @@ class WedgeMaskItem(MaskItem):
         a, b = calibrated_origin.y - 0.5, calibrated_origin.x - 0.5
 
         # x and y will be pixel ramps increasing from top left to bottom right and zero at the origin
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]  # type: ignore
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
 
         # normalize the angles. the angles are specified as counter-clockwise rotation around the positive x-axis
         s = self.start_angle % math.tau
@@ -3248,7 +3248,7 @@ class RingMaskItem(MaskItem):
         mask: numpy.typing.NDArray[numpy.float64] = numpy.zeros(data_shape, dtype=float)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
         a, b = calibrated_origin.y - 0.5, calibrated_origin.x - 0.5
-        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b] # type: ignore
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
         y = y / bounds_int[1][0]
         x = x / bounds_int[1][1]
         radius_1_eq = x * x + y * y <= self.radius_1 ** 2
