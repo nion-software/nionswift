@@ -2072,7 +2072,7 @@ class AsyncRelayStream(RelayStream[T], typing.Generic[T]):
 
 
 class ComputedValueStreamExecutor(typing.Generic[T]):
-    """Define a protocol to submit a function to an executor."""
+    """Define a default class to submit a function to an executor."""
 
     def submit(self, fn: typing.Callable[[T | None, int], None], value: T | None, index: int) -> concurrent.futures.Future[None]:
         """Submit a function to be run and return a future that can be waited on for completion.
@@ -2098,7 +2098,7 @@ class ComputedValueStreamThreadPoolExecutor(ComputedValueStreamExecutor[T], typi
 class ComputedValueStream(Stream.ValueStream[OT], typing.Generic[T, OT]):
     """A stream that computes its value using an executor when the input stream changes."""
 
-    def __init__(self, stream: Stream.AbstractStream[T], value_fn: typing.Callable[[typing.Optional[T]], typing.Optional[OT]], executor: ComputedValueStreamExecutor[T]) -> None:
+    def __init__(self, stream: Stream.AbstractStream[T], value_fn: typing.Callable[[T | None], OT | None], executor: ComputedValueStreamExecutor[T]) -> None:
         super().__init__()
         self.__stream = stream
         self.__value_fn = value_fn
@@ -2145,8 +2145,10 @@ class ComputedValueStream(Stream.ValueStream[OT], typing.Generic[T, OT]):
             self.__is_pending = False
             self.__is_running = True
             self.__lock.release()
-            self.__future = self.__executor.submit(self.__run, value, index)
-            self.__lock.acquire()
+            try:
+                self.__future = self.__executor.submit(self.__run, value, index)
+            finally:
+                self.__lock.acquire()
 
     def __run(self, value: T | None, index: int) -> None:
         try:
@@ -2160,7 +2162,14 @@ class ComputedValueStream(Stream.ValueStream[OT], typing.Generic[T, OT]):
                             self.__change_condition.notify_all()
                         self.__computed_once_event.set()
                     if not self.__is_shutdown:
-                        self.value = latest_result
+                        # Release the lock to minimize deadlocks during value assignment and sending events.
+                        # is_running is still true, so there is no possibility of another thread triggering another
+                        # run while the lock is released.
+                        self.__lock.release()
+                        try:
+                            self.value = latest_result
+                        finally:
+                            self.__lock.acquire()
         except Exception as e:
             print(f"Error in ComputedValueStream computation: {e}")
             raise
