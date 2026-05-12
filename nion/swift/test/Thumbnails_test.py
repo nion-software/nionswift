@@ -8,13 +8,12 @@ import unittest
 import numpy
 
 # local libraries
-from nion.swift import Application
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import MimeTypes
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.test import TestContext
-from nion.ui import TestUI
+from nion.ui import Bitmap
 from nion.utils import Geometry
 
 
@@ -40,8 +39,9 @@ class TestThumbnailsClass(unittest.TestCase):
             with contextlib.closing(thumbnail_source):
                 finished = threading.Event()
                 thumbnail_source.set_display_item(display_item)  # this will trigger changed callback with None
-                def thumbnail_bitmap_changed(bitmap):
-                    finished.set()
+                def thumbnail_bitmap_changed(bitmap: Bitmap.Bitmap | None) -> None:
+                    if bitmap.rgba_bitmap_data is not None:
+                        finished.set()
                 thumbnail_source.on_thumbnail_bitmap_changed = thumbnail_bitmap_changed  # watch for actual data
                 finished.wait(1.0)
                 mime_data = document_controller.ui.create_mime_data()
