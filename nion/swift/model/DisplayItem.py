@@ -2407,9 +2407,10 @@ class DisplayItem(Persistence.PersistentObject):
                 self.__display_info_stream = Stream.CombineLatestStream([self._display_relay_stream, self.__display_properties_layers_graphics_stream], compute_display_info)
                 self.__display_info_stream_direct = Stream.CombineLatestStream([self.__display_data_and_calibration_info_computed_value_stream, self.__display_properties_layers_graphics_stream], compute_display_info)
             self.__display_info_stream_count += 1
-            display_info_stream = Stream.FollowStream(self.__display_info_stream)
-            weakref.finalize(display_info_stream, ReferenceCounting.weak_partial(self.__class__.__release_display_info_stream, self))
-            return display_info_stream
+            display_info_stream = self.__display_info_stream
+        display_info_follow_stream = Stream.FollowStream(display_info_stream)
+        weakref.finalize(display_info_follow_stream, ReferenceCounting.weak_partial(self.__class__.__release_display_info_stream, self))
+        return display_info_follow_stream
 
     @property
     def display_info(self) -> DisplayInfo.DisplayInfo:
