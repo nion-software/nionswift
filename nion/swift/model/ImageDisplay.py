@@ -15,7 +15,7 @@ class ImageDisplayInfo(DisplayInfo.DisplayInfo):
     This object is effectively immutable, i.e. outside of caching.
     """
     def __init__(self, display_info: DisplayInfo.DisplayInfo) -> None:
-        super().__init__(display_info.display_calibration_info, display_info.display_properties, display_info.display_data_info_list, display_info.display_layers, display_info.graphics, display_info.graphic_selection)
+        super().__init__(display_info.display_calibration_info, display_info.display_properties, display_info.display_data_info_list, display_info.display_layers, display_info.graphics, display_info.graphic_renderers, display_info.graphic_selection)
 
         # cached values
         display_properties = self.display_properties

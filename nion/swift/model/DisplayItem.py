@@ -1832,6 +1832,7 @@ class DisplayPropertiesLayersGraphics:
     display_properties: typing.Mapping[str, typing.Any]
     display_layers_list: typing.Sequence[DisplayLayerInfo]
     graphics: typing.Sequence[Graphics.Graphic]
+    graphic_renderers: typing.Sequence[Graphics.GraphicRenderer]
     graphic_selection: GraphicSelection
 
 
@@ -1880,6 +1881,7 @@ def compute_display_info(display_data_and_calibration_info: DisplayDataAndCalibr
                                        display_data_and_calibration_info.display_data_info_list if display_data_and_calibration_info else tuple(),
                                        display_properties_layers_graphics.display_layers_list,
                                        display_properties_layers_graphics.graphics,
+                                       display_properties_layers_graphics.graphic_renderers,
                                        display_properties_layers_graphics.graphic_selection)
     return None
 
@@ -1969,9 +1971,12 @@ class DisplayPropertiesLayersGraphicsStream(Stream.ValueStream[DisplayProperties
         self.__send_delta()
 
     def __send_delta(self) -> None:
+        # model changes are guaranteed to occur on the main thread.
+        assert threading.current_thread() == threading.main_thread()
         display_properties_layers_graphics = DisplayPropertiesLayersGraphics(self.__display_properties,
                                                                              self.__display_layers_list,
                                                                              self.__graphics,
+                                                                             [graphic.get_renderer() for graphic in self.__graphics],
                                                                              self.__graphic_selection)
         self.send_value(display_properties_layers_graphics)
 
