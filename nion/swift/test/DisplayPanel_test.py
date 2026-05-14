@@ -201,39 +201,49 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertTrue(0 in self.display_item.graphic_selection.indexes)
 
     def test_select_multiple(self):
-        # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
-        self.document_controller.add_line_graphic()
-        self.document_controller.add_ellipse_graphic()
-        self.display_panel.display_canvas_item.update_canvas_items()
-        # click outside so nothing is selected
-        self.display_panel.display_canvas_item.simulate_click((0, 0))
-        self.document_controller.periodic()
-        self.display_panel.display_canvas_item.update_canvas_items()
-        self.assertEqual(len(self.display_item.graphic_selection.indexes), 0)
-        # select the ellipse
-        self.display_panel.display_canvas_item.simulate_click((725, 500))
-        self.document_controller.periodic()
-        self.display_panel.display_canvas_item.update_canvas_items()
-        self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
-        self.assertTrue(1 in self.display_item.graphic_selection.indexes)
-        # select the line
-        self.display_panel.display_canvas_item.simulate_click((200, 200))
-        self.document_controller.periodic()
-        self.display_panel.display_canvas_item.update_canvas_items()
-        self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.display_item.graphic_selection.indexes)
-        # add the ellipse to the selection. click inside the right side.
-        self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
-        self.document_controller.periodic()
-        self.display_panel.display_canvas_item.update_canvas_items()
-        self.assertEqual(len(self.display_item.graphic_selection.indexes), 2)
-        self.assertTrue(0 in self.display_item.graphic_selection.indexes)
-        # remove the ellipse from the selection. click inside the right side.
-        self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
-        self.document_controller.periodic()
-        self.display_panel.display_canvas_item.update_canvas_items()
-        self.assertEqual(len(self.display_item.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.display_item.graphic_selection.indexes)
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(1000, 1000))
+            display_panel.display_canvas_item.update_canvas_items()
+            # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
+            document_controller.add_line_graphic()
+            document_controller.add_ellipse_graphic()
+            display_panel.display_canvas_item.update_canvas_items()
+            # click outside so nothing is selected
+            display_panel.display_canvas_item.simulate_click((0, 0))
+            document_controller.periodic()
+            display_panel.display_canvas_item.update_canvas_items()
+            self.assertEqual(len(display_item.graphic_selection.indexes), 0)
+            # select the ellipse
+            display_panel.display_canvas_item.simulate_click((725, 500))
+            document_controller.periodic()
+            display_panel.display_canvas_item.update_canvas_items()
+            self.assertEqual(len(display_item.graphic_selection.indexes), 1)
+            self.assertTrue(1 in display_item.graphic_selection.indexes)
+            # select the line
+            display_panel.display_canvas_item.simulate_click((200, 200))
+            document_controller.periodic()
+            display_panel.display_canvas_item.update_canvas_items()
+            self.assertEqual(len(display_item.graphic_selection.indexes), 1)
+            self.assertTrue(0 in display_item.graphic_selection.indexes)
+            # add the ellipse to the selection. click inside the right side.
+            display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
+            document_controller.periodic()
+            display_panel.display_canvas_item.update_canvas_items()
+            self.assertEqual(len(display_item.graphic_selection.indexes), 2)
+            self.assertTrue(0 in display_item.graphic_selection.indexes)
+            # remove the ellipse from the selection. click inside the right side.
+            display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
+            document_controller.periodic()
+            display_panel.display_canvas_item.update_canvas_items()
+            self.assertEqual(len(display_item.graphic_selection.indexes), 1)
+            self.assertTrue(0 in display_item.graphic_selection.indexes)
 
     def assertClosePoint(self, p1, p2, e=0.00001):
         self.assertTrue(Geometry.distance(p1, p2) < e)
