@@ -2030,6 +2030,7 @@ class DisplayPropertiesLayersGraphicsStream(Stream.ValueStream[DisplayProperties
                 self.__send_delta()
 
     def reset(self) -> None:
+        self.__display_layers_list = self.__display_item.display_layer_info_list
         self.__send_delta()
 
 
@@ -2676,7 +2677,6 @@ class DisplayItem(Persistence.PersistentObject):
     def display_layer_info_list(self) -> list[DisplayLayerInfo]:
         display_layer_list = list[DisplayLayerInfo]()
         for display_layer in self.display_layers:
-            display_layer_c = copy.deepcopy(display_layer)
             # the check for display data channel still being in display data channels is a hack needed because the
             # removal of a display layer can cascade remove a display data channel and leave the display data channel
             # of the display layer dangling during the cascade. hack it here.
@@ -2950,7 +2950,7 @@ class DisplayItem(Persistence.PersistentObject):
         # display_data_channel to be correct in order to send the correct display index. there is probably a better
         # way to do this in the future, perhaps directly pointing to the display data channel rather than requiring
         # the index. future work.
-        pass  # self.__display_info_stream_controller.reset()
+        self.__display_properties_layers_graphics_stream.reset()
 
     def __get_used_str_value(self, key: str, default_value: str) -> str:
         if self._get_persistent_property_value(key) is not None:

@@ -130,21 +130,13 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
         graphics = self.__display_info.graphics
         graphic_selection = self.__display_info.graphic_selection
 
-        def display_layer_info_equal(layer1: DisplayItem.DisplayLayerInfo, layer2: DisplayItem.DisplayLayerInfo) -> bool:
-            return (layer1.data_row == layer2.data_row and
-                    layer1.label == layer2.label and
-                    layer1.stroke_color == layer2.stroke_color and
-                    layer1.fill_color == layer2.fill_color and
-                    layer1.stroke_width == layer2.stroke_width and
-                    layer1.data_index == layer2.data_index)
-
         if display_info.display_calibration_info != display_calibration_info:
             display_calibration_info = display_info.display_calibration_info
         if display_info.display_properties != display_properties:
             display_properties = display_info.display_properties
         if display_info.display_data_info_list != display_data_info_list:
             display_data_info_list = display_info.display_data_info_list
-        if len(display_info.display_layers) != len(display_layers) or any(not display_layer_info_equal(x, y) for x, y in zip(display_info.display_layers, display_layers)):
+        if display_info.display_layers != display_layers:
             display_layers = display_info.display_layers
         if display_info.graphics != graphics:
             graphics = display_info.graphics
