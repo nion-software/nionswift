@@ -14,6 +14,7 @@ import dataclasses
 import gettext
 import math
 import re
+import threading
 import typing
 import warnings
 
@@ -495,8 +496,14 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
     def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LinePlotDisplay.LineGraphLayer]) -> None:
         line_graph_layers = list(line_graph_layers)
         while len(self.canvas_items) < len(line_graph_layers) * 2:
+            # this method is being called as part of 'will_repaint' functionality, which will update the owner thread
+            # of the new line graph layer canvas item. see ThreadedCanvasItem.__call_will_repaint. until then, the owner
+            # thread of the new canvas item will be the current thread.
             self.add_canvas_item(LineGraphLayerCanvasItem(self.__cache))
         while len(self.canvas_items) > len(line_graph_layers) * 2:
+            # the line graph layer canvas items will have a mismatched owner thread. explicitly set the owner thread
+            # to the current thread to avoid warnings in remove_canvas_item about mismatched threads.
+            self.canvas_items[-1]._set_owner_thread(threading.current_thread())
             self.remove_canvas_item(self.canvas_items[-1])
         for canvas_item, line_graph_layer in zip(self.canvas_items[:len(line_graph_layers)], line_graph_layers):
             line_graph_layer_canvas_item = typing.cast(LineGraphLayerCanvasItem, canvas_item)
