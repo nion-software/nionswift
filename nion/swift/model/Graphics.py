@@ -948,9 +948,9 @@ class Graphic(Persistence.PersistentObject):
 
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         if not self._closed:
-            self._draw(ctx, ui_settings, mapping, is_selected, is_focused)
+            self.get_renderer().draw(ctx, ui_settings, mapping, is_selected, is_focused)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def get_renderer(self) -> GraphicRenderer:
         raise NotImplementedError()
 
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
@@ -984,7 +984,7 @@ class Graphic(Persistence.PersistentObject):
         pass
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
-        return None
+        return self.get_renderer().label_position(mapping, font_metrics, padding)
 
     def reset_position(self) -> None:
         pass
@@ -1000,11 +1000,48 @@ class Graphic(Persistence.PersistentObject):
                 return test_inside_bounds(bounds, test_point, ui_settings.cursor_tolerance)
         return False
 
+
+class GraphicRenderer:
+    """Drawing state for rendering a Graphic.
+
+    Represents an immutable snapshot of the properties of a Graphic that can be used for drawing and change detection.
+
+    The display pipeline needs to be able to compare the current state of a graphic with the previous state to
+    determine whether it needs to be redrawn. This can be done using the graphic_uuid and modified_count properties.
+
+    The display pipeline and particularly the canvas item composers render in a thread and require a snapshot of the
+    graphic state that is guaranteed not to change while drawing.
+
+    Provides a draw method that can be called by the canvas when drawing graphics, and a label_position method that can
+    be used to determine the position of the graphic label.
+    """
+
+    def __init__(self, graphic: Graphic) -> None:
+        self.graphic_uuid = graphic.uuid
+        self.modified_count = graphic.modified_count
+        self.stroke_color = graphic.stroke_color
+        self.used_stroke_style = graphic.used_stroke_style
+        self.used_stroke_width = graphic.used_stroke_width
+        self.used_fill_style = graphic.used_fill_style
+        self.label = graphic.label
+        self.label_padding = graphic.label_padding
+        self.label_font = graphic.label_font
+        self.is_position_locked = graphic.is_position_locked
+        self.is_shape_locked = graphic.is_shape_locked
+        self.is_rotation_locked = graphic.is_rotation_locked
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        raise NotImplementedError()
+
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+        return None
+
     def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike) -> None:
-        if self.label:
+        label = self.label
+        if label:
             padding = self.label_padding
             font = self.label_font
-            font_metrics = ui_settings.get_font_metrics(font, self.label)
+            font_metrics = ui_settings.get_font_metrics(font, label)
             text_pos = self.label_position(mapping, font_metrics, padding)
             if text_pos:
                 with ctx.saver():
@@ -1026,7 +1063,7 @@ class Graphic(Persistence.PersistentObject):
                     ctx.text_baseline = "middle"
                     ctx.text_align = "center"
                     ctx.fill_style = "#000"
-                    ctx.fill_text(self.label, text_pos.x, text_pos.y)
+                    ctx.fill_text(label, text_pos.x, text_pos.y)
 
 
 class MissingGraphic(Graphic):
@@ -1037,7 +1074,13 @@ class MissingGraphic(Graphic):
     def __init__(self, type: str) -> None:
         super().__init__(type)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def get_renderer(self) -> GraphicRenderer:
+        return MissingGraphicRenderer(self)
+
+
+class MissingGraphicRenderer(GraphicRenderer):
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         pass
 
 
@@ -1229,8 +1272,13 @@ class RectangleTypeGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        raise NotImplementedError()
+
+class RectangleTypeGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: RectangleTypeGraphic) -> None:
+        super().__init__(graphic)
+        self.bounds = graphic.bounds
+        self.rotation = graphic.rotation
 
 
 class RectangleGraphic(RectangleTypeGraphic):
@@ -1244,6 +1292,9 @@ class RectangleGraphic(RectangleTypeGraphic):
     def get_region(self) -> RectangleRegion:
         return RectangleRegion(self.bounds, self.rotation)
 
+    def get_renderer(self) -> GraphicRenderer:
+        return RectangleGraphicRenderer(self)
+
     # rectangle
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         original_image = mapping.map_point_widget_to_image(original)
@@ -1255,20 +1306,27 @@ class RectangleGraphic(RectangleTypeGraphic):
         if rotation != self.rotation and "rotation" not in self._constraints:
             self.rotation = rotation
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+
+class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        bounds = self.bounds
+        rotation = self.rotation
+        used_stroke_width = self.used_stroke_width
+        used_stroke_style = self.used_stroke_style
+        used_fill_style = self.used_fill_style
+        is_shape_locked = self.is_shape_locked
+        is_position_locked = self.is_position_locked
+        is_rotation_locked = self.is_rotation_locked
         # origin is top left
-        origin = mapping.map_point_image_norm_to_widget(self.bounds.origin)
-        size = mapping.map_size_image_norm_to_widget(self.bounds.size)
+        origin = mapping.map_point_image_norm_to_widget(bounds.origin)
+        size = mapping.map_size_image_norm_to_widget(bounds.size)
         rect = Geometry.FloatRect(origin=origin, size=size)
-        top_left = rect.top_left
-        top_right = rect.top_right
-        bottom_right = rect.bottom_right
-        bottom_left = rect.bottom_left
         center = rect.center
         with ctx.saver():
-            if self.rotation:
+            if rotation:
                 ctx.translate(center.x, center.y)
-                ctx.rotate(-self.rotation)
+                ctx.rotate(-rotation)
                 ctx.translate(-center.x, -center.y)
             ctx.begin_path()
             ctx.move_to(origin[1], origin[0])
@@ -1280,28 +1338,28 @@ class RectangleGraphic(RectangleTypeGraphic):
             ctx.line_to(center.x, rect.top + 2)
             draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10, x=center.x), Geometry.FloatPoint(y=rect.top + 2, x=center.x), arrow_size=4)
             ctx.close_path()
-            ctx.line_width = self.used_stroke_width
-            ctx.stroke_style = self.used_stroke_style
+            ctx.line_width = used_stroke_width
+            ctx.stroke_style = used_stroke_style
             ctx.stroke()
-            ctx.fill_style = self.used_fill_style
+            ctx.fill_style = used_fill_style
             ctx.fill()
         if is_selected:
             with ctx.saver():
-                if self.rotation:
+                if rotation:
                     ctx.translate(center.x, center.y)
-                    ctx.rotate(-self.rotation)
+                    ctx.rotate(-rotation)
                     ctx.translate(-center.x, -center.y)
-                draw_rect_marker(ctx, rect, is_focused, self.is_shape_locked)
-                draw_centre_marker(ctx, center, rect.size, self.used_stroke_style, self.is_position_locked)
+                draw_rect_marker(ctx, rect, is_focused, is_shape_locked)
+                draw_centre_marker(ctx, center, rect.size, used_stroke_style, is_position_locked)
                 # draw rotation marker
                 top_middle = Geometry.FloatPoint(y=rect.top, x=rect.center.x)
                 rotation_point = extend_line(center, top_middle, 14)
                 ctx.begin_path()
                 ctx.move_to(top_middle.x, top_middle.y)
                 ctx.line_to(rotation_point.x, rotation_point.y)
-                ctx.stroke_style = self.used_stroke_style
+                ctx.stroke_style = used_stroke_style
                 ctx.stroke()
-                draw_circular_marker(ctx, rotation_point, is_focused, self.is_rotation_locked)
+                draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -1324,6 +1382,9 @@ class EllipseGraphic(RectangleTypeGraphic):
     def get_mask_item(self) -> MaskItem:
         return EllipseMaskItem(self.bounds, self.rotation)
 
+    def get_renderer(self) -> GraphicRenderer:
+        return EllipseGraphicRenderer(self)
+
     # rectangle
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         original_image = mapping.map_point_widget_to_image(original)
@@ -1335,17 +1396,26 @@ class EllipseGraphic(RectangleTypeGraphic):
         if rotation != self.rotation and "rotation" not in self._constraints:
             self.rotation = rotation
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        # origin is top left
+
+class EllipseGraphicRenderer(RectangleTypeGraphicRenderer):
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        bounds = self.bounds
         rotation = self.rotation
-        bounds = Geometry.FloatRect.make(self.bounds)
+        used_stroke_width = self.used_stroke_width
+        used_stroke_style = self.used_stroke_style
+        used_fill_style = self.used_fill_style
+        is_shape_locked = self.is_shape_locked
+        is_position_locked = self.is_position_locked
+        is_rotation_locked = self.is_rotation_locked
+        # origin is top left
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
-        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, self.is_shape_locked, self.is_position_locked, self.is_rotation_locked, self.used_stroke_style,  self.used_stroke_width, self.used_fill_style)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style,  used_stroke_width, used_fill_style)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
-        bounds = Geometry.FloatRect.make(self.bounds)
+        bounds = self.bounds
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(bounds.top, bounds.center.x)))
         return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, 0.0)
 
@@ -1640,8 +1710,20 @@ class LineTypeGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        raise NotImplementedError()
+
+class LineTypeGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: LineTypeGraphic) -> None:
+        super().__init__(graphic)
+        self.start = graphic.start
+        self.end = graphic.end
+        self.start_arrow_enabled = graphic.start_arrow_enabled
+        self.end_arrow_enabled = graphic.end_arrow_enabled
+
+    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+        p1 = mapping.map_point_image_norm_to_widget(self.start)
+        p2 = mapping.map_point_image_norm_to_widget(self.end)
+        return Geometry.FloatPoint(y=(p1.y + p2.y) * 0.5, x=(p1.x + p2.x) * 0.5)
 
 
 class LineGraphic(LineTypeGraphic):
@@ -1655,29 +1737,37 @@ class LineGraphic(LineTypeGraphic):
     def get_region(self) -> LineRegion:
         return LineRegion(self.start, self.end)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        p1 = mapping.map_point_image_norm_to_widget(self.start)
-        p2 = mapping.map_point_image_norm_to_widget(self.end)
+    def get_renderer(self) -> GraphicRenderer:
+        return LineGraphicRenderer(self)
+
+
+class LineGraphicRenderer(LineTypeGraphicRenderer):
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        start = self.start
+        end = self.end
+        start_arrow_enabled = self.start_arrow_enabled
+        end_arrow_enabled = self.end_arrow_enabled
+        used_stroke_width = self.used_stroke_width
+        used_stroke_style = self.used_stroke_style
+        is_shape_locked = self.is_shape_locked
+        p1 = mapping.map_point_image_norm_to_widget(start)
+        p2 = mapping.map_point_image_norm_to_widget(end)
         with ctx.saver():
             ctx.begin_path()
             ctx.move_to(p1[1], p1[0])
             ctx.line_to(p2[1], p2[0])
-            if self.start_arrow_enabled:
+            if start_arrow_enabled:
                 draw_arrow(ctx, p2, p1)
-            if self.end_arrow_enabled:
+            if end_arrow_enabled:
                 draw_arrow(ctx, p1, p2)
-            ctx.line_width = self.used_stroke_width
-            ctx.stroke_style = self.used_stroke_style
+            ctx.line_width = used_stroke_width
+            ctx.stroke_style = used_stroke_style
             ctx.stroke()
         if is_selected:
-            draw_marker(ctx, p1, is_focused, self.is_shape_locked)
-            draw_marker(ctx, p2, is_focused, self.is_shape_locked)
+            draw_marker(ctx, p1, is_focused, is_shape_locked)
+            draw_marker(ctx, p2, is_focused, is_shape_locked)
         self.draw_label(ctx, ui_settings, mapping)
-
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
-        p1 = mapping.map_point_image_norm_to_widget(self.start)
-        p2 = mapping.map_point_image_norm_to_widget(self.end)
-        return Geometry.FloatPoint(y=(p1.y + p2.y) * 0.5, x=(p1.x + p2.x) * 0.5)
 
 
 class LineProfileGraphic(LineTypeGraphic):
@@ -1719,20 +1809,41 @@ class LineProfileGraphic(LineTypeGraphic):
     def get_region(self) -> LineProfileRegion:
         return LineProfileRegion(self.start, self.end, self.width)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        p1 = mapping.map_point_image_norm_to_widget(self.start)
-        p2 = mapping.map_point_image_norm_to_widget(self.end)
-        w = mapping.map_size_image_to_widget(Geometry.FloatSize(width=self.width)).width
+    def get_renderer(self) -> GraphicRenderer:
+        return LineProfileGraphicRenderer(self)
+
+
+class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
+
+    def __init__(self, graphic: LineProfileGraphic) -> None:
+        super().__init__(graphic)
+        self.width = graphic.width
+        self.interval_descriptors = copy.deepcopy(graphic.interval_descriptors)
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        start = self.start
+        end = self.end
+        start_arrow_enabled = self.start_arrow_enabled
+        end_arrow_enabled = self.end_arrow_enabled
+        width = self.width
+        interval_descriptors = self.interval_descriptors
+        stroke_color = self.stroke_color
+        used_stroke_width = self.used_stroke_width
+        used_stroke_style = self.used_stroke_style
+        is_shape_locked = self.is_shape_locked
+        p1 = mapping.map_point_image_norm_to_widget(start)
+        p2 = mapping.map_point_image_norm_to_widget(end)
+        w = mapping.map_size_image_to_widget(Geometry.FloatSize(width=width)).width
         with ctx.saver():
             ctx.begin_path()
             ctx.move_to(p1[1], p1[0])
             ctx.line_to(p2[1], p2[0])
-            if self.start_arrow_enabled:
+            if start_arrow_enabled:
                 draw_arrow(ctx, p2, p1)
-            if self.end_arrow_enabled:
+            if end_arrow_enabled:
                 draw_arrow(ctx, p1, p2)
-            ctx.line_width = self.used_stroke_width
-            ctx.stroke_style = self.used_stroke_style
+            ctx.line_width = used_stroke_width
+            ctx.stroke_style = used_stroke_style
             ctx.stroke()
             length = math.sqrt(math.pow(p2[0] - p1[0],2) + math.pow(p2[1] - p1[1], 2))
             dy = (p2[0] - p1[0]) / length if length > 0 else 0.0
@@ -1746,13 +1857,13 @@ class LineProfileGraphic(LineTypeGraphic):
                     ctx.line_to(p2[1] - dy * half_width, p2[0] + dx * half_width)
                     ctx.line_to(p1[1] - dy * half_width, p1[0] + dx * half_width)
                     ctx.close_path()
-                    ctx.line_width = self.used_stroke_width
+                    ctx.line_width = used_stroke_width
                     ctx.line_dash = 2
-                    ctx.stroke_style = self.used_stroke_style
+                    ctx.stroke_style = used_stroke_style
                     ctx.stroke()
-            for interval_descriptor in self.interval_descriptors:
+            for interval_descriptor in interval_descriptors:
                 interval = interval_descriptor.get("interval")
-                color = interval_descriptor.get("color", self.stroke_color)
+                color = interval_descriptor.get("color", stroke_color)
                 interval_marker_half_width = 4
                 if interval:
                     with ctx.saver():
@@ -1763,18 +1874,13 @@ class LineProfileGraphic(LineTypeGraphic):
                         ctx.line_to(pa[0] - dy * interval_marker_half_width, pa[1] + dx * interval_marker_half_width)
                         ctx.move_to(pb[0] + dy * interval_marker_half_width, pb[1] - dx * interval_marker_half_width)
                         ctx.line_to(pb[0] - dy * interval_marker_half_width, pb[1] + dx * interval_marker_half_width)
-                        ctx.line_width = self.used_stroke_width
+                        ctx.line_width = used_stroke_width
                         ctx.stroke_style = color
                         ctx.stroke()
         if is_selected:
-            draw_marker(ctx, p1, is_focused, self.is_shape_locked)
-            draw_marker(ctx, p2, is_focused, self.is_shape_locked)
+            draw_marker(ctx, p1, is_focused, is_shape_locked)
+            draw_marker(ctx, p2, is_focused, is_shape_locked)
         self.draw_label(ctx, ui_settings, mapping)
-
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
-        p1 = mapping.map_point_image_norm_to_widget(self.start)
-        p2 = mapping.map_point_image_norm_to_widget(self.end)
-        return Geometry.FloatPoint(y=(p1.y + p2.y) * 0.5, x=(p1.x + p2.x) * 0.5)
 
 
 class PointTypeGraphic(Graphic):
@@ -1861,9 +1967,6 @@ class PointTypeGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        raise NotImplementedError()
-
     @property
     def _position(self) -> Geometry.FloatPoint:
         return self.position
@@ -1871,6 +1974,13 @@ class PointTypeGraphic(Graphic):
     @_position.setter
     def _position(self, value: Geometry.FloatPoint) -> None:
         self.position = value
+
+
+class PointTypeGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: PointTypeGraphic) -> None:
+        super().__init__(graphic)
+        self.position = graphic.position
 
 
 class PointGraphic(PointTypeGraphic):
@@ -1885,11 +1995,24 @@ class PointGraphic(PointTypeGraphic):
     def get_region(self) -> PointRegion:
         return PointRegion(self.position)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        p = mapping.map_point_image_norm_to_widget(self.position)
+    def get_renderer(self) -> GraphicRenderer:
+        return PointGraphicRenderer(self)
+
+
+class PointGraphicRenderer(PointTypeGraphicRenderer):
+
+    def __init__(self, graphic: PointGraphic) -> None:
+        super().__init__(graphic)
+        self.cross_hair_size = graphic.cross_hair_size
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        position = self.position
+        cross_hair_size = self.cross_hair_size
+        used_stroke_width = self.used_stroke_width
+        used_stroke_style = self.used_stroke_style
+        p = mapping.map_point_image_norm_to_widget(position)
         with ctx.saver():
             ctx.begin_path()
-            cross_hair_size = self.cross_hair_size
             inner_size = 4
             ctx.move_to(p.x - cross_hair_size, p.y)
             ctx.line_to(p.x - inner_size, p.y)
@@ -1898,8 +2021,8 @@ class PointGraphic(PointTypeGraphic):
             ctx.move_to(p.x, p.y - cross_hair_size)
             ctx.line_to(p.x, p.y - inner_size)
             ctx.move_to(p.x, p.y + inner_size)
-            ctx.line_to(p.x, p.y + cross_hair_size)
-            ctx.line_width = self.used_stroke_width
+            ctx.line_width = used_stroke_width
+            ctx.stroke_style = used_stroke_style
             ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
             self.draw_label(ctx, ui_settings, mapping)
@@ -1998,6 +2121,9 @@ class IntervalGraphic(Graphic):
     def get_region(self) -> IntervalRegion:
         return IntervalRegion(self.start, self.end)
 
+    def get_renderer(self) -> GraphicRenderer:
+        return IntervalGraphicRenderer(self)
+
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
@@ -2057,6 +2183,18 @@ class IntervalGraphic(Graphic):
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
 
+class IntervalGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: IntervalGraphic) -> None:
+        super().__init__(graphic)
+        self.interval = graphic.interval
+        self.start = graphic.start
+        self.end = graphic.end
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        pass
+
+
 class ChannelGraphic(Graphic):
     CAN_REPOSITION = True
     CAN_RESHAPE = False
@@ -2095,6 +2233,9 @@ class ChannelGraphic(Graphic):
     def get_region(self) -> ChannelRegion:
         return ChannelRegion(self.position)
 
+    def get_renderer(self) -> GraphicRenderer:
+        return ChannelGraphicRenderer(self)
+
     # test is required for Graphic interface
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
@@ -2126,6 +2267,16 @@ class ChannelGraphic(Graphic):
         original = Geometry.FloatPoint(y=0.0, x=position_channel)
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
+
+
+class ChannelGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: ChannelGraphic) -> None:
+        super().__init__(graphic)
+        self.position = graphic.position
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        pass
 
 
 class SpotGraphic(Graphic):
@@ -2227,6 +2378,9 @@ class SpotGraphic(Graphic):
     def get_mask_item(self) -> MaskItem:
         return SpotMaskItem(self.bounds, self.rotation)
 
+    def get_renderer(self) -> GraphicRenderer:
+        return SpotGraphicRenderer(self)
+
     # test point hit
     def test(self, mapping: CoordinateMappingLike, ui_settings: UISettings.UISettings, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
@@ -2312,16 +2466,26 @@ class SpotGraphic(Graphic):
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        # origin is top left
+
+class SpotGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: SpotGraphic) -> None:
+        super().__init__(graphic)
+        self.bounds = graphic.bounds
+        self.rotation = graphic.rotation
+        self.center = graphic.center
+        self.size = graphic.size
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        bounds = self.bounds
+        rotation = self.rotation
         used_stroke_style = self.used_stroke_style
         used_stroke_width = self.used_stroke_width
         used_fill_style = self.used_fill_style
         is_shape_locked = self.is_shape_locked
         is_position_locked = self.is_position_locked
         is_rotation_locked = self.is_rotation_locked
-        rotation = self.rotation
-        bounds = Geometry.FloatRect.make(self.bounds)
+        # origin is top left
         origin = mapping.calibrated_origin_widget
         center = origin + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
@@ -2509,39 +2673,51 @@ class WedgeGraphic(Graphic):
     def get_mask_item(self) -> MaskItem:
         return WedgeMaskItem(self.start_angle, self.end_angle)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def get_renderer(self) -> GraphicRenderer:
+        return WedgeGraphicRenderer(self)
+
+
+class WedgeGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: WedgeGraphic) -> None:
+        super().__init__(graphic)
+        self.start_angle = graphic.start_angle
+        self.end_angle = graphic.end_angle
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        start_angle = self.start_angle
+        end_angle = self.end_angle
+        used_stroke_width = self.used_stroke_width
+        used_stroke_style = self.used_stroke_style
+        used_fill_style = self.used_fill_style
+        is_shape_locked = self.is_shape_locked
         center = mapping.calibrated_origin_widget
         size = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(1.0, 1.0))
         bounds = Geometry.FloatRect(Geometry.FloatPoint(), size) + mapping.map_point_image_norm_to_widget(Geometry.FloatPoint())
-        start_angle = self.start_angle % math.tau
+        start_angle = start_angle % math.tau
         if start_angle < 0:
             start_angle += math.tau
-        end_angle = self.end_angle % math.tau
+        end_angle = end_angle % math.tau
         while end_angle < start_angle:
             end_angle += math.tau
         side_corners = (bounds.top_left, bounds.top_right, bounds.bottom_right, bounds.bottom_left)
 
         def draw_mask(sign: float) -> None:
             # draw either the positive or negative mask. pass 1.0 or -1.0 for sign.
-            # print(f"(+) {start_angle=} {end_angle=}")
             side1, pt1 = get_rectangle_intersection(center, start_angle, bounds, sign)
             side2, pt2 = get_rectangle_intersection(center, end_angle, bounds, sign)
-            # print(f"(+) {side1=} {side2=}")
             ctx.begin_path()
             ctx.move_to(center.x, center.y)
             ctx.line_to(pt1.x, pt1.y)
             if end_angle - start_angle <= math.pi:
                 # counterclockwise from side1 to side2
-                # print("counter-clockwise")
                 if side1 < side2:
                     side1 += 4
                 for side in range(side1, side2, -1):
-                    # print(f"add point {side} {side_corners[side % 4]}")
                     corner = side_corners[side % 4]
                     ctx.line_to(corner.x, corner.y)
             else:
                 # clockwise from side1 to side2
-                # print("clockwise")
                 if side2 < side1:
                     side2 += 4
                 for side in range(side1, side2):
@@ -2549,9 +2725,9 @@ class WedgeGraphic(Graphic):
                     ctx.line_to(corner.x, corner.y)
             ctx.line_to(pt2.x, pt2.y)
             ctx.close_path()
-            ctx.line_width = self.used_stroke_width
-            ctx.stroke_style = self.used_stroke_style
-            ctx.fill_style = self.used_fill_style
+            ctx.line_width = used_stroke_width
+            ctx.stroke_style = used_stroke_style
+            ctx.fill_style = used_fill_style
             ctx.fill()
             ctx.stroke()
 
@@ -2559,7 +2735,7 @@ class WedgeGraphic(Graphic):
         draw_mask(-1.0)
 
         if is_selected:
-            draw_marker(ctx, center, is_focused, self.is_shape_locked)
+            draw_marker(ctx, center, is_focused, is_shape_locked)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -2700,39 +2876,58 @@ class RingGraphic(Graphic):
     def get_mask_item(self) -> MaskItem:
         return RingMaskItem(self.mode, self.radius_1, self.radius_2)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def get_renderer(self) -> GraphicRenderer:
+        return RingGraphicRenderer(self)
+
+
+class RingGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: RingGraphic) -> None:
+        super().__init__(graphic)
+        self.radius_1 = graphic.radius_1
+        self.radius_2 = graphic.radius_2
+        self.mode = graphic.mode
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        radius_1 = self.radius_1
+        radius_2 = self.radius_2
+        mode = self.mode
+        used_stroke_width = self.used_stroke_width
+        used_stroke_style = self.used_stroke_style
+        used_fill_style = self.used_fill_style
+        is_shape_locked = self.is_shape_locked
         # origin is top left
         center = mapping.calibrated_origin_widget
         bounds0 = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(0.0, 0.0))
         bounds1 = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(1.0, 1.0))
-        radius_1_widget = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(self.radius_1, self.radius_1))
-        radius_2_widget = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(self.radius_2, self.radius_2))
+        radius_1_widget = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(radius_1, radius_1))
+        radius_2_widget = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(radius_2, radius_2))
         with ctx.saver():
-            if not self.mode == "low-pass":
-                ctx.line_width = self.used_stroke_width
-                ctx.stroke_style = self.used_stroke_style
+            if not mode == "low-pass":
+                ctx.line_width = used_stroke_width
+                ctx.stroke_style = used_stroke_style
                 draw_ellipse(ctx, center,
                              Geometry.FloatSize(width=radius_1_widget[1] * 2, height=radius_1_widget[0] * 2),
-                             self.used_stroke_style, None)
+                             used_stroke_style, None)
                 if is_selected:
-                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_1_widget[0], center.x), is_focused, self.is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_1_widget[0], center.x), is_focused, self.is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_1_widget[1]), is_focused, self.is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_1_widget[1]), is_focused, self.is_shape_locked)
-            if not self.mode == "high-pass":
-                ctx.line_width = self.used_stroke_width
-                ctx.stroke_style = self.used_stroke_style
-                draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_2_widget[1] * 2, height=radius_2_widget[0] * 2), self.used_stroke_style, None)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_1_widget[0], center.x), is_focused, is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_1_widget[0], center.x), is_focused, is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_1_widget[1]), is_focused, is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_1_widget[1]), is_focused, is_shape_locked)
+            if not mode == "high-pass":
+                ctx.line_width = used_stroke_width
+                ctx.stroke_style = used_stroke_style
+                draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_2_widget[1] * 2, height=radius_2_widget[0] * 2), used_stroke_style, None)
                 if is_selected:
-                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_2_widget[0], center.x), is_focused, self.is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_2_widget[0], center.x), is_focused, self.is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_2_widget[1]), is_focused, self.is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_2_widget[1]), is_focused, self.is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_2_widget[0], center.x), is_focused, is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_2_widget[0], center.x), is_focused, is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_2_widget[1]), is_focused, is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_2_widget[1]), is_focused, is_shape_locked)
             # draw 2 thick arcs
-            ctx.fill_style = self.used_fill_style
+            ctx.fill_style = used_fill_style
             # ctx.stroke_style = "#0000FF"
             # ra = 0.0  # rotation angle
-            if self.mode == "band-pass":
+            if mode == "band-pass":
                 ctx.begin_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
                     x = center.x + radius_1_widget[1] * math.cos(i)
@@ -2751,7 +2946,7 @@ class RingGraphic(Graphic):
                         ctx.line_to(x, y)
                 ctx.close_path()
                 ctx.fill()
-            elif self.mode == "high-pass":
+            elif mode == "high-pass":
                 ctx.begin_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
                     x = center.x + radius_1_widget[1] * math.cos(i)
@@ -2769,7 +2964,7 @@ class RingGraphic(Graphic):
                 ctx.line_to(center.x + radius_1_widget[1] * math.cos(6.2), center.y + radius_1_widget[0] * math.sin(6.2))
                 ctx.close_path()
                 ctx.fill()
-            elif self.mode == "low-pass":
+            elif mode == "low-pass":
                 ctx.begin_path()
                 for i in numpy.arange(0, 2 * math.pi, 0.1):
                     x = center.x + radius_2_widget[1] * math.cos(i)
@@ -3021,11 +3216,30 @@ class LatticeGraphic(Graphic):
     def get_mask_item(self) -> MaskItem:
         return LatticeMaskItem(self.u_pos, self.v_pos, Geometry.FloatSize(self.radius * 2, self.radius * 2), 0.0)
 
-    def _draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
-        start = mapping.calibrated_origin_image_norm
-        u_pos = Geometry.FloatSize.make(self.u_pos)
-        v_pos = Geometry.FloatSize.make(self.v_pos)
+    def get_renderer(self) -> GraphicRenderer:
+        return LatticeGraphicRenderer(self)
+
+
+class LatticeGraphicRenderer(GraphicRenderer):
+
+    def __init__(self, graphic: LatticeGraphic) -> None:
+        super().__init__(graphic)
+        self.u_pos = graphic.u_pos
+        self.v_pos = graphic.v_pos
+        self.radius = graphic.radius
+
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+        u_pos = self.u_pos
+        v_pos = self.v_pos
         radius = self.radius
+        used_stroke_width = self.used_stroke_width
+        used_stroke_style = self.used_stroke_style
+        used_fill_style = self.used_fill_style
+        is_position_locked = self.is_position_locked
+        is_shape_locked = self.is_shape_locked
+        start = mapping.calibrated_origin_image_norm
+        u_pos = Geometry.FloatSize.make(u_pos)
+        v_pos = Geometry.FloatSize.make(v_pos)
         size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
         start_widget = mapping.map_point_image_norm_to_widget(start)
         u_pos_widget = start_widget + mapping.map_size_image_norm_to_widget(u_pos)
@@ -3036,38 +3250,27 @@ class LatticeGraphic(Graphic):
             ctx.move_to(start_widget[1], start_widget[0])
             ctx.line_to(u_pos_widget[1], u_pos_widget[0])
             draw_arrow(ctx, start_widget, u_pos_widget)
-            ctx.line_width = self.used_stroke_width
-            ctx.stroke_style = self.used_stroke_style
+            ctx.line_width = used_stroke_width
+            ctx.stroke_style = used_stroke_style
             ctx.stroke()
-            ctx.fill_style = self.used_fill_style
-            draw_ellipse(ctx, u_pos_widget, size_widget, self.used_stroke_style, self.used_fill_style)
+            ctx.fill_style = used_fill_style
+            draw_ellipse(ctx, u_pos_widget, size_widget, used_stroke_style, used_fill_style)
         with ctx.saver():
             ctx.begin_path()
             ctx.move_to(start_widget[1], start_widget[0])
             ctx.line_to(v_pos_widget[1], v_pos_widget[0])
             draw_arrow(ctx, start_widget, v_pos_widget)
-            ctx.line_width = self.used_stroke_width
-            ctx.stroke_style = self.used_stroke_style
+            ctx.line_width = used_stroke_width
+            ctx.stroke_style = used_stroke_style
             ctx.stroke()
-            ctx.fill_style = self.used_fill_style
-            draw_ellipse(ctx, v_pos_widget, size_widget, self.used_stroke_style, self.used_fill_style)
-
-        # uv_pos = u_pos + (v_pos - start)
-        # uv_pos_widget = mapping.map_point_image_norm_to_widget(uv_pos)
-        # with ctx.saver():
-        #     ctx.begin_path()
-        #     ctx.move_to(start_widget[1], start_widget[0])
-        #     ctx.line_to(uv_pos_widget[1], uv_pos_widget[0])
-        #     draw_arrow(ctx, start_widget, uv_pos_widget)
-        #     ctx.line_width = 1
-        #     ctx.stroke_style = self.used_color
-        #     ctx.stroke()
+            ctx.fill_style = used_fill_style
+            draw_ellipse(ctx, v_pos_widget, size_widget, used_stroke_style, used_fill_style)
 
         bounds = Geometry.FloatRect.from_tlbr(0, 0, 1, 1).inset(-radius, -radius)
         with ctx.saver():
-            ctx.line_width = self.used_stroke_width
-            ctx.stroke_style = self.used_stroke_style
-            ctx.fill_style = self.used_fill_style
+            ctx.line_width = used_stroke_width
+            ctx.stroke_style = used_stroke_style
+            ctx.fill_style = used_fill_style
             mx = 0
             drawn = True
             while drawn and mx < 32:
@@ -3080,22 +3283,21 @@ class LatticeGraphic(Graphic):
                             p = start + ui * u_pos + vi * v_pos
                             if bounds.contains_point(p):
                                 p_widget = mapping.map_point_image_norm_to_widget(p)
-                                draw_ellipse(ctx, p_widget, size_widget, self.used_stroke_style, self.used_fill_style)
+                                draw_ellipse(ctx, p_widget, size_widget, used_stroke_style, used_fill_style)
                                 drawn = True
                 mx += 1
 
         if is_selected:
-            draw_marker(ctx, start_widget, is_focused, self.is_position_locked)
-            draw_marker(ctx, u_pos_widget, is_focused, self.is_position_locked)
-            draw_marker(ctx, v_pos_widget, is_focused, self.is_position_locked)
-            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget), is_focused, self.is_shape_locked)
-            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget), is_focused, self.is_shape_locked)
+            draw_marker(ctx, start_widget, is_focused, is_position_locked)
+            draw_marker(ctx, u_pos_widget, is_focused, is_position_locked)
+            draw_marker(ctx, v_pos_widget, is_focused, is_position_locked)
+            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget), is_focused, is_shape_locked)
+            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget), is_focused, is_shape_locked)
         self.draw_label(ctx, ui_settings, mapping)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
-
 
 def create_mask_data(graphics: typing.Sequence[Graphic], shape: DataAndMetadata.ShapeType, calibrated_origin: Geometry.FloatPoint) -> DataAndMetadata._ImageDataType:
     mask = None

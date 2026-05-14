@@ -441,7 +441,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
     """
 
     def __init__(self, display_info: DisplayInfo.DisplayInfo) -> None:
-        super().__init__(display_info.display_calibration_info, display_info.display_properties, display_info.display_data_info_list, display_info.display_layers, display_info.graphics, display_info.graphic_selection)
+        super().__init__(display_info.display_calibration_info, display_info.display_properties, display_info.display_data_info_list, display_info.display_layers, display_info.graphics, display_info.graphic_renderers, display_info.graphic_selection)
 
         # cached values
         display_properties = self.display_properties
@@ -465,10 +465,10 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
         display_calibration_info = self.display_calibration_info
         if self.__regions is None and display_calibration_info:
             dimensional_scales = display_calibration_info.displayed_dimensional_scales
-            graphics = self.graphics
+            graphic_renderers = self.graphic_renderers
             graphic_selection = self.graphic_selection or DisplayItem.GraphicSelection()
             regions = list[RegionInfo]()
-            if dimensional_scales and graphics:
+            if dimensional_scales and graphic_renderers:
                 data_scale = dimensional_scales[-1]
                 dimensional_calibration = display_calibration_info.displayed_dimensional_calibrations[-1] if len(
                     display_calibration_info.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(
@@ -486,9 +486,9 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                                                                                samples=round(data_scale),
                                                                                include_units=False))
 
-                for graphic_index, graphic in enumerate(graphics):
-                    if isinstance(graphic, Graphics.IntervalGraphic):
-                        graphic_start, graphic_end = graphic.start, graphic.end
+                for graphic_index, graphic_renderer in enumerate(graphic_renderers):
+                    if isinstance(graphic_renderer, Graphics.IntervalGraphicRenderer):
+                        graphic_start, graphic_end = graphic_renderer.start, graphic_renderer.end
                         graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
                         left_channel = graphic_start * data_scale
                         right_channel = graphic_end * data_scale
@@ -498,10 +498,10 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         region = RegionInfo((graphic_start, graphic_end),
                                             graphic_selection.contains(graphic_index),
                                             graphic_index, left_text, right_text, middle_text,
-                                            graphic.label, None, graphic.color)
+                                            graphic_renderer.label, None, graphic_renderer.used_stroke_style)
                         regions.append(region)
-                    elif isinstance(graphic, Graphics.ChannelGraphic):
-                        graphic_start, graphic_end = graphic.position, graphic.position
+                    elif isinstance(graphic_renderer, Graphics.ChannelGraphicRenderer):
+                        graphic_start, graphic_end = graphic_renderer.position, graphic_renderer.position
                         graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
                         left_channel = graphic_start * data_scale
                         right_channel = graphic_end * data_scale
@@ -511,7 +511,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         region = RegionInfo((graphic_start, graphic_end),
                                             graphic_selection.contains(graphic_index),
                                             graphic_index, left_text, right_text, middle_text,
-                                            graphic.label, "tag", graphic.color)
+                                            graphic_renderer.label, "tag", graphic_renderer.used_stroke_style)
                         regions.append(region)
             self.__regions = regions
         return self.__regions or list()

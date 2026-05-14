@@ -148,13 +148,19 @@ class ImageCanvasItemMapping(Graphics.CoordinateMappingLike):
 
 
 class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
-                 ui_settings: UISettings.UISettings, graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection,
-                 displayed_shape: typing.Optional[DataAndMetadata.ShapeType], coordinate_system: typing.Sequence[Calibration.Calibration],
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 cache: CanvasItem.ComposerCache,
+                 ui_settings: UISettings.UISettings,
+                 graphic_renderers: typing.Sequence[Graphics.GraphicRenderer],
+                 graphic_selection: DisplayItem.GraphicSelection,
+                 displayed_shape: typing.Optional[DataAndMetadata.ShapeType],
+                 coordinate_system: typing.Sequence[Calibration.Calibration],
                  is_focused: bool) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__ui_settings = ui_settings
-        self.__graphics = graphics
+        self.__graphic_renderers = graphic_renderers
         self.__graphic_selection = graphic_selection
         self.__displayed_shape = displayed_shape
         self.__coordinate_system = coordinate_system
@@ -162,24 +168,23 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         ui_settings = self.__ui_settings
-        graphics = self.__graphics
+        graphic_renderers = self.__graphic_renderers
         graphic_selection = self.__graphic_selection
         displayed_shape = self.__displayed_shape
         coordinate_system = self.__coordinate_system
         is_focused = self.__is_focused
         widget_mapping = ImageCanvasItemMapping.make(displayed_shape, canvas_bounds, coordinate_system)
-        if graphics and widget_mapping:
+        if graphic_renderers and widget_mapping:
             with drawing_context.saver():
                 drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
-                for graphic_index, graphic in enumerate(graphics):
-                    if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
-                        try:
-                            graphic.draw(drawing_context, ui_settings, widget_mapping, graphic_selection.contains(graphic_index), is_focused)
-                        except Exception as e:
-                            import traceback
-                            logging.debug("Graphic Repaint Error: %s", e)
-                            traceback.print_exc()
-                            traceback.print_stack()
+                for graphic_index, graphic_renderer in enumerate(graphic_renderers):
+                    try:
+                        graphic_renderer.draw(drawing_context, ui_settings, widget_mapping, graphic_selection.contains(graphic_index), is_focused)
+                    except Exception as e:
+                        import traceback
+                        logging.debug("Graphic Repaint Error: %s", e)
+                        traceback.print_exc()
+                        traceback.print_stack()
 
 
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -192,7 +197,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         super().__init__()
         self.__ui_settings = ui_settings
         self.__displayed_shape: typing.Optional[DataAndMetadata.ShapeType] = None
-        self.__graphics: typing.Sequence[Graphics.Graphic] = tuple()
+        self.__graphic_renderers: typing.Sequence[Graphics.GraphicRenderer] = tuple()
         self.__graphics_for_compare: typing.Sequence[tuple[uuid.UUID, int]] = tuple()
         self.__graphic_selection = DisplayItem.GraphicSelection()
         self.__coordinate_system: typing.Sequence[Calibration.Calibration] = tuple()
@@ -207,22 +212,22 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__is_focused = value
         self.update()
 
-    def update_coordinate_system(self, displayed_shape: DataAndMetadata.ShapeType | None, coordinate_system: typing.Sequence[Calibration.Calibration], graphics: typing.Sequence[Graphics.Graphic], graphic_selection: DisplayItem.GraphicSelection) -> None:
+    def update_coordinate_system(self, displayed_shape: DataAndMetadata.ShapeType | None, coordinate_system: typing.Sequence[Calibration.Calibration], graphic_renderers: typing.Sequence[Graphics.GraphicRenderer], graphic_selection: DisplayItem.GraphicSelection) -> None:
         needs_update = False
         if coordinate_system != self.__coordinate_system:
             self.__coordinate_system = tuple(coordinate_system)
             needs_update = True
         if displayed_shape is None or len(displayed_shape) != 2:
             displayed_shape = None
-            graphics = tuple()
+            graphic_renderers = tuple()
             graphic_selection = DisplayItem.GraphicSelection()
         assert displayed_shape is None or len(displayed_shape) == 2
         if ((self.__displayed_shape is None) != (displayed_shape is None)) or (self.__displayed_shape != displayed_shape):
             self.__displayed_shape = displayed_shape
             needs_update = True
-        graphics_for_compare = [(graphic.uuid, graphic.modified_count) for graphic in graphics]
+        graphics_for_compare = [(graphic_renderer.graphic_uuid, graphic_renderer.modified_count) for graphic_renderer in graphic_renderers]
         if graphics_for_compare != self.__graphics_for_compare:
-            self.__graphics = tuple(graphics)
+            self.__graphic_renderers = tuple(graphic_renderers)
             self.__graphics_for_compare = graphics_for_compare
             needs_update = True
         if self.__graphic_selection != graphic_selection:
@@ -232,7 +237,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__ui_settings, self.__graphics, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system, self.__is_focused)
+        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__ui_settings, self.__graphic_renderers, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system, self.__is_focused)
 
 
 class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
@@ -1187,7 +1192,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             self.__graphics_canvas_item.update_coordinate_system(display_data_shape,
                                                                  datum_calibrations,
-                                                                 image_display_info.graphics,
+                                                                 image_display_info.graphic_renderers,
                                                                  graphic_selection)
 
         # this goes at the end so that the previous values are still available to determine changes during the update.
