@@ -284,7 +284,7 @@ class ProcessingGaussianWindow(ProcessingBase):
         sigma = parameters.get_float_value("sigma", 0.3)
         if src_xdata and src_xdata.datum_dimension_count == 1:
             w = src_xdata.datum_dimension_shape[0]
-            return {"target": src_xdata * scipy.signal.windows.gaussian(src_xdata.datum_dimension_shape[0], std=w / 2)}
+            return {"target": src_xdata * scipy.signal.windows.gaussian(src_xdata.datum_dimension_shape[0], std=w / 2 / sigma)}
         elif src_xdata and src_xdata.datum_dimension_count == 2:
             # uses circularly rotated approach of generating 2D filter from 1D
             h, w = src_xdata.datum_dimension_shape
