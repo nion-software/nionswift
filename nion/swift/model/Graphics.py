@@ -2021,6 +2021,7 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
             ctx.move_to(p.x, p.y - cross_hair_size)
             ctx.line_to(p.x, p.y - inner_size)
             ctx.move_to(p.x, p.y + inner_size)
+            ctx.line_to(p.x, p.y + cross_hair_size)
             ctx.line_width = used_stroke_width
             ctx.stroke_style = used_stroke_style
             ctx.stroke_style = self.used_stroke_style
