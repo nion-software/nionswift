@@ -272,7 +272,7 @@ class ProcessingGaussianWindow(ProcessingBase):
             },
         ]
         self.parameters = [
-            {"name": "sigma", "type": "real", "value": 1.0}
+            {"name": "sigma", "type": "real", "value": 0.3}
         ]
         self.outputs = [
             {"name": "target", "label": _("Result")},
@@ -281,7 +281,7 @@ class ProcessingGaussianWindow(ProcessingBase):
 
     def process(self, parameters: Symbolic.ComputationParameters) -> typing.Mapping[str, _ProcessingResult]:
         src_xdata = parameters.get_data_and_metadata("src")
-        sigma = parameters.get_float_value("sigma", 1.0)
+        sigma = parameters.get_float_value("sigma", 0.3)
         if src_xdata and src_xdata.datum_dimension_count == 1:
             w = src_xdata.datum_dimension_shape[0]
             return {"target": src_xdata * scipy.signal.windows.gaussian(src_xdata.datum_dimension_shape[0], std=w / 2)}
