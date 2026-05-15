@@ -60,7 +60,10 @@ class ExportDialogViewModel:
         def validate_directory(directory: str | None) -> bool:
             return directory is not None and pathlib.Path(directory).is_dir()
 
-        self.is_directory_valid = Model.StreamValueModel(Stream.MapStream(directory_stream, validate_directory))
+        self.__is_directory_valid = Model.StreamValueModel(Stream.MapStream(directory_stream, validate_directory))
+
+        if not self.is_directory_valid:
+            self.directory.value = None  # Clear the initial directory if it was invalid
 
         def update_export_button(__: typing.Any) -> None:
             invalid_reasons = list[str]()
@@ -69,9 +72,10 @@ class ExportDialogViewModel:
             if prefix_str != Utility.simplify_filename(prefix_str):
                 invalid_reasons.append(_("Prefix contains invalid characters"))
 
-            is_directory_valid = self.is_directory_valid.value or False
+            is_directory_valid = self.__is_directory_valid.value or False
             if not is_directory_valid:
                 invalid_reasons.append(_("Directory does not exist"))
+                self.directory.value = None  # Clear the directory if it is invalid
 
             if invalid_reasons:
                 self.export_button_enabled.value = False
@@ -82,7 +86,7 @@ class ExportDialogViewModel:
                 self.export_button_tool_tip.value = None
                 self.directory_warning.value = str()
 
-        self.__is_directory_valid_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream[str](self.is_directory_valid, "value"), update_export_button)
+        self.__is_directory_valid_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream[str](self.__is_directory_valid, "value"), update_export_button)
         self.__prefix_action = Stream.ValueStreamAction(prefix_stream, update_export_button)
 
         update_export_button(None)
@@ -90,6 +94,11 @@ class ExportDialogViewModel:
     @property
     def directory_path_object(self) -> pathlib.Path:
         return pathlib.Path(self.directory.value or str())
+
+    @property
+    def is_directory_valid(self) -> bool:
+        self.__is_directory_valid.value = self.directory.value is not None and pathlib.Path(self.directory.value).is_dir()
+        return self.__is_directory_valid.value or False
 
     def build_filepath(self, displayed_title: str, date: datetime.datetime, dimensional_shape: DataAndMetadata.ShapeType | None, index: int) -> pathlib.Path:
         filename_components = list()
@@ -173,7 +182,7 @@ class ExportDialog(Declarative.Handler):
 
         # perform export, but save the last used writer
         def handle_export_clicked() -> bool:
-            if not self.viewmodel.is_directory_valid.value:
+            if not self.viewmodel.is_directory_valid:
                 return False
             selected_writer = self.viewmodel.writer.value
             writer_id = selected_writer.io_handler_id if selected_writer else "png-io-handler"
@@ -280,7 +289,7 @@ class ExportDialog(Declarative.Handler):
         writer = viewmodel.writer.value
         if writer:
             export_results = list()
-            is_directory_valid = viewmodel.is_directory_valid.value or False
+            is_directory_valid = viewmodel.is_directory_valid
             for index, display_item in enumerate(display_items):
                 if not is_directory_valid:
                     error_message = _("Directory does not exist")
