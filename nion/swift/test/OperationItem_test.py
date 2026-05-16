@@ -1093,7 +1093,7 @@ class TestProcessingClass(unittest.TestCase):
             crop_region.center = (0.25, 0.25)
             crop_region.size = (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            document_model.get_processing_new("mapped_sum", display_item, display_item.data_item, crop_region)
+            document_model.get_mapped_sum_new(display_item, display_item.data_item, crop_region)
             document_model.recompute_all()
 
     def test_line_profile_on_sequence_works(self):
@@ -1129,12 +1129,17 @@ class TestProcessingClass(unittest.TestCase):
             ]
             document_model = test_context.create_document_model()
             for data_and_metadata in data_and_metadata_list:
-                for window_type in ("gaussian_window", "hamming_window", "hann_window"):
+                window_functions = [
+                    document_model.get_gaussian_window_new,
+                    document_model.get_hamming_window_new,
+                    document_model.get_hann_window_new
+                ]
+                for window_fn in window_functions:
                     # test the mapped version
                     data_item = DataItem.new_data_item(data_and_metadata)
                     document_model.append_data_item(data_item)
                     display_item = document_model.get_display_item_for_data_item(data_item)
-                    document_model.get_processing_new(window_type, display_item, display_item.data_item, None, {"mapping": "mapped"})
+                    window_fn(display_item, display_item.data_item, None, {"mapping": "mapped"})
                     document_model.recompute_all()
                     self.assertEqual(data_and_metadata.data_shape, document_model.data_items[-1].data_shape)
                     self.assertFalse(document_model.computations[-1].error_text)
@@ -1143,7 +1148,7 @@ class TestProcessingClass(unittest.TestCase):
                     document_model.append_data_item(data_item)
                     display_item = document_model.get_display_item_for_data_item(data_item)
                     display_data_channel = display_item.display_data_channel
-                    document_model.get_processing_new(window_type, display_item, display_item.data_item)
+                    window_fn(display_item, display_item.data_item)
                     document_model.recompute_all()
                     display_values = display_data_channel.display_values
                     element_xdata = display_values.element_data_and_metadata
@@ -1175,7 +1180,7 @@ class TestProcessingClass(unittest.TestCase):
                 data_item = DataItem.new_data_item(data_and_metadata)
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                document_model.get_processing_new("mapped_sum", display_item, display_item.data_item, None, {"mapping": "mapped"})
+                document_model.get_mapped_sum_new(display_item, display_item.data_item, None, {"mapping": "mapped"})
                 document_model.recompute_all()
                 self.assertEqual(data_and_metadata.navigation_dimension_shape, document_model.data_items[-1].data_shape)
                 self.assertFalse(document_model.computations[-1].error_text)

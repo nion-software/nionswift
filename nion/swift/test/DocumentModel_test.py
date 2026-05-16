@@ -2448,7 +2448,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.random.randn(4, 4, 4, 4), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                processed_data_item = document_model.get_processing_new("hamming_window", display_item, data_item)
+                processed_data_item = document_model.get_hamming_window_new(display_item, data_item)
                 document_model.computations[-1].variables[1].value = "mapped"
                 document_model.recompute_all()
                 self.assertEqual((4, 4, 4, 4), processed_data_item.data_shape)
@@ -2503,8 +2503,7 @@ class TestDocumentModelClass(unittest.TestCase):
             crop_region.center = (0.25, 0.25)
             crop_region.size = (0.5, 0.5)
             display_item.add_graphic(crop_region)
-            document_model.get_processing_new("mapped_sum", display_item, display_item.data_item, crop_region)
-            computed_display_item = document_model.get_display_item_for_data_item(document_model.data_items[-1])
+            document_model.get_mapped_sum_new(display_item, display_item.data_item, crop_region)
             document_model.recompute_all()
             # set up the source data item so that it produces an invalid collection index.
             display_item.display_data_channel.collection_index = (0, 1)

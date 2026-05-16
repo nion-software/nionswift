@@ -29,7 +29,6 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Observer
 from nion.swift.model import Persistence
-from nion.swift.model import Processing
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.utils import Event
@@ -40,8 +39,6 @@ from nion.utils import ReferenceCounting
 from nion.utils import Registry
 
 _ = gettext.gettext
-
-Processing.init()
 
 
 def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[Persistence.PersistentObjectSpecifier]:
@@ -2578,6 +2575,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["extract-green"] = {"title": _("Green"), "expression": "xd.green({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
             vs["extract-blue"] = {"title": _("Blue"), "expression": "xd.blue({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
             vs["extract-alpha"] = {"title": _("Alpha"), "expression": "xd.alpha({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
+            # new style descriptions that operate on xdata (src) directly
+            window_sigma_param = {"name": "sigma", "label": _("Sigma"), "type": "real", "value": 0.3, "value_default": 0.3, "value_min": 0.001, "value_max": 10, "control_type": "slider"}
+            is_mapped_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
+            vs["gaussian-window"] = {"title": _("Gaussian Window"), "expression": "target = src * xd.gaussian_window(src.data_shape, sigma * int(numpy.amin(src.data_shape)))", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param, window_sigma_param], "outputs": [{"name": "target", "label": "Result"}]}
+            vs["hamming-window"] = {"title": _("Hamming Window"), "expression": "target = src * xd.hamming_window(src.data_shape)", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param], "outputs": [{"name": "target", "label": "Result"}]}
+            vs["hann-window"] = {"title": _("Hann Window"), "expression": "target = src * xd.hann_window(src.data_shape)", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param], "outputs": [{"name": "target", "label": "Result"}]}
+            vs["mapped-sum"] = {"title": _("Sum"), "expression": "target = xd.sum_scalar(src)", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]}], "outputs": [{"name": "target", "label": "Result", "data_type": "scalar"}], "attributes": {"connection_type": "map"}, "out_regions": [{"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}]}
+            vs["mapped-average"] = {"title": _("Average"), "expression": "target = xd.mean_scalar(src)", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]}], "outputs": [{"name": "target", "label": "Result", "data_type": "scalar"}], "attributes": {"connection_type": "map"}, "out_regions": [{"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}]}
             cls._builtin_processors = {k: Symbolic.ComputationProcessor.from_dict(v) for k, v in vs.items()}
         return cls._builtin_processors
 
@@ -2607,6 +2612,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_uniform_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("uniform-filter", [(display_item, data_item, crop_region)])
+
+    def get_mapped_sum_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("mapped-sum", [(display_item, data_item, crop_region)], None, parameters)
+
+    def get_mapped_average_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("mapped-average", [(display_item, data_item, crop_region)], None, parameters)
+
+    def get_gaussian_window_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("gaussian-window", [(display_item, data_item, crop_region)], None, parameters)
+
+    def get_hamming_window_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("hamming-window", [(display_item, data_item, crop_region)], None, parameters)
+
+    def get_hann_window_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("hann-window", [(display_item, data_item, crop_region)], None, parameters)
 
     def get_transpose_flip_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("transpose-flip", [(display_item, data_item, crop_region)])
@@ -3015,47 +3035,13 @@ class ImplicitLineProfileIntervalsConnection:
 
 def _register_processors() -> None:
     for processing_id, computation_processor in DocumentModel._get_builtin_processors().items():
-        computation_processor.old_built_in = True
+        # temporary hack to handle mapped scalar and window functions
+        if not processing_id.startswith("mapped-") and not processing_id.endswith("-window"):
+            computation_processor.old_built_in = True
         Symbolic.ComputationProcessor.register(processing_id, computation_processor)
 
 
 _register_processors()
-
-
-def handle_processing_component_registered(component: Registry._ComponentType, component_types: typing.Set[str]) -> None:
-    if "processing-component" in component_types:
-        processing_component = typing.cast(Processing.ProcessingBase, component)
-        processing_component.register_computation()
-        d = {
-            "title": processing_component.title,
-            "sources": processing_component.sources,
-            "parameters": processing_component.parameters,
-            "attributes": processing_component.attributes,
-            "outputs": processing_component.outputs
-        }
-        # if processing is mappable, it can be applied to elements of a sequence/collection (navigable) data item
-        # this also create a UI element to indicate whether the operation _should_ be mapped if it is able to be mapped.
-        if processing_component.is_mappable and not processing_component.is_scalar:
-            mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string",
-                             "value": "none", "value_default": "none", "control_type": "choice"}
-            d["parameters"] = [mapping_param] + typing.cast(list[Processing.PersistentDictType], d["parameters"])
-        # if processing produces scalar data, it must be applied to a sequence/collection (navigable) data item
-        # this also creates a connection between a pick point on the output to the navigable location on the source.
-        if processing_component.is_mappable and processing_component.is_scalar:
-            map_out_region = {"name": "pick_point", "type": "point",
-                              "params": {"label": _("Pick"), "role": "collection_index"}}
-            d["out_regions"] = [map_out_region]
-            # TODO: generalize this so that other sequence/collections can be accepted by making a coordinate system monitor or similar
-            # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
-            # TODO: in appropriate places.
-            d["requirements"] = [{"type": "dimensionality", "min": 4, "max": 4}]
-        DocumentModel.register_processing_descriptions({processing_component.processing_id: d})
-
-
-_handle_processing_component_registered_listener = Registry.listen_component_registered_event(handle_processing_component_registered)
-# listening to processing-component is used in two places, so do not use `fire_existing_...`
-for component in Registry.get_components_by_type("processing-component"):
-    handle_processing_component_registered(component, {"processing-component"})
 
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:
