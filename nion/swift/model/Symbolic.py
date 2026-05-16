@@ -2073,6 +2073,15 @@ class Computation(Persistence.PersistentObject):
         # if the computation is running and needs to be deleted, this can delay deletion until the computation finishes.
         self.is_deleted = False
 
+    def close(self) -> None:
+        self.__variable_changed_event_listeners = typing.cast(typing.Any, None)
+        self.__variable_base_item_inserted_event_listeners = typing.cast(typing.Any, None)
+        self.__variable_base_item_removed_event_listeners = typing.cast(typing.Any, None)
+        self.__result_changed_event_listeners = typing.cast(typing.Any, None)
+        self.__result_base_item_inserted_event_listeners = typing.cast(typing.Any, None)
+        self.__result_base_item_removed_event_listeners = typing.cast(typing.Any, None)
+        super().close()
+
     @property
     def needs_update(self) -> bool:
         return self.__needs_update
@@ -2393,7 +2402,7 @@ class Computation(Persistence.PersistentObject):
         assert name == "variables"
 
         def needs_update(variable: ComputationVariable, event_type: BoundDataEventType) -> None:
-            if not self.computation_processor or self.computation_processor.needs_update_for_event(variable.name, event_type) and self.is_resolved and not self.is_deleted:
+            if not self.computation_processor or (self.computation_processor.needs_update_for_event(variable.name, event_type) and self.is_resolved and not self.is_deleted):
                 self.needs_update = True
             self.computation_mutated_event.fire()
 
