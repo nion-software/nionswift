@@ -90,11 +90,12 @@ class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
         self.__title = "New Workspace From Selection"
         self.__selection = selection
         self.__layout_shape = layout_shape
+        self.__workspace_controller = workspace_controller
 
     def _perform(self) -> None:
         super()._perform()
         horizontal, vertical = self.__layout_shape
-        # The newly created workspace will have one display panel that is the selected one
+        # The newly created workspace will have one display panel which is the selected one
         selected_display_panel = self.__workspace_controller.document_controller.selected_display_panel
         assert selected_display_panel
         # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion

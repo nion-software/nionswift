@@ -3824,23 +3824,9 @@ class WorkspaceSplit5x4Action(WorkspaceSplitAction):
         return super().execute(context)
 
 
-class NewFromSelectionAction(WorkspaceNewAction):
+class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
     action_id = "workspace.new_workspace_from_selection"
     action_name = _("New Workspace From Selection")
-
-    @staticmethod
-    def _get_selected(context: DocumentController.ActionContext) -> list[DisplayItem.DisplayItem]:
-        """Get the current selection. The order will be selected display panels with items then selected data panel items."""
-        window = typing.cast(DocumentController, context.window)
-        workspace_controller = window.workspace_controller
-        assert workspace_controller is not None
-        selection = [context.selected_display_panel.display_item] if context.selected_display_panel and context.selected_display_panel.display_item else []
-        selection.extend([display_panel.display_item for display_panel in workspace_controller.document_controller.secondary_display_panels if display_panel.display_item is not None])
-        data_panel = typing.cast(DataPanel.DataPanel, window.find_dock_panel("data-panel"))
-        display_items = workspace_controller.document_controller.filtered_display_items_model.display_items
-        for index in data_panel._selection.ordered_indexes:
-            selection.append(display_items[index])
-        return selection
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         text = self.get_string_property(context, "name")
@@ -3849,7 +3835,7 @@ class NewFromSelectionAction(WorkspaceNewAction):
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         assert workspace_controller is not None
-        selection = self._get_selected(context)
+        selection = list(window.selected_display_items)
         split = Workspace.Workspace.get_split_for_selection(len(selection))
         command = Workspace.CreateWorkspaceFromSelectionCommand(workspace_controller, text, selection, split)
         command.perform()
@@ -3859,7 +3845,8 @@ class NewFromSelectionAction(WorkspaceNewAction):
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
-        selection = self._get_selected(context)
+        window = typing.cast(DocumentController, context.window)
+        selection = window.selected_display_items
         return bool(context.focus_widget) and bool(selection) and len(selection) < 101
 
     def get_action_name(self, context: Window.ActionContext) -> str:
@@ -3868,7 +3855,7 @@ class NewFromSelectionAction(WorkspaceNewAction):
         workspace_controller = window.workspace_controller
         assert workspace_controller is not None
 
-        selection = self._get_selected(context)
+        selection = window.selected_display_items
         if not bool(context.focus_widget) or not bool(selection) or len(selection) > 100:
             return self.action_name  # If the action is disabled return the default name
 
@@ -3903,7 +3890,7 @@ Window.register_action(WorkspaceSplit3x3Action())
 Window.register_action(WorkspaceSplit4x3Action())
 Window.register_action(WorkspaceSplit4x4Action())
 Window.register_action(WorkspaceSplit5x4Action())
-Window.register_action(NewFromSelectionAction())
+Window.register_action(CreateWorkspaceFromSelectionAction())
 
 
 class AddGroupAction(Window.Action):
