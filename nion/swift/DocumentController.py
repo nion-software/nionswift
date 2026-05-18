@@ -3846,13 +3846,12 @@ class NewFromSelectionAction(WorkspaceNewAction):
         text = self.get_string_property(context, "name")
         if not text:
             return Window.ActionResult(Window.ActionStatus.CANCELLED)
-        context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         assert workspace_controller is not None
         selection = self._get_selected(context)
-        split = Workspace.SplitFromSelectionCommand.get_split(len(selection))
-        command = Workspace.NewWorkspaceFromSelectionCommand(workspace_controller, text, selection, split)
+        split = Workspace.Workspace.get_split_for_selection(len(selection))
+        command = Workspace.CreateWorkspaceFromSelectionCommand(workspace_controller, text, selection, split)
         command.perform()
         window.push_undo_command(command)
 
@@ -3865,6 +3864,10 @@ class NewFromSelectionAction(WorkspaceNewAction):
 
     def get_action_name(self, context: Window.ActionContext) -> str:
         context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller is not None
+
         selection = self._get_selected(context)
         if not bool(context.focus_widget) or not bool(selection) or len(selection) > 100:
             return self.action_name  # If the action is disabled return the default name
@@ -3873,7 +3876,7 @@ class NewFromSelectionAction(WorkspaceNewAction):
         display_item = context.display_item
         item_count = len(selection)
         if item_count > 1:
-            h, w = Workspace.SplitFromSelectionCommand.get_split(item_count)
+            h, w = Workspace.Workspace.get_split_for_selection(item_count)
             return _("New Workspace From Selection") + f" {h}x{w} ({item_count} items)"
         elif data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
             displayed_title = display_item.displayed_title if display_item else data_item.title

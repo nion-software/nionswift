@@ -50,128 +50,6 @@ def create_splitter_desc(orientation: str, splits: typing.Sequence[float], child
     return {"type": "splitter", "orientation": orientation, "splits": list(splits), "children": list(children)}
 
 
-class SplitFromSelectionCommand(Undo.UndoableCommand):
-    def __init__(self, workspace_controller: Workspace, selection: list[DisplayItem.DisplayItem], selected_panel: DisplayPanel.DisplayPanel,
-                 display_panels: list[DisplayPanel.DisplayPanel], layout_shape: tuple[int, int]) -> None:
-        super().__init__("Split From Selection")
-        self.__workspace_controller = workspace_controller
-        self.__selection = selection
-        self.__selected_panel = selected_panel
-        self.__display_panels = display_panels
-        self.__layout_shape = layout_shape
-        self.__undo_command: Undo.UndoableCommand | None = None
-        self.__new_layout: typing.Optional[Persistence.PersistentDictType] = None
-        self.initialize()
-
-    def _get_modified_state(self) -> typing.Any:
-        return self.__workspace_controller._project.modified_state
-
-    def _set_modified_state(self, modified_state: typing.Any) -> None:
-        self.__workspace_controller._project.modified_state = modified_state
-
-    def _perform(self) -> None:
-        horizontal, vertical = self.__layout_shape
-        if not (horizontal == 1 and vertical == 1):
-            self.__undo_command = ChangeWorkspaceContentsCommand(self.__workspace_controller, _("Change Workspace Contents"))
-            display_panels = self.__workspace_controller.apply_layouts(self.__selected_panel, self.__display_panels, horizontal, vertical)
-            # Populate the newly created panels
-            # workspace_controller.document_controller.next_result_display_panel() would give the next display panel in the whole workspace
-            # instead iterate through the newly created panels and set the display item
-            for display_item in self.__selection:
-                for display_panel in display_panels:
-                    if display_panel.is_result_panel and display_panel.display_panel_type == "empty":
-                        display_panel.set_display_item(display_item)
-                        break
-        else:
-            self.__undo_command = self.__workspace_controller._replace_displayed_display_item(self.__selected_panel, self.__selection[0])
-        self.__new_layout = self.__workspace_controller.deconstruct()
-
-    def _undo(self) -> None:
-        assert self.__undo_command is not None
-        self.__undo_command.undo()
-
-    def _redo(self) -> None:
-        assert self.__new_layout is not None
-        self.__workspace_controller.reconstruct(self.__new_layout)
-
-    @classmethod
-    def get_split(cls, selection_count: int) -> typing.Tuple[int, int]:
-        """Get a split for the layout that holds the selected items that is approximately a 5:3 ratio
-
-        Depending on if the division of columns have ceil or floor applied first will affect the final split.
-        Both are calculated and the one that will have the least unused panels is returned.
-        """
-        ratio = 0.6
-        columns = math.sqrt(selection_count / ratio)
-
-        columns_ceil = math.ceil(columns)
-        rows_ceil = math.ceil(selection_count / columns_ceil)
-
-        columns_floor = math.floor(columns)
-        rows_floor = math.ceil(selection_count / columns_floor)
-
-        ceil_diff = columns_ceil * rows_ceil - selection_count
-        floor_diff = columns_floor * rows_floor - selection_count
-
-        if floor_diff < ceil_diff:
-            return columns_floor, rows_floor
-
-        return columns_ceil, rows_ceil
-
-
-class NewWorkspaceFromSelectionCommand(Undo.UndoableCommand):
-    def __init__(self, workspace_controller: Workspace, name: str,
-                 selection: list[DisplayItem.DisplayItem], layout_shape: tuple[int, int]) -> None:
-        super().__init__("New Workspace From Selection")
-        self.__workspace_controller = workspace_controller
-        self.__workspace_layout_uuid = workspace_controller._workspace.uuid
-        self.__new_name = name
-        self.__new_layout: typing.Optional[Persistence.PersistentDictType] = None
-        self.__new_workspace_id: typing.Optional[str] = None
-        self.__selection = selection
-        self.__layout_shape = layout_shape
-        self.__undo_command: Undo.UndoableCommand | None = None
-
-        self.initialize()
-
-    def _get_modified_state(self) -> typing.Any:
-        return self.__workspace_controller._project.modified_state
-
-    def _set_modified_state(self, modified_state: typing.Any) -> None:
-        self.__workspace_controller._project.modified_state = modified_state
-
-    def _perform(self) -> None:
-        new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
-        self.__workspace_controller._change_workspace(new_workspace)
-
-        selected_display_panel = self.__workspace_controller.document_controller.selected_display_panel
-        # Since the only display panel will be the selected one, display_panels can just be a list with that inside
-        # apply_layouts mutates the workspace_controller.display_panels so using it will cause recursion
-        # The context.display_panels is no longer valid due to the creation of a new workspace
-        assert selected_display_panel
-        display_panels = [selected_display_panel]
-        split_command = SplitFromSelectionCommand(self.__workspace_controller, self.__selection, selected_display_panel, display_panels, self.__layout_shape)
-        split_command.perform()
-        self.__undo_command = split_command
-
-    def _undo(self) -> None:
-        assert self.__undo_command is not None
-        self.__undo_command.undo()
-        new_workspace = self.__workspace_controller._workspace
-        workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
-        assert workspace_layout
-        self.__new_layout = self.__workspace_controller._workspace.layout
-        self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
-        self.__workspace_controller._change_workspace(workspace_layout)
-        self.__workspace_controller._project.remove_item("workspaces", new_workspace)
-
-    def _redo(self) -> None:
-        new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
-        self.__workspace_controller._change_workspace(new_workspace)
-        assert self.__undo_command is not None
-        self.__undo_command.redo()
-
-
 class CreateWorkspaceCommand(Undo.UndoableCommand):
     def __init__(self, workspace_controller: Workspace, name: str) -> None:
         super().__init__("Create Workspace")
@@ -203,6 +81,26 @@ class CreateWorkspaceCommand(Undo.UndoableCommand):
 
     def _redo(self) -> None:
         self.perform()
+
+
+class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
+    def __init__(self, workspace_controller: Workspace, name: str,
+                 selection: list[DisplayItem.DisplayItem], layout_shape: tuple[int, int]) -> None:
+        super().__init__(workspace_controller, name)
+        self.__title = "New Workspace From Selection"
+        self.__selection = selection
+        self.__layout_shape = layout_shape
+
+    def _perform(self) -> None:
+        super()._perform()
+        horizontal, vertical = self.__layout_shape
+        # The newly created workspace will have one display panel that is the selected one
+        selected_display_panel = self.__workspace_controller.document_controller.selected_display_panel
+        assert selected_display_panel
+        # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion
+        display_panels = [selected_display_panel]
+        display_panels = self.__workspace_controller.apply_layouts(selected_display_panel, display_panels, horizontal, vertical)
+        self.__workspace_controller.insert_items_into_panels(self.__selection, display_panels)
 
 
 class RemoveWorkspaceCommand(Undo.UndoableCommand):
@@ -1133,6 +1031,47 @@ class Workspace:
         # ensure that the layout is written to persistent storage
         assert self.__workspace
         self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
+
+    @staticmethod
+    def get_split_for_selection(selection_count: int) -> typing.Tuple[int, int]:
+        """ Get a split for the layout that holds the selected items that is approximately a 5:3 ratio
+
+        Depending on if the division of columns have ceil and floor applied first will affect the final split.
+        Both are calculated and the one that will have the least unused panels is returned.
+        """
+        ratio = 0.6
+        columns = math.sqrt(selection_count / ratio)
+
+        columns_ceil = math.ceil(columns)
+        rows_ceil = math.ceil(selection_count / columns_ceil)
+
+        columns_floor = math.floor(columns)
+        rows_floor = math.ceil(selection_count / columns_floor)
+
+        ceil_diff = columns_ceil * rows_ceil - selection_count
+        floor_diff = columns_floor * rows_floor - selection_count
+
+        if floor_diff < ceil_diff:
+            return columns_floor, rows_floor
+
+        return columns_ceil, rows_ceil
+
+    @staticmethod
+    def insert_items_into_panels(display_items: list[DisplayItem.DisplayItem],
+                                 display_panels: list[DisplayPanel.DisplayPanel],
+                                 override_existing: bool = False) -> None:
+        """Insert the display items into the display panels.
+
+        DocumentControllers next_result_display_panel() would give the next display panel in the whole workspace.
+        """
+        result_panels = [panel for panel in display_panels if panel.is_result_panel]
+        for display_item in display_items:
+            if not result_panels:
+                return
+            display_panel = result_panels.pop(0)
+            if not override_existing and display_panel.display_panel_type != "empty":
+                continue
+            display_panel.set_display_item(display_item)
 
 
 class WorkspaceManager(metaclass=Utility.Singleton):
