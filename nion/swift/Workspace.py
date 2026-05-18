@@ -72,9 +72,8 @@ class SplitFromSelectionCommand(Undo.UndoableCommand):
     def _perform(self) -> None:
         horizontal, vertical = self.__layout_shape
         if not (horizontal == 1 and vertical == 1):
+            self.__undo_command = ChangeWorkspaceContentsCommand(self.__workspace_controller, _("Change Workspace Contents"))
             display_panels = self.__workspace_controller.apply_layouts(self.__selected_panel, self.__display_panels, horizontal, vertical)
-            self.__undo_command = self.__workspace_controller.document_controller.last_undo_command
-            self.__workspace_controller.document_controller.pop_undo_command()
             # Populate the newly created panels
             # workspace_controller.document_controller.next_result_display_panel() would give the next display panel in the whole workspace
             # instead iterate through the newly created panels and set the display item
@@ -1045,13 +1044,13 @@ class Workspace:
         return old_display_panel, old_splits, region_id
 
     def apply_layouts(self, primary_display_panel: DisplayPanel.DisplayPanel, display_panels: typing.Sequence[DisplayPanel.DisplayPanel], w: int, h: int) -> list[DisplayPanel.DisplayPanel]:
-        """Change the workspace to have w x h display panels.
+        """Split each display panel in display_panels to have w by h display panels.
 
+        The primary_display_panel will have the focus set on completion.
         Returns the newly created display panels in the order they appear in the workspace display panels.
         """
 
         assert self.__workspace
-        change_workspace_contents_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
 
         new_display_panels = list()
 
@@ -1106,8 +1105,6 @@ class Workspace:
         self.__sync_layout()
 
         primary_display_panel.request_focus()
-
-        self.document_controller.push_undo_command(change_workspace_contents_command)
 
         return new_display_panels
 

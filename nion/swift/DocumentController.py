@@ -3711,7 +3711,9 @@ class WorkspaceSplitAction(Window.Action):
             v = self.get_int_property(context, "vertical_count")
             h = max(1, min(8, h))
             v = max(1, min(8, v))
+            change_workspace_contents_command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Workspace Contents"))
             display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, h, v)
+            window.push_undo_command(change_workspace_contents_command)
             action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
             action_result.results["display_panels"] = list(display_panels)
             return action_result
