@@ -453,16 +453,23 @@ class NDataHandler(StorageHandler.StorageHandler):
         with self.__lock:
             absolute_file_path = self.__file_path
             #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
-            make_directory_if_needed(os.path.dirname(absolute_file_path))
-            exists = os.path.exists(absolute_file_path)
-            if exists:
-                rewrite_zip(absolute_file_path, Utility.clean_dict(properties))
-            else:
-                write_zip(absolute_file_path, None, Utility.clean_dict(properties))
-            # convert to utc time.
-            tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
-            timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
-            os.utime(absolute_file_path, (time.time(), timestamp))
+            try:
+                make_directory_if_needed(os.path.dirname(absolute_file_path))
+                if os.access(absolute_file_path, os.W_OK):
+                    exists = os.path.exists(absolute_file_path)
+                    if exists:
+                        rewrite_zip(absolute_file_path, Utility.clean_dict(properties))
+                    else:
+                        write_zip(absolute_file_path, None, Utility.clean_dict(properties))
+                    # convert to utc time.
+                    tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
+                    timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
+                    os.utime(absolute_file_path, (time.time(), timestamp))
+            except Exception as e:
+                logging.error("Exception writing ndata properties to %s: %s", absolute_file_path, str(e))
+                import traceback
+                traceback.print_exc()
+                raise
 
     def read_properties(self) -> PersistentDictType:
         """
@@ -514,7 +521,8 @@ class NDataHandlerFactory(StorageHandler.StorageHandlerFactoryLike):
         """Return whether the given absolute file path is a ndata file."""
         if file_path.endswith(".ndata") and os.path.exists(file_path):
             try:
-                with open(file_path, "r+b") as fp:
+                file_mode = "r+b" if os.access(file_path, os.W_OK) else "rb"
+                with open(file_path, file_mode) as fp:
                     local_files, dir_files, eocd = parse_zip(fp)
                     contains_data = b"data.npy" in dir_files
                     contains_metadata = b"metadata.json" in dir_files
