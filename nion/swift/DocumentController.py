@@ -3711,7 +3711,9 @@ class WorkspaceSplitAction(Window.Action):
             v = self.get_int_property(context, "vertical_count")
             h = max(1, min(8, h))
             v = max(1, min(8, v))
+            change_workspace_contents_command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Workspace Contents"))
             display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, h, v)
+            window.push_undo_command(change_workspace_contents_command)
             action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
             action_result.results["display_panels"] = list(display_panels)
             return action_result
@@ -3822,6 +3824,56 @@ class WorkspaceSplit5x4Action(WorkspaceSplitAction):
         return super().execute(context)
 
 
+class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
+    action_id = "workspace.new_workspace_from_selection"
+    action_name = _("New Workspace From Selection")
+    max_split = 60
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        text = self.get_string_property(context, "name")
+        if not text:
+            return Window.ActionResult(Window.ActionStatus.CANCELLED)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller is not None
+        selection = list(window.selected_display_items)
+        split = Workspace.Workspace.get_split_for_selection(len(selection))
+        command = Workspace.CreateWorkspaceFromSelectionCommand(workspace_controller, text, selection, split)
+        command.perform()
+        window.push_undo_command(command)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        selection = window.selected_display_items
+        # Checking the focus widget ensures there is actually a selection, as selected_display_items can be non-empty even when there is no visible selection
+        return bool(context.focus_widget) and bool(selection) and len(selection) <= self.max_split
+
+    def get_action_name(self, context: Window.ActionContext) -> str:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        assert workspace_controller is not None
+
+        selection = window.selected_display_items
+        if not bool(context.focus_widget) or not bool(selection) or len(selection) > self.max_split:
+            return self.action_name  # If the action is disabled return the default name
+
+        data_item = selection[0].data_item
+        display_item = context.display_item
+        item_count = len(selection)
+        if item_count > 1:
+            h, w = Workspace.Workspace.get_split_for_selection(item_count)
+            return _("New Workspace From Selection") + f" {h}x{w} ({item_count} items)"
+        elif data_item and len(context.model.get_display_items_for_data_item(data_item)) == 1:
+            displayed_title = display_item.displayed_title if display_item else data_item.title
+            return _("New Workspace From Item") + f" \"{displayed_title}\""
+        elif display_item:
+            return _("New Workspace From Item") + f" \"{display_item.displayed_title}\""
+        return self.action_name
+
+
 Window.register_action(WorkspaceChangeSplits())
 Window.register_action(WorkspaceCloneAction())
 Window.register_action(WorkspaceNewAction())
@@ -3839,6 +3891,7 @@ Window.register_action(WorkspaceSplit3x3Action())
 Window.register_action(WorkspaceSplit4x3Action())
 Window.register_action(WorkspaceSplit4x4Action())
 Window.register_action(WorkspaceSplit5x4Action())
+Window.register_action(CreateWorkspaceFromSelectionAction())
 
 
 class AddGroupAction(Window.Action):

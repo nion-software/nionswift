@@ -5,6 +5,7 @@ import copy
 import functools
 import gettext
 import json
+import math
 import random
 import string
 import threading
@@ -80,6 +81,27 @@ class CreateWorkspaceCommand(Undo.UndoableCommand):
 
     def _redo(self) -> None:
         self.perform()
+
+
+class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
+    """Create a workspace, then split the panels and insert the selected display items."""
+    def __init__(self, workspace_controller: Workspace, name: str,
+                 selection: list[DisplayItem.DisplayItem], layout_shape: tuple[int, int]) -> None:
+        super().__init__(workspace_controller, name)
+        self.__selection = selection
+        self.__layout_shape = layout_shape
+        self.__workspace_controller = workspace_controller
+
+    def _perform(self) -> None:
+        super()._perform()
+        horizontal, vertical = self.__layout_shape
+        # The newly created workspace will have one display panel which is the selected one
+        selected_display_panel = self.__workspace_controller.document_controller.selected_display_panel
+        assert selected_display_panel
+        # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion
+        display_panels = [selected_display_panel]
+        display_panels = self.__workspace_controller.apply_layouts(selected_display_panel, display_panels, horizontal, vertical)
+        self.__workspace_controller.insert_items_into_panels(self.__selection, display_panels)
 
 
 class RemoveWorkspaceCommand(Undo.UndoableCommand):
@@ -921,13 +943,13 @@ class Workspace:
         return old_display_panel, old_splits, region_id
 
     def apply_layouts(self, primary_display_panel: DisplayPanel.DisplayPanel, display_panels: typing.Sequence[DisplayPanel.DisplayPanel], w: int, h: int) -> list[DisplayPanel.DisplayPanel]:
-        """Change the workspace to have w x h display panels.
+        """Split each display panel in display_panels to have w by h display panels.
 
+        The primary_display_panel will have the focus set on completion.
         Returns the newly created display panels in the order they appear in the workspace display panels.
         """
 
         assert self.__workspace
-        change_workspace_contents_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
 
         new_display_panels = list()
 
@@ -983,8 +1005,6 @@ class Workspace:
 
         primary_display_panel.request_focus()
 
-        self.document_controller.push_undo_command(change_workspace_contents_command)
-
         return new_display_panels
 
     def _splits_will_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
@@ -1012,6 +1032,51 @@ class Workspace:
         # ensure that the layout is written to persistent storage
         assert self.__workspace
         self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
+
+    @staticmethod
+    def get_split_for_selection(selection_count: int) -> tuple[int, int]:
+        """Get a split for the layout that holds the selected items that is approximately a 5:3 ratio.
+
+        Depending on if the division of columns have ceil and floor applied first will affect the final split.
+        Both are calculated and the one that will have the least unused panels is returned.
+        """
+        if selection_count == 0:
+            return 1, 1
+
+        ratio = 0.6
+        columns = math.sqrt(selection_count / ratio)
+
+        columns_ceil = math.ceil(columns)
+        rows_ceil = math.ceil(selection_count / columns_ceil) if columns_ceil > 0 else 1
+
+        columns_floor = math.floor(columns)
+        rows_floor = math.ceil(selection_count / columns_floor) if columns_floor > 0 else 1
+
+        ceil_diff = columns_ceil * rows_ceil - selection_count
+        floor_diff = columns_floor * rows_floor - selection_count
+
+        if floor_diff < ceil_diff:
+            return columns_floor, rows_floor
+
+        return columns_ceil, rows_ceil
+
+    @staticmethod
+    def insert_items_into_panels(display_items: typing.Sequence[DisplayItem.DisplayItem],
+                                 display_panels: typing.Sequence[DisplayPanel.DisplayPanel],
+                                 override_existing_display_item: bool = False) -> None:
+        """Insert the display items into the display panels if they are result panels otherwise skipping them.
+
+        DocumentControllers next_result_display_panel() would give the next display panel in the whole workspace.
+        If override_existing_display_item is False the panels are skipped if they are non-empty.
+        """
+        result_panels = [panel for panel in display_panels if panel.is_result_panel]
+        for display_item in display_items:
+            if not result_panels:
+                return
+            display_panel = result_panels.pop(0)
+            if not override_existing_display_item and display_panel.display_panel_type != "empty":
+                continue
+            display_panel.set_display_item(display_item)
 
 
 class WorkspaceManager(metaclass=Utility.Singleton):
