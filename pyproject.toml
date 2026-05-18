@@ -52,7 +52,7 @@ include = [
 
 [tool.setuptools.package-data]
 "nion.swift" = ["resources/*", "py.typed"]
-"nion.swift.model" = ["resources/color_maps/*"]
+"nion.swift.model" = ["resources/color_maps/*", "resources/computations/*"]
 
 [tool.pytest.ini_options]
 testpaths = [

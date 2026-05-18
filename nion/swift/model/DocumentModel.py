@@ -10,7 +10,9 @@ import copy
 import datetime
 import functools
 import gettext
+import json
 import logging
+import pkgutil
 import threading
 import types
 import typing
@@ -2576,14 +2578,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["extract-green"] = {"title": _("Green"), "expression": "xd.green({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
             vs["extract-blue"] = {"title": _("Blue"), "expression": "xd.blue({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
             vs["extract-alpha"] = {"title": _("Alpha"), "expression": "xd.alpha({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
-            # new style descriptions that operate on xdata (src) directly
-            window_sigma_param = {"name": "sigma", "label": _("Sigma"), "type": "real", "value": 0.3, "value_default": 0.3, "value_min": 0.001, "value_max": 10, "control_type": "slider"}
-            is_mapped_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
-            vs["gaussian-window"] = {"title": _("Gaussian Window"), "expression": "target = src * xd.gaussian_window(src.data_shape, sigma * int(numpy.amin(src.data_shape)))", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param, window_sigma_param], "outputs": [{"name": "target", "label": "Result"}]}
-            vs["hamming-window"] = {"title": _("Hamming Window"), "expression": "target = src * xd.hamming_window(src.data_shape)", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param], "outputs": [{"name": "target", "label": "Result"}]}
-            vs["hann-window"] = {"title": _("Hann Window"), "expression": "target = src * xd.hann_window(src.data_shape)", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param], "outputs": [{"name": "target", "label": "Result"}]}
-            vs["mapped-sum"] = {"title": _("Sum"), "expression": "target = xd.sum_scalar(src)", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]}], "outputs": [{"name": "target", "label": "Result", "data_type": "scalar"}], "attributes": {"connection_type": "map"}, "out_regions": [{"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}]}
-            vs["mapped-average"] = {"title": _("Average"), "expression": "target = xd.mean_scalar(src)", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]}], "outputs": [{"name": "target", "label": "Result", "data_type": "scalar"}], "attributes": {"connection_type": "map"}, "out_regions": [{"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}]}
 
             def migrate_processor_description(d: dict[str, typing.Any]) -> dict[str, typing.Any]:
                 inputs = list[dict[str, typing.Any]]()
@@ -3058,6 +3052,23 @@ def _register_processors() -> None:
 
 
 _register_processors()
+
+
+def load_computation_resource(resource_path: str) -> None:
+    bytes = pkgutil.get_data(__name__, resource_path)
+    assert bytes is not None
+    json_str = bytes.decode("utf-8")
+    l = json.loads(json_str)
+    for d in l:
+        if d.get("type", None) == "computation_processor":
+            computation_processor = Symbolic.ComputationProcessor.from_dict(d)
+            for source in computation_processor.sources:
+                source.is_croppable = True
+            Symbolic.ComputationProcessor.register(d["processor_id"], computation_processor)
+
+
+load_computation_resource("resources/computations/scalar_functions.json")
+load_computation_resource("resources/computations/window_functions.json")
 
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:

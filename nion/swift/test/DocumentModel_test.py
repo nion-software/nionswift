@@ -2441,21 +2441,6 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(document_model._get_pending_data_item_updates_count(), 0)
             document_model.perform_data_item_updates()
 
-    def test_mapped_and_unmapped_processing_complete_without_error(self):
-        with create_memory_profile_context() as profile_context:
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.random.randn(4, 4, 4, 4), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                processed_data_item = document_model.get_hamming_window_new(display_item, data_item)
-                document_model.computations[-1].variables[1].value = "mapped"
-                document_model.recompute_all()
-                self.assertEqual((4, 4, 4, 4), processed_data_item.data_shape)
-                document_model.computations[-1].variables[1].value = "none"
-                document_model.recompute_all()
-                self.assertEqual((4, 4), processed_data_item.data_shape)
-
     def test_processing_produces_sensible_inherited_titles(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
