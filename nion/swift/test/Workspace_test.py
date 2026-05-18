@@ -7,20 +7,18 @@ import logging
 import pathlib
 import typing
 import unittest
-import urllib
-import uuid
 import weakref
 
 # third party libraries
 import numpy
 
 # local libraries
-from nion.swift import Application, DataPanel
+from nion.swift import DataPanel
 from nion.swift import DisplayPanel
 from nion.swift import DocumentController
 from nion.swift import MimeTypes
 from nion.swift import Workspace
-from nion.swift.model import DataItem, DisplayItem
+from nion.swift.model import DataItem
 from nion.swift.test import DocumentController_test, TestContext
 from nion.ui import CanvasItem
 from nion.ui import Window
@@ -108,12 +106,8 @@ class SplitCase:
                  initial_layout_id: str = "1x1", is_disabled: bool = False) -> None:
         """Contains setup and the expected outcome for a specific split case testing the new workspace from selection functions.
 
-        @param total_data_items: the total number of data items created for a test.
-        @param selected_data_items_indices: indices of selected data panel items, None means no data items are selected.
-        @param initial_layout_id: a string identifier used by get_layout when setting up the initial workspace for a test.
-        @param expected_split_shape: the expected split to be created, (horizontal, vertical), None is used when the test is disabled.
+        initial_layout_id: a string identifier used by get_layout when setting up the initial workspace for a test.
         """
-        self.expected_h, self.expected_w = expected_split_shape if expected_split_shape else (0, 0)
         self.expected_split_shape: tuple[int, int] = expected_split_shape or (0, 0)
         self.selected_data_items_indices: list[int] = selected_data_items_indices or []
         self.initial_layout_id = initial_layout_id
@@ -122,8 +116,10 @@ class SplitCase:
         original_shape = [int(value) for value in initial_shape_chars[:2]]
         assert len(original_shape) == 2
         self.initial_shape = tuple(original_shape)
-        self.total_expected_panels = self.expected_h * self.expected_w
+        expected_h, expected_w = self.expected_split_shape
+        self.total_expected_panels = expected_h * expected_w
         self.is_disabled = is_disabled
+
 
 class TestWorkspaceClass(unittest.TestCase):
 
@@ -1873,7 +1869,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[0].request_focus()  # This ensures the focus_widget is valid
 
         # Set up the selection
-        selected_data_items = [data_item for data_item in data_items if data_items.index(data_item) in test_case.selected_data_items_indices]
+        selected_data_items = [data_items[i] for i in range(len(data_items)) if i in test_case.selected_data_items_indices]
         document_controller.select_data_items_in_data_panel(selected_data_items)
 
         data_panel = typing.cast(DataPanel.DataPanel, document_controller.find_dock_panel("data-panel"))
@@ -1886,7 +1882,8 @@ class TestWorkspaceClass(unittest.TestCase):
         assert workspace_controller is not None
         self.assertEqual(test_case.total_expected_panels, len(workspace_controller.display_panels))
         for new_display_panel, selected_item in zip(workspace_controller.display_panels, selected_data_items):
-            self.assertEqual(new_display_panel.data_item, selected_item, msg=f"Order mismatch for newly created items {new_display_panel.data_item.title}!={selected_item.title}")
+            title = new_display_panel.data_item.title if new_display_panel.data_item else "None"
+            self.assertEqual(new_display_panel.data_item, selected_item, msg=f"Order mismatch for newly created items {title}!={selected_item.title}")
 
     def run_split_test(self, test_case: SplitCase) -> None:
         """Test a split in test_case against the expected result."""
@@ -1907,11 +1904,11 @@ class TestWorkspaceClass(unittest.TestCase):
 
             self._verify_split_results(document_controller, selected_data_items, test_case)
 
-    def test_new_workspace_disabled_no_item(self):  # No selected data items, no change
+    def test_new_workspace_disabled_no_item(self):  # No selected data items, no expected change
         test_case = SplitCase(selected_data_items_indices=[], total_data_items=0, initial_layout_id="2x1", is_disabled=True)
         self.run_split_test(test_case)
 
-    def test_new_workspace_disabled_too_many_total(self):  # Total selected data items (6 display panel items, 95 data panel items) is too large, no change
+    def test_new_workspace_disabled_too_many_total(self):  # Total selected data items, 61, is too large, no expected change
         item_count = DocumentController.CreateWorkspaceFromSelectionAction.max_split + 1
         test_case = SplitCase(selected_data_items_indices=[x for x in range(0, item_count)], total_data_items=item_count, initial_layout_id="3x2", is_disabled=True)
         self.run_split_test(test_case)

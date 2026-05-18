@@ -84,10 +84,10 @@ class CreateWorkspaceCommand(Undo.UndoableCommand):
 
 
 class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
+    """Create a workspace, then split the panels and insert the selected display items."""
     def __init__(self, workspace_controller: Workspace, name: str,
                  selection: list[DisplayItem.DisplayItem], layout_shape: tuple[int, int]) -> None:
         super().__init__(workspace_controller, name)
-        self.__title = "New Workspace From Selection"
         self.__selection = selection
         self.__layout_shape = layout_shape
         self.__workspace_controller = workspace_controller
@@ -1034,20 +1034,23 @@ class Workspace:
         self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
 
     @staticmethod
-    def get_split_for_selection(selection_count: int) -> typing.Tuple[int, int]:
-        """ Get a split for the layout that holds the selected items that is approximately a 5:3 ratio
+    def get_split_for_selection(selection_count: int) -> tuple[int, int]:
+        """Get a split for the layout that holds the selected items that is approximately a 5:3 ratio.
 
         Depending on if the division of columns have ceil and floor applied first will affect the final split.
         Both are calculated and the one that will have the least unused panels is returned.
         """
+        if selection_count == 0:
+            return 1, 1
+
         ratio = 0.6
         columns = math.sqrt(selection_count / ratio)
 
         columns_ceil = math.ceil(columns)
-        rows_ceil = math.ceil(selection_count / columns_ceil)
+        rows_ceil = math.ceil(selection_count / columns_ceil) if columns_ceil > 0 else 1
 
         columns_floor = math.floor(columns)
-        rows_floor = math.ceil(selection_count / columns_floor)
+        rows_floor = math.ceil(selection_count / columns_floor) if columns_floor > 0 else 1
 
         ceil_diff = columns_ceil * rows_ceil - selection_count
         floor_diff = columns_floor * rows_floor - selection_count
@@ -1058,19 +1061,20 @@ class Workspace:
         return columns_ceil, rows_ceil
 
     @staticmethod
-    def insert_items_into_panels(display_items: list[DisplayItem.DisplayItem],
-                                 display_panels: list[DisplayPanel.DisplayPanel],
-                                 override_existing: bool = False) -> None:
-        """Insert the display items into the display panels.
+    def insert_items_into_panels(display_items: typing.Sequence[DisplayItem.DisplayItem],
+                                 display_panels: typing.Sequence[DisplayPanel.DisplayPanel],
+                                 override_existing_display_item: bool = False) -> None:
+        """Insert the display items into the display panels if they are result panels otherwise skipping them.
 
         DocumentControllers next_result_display_panel() would give the next display panel in the whole workspace.
+        If override_existing_display_item is False the panels are skipped if they are non-empty.
         """
         result_panels = [panel for panel in display_panels if panel.is_result_panel]
         for display_item in display_items:
             if not result_panels:
                 return
             display_panel = result_panels.pop(0)
-            if not override_existing and display_panel.display_panel_type != "empty":
+            if not override_existing_display_item and display_panel.display_panel_type != "empty":
                 continue
             display_panel.set_display_item(display_item)
 
