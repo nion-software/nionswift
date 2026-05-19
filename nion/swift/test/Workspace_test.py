@@ -1873,7 +1873,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.select_data_items_in_data_panel(selected_data_items)
 
         data_panel = typing.cast(DataPanel.DataPanel, document_controller.find_dock_panel("data-panel"))
-        data_panel._request_focus_for_test()  # This ensures the focus widget is set for the data panel, which is required for the action to run
+        data_panel._request_focus_for_test()  # This ensures the focus widget is set for the data panel
         return document_controller, selected_data_items
 
     def _verify_split_results(self, document_controller: DocumentController.DocumentController, selected_data_items: list[DataItem.DataItem], test_case: SplitCase) -> None:
@@ -1909,7 +1909,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.run_split_test(test_case)
 
     def test_new_workspace_disabled_too_many_total(self):  # Total selected data items, 61, is too large, no expected change
-        item_count = DocumentController.CreateWorkspaceFromSelectionAction.max_split + 1
+        item_count = DocumentController.CreateWorkspaceFromSelectionAction.MAX_PANELS + 1
         test_case = SplitCase(selected_data_items_indices=[x for x in range(0, item_count)], total_data_items=item_count, initial_layout_id="3x2", is_disabled=True)
         self.run_split_test(test_case)
 

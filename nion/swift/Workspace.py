@@ -101,7 +101,8 @@ class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
         # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion
         display_panels = [selected_display_panel]
         display_panels = self.__workspace_controller.apply_layouts(selected_display_panel, display_panels, horizontal, vertical)
-        self.__workspace_controller.insert_items_into_panels(self.__selection, display_panels)
+        for display_item, display_panel in zip(self.__selection, display_panels):  # Populate the display panels with the items
+            display_panel.set_display_item(display_item)
 
 
 class RemoveWorkspaceCommand(Undo.UndoableCommand):
@@ -1059,24 +1060,6 @@ class Workspace:
             return columns_floor, rows_floor
 
         return columns_ceil, rows_ceil
-
-    @staticmethod
-    def insert_items_into_panels(display_items: typing.Sequence[DisplayItem.DisplayItem],
-                                 display_panels: typing.Sequence[DisplayPanel.DisplayPanel],
-                                 override_existing_display_item: bool = False) -> None:
-        """Insert the display items into the display panels if they are result panels otherwise skipping them.
-
-        DocumentControllers next_result_display_panel() would give the next display panel in the whole workspace.
-        If override_existing_display_item is False the panels are skipped if they are non-empty.
-        """
-        result_panels = [panel for panel in display_panels if panel.is_result_panel]
-        for display_item in display_items:
-            if not result_panels:
-                return
-            display_panel = result_panels.pop(0)
-            if not override_existing_display_item and display_panel.display_panel_type != "empty":
-                continue
-            display_panel.set_display_item(display_item)
 
 
 class WorkspaceManager(metaclass=Utility.Singleton):
