@@ -2583,7 +2583,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["hann-window"] = {"title": _("Hann Window"), "expression": "target = src * xd.hann_window(src.data_shape)", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param], "outputs": [{"name": "target", "label": "Result"}]}
             vs["mapped-sum"] = {"title": _("Sum"), "expression": "target = xd.sum_scalar(src)", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]}], "outputs": [{"name": "target", "label": "Result", "data_type": "scalar"}], "attributes": {"connection_type": "map"}, "out_regions": [{"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}]}
             vs["mapped-average"] = {"title": _("Average"), "expression": "target = xd.mean_scalar(src)", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]}], "outputs": [{"name": "target", "label": "Result", "data_type": "scalar"}], "attributes": {"connection_type": "map"}, "out_regions": [{"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}]}
-            cls._builtin_processors = {k: Symbolic.ComputationProcessor.from_dict(v) for k, v in vs.items()}
+
+            def migrate_processor_description(d: dict[str, typing.Any]) -> dict[str, typing.Any]:
+                inputs = list[dict[str, typing.Any]]()
+                sources = d.pop("sources", [])
+                for source_d in sources:
+                    source_d["type"] = "data"
+                    inputs.append(source_d)
+                parameters = d.pop("parameters", [])
+                for parameter_d in parameters:
+                    parameter_d["value_type"] = parameter_d.pop("type")
+                    parameter_d["type"] = "value"
+                    inputs.append(parameter_d)
+                d["inputs"] = inputs
+                return d
+
+            cls._builtin_processors = {k: Symbolic.ComputationProcessor.from_dict(migrate_processor_description(copy.deepcopy(v))) for k, v in vs.items()}
         return cls._builtin_processors
 
     def get_fft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:

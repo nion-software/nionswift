@@ -3588,19 +3588,46 @@ class ComputationProcessorRegion:
         }
 
 
-class ComputationProcessorSource:
-    def __init__(self, name: str, label: str, data_type: typing.Optional[str], requirements: typing.Sequence[ComputationProcessorRequirement], regions: typing.Sequence[ComputationProcessorRegion], is_croppable: bool) -> None:
+class ComputationProcessorInputType(enum.Enum):
+    DATA = "data"
+    VALUE = "value"
+    LIST = "list"
+    MAP = "map"
+
+
+class ComputationProcessorInput:
+    def __init__(self, input_type: ComputationProcessorInputType, name: str, label: str | None) -> None:
+        self.input_type = input_type
         self.name = name
         self.label = label
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        raise NotImplementedError()
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorInput:
+        input_type = d["type"]
+        match input_type:
+            case ComputationProcessorInputType.DATA.value:
+                return ComputationProcessorDataInput.from_dict(d)
+            case ComputationProcessorInputType.VALUE.value:
+                return ComputationProcessorValueInput.from_dict(d)
+            case _:
+                raise NotImplementedError(f"{input_type} is not a supported input type")
+
+
+class ComputationProcessorDataInput(ComputationProcessorInput):
+    def __init__(self, name: str, label: str | None, data_type: str | None, requirements: typing.Sequence[ComputationProcessorRequirement], regions: typing.Sequence[ComputationProcessorRegion], is_croppable: bool) -> None:
+        super().__init__(ComputationProcessorInputType.DATA, name, label)
         self.data_type = data_type
         self.requirements = list(requirements)
         self.regions = list(regions)
         self.is_croppable = is_croppable
 
     @classmethod
-    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorSource:
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorDataInput:
         name = d["name"]
-        label = d["label"]
+        label = d.get("label", None)
         data_type = d.get("data_type", None)
         requirements = [create_computation_processor_requirement(requirement_d) for requirement_d in d.get("requirements", list())]
         regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("regions", list())]
@@ -3609,6 +3636,7 @@ class ComputationProcessorSource:
 
     def to_dict(self) -> dict[str, typing.Any]:
         return {
+            "type": self.input_type.value,
             "name": self.name,
             "label": self.label,
             "data_type": self.data_type,
@@ -3640,8 +3668,9 @@ class ComputationProcessorSource:
                 return True
 
 
-class ComputationProcessorParameter:
-    def __init__(self, param_type: ComputationVariableType, name: str, label: typing.Optional[str], value: typing.Any, value_default: typing.Optional[typing.Any], value_min: typing.Optional[typing.Any], value_max: typing.Optional[typing.Any], control_type: typing.Optional[str]) -> None:
+class ComputationProcessorValueInput(ComputationProcessorInput):
+    def __init__(self, param_type: ComputationVariableType, name: str, label: str | None, value: typing.Any, value_default: typing.Any | None, value_min: typing.Any | None, value_max: typing.Any | None, control_type: str | None) -> None:
+        super().__init__(ComputationProcessorInputType.VALUE, name, label)
         self.param_type = param_type
         self.name = name
         self.label = label
@@ -3652,8 +3681,8 @@ class ComputationProcessorParameter:
         self.control_type = control_type
 
     @classmethod
-    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorParameter:
-        param_type = _map_identifier_to_variable_type[d["type"]]
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorValueInput:
+        param_type = _map_identifier_to_variable_type[d["value_type"]]
         name = d["name"]
         label = d.get("label", None)
         value = d["value"]
@@ -3665,7 +3694,8 @@ class ComputationProcessorParameter:
 
     def to_dict(self) -> dict[str, typing.Any]:
         d = {
-            "type": _map_variable_type_to_identifier[self.param_type],
+            "type": self.input_type.value,
+            "value_type": _map_variable_type_to_identifier[self.param_type],
             "name": self.name,
             "value": self.value
         }
@@ -3680,6 +3710,7 @@ class ComputationProcessorParameter:
         if self.control_type:
             d["control_type"] = self.control_type
         return d
+
 
 class ComputationProcessorOutput:
     def __init__(self, name: str, label: str | None, data_type: str) -> None:
@@ -3708,16 +3739,14 @@ class ComputationProcessor:
             self,
             expression: typing.Optional[str],
             title: typing.Optional[str],
-            sources: typing.Sequence[ComputationProcessorSource],
-            parameters: typing.Sequence[ComputationProcessorParameter],
+            inputs: typing.Sequence[ComputationProcessorInput],
             attributes: typing.Mapping[str, typing.Any],
             out_regions: typing.Sequence[ComputationProcessorRegion],
             outputs: typing.Sequence[ComputationProcessorOutput]
     ) -> None:
         self.expression: typing.Optional[str] = expression
         self.title: typing.Optional[str] = title
-        self.sources = list(sources)
-        self.parameters = list(parameters)
+        self.inputs = list(inputs)
         self.attributes = dict(attributes)
         self.out_regions = list(out_regions)
         self.outputs = list(outputs)
@@ -3727,12 +3756,11 @@ class ComputationProcessor:
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessor:
         expression = d.get("expression", None)
         title = d.get("title", None)
-        sources = [ComputationProcessorSource.from_dict(source_d) for source_d in d.get("sources", list())]
-        parameters = [ComputationProcessorParameter.from_dict(parameter_d) for parameter_d in d.get("parameters", list())]
+        inputs = [ComputationProcessorInput.from_dict(input_d) for input_d in d.get("inputs", list())]
         attributes = d.get("attributes", dict())
         out_regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("out_regions", list())]
         outputs = [ComputationProcessorOutput.from_dict(source_d) for source_d in d.get("outputs", list())]
-        return cls(expression, title, sources, parameters, attributes, out_regions, outputs)
+        return cls(expression, title, inputs, attributes, out_regions, outputs)
 
     @classmethod
     def register(cls, processor_id: str, computation_processor: ComputationProcessor) -> None:
@@ -3747,12 +3775,19 @@ class ComputationProcessor:
         return {
             "expression": self.expression,
             "title": self.title,
-            "sources": [source.to_dict() for source in self.sources],
-            "parameters": [parameter.to_dict() for parameter in self.parameters],
+            "inputs": [input.to_dict() for input in self.inputs],
             "attributes": dict(self.attributes),
             "out_regions": [region.to_dict() for region in self.out_regions],
             "outputs": [output.to_dict() for output in self.outputs]
         }
+
+    @property
+    def sources(self) -> typing.Sequence[ComputationProcessorDataInput]:
+        return [input for input in self.inputs if isinstance(input, ComputationProcessorDataInput)]
+
+    @property
+    def parameters(self) -> typing.Sequence[ComputationProcessorValueInput]:
+        return [input for input in self.inputs if isinstance(input, ComputationProcessorValueInput)]
 
     def needs_update_for_event(self, input_key: str, event_type: BoundDataEventType) -> bool:
         for source in self.sources:
@@ -3760,13 +3795,13 @@ class ComputationProcessor:
                 return source.needs_update_for_event(event_type)
         return True
 
-    def get_source(self, name: str) -> ComputationProcessorSource | None:
+    def get_source(self, name: str) -> ComputationProcessorDataInput | None:
         for source in self.sources:
             if source.name == name:
                 return source
         return None
 
-    def get_parameter(self, name: str) -> ComputationProcessorParameter | None:
+    def get_parameter(self, name: str) -> ComputationProcessorValueInput | None:
         for parameter in self.parameters:
             if parameter.name == name:
                 return parameter
