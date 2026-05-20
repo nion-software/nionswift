@@ -46,7 +46,6 @@ class ExportDialogViewModel:
         self.include_date = Model.PropertyModel(date)
         self.include_dimensions = Model.PropertyModel(dimensions)
         self.include_sequence = Model.PropertyModel(sequence)
-        self.include_prefix = Model.PropertyModel(prefix is not None)
         self.prefix = Model.PropertyModel[str](prefix)
         self.directory = Model.PropertyModel(directory)
         self.directory_warning = Model.PropertyModel(str())
@@ -65,12 +64,17 @@ class ExportDialogViewModel:
         if not self.is_directory_valid:
             self.directory.value = None  # Clear the initial directory if it was invalid
 
-        def update_export_button(__: typing.Any) -> None:
+        def update_export_button(*__: typing.Any) -> None:
             invalid_reasons = list[str]()
 
             prefix_str = self.prefix.value or str()
-            if prefix_str != Utility.simplify_filename(prefix_str):
-                invalid_reasons.append(_("Prefix contains invalid characters"))
+            if prefix_str != "":
+                if prefix_str != Utility.simplify_filename(prefix_str):
+                    invalid_reasons.append(_("Prefix contains invalid characters"))
+            elif not (self.include_title.value or self.include_date.value or
+                      self.include_dimensions.value or self.include_sequence.value):
+                # There must be at least one option enabled otherwise the filenames will be empty
+                invalid_reasons.append(_("Filename requires at least one option to be selected"))
 
             is_directory_valid = self.__is_directory_valid.value or False
             if not is_directory_valid:
@@ -86,9 +90,18 @@ class ExportDialogViewModel:
                 self.export_button_tool_tip.value = None
                 self.directory_warning.value = str()
 
-        self.__is_directory_valid_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream[str](self.__is_directory_valid, "value"), update_export_button)
-        self.__prefix_action = Stream.ValueStreamAction(prefix_stream, update_export_button)
+        input_streams: typing.Sequence[Stream.PropertyChangedEventStream[typing.Any]] = [
+            # Update the button when one of the options changes
+            prefix_stream,
+            Stream.PropertyChangedEventStream(self.include_title, "value"),
+            Stream.PropertyChangedEventStream(self.include_date, "value"),
+            Stream.PropertyChangedEventStream(self.include_dimensions, "value"),
+            Stream.PropertyChangedEventStream(self.include_sequence, "value"),
+            # Also update the button when the directory changes validity
+            Stream.PropertyChangedEventStream(self.__is_directory_valid, "value")
+        ]
 
+        self.__export_button_update_stream: Stream.CombineLatestStream[typing.Any, typing.Any] = Stream.CombineLatestStream(input_streams, update_export_button)
         update_export_button(None)
 
     @property

@@ -23,7 +23,7 @@ class TestExportDialog(unittest.TestCase):
         self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
-    def test_model(self):
+    def test_model(self) -> None:
         model = ExportDialog.ExportDialogViewModel(
             title=True,
             date=False,
@@ -46,6 +46,29 @@ class TestExportDialog(unittest.TestCase):
         self.assertIsNotNone(model.directory_warning.value)
         self.assertFalse(model.export_button_enabled.value)
         self.assertIsNotNone(model.export_button_tool_tip.value)
+
+    def test_model_prevents_no_options_selection(self) -> None:
+        model = ExportDialog.ExportDialogViewModel(
+            title=False,
+            date=False,
+            dimensions=False,
+            sequence=False,
+            writer=None,
+            prefix=None,
+            directory=str(pathlib.Path.cwd())  # The directory is valid for this test to isolate the error of no options
+        )
+        # Check the export button is disabled when all the options are disabled
+        self.assertFalse(model.export_button_enabled.value)
+        self.assertIsNotNone(model.export_button_tool_tip.value)
+        # Check the export button updates to be valid when an option is enabled
+        model.include_date.value = True
+        self.assertTrue(model.export_button_enabled.value)
+        self.assertIsNone(model.export_button_tool_tip.value)
+        # Now check that the button also updates to enabled when the prefix is set
+        model.include_date.value = False
+        model.prefix.value = "prefix"
+        self.assertTrue(model.export_button_enabled.value)
+        self.assertIsNone(model.export_button_tool_tip.value)
 
     def test_filename(self) -> None:
         model = ExportDialog.ExportDialogViewModel(
