@@ -38,6 +38,13 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
+@dataclasses.dataclass(frozen=True)
+class ExportOptionsValidity:
+    """Contains the  export validity result of compute_export_options_validity."""
+    is_directory_valid: bool  # Is the directory a valid path
+    invalid_reasons: tuple[str, ...]  # Reasons the export options are not valid
+
+
 class ExportDialogViewModel:
     """Represents the export dialog model."""
 
@@ -46,7 +53,6 @@ class ExportDialogViewModel:
         self.include_date = Model.PropertyModel(date)
         self.include_dimensions = Model.PropertyModel(dimensions)
         self.include_sequence = Model.PropertyModel(sequence)
-        self.include_prefix = Model.PropertyModel(prefix is not None)
         self.prefix = Model.PropertyModel[str](prefix)
         self.directory = Model.PropertyModel(directory)
         self.directory_warning = Model.PropertyModel(str())
@@ -55,7 +61,6 @@ class ExportDialogViewModel:
         self.writer = Model.PropertyModel(writer)
 
         directory_stream = Stream.PropertyChangedEventStream[str](self.directory, "value")
-        prefix_stream = Stream.PropertyChangedEventStream[str](self.prefix, "value")
 
         def validate_directory(directory: str | None) -> bool:
             return directory is not None and pathlib.Path(directory).is_dir()
@@ -65,31 +70,59 @@ class ExportDialogViewModel:
         if not self.is_directory_valid:
             self.directory.value = None  # Clear the initial directory if it was invalid
 
-        def update_export_button(__: typing.Any) -> None:
-            invalid_reasons = list[str]()
+        def compute_export_options_validity(prefix_value: str | None, include_title: bool | None,
+                                            include_date: bool | None, include_dimensions: bool | None,
+                                            include_sequence: bool | None, is_directory_valid: bool | None) -> ExportOptionsValidity:
+            """Use the combined values of the export filename options and the directory validity to get a list of invalid reasons."""
+            invalid_reasons: list[str] = []
 
-            prefix_str = self.prefix.value or str()
+            prefix_str = prefix_value or str()
             if prefix_str != Utility.simplify_filename(prefix_str):
                 invalid_reasons.append(_("Prefix contains invalid characters"))
 
-            is_directory_valid = self.__is_directory_valid.value or False
+            if not (prefix_str or include_title or include_date or include_dimensions or include_sequence):
+                # There must be at least one option enabled otherwise the filenames will be empty
+                invalid_reasons.append(_("Filename requires at least one option to be selected"))
+
             if not is_directory_valid:
                 invalid_reasons.append(_("Directory does not exist"))
+
+            return ExportOptionsValidity(bool(is_directory_valid), tuple(invalid_reasons))
+
+        def handle_export_options_validity_changed(export_validity: ExportOptionsValidity | None) -> None:
+            """Update the export button's enabled state and tooltip based on the computed invalid reasons and directory validity."""
+            export_validity = export_validity or ExportOptionsValidity(False, tuple())
+            if not export_validity.is_directory_valid:
                 self.directory.value = None  # Clear the directory if it is invalid
 
-            if invalid_reasons:
+            if export_validity.invalid_reasons:
                 self.export_button_enabled.value = False
-                self.export_button_tool_tip.value = ", ".join(invalid_reasons)
-                self.directory_warning.value = ", ".join(invalid_reasons)
+                self.export_button_tool_tip.value = ", ".join(export_validity.invalid_reasons)
+                self.directory_warning.value = "\n".join(export_validity.invalid_reasons)
             else:
                 self.export_button_enabled.value = True
                 self.export_button_tool_tip.value = None
                 self.directory_warning.value = str()
 
-        self.__is_directory_valid_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream[str](self.__is_directory_valid, "value"), update_export_button)
-        self.__prefix_action = Stream.ValueStreamAction(prefix_stream, update_export_button)
+        export_filename_option_streams: typing.Sequence[Stream.PropertyChangedEventStream[str | bool]] = [
+            # Update the button when one of the options changes
+            Stream.PropertyChangedEventStream(self.prefix, "value"),
+            Stream.PropertyChangedEventStream(self.include_title, "value"),
+            Stream.PropertyChangedEventStream(self.include_date, "value"),
+            Stream.PropertyChangedEventStream(self.include_dimensions, "value"),
+            Stream.PropertyChangedEventStream(self.include_sequence, "value"),
+            # Also update the button when the directory changes validity
+            Stream.PropertyChangedEventStream(self.__is_directory_valid, "value")
+        ]
 
-        update_export_button(None)
+        self.__export_button_update_action = Stream.ValueStreamAction(
+            Stream.CombineLatestStream(export_filename_option_streams, compute_export_options_validity),
+            handle_export_options_validity_changed
+        )
+
+        handle_export_options_validity_changed(compute_export_options_validity(self.prefix.value, self.include_title.value,
+                                                                               self.include_date.value, self.include_dimensions.value,
+                                                                               self.include_sequence.value, self.__is_directory_valid.value))
 
     @property
     def directory_path_object(self) -> pathlib.Path:

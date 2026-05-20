@@ -23,7 +23,7 @@ class TestExportDialog(unittest.TestCase):
         self._test_setup = typing.cast(typing.Any, None)
         TestContext.end_leaks(self)
 
-    def test_model(self):
+    def test_model(self) -> None:
         model = ExportDialog.ExportDialogViewModel(
             title=True,
             date=False,
@@ -33,9 +33,11 @@ class TestExportDialog(unittest.TestCase):
             prefix=None,
             directory=None)
         # initial case - no directory
-        self.assertIsNotNone(model.directory_warning.value)
+        # The warning and tooltip can be '' or None when the button is in a valid state
+        # So we check the truthiness of the values when the state is expected to be invalid, to confirm a warning and tooltip are present
+        self.assertTrue(model.directory_warning.value)
         self.assertFalse(model.export_button_enabled.value)
-        self.assertIsNotNone(model.export_button_tool_tip.value)
+        self.assertTrue(model.export_button_tool_tip.value)
         # directory case
         model.directory.value = str(pathlib.Path.cwd())
         self.assertFalse(model.directory_warning.value)
@@ -43,9 +45,55 @@ class TestExportDialog(unittest.TestCase):
         self.assertFalse(model.export_button_tool_tip.value)
         # bad prefix case
         model.prefix.value = "bad/prefix"
-        self.assertIsNotNone(model.directory_warning.value)
+        self.assertTrue(model.directory_warning.value)
         self.assertFalse(model.export_button_enabled.value)
-        self.assertIsNotNone(model.export_button_tool_tip.value)
+        self.assertTrue(model.export_button_tool_tip.value)
+
+    def test_model_updates_button_status_when_options_change(self) -> None:
+        """Test that when no options are selected the export button is disabled, and that when an option is selected the export button becomes enabled."""
+        model = ExportDialog.ExportDialogViewModel(
+            title=False,
+            date=False,
+            dimensions=False,
+            sequence=False,
+            writer=None,
+            prefix=None,
+            directory=str(pathlib.Path.cwd())  # The directory is valid for this test to isolate the error of no options
+        )
+        # Check the export button is disabled when all the options are disabled
+        self.assertFalse(model.export_button_enabled.value)
+        self.assertTrue(model.export_button_tool_tip.value)
+        # Check the export button updates to be valid when an option is enabled
+        model.include_date.value = True
+        self.assertTrue(model.export_button_enabled.value)
+        self.assertFalse(model.export_button_tool_tip.value)
+        # Check the export button goes back to disabled when the value changes back
+        model.include_date.value = False
+        self.assertFalse(model.export_button_enabled.value)
+        self.assertTrue(model.export_button_tool_tip.value)
+
+    def test_model_updates_button_status_when_prefix_changes(self) -> None:
+        """Test that the changes to the prefix string will update the button's validity."""
+        model = ExportDialog.ExportDialogViewModel(
+            title=False,
+            date=False,
+            dimensions=False,
+            sequence=False,
+            writer=None,
+            prefix=None,
+            directory=str(pathlib.Path.cwd())  # The directory is valid for this test to isolate the error of no options
+        )
+        # The export button starts disabled when all options are disabled
+        self.assertFalse(model.export_button_enabled.value)
+        self.assertTrue(model.export_button_tool_tip.value)
+        # Now check that the button updates to enabled when the prefix is set
+        model.prefix.value = "prefix"
+        self.assertTrue(model.export_button_enabled.value)
+        self.assertFalse(model.export_button_tool_tip.value)
+        # Check that the button becomes invalid when the prefix becomes invalid
+        model.prefix.value = ""
+        self.assertFalse(model.export_button_enabled.value)
+        self.assertTrue(model.export_button_tool_tip.value)
 
     def test_filename(self) -> None:
         model = ExportDialog.ExportDialogViewModel(
