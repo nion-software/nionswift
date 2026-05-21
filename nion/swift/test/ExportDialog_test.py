@@ -33,9 +33,9 @@ class TestExportDialog(unittest.TestCase):
             prefix=None,
             directory=None)
         # initial case - no directory
-        self.assertIsNotNone(model.directory_warning.value)
+        self.assertTrue(model.directory_warning.value)  # The warning and tool tip can be '' or None if the button is in an invalid state
         self.assertFalse(model.export_button_enabled.value)
-        self.assertIsNotNone(model.export_button_tool_tip.value)
+        self.assertTrue(model.export_button_tool_tip.value)
         # directory case
         model.directory.value = str(pathlib.Path.cwd())
         self.assertFalse(model.directory_warning.value)
@@ -43,11 +43,11 @@ class TestExportDialog(unittest.TestCase):
         self.assertFalse(model.export_button_tool_tip.value)
         # bad prefix case
         model.prefix.value = "bad/prefix"
-        self.assertIsNotNone(model.directory_warning.value)
+        self.assertTrue(model.directory_warning.value)
         self.assertFalse(model.export_button_enabled.value)
-        self.assertIsNotNone(model.export_button_tool_tip.value)
+        self.assertTrue(model.export_button_tool_tip.value)
 
-    def test_model_prevents_no_options_selection(self) -> None:
+    def test_model_updates_button_status_when_options_change(self) -> None:
         model = ExportDialog.ExportDialogViewModel(
             title=False,
             date=False,
@@ -59,16 +59,38 @@ class TestExportDialog(unittest.TestCase):
         )
         # Check the export button is disabled when all the options are disabled
         self.assertFalse(model.export_button_enabled.value)
-        self.assertIsNotNone(model.export_button_tool_tip.value)
+        self.assertTrue(model.export_button_tool_tip.value)
         # Check the export button updates to be valid when an option is enabled
         model.include_date.value = True
         self.assertTrue(model.export_button_enabled.value)
-        self.assertIsNone(model.export_button_tool_tip.value)
-        # Now check that the button also updates to enabled when the prefix is set
+        self.assertFalse(model.export_button_tool_tip.value)
+        # Check the export button goes back to disabled when the value changes back
         model.include_date.value = False
+        self.assertFalse(model.export_button_enabled.value)
+        self.assertTrue(model.export_button_tool_tip.value)
+
+    def test_model_updates_button_status_when_prefix_changes(self) -> None:
+        """Test that the changes to the prefix string will update the button's validity."""
+        model = ExportDialog.ExportDialogViewModel(
+            title=False,
+            date=False,
+            dimensions=False,
+            sequence=False,
+            writer=None,
+            prefix=None,
+            directory=str(pathlib.Path.cwd())  # The directory is valid for this test to isolate the error of no options
+        )
+        # The export button starts disabled when all options are disabled
+        self.assertFalse(model.export_button_enabled.value)
+        self.assertTrue(model.export_button_tool_tip.value)
+        # Now check that the button updates to enabled when the prefix is set
         model.prefix.value = "prefix"
         self.assertTrue(model.export_button_enabled.value)
-        self.assertIsNone(model.export_button_tool_tip.value)
+        self.assertFalse(model.export_button_tool_tip.value)
+        # Check that the button becomes invalid when the prefix becomes invalid
+        model.prefix.value = ""
+        self.assertFalse(model.export_button_enabled.value)
+        self.assertTrue(model.export_button_tool_tip.value)
 
     def test_filename(self) -> None:
         model = ExportDialog.ExportDialogViewModel(
