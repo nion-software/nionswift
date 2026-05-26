@@ -1041,16 +1041,15 @@ class NewProjectAction(UIWindow.Action):
                     return True
 
                 def verify_project_name(text: str) -> None:
-                    valid = text == Utility.simplify_filename(text)
-                    if valid:
-                        create_project_button.enabled = True
+                    is_valid, errors = Utility.verify_filename_is_legal(text)
+                    create_project_button.enabled = is_valid
+                    if errors is None:
                         create_project_button.tool_tip = None
                         project_name_status_label.text = None
                     else:
-                        create_project_button.enabled = False
-                        invalid_chars_str = _("Invalid Characters in Project Name")
-                        create_project_button.tool_tip = invalid_chars_str
-                        project_name_status_label.text = invalid_chars_str
+                        error_str = "\n".join(errors)
+                        create_project_button.tool_tip = error_str
+                        project_name_status_label.text = error_str
                         project_name_status_label.text_color = "red"
                 column = self.ui.create_column_widget()
 
