@@ -7,6 +7,7 @@ import contextlib
 import dataclasses
 import datetime
 import functools
+import gettext
 import logging
 import os
 import pathlib
@@ -24,6 +25,8 @@ import numpy
 
 # local libraries
 from nion.utils import DateTime
+
+_ = gettext.gettext
 
 
 # datetimes are _local_ datetimes and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -443,23 +446,61 @@ def sample_stack_all(count: int = 10, interval: float = 0.1) -> None:
     threading.Thread(target=do_sample).start()
 
 
+# See https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+ILLEGAL_FILENAME_CHARS_REGEX = r'[<>:/\\|?*"\0-\31]'  # Capture illegal characters <, >, :, /, \, |, ?, *, and " as well as characters with integer representation between 0 and 31
+ILLEGAL_FILENAME_CHARS_AND_POSITION_REGEX = f'^[. ]|{ILLEGAL_FILENAME_CHARS_REGEX}|[. ]$'
+ILLEGAL_FILENAMES = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+                     'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9', 'COM¹', 'COM²', 'COM³', 'LPT¹', 'LPT²', 'LPT³']
+
+
+def verify_filename_is_legal(filename: str, maximum_length: int = 128) -> tuple[bool, typing.Sequence[str] | None]:
+    """Check if a filename is allowed on all platforms.
+
+    Returns a tuple with a bool indicating if the path is valid or not, and a list of error messages or None when there are no errors.
+    Checks the filename is not in ILLEGAL_FILENAMES and no matches in the ILLEGAL_FILENAME_CHARS_REGEX.
+    Even when the platform can support the filename if it is illegal on any platforms it will not be allowed so there can be cross-platform file compatibility.
+    """
+    assert maximum_length > 5
+    errors = []
+    if filename.startswith("."):
+        errors.append(_("Leading periods cause files to be hidden on some platforms"))
+
+    if len(filename) > maximum_length:
+        errors.append(_("Exceeds the allowed length of {max} characters").format(max=maximum_length))
+
+    if filename == "":
+        errors.append(_("Cannot be empty"))
+    if len(filename) > 1:  # A filename can be " " or "." but cannot end with those characters, the "." will be caught by the leading periods check and so shouldn't be duplicated
+        if filename.endswith(" "):
+            errors.append(_("Cannot end with a whitespace"))
+        if filename.endswith("."):
+            errors.append(_("Cannot end with a period"))
+
+    if filename.upper() in ILLEGAL_FILENAMES:
+        errors.append(_("\"{filename}\" is illegal as it is reserved on some platforms").format(filename=filename))
+    matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
+    matches = sorted(set(matches))
+    if matches:
+        if len(matches) == 1:
+            errors.append(_("Contains illegal character '{character}'").format(character=matches[0]))
+        else:
+            errors.append(_("Contains illegal characters {characters}").format(characters=matches))
+
+    return len(errors) == 0, errors or None
+
+
 def simplify_filename(filename: str, replacement_char: str = '_', maximum_length: int = 128) -> str:
     # This function replaces any illegal characters in a file name. Not a full path.
     # macOS illegal characters = \0 /
     # linux illegal characters = \0 /
     # Windows illegal characters = < > : / \ | ? * " ASCII values 0-31 (non-printable chars)
     # Windows illegal filenames = CON PRN AUX NUL COM1 COM2 COM3 COM4 COM5 COM6 COM7 COM8 COM9
-    #                             LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9
+    #                             LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9 COM¹ COM² COM³ LPT¹ LPT² LPT³
     # those files names are illegal with or without a suffix, upper and lower case
     # Windows file names cannot start or end with periods or spaces
 
     assert maximum_length > 5
     assert len(replacement_char) == 1
-
-    # since windows is the most restrictive and covers the others, just focus on that
-    illegal_chars = r'^[. ]|[<>:/\\|?*\"]|[\0-\31]|[. ]$'
-    illegal_names = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
-                     'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9']
 
     # fix path length first so we don't uncover . or space at the start
     updated_filename = filename
@@ -474,11 +515,11 @@ def simplify_filename(filename: str, replacement_char: str = '_', maximum_length
             updated_filename = stem[:maximum_length - len(suffix)] + suffix
 
     # replace illegal characters with replacement_char
-    updated_filename = re.sub(illegal_chars, replacement_char, updated_filename)
+    updated_filename = re.sub(ILLEGAL_FILENAME_CHARS_AND_POSITION_REGEX, replacement_char, updated_filename)
 
     # if filename (without suffix) is illegal name - prepend replacement_char
     file_name_without_suffix = pathlib.Path(updated_filename).stem
-    if file_name_without_suffix.upper() in illegal_names:
+    if file_name_without_suffix.upper() in ILLEGAL_FILENAMES:
         updated_filename = replacement_char + updated_filename
         if len(updated_filename) > maximum_length:
             # should only happen if the illegal name and suffix were already maximum_length
