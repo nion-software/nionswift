@@ -7,6 +7,7 @@ import contextlib
 import dataclasses
 import datetime
 import functools
+import gettext
 import logging
 import os
 import pathlib
@@ -24,6 +25,8 @@ import numpy
 
 # local libraries
 from nion.utils import DateTime
+
+_ = gettext.gettext
 
 
 # datetimes are _local_ datetimes and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -448,6 +451,42 @@ ILLEGAL_FILENAME_CHARS_REGEX = r'[<>:/\\|?*"\0-\31]'  # Capture illegal characte
 ILLEGAL_FILENAME_CHARS_AND_POSITION_REGEX = f'^[. ]|{ILLEGAL_FILENAME_CHARS_REGEX}|[. ]$'
 ILLEGAL_FILENAMES = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
                      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9', 'COM¹', 'COM²', 'COM³', 'LPT¹', 'LPT²', 'LPT³']
+
+
+def verify_filename_is_legal(filename: str, maximum_length: int = 128) -> tuple[bool, typing.Sequence[str] | None]:
+    """Check if a filename is allowed on all platforms.
+
+    Returns a tuple with a bool indicating if the path is valid or not, and a list of error messages or None when there are no errors.
+    Checks the filename is not in ILLEGAL_FILENAMES and no matches in the ILLEGAL_FILENAME_CHARS_REGEX.
+    Even when the platform can support the filename if it is illegal on any platforms it will not be allowed so there can be cross-platform file compatibility.
+    """
+    assert maximum_length > 5
+    errors = []
+    if filename.startswith("."):
+        errors.append(_("Leading periods cause files to be hidden on some platforms"))
+
+    if len(filename) > maximum_length:
+        errors.append(_("Exceeds the allowed length of {max} characters").format(max=maximum_length))
+
+    if filename == "":
+        errors.append(_("Cannot be empty"))
+    if len(filename) > 1:  # A filename can be " " or "." but cannot end with those characters, the "." will be caught by the leading periods check and so shouldn't be duplicated
+        if filename.endswith(" "):
+            errors.append(_("Cannot end with a whitespace"))
+        if filename.endswith("."):
+            errors.append(_("Cannot end with a period"))
+
+    if filename.upper() in ILLEGAL_FILENAMES:
+        errors.append(_("\"{filename}\" is illegal as it is reserved on some platforms").format(filename=filename))
+    matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
+    matches = sorted(set(matches))
+    if matches:
+        if len(matches) == 1:
+            errors.append(_("Contains illegal character '{character}'").format(character=matches[0]))
+        else:
+            errors.append(_("Contains illegal characters {characters}").format(characters=matches))
+
+    return len(errors) == 0, errors or None
 
 
 def simplify_filename(filename: str, replacement_char: str = '_', maximum_length: int = 128) -> str:
