@@ -456,6 +456,8 @@ class ComputationModel:
 
 
 class ChangeVariableBinding(Binding.PropertyBinding):
+    """A binding used to connect UI widgets to computation variable properties."""
+
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation,
                  variable: Symbolic.ComputationVariable, property_name: str,
                  converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
