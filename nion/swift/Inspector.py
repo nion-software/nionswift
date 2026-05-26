@@ -4171,6 +4171,7 @@ class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory2):
         return None
 
 
+# Register the default computation variable component factories.
 Registry.register_component(BooleanVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
 Registry.register_component(IntegerVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
 Registry.register_component(RealVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
@@ -4181,13 +4182,21 @@ Registry.register_component(DataStructureVariableHandlerFactory(), {"variable-ha
 Registry.register_component(GraphicListVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
 
 
-def make_computation_variable_component(computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_value_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
-    """Make a computation variable component.
+def make_computation_variable_component(computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_value_model: VariableValueModel) -> Declarative.HandlerLike | None:
+    """Make a computation variable component and return the declarative handler.
 
-    Components registered under 'variable-handler-component-factory' should subclass the
-    `VariableHandlerComponentFactory` protocol. The document controller, computation, and variable arguments should be
-    considered read-only. When the component needs to modify the variable value, it should do so by setting
-    'variable_value.value'. This ensures that undo is handled properly.
+    A computation variable component is a Declarative.HandlerLike which represents a ComputationVariable in the UI
+    and allows the user to view and edit the variable's value via a VariableValueModel.
+
+    This function uses the registry to find factories that can create a component for the variable. Factories are
+    registered under the 'variable-handler-component-factory' type for primary handlers and
+    'variable-handler-fallback-component-factory' for fallback handlers. Primary factories are queried first and have
+    higher priority than fallback factories. The first factory to return a component for the variable is used. If no
+    factory returns a component, None is returned and the variable will not be displayed.
+
+    The components returned by the factories should not modify the ComputationVariable, Computation, or DocumentModel
+    directly. Instead, they should use the VariableValueModel to get and set the variable's value. This ensures that
+    undo/redo and other features work correctly.
     """
     document_controller = computation_inspector_context.window
     for component in Registry.get_components_by_type("variable-handler-component-factory"):
