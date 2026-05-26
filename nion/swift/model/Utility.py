@@ -443,23 +443,25 @@ def sample_stack_all(count: int = 10, interval: float = 0.1) -> None:
     threading.Thread(target=do_sample).start()
 
 
+# See https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+ILLEGAL_FILENAME_CHARS_REGEX = r'[<>:/\\|?*"\0-\31]'  # Capture illegal characters <, >, :, /, \, |, ?, *, and " as well as characters with integer representation between 0 and 31
+ILLEGAL_FILENAME_CHARS_AND_POSITION_REGEX = f'^[. ]|{ILLEGAL_FILENAME_CHARS_REGEX}|[. ]$'
+ILLEGAL_FILENAMES = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+                     'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9', 'COM¹', 'COM²', 'COM³', 'LPT¹', 'LPT²', 'LPT³']
+
+
 def simplify_filename(filename: str, replacement_char: str = '_', maximum_length: int = 128) -> str:
     # This function replaces any illegal characters in a file name. Not a full path.
     # macOS illegal characters = \0 /
     # linux illegal characters = \0 /
     # Windows illegal characters = < > : / \ | ? * " ASCII values 0-31 (non-printable chars)
     # Windows illegal filenames = CON PRN AUX NUL COM1 COM2 COM3 COM4 COM5 COM6 COM7 COM8 COM9
-    #                             LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9
+    #                             LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9 COM¹ COM² COM³ LPT¹ LPT² LPT³
     # those files names are illegal with or without a suffix, upper and lower case
     # Windows file names cannot start or end with periods or spaces
 
     assert maximum_length > 5
     assert len(replacement_char) == 1
-
-    # since windows is the most restrictive and covers the others, just focus on that
-    illegal_chars = r'^[. ]|[<>:/\\|?*\"]|[\0-\31]|[. ]$'
-    illegal_names = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
-                     'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9']
 
     # fix path length first so we don't uncover . or space at the start
     updated_filename = filename
@@ -474,11 +476,11 @@ def simplify_filename(filename: str, replacement_char: str = '_', maximum_length
             updated_filename = stem[:maximum_length - len(suffix)] + suffix
 
     # replace illegal characters with replacement_char
-    updated_filename = re.sub(illegal_chars, replacement_char, updated_filename)
+    updated_filename = re.sub(ILLEGAL_FILENAME_CHARS_AND_POSITION_REGEX, replacement_char, updated_filename)
 
     # if filename (without suffix) is illegal name - prepend replacement_char
     file_name_without_suffix = pathlib.Path(updated_filename).stem
-    if file_name_without_suffix.upper() in illegal_names:
+    if file_name_without_suffix.upper() in ILLEGAL_FILENAMES:
         updated_filename = replacement_char + updated_filename
         if len(updated_filename) > maximum_length:
             # should only happen if the illegal name and suffix were already maximum_length
