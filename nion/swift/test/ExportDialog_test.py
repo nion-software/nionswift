@@ -33,7 +33,9 @@ class TestExportDialog(unittest.TestCase):
             prefix=None,
             directory=None)
         # initial case - no directory
-        self.assertTrue(model.directory_warning.value)  # The warning and tool tip can be '' or None if the button is in an invalid state
+        # The warning and tool tip can be '' or None when the button is in a valid state
+        # So we check that the truthfulness when there is expected to be an invalid state to ensure there is a warning and tool-tip present
+        self.assertTrue(model.directory_warning.value)
         self.assertFalse(model.export_button_enabled.value)
         self.assertTrue(model.export_button_tool_tip.value)
         # directory case
@@ -48,6 +50,7 @@ class TestExportDialog(unittest.TestCase):
         self.assertTrue(model.export_button_tool_tip.value)
 
     def test_model_updates_button_status_when_options_change(self) -> None:
+        """Test that when no options are selected the export button is disabled, and that when an option is selected the export button becomes enabled."""
         model = ExportDialog.ExportDialogViewModel(
             title=False,
             date=False,

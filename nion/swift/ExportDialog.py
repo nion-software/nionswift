@@ -63,18 +63,20 @@ class ExportDialogViewModel:
         if not self.is_directory_valid:
             self.directory.value = None  # Clear the initial directory if it was invalid
 
-        def update_export_button(*__: typing.Any) -> None:
+        def update_export_button(prefix_value: str | None, include_title: bool | None,
+                                 include_date: bool | None, include_dimensions: bool | None,
+                                 include_sequence: bool | None, is_directory_valid: bool | None) -> None:
+            """Update the export button enabled state and tooltip based on the current options selected and directory validity."""
             invalid_reasons = list[str]()
 
-            prefix_str = self.prefix.value or str()
+            prefix_str = prefix_value or str()
             if prefix_str != Utility.simplify_filename(prefix_str):
                 invalid_reasons.append(_("Prefix contains invalid characters"))
 
-            if prefix_str == "" and not (self.include_title.value or self.include_date.value or self.include_dimensions.value or self.include_sequence.value):
+            if not (prefix_str or include_title or include_date or include_dimensions or include_sequence):
                 # There must be at least one option enabled otherwise the filenames will be empty
                 invalid_reasons.append(_("Filename requires at least one option to be selected"))
 
-            is_directory_valid = self.__is_directory_valid.value or False
             if not is_directory_valid:
                 invalid_reasons.append(_("Directory does not exist"))
                 self.directory.value = None  # Clear the directory if it is invalid
@@ -88,7 +90,7 @@ class ExportDialogViewModel:
                 self.export_button_tool_tip.value = None
                 self.directory_warning.value = str()
 
-        export_filename_option_streams: typing.Sequence[Stream.PropertyChangedEventStream[typing.Any]] = [
+        export_filename_option_streams: typing.Sequence[Stream.PropertyChangedEventStream[str | bool]] = [
             # Update the button when one of the options changes
             Stream.PropertyChangedEventStream(self.prefix, "value"),
             Stream.PropertyChangedEventStream(self.include_title, "value"),
@@ -99,8 +101,8 @@ class ExportDialogViewModel:
             Stream.PropertyChangedEventStream(self.__is_directory_valid, "value")
         ]
 
-        self.__export_button_update_stream: Stream.CombineLatestStream[typing.Any, typing.Any] = Stream.CombineLatestStream(export_filename_option_streams , update_export_button)
-        update_export_button(None)
+        self.__export_button_update_stream: Stream.CombineLatestStream[str | bool, None] = Stream.CombineLatestStream(export_filename_option_streams, update_export_button)
+        update_export_button(self.prefix.value, self.include_title.value, self.include_date.value, self.include_dimensions.value, self.include_sequence.value, self.__is_directory_valid.value)
 
     @property
     def directory_path_object(self) -> pathlib.Path:
