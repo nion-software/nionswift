@@ -4004,6 +4004,8 @@ class ComputationProcessorExecutor:
                 assert key in output_keys
                 if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
                     self.__xdata_map[key] = processed_data
+                elif hasattr(processed_data, "__array__"):
+                    self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(numpy.asarray(processed_data))
 
     def commit(self) -> None:
         # this is guaranteed to run on the main thread.
