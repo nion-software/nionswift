@@ -3393,7 +3393,7 @@ PersistentDictType = typing.Dict[str, typing.Any]
 
 
 class ComputationProcessorRequirement(typing.Protocol):
-    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool: ...
+    def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool: ...
     def to_dict(self) -> dict[str, typing.Any]: ...
 
 
@@ -3411,8 +3411,8 @@ class ComputationProcessorRequirementDataRank(ComputationProcessorRequirement):
             "values": self.values
         }
 
-    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
-        return data_item.datum_dimension_count in self.values
+    def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool:
+        return data_metadata.datum_dimension_count in self.values
 
 
 class ComputationProcessorRequirementDatumCalibrations(ComputationProcessorRequirement):
@@ -3431,10 +3431,9 @@ class ComputationProcessorRequirementDatumCalibrations(ComputationProcessorRequi
             d["units"] = "equal"
         return d
 
-    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+    def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool:
         if self.requires_equal:
-            xdata = data_item.xdata
-            if not xdata or len(set([calibration.units for calibration in xdata.datum_dimensional_calibrations])) != 1:
+            if len(set([calibration.units for calibration in data_metadata.datum_dimensional_calibrations])) != 1:
                 return False
         return True
 
@@ -3459,8 +3458,8 @@ class ComputationProcessorRequirementDimensionality(ComputationProcessorRequirem
             d["max"] = self.max_dimension
         return d
 
-    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
-        dimensionality = len(data_item.dimensional_shape)
+    def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool:
+        dimensionality = len(data_metadata.dimensional_shape)
         if self.min_dimension is not None and dimensionality < self.min_dimension:
             return False
         if self.max_dimension is not None and dimensionality > self.max_dimension:
@@ -3469,8 +3468,8 @@ class ComputationProcessorRequirementDimensionality(ComputationProcessorRequirem
 
 
 class ComputationProcessorRequirementIsRGBType(ComputationProcessorRequirement):
-    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
-        return data_item.is_data_rgb_type
+    def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool:
+        return data_metadata.is_data_rgb_type
 
     def to_dict(self) -> dict[str, typing.Any]:
         return {
@@ -3479,8 +3478,8 @@ class ComputationProcessorRequirementIsRGBType(ComputationProcessorRequirement):
 
 
 class ComputationProcessorRequirementIsSequence(ComputationProcessorRequirement):
-    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
-        return data_item.is_sequence
+    def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool:
+        return data_metadata.is_sequence
 
     def to_dict(self) -> dict[str, typing.Any]:
         return {
@@ -3489,8 +3488,8 @@ class ComputationProcessorRequirementIsSequence(ComputationProcessorRequirement)
 
 
 class ComputationProcessorRequirementIsNavigable(ComputationProcessorRequirement):
-    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
-        return data_item.is_sequence or data_item.is_collection
+    def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool:
+        return data_metadata.is_sequence or data_metadata.is_collection
 
     def to_dict(self) -> dict[str, typing.Any]:
         return {
@@ -3522,10 +3521,10 @@ class ComputationProcessorRequirementBoolean(ComputationProcessorRequirement):
             "operands": [operand.to_dict() for operand in self.operands]
         }
 
-    def is_data_item_valid(self, data_item: DataItem.DataItem) -> bool:
+    def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool:
         operator = self.operator
         for operand in self.operands:
-            requirement_satisfied = operand.is_data_item_valid(data_item)
+            requirement_satisfied = operand.is_data_metadata_valid(data_metadata)
             if operator == ComputationProcessorRequirementBooleanOperator.NOT:
                 return not requirement_satisfied
             if operator == ComputationProcessorRequirementBooleanOperator.AND and not requirement_satisfied:

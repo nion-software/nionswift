@@ -2250,8 +2250,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # implicit "and" connection between the requirements in the list. Could be changed to use the new
             # boolean options, but leave it like this for backwards compatibility for now.
             requirements = src.requirements
+            data_metadata = data_item.data_metadata
             for requirement in requirements:
-                if not requirement.is_data_item_valid(data_item):
+                if not data_metadata or not requirement.is_data_metadata_valid(data_metadata):
                     return None
 
             # each source can have a list of regions to be matched to arguments or created on the source
