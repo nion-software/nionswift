@@ -533,7 +533,13 @@ class VariableSpecifierLike(typing.Protocol):
 class ComputationVariable(Persistence.PersistentObject):
     """Tracks a variable (value or object) used in a computation.
 
-    A variable has user visible name, a label used in the script, a value type.
+    A variable has a value type. This is used to track what kind of input the variable is tracking. This class uses
+    the value type to translate its input to a value type that the computation processor can understand. For example,
+    a computation variable may have a 'graphic' input, but the computation processor may only understand a 'rectangle
+    region' input, so the variable can translate.
+
+    A variable has user visible name and a label used in the script, but these are deprecated in favor of using the
+    computation processor description to provide this information.
 
     Scalar value types have a value, a default, and optional min and max values. The control type is used to
     specify the preferred UI control (e.g. checkbox vs. input field).
@@ -3667,24 +3673,78 @@ class ComputationProcessorDataInput(ComputationProcessorInput):
                 return True
 
 
+class ComputationProcessorVariableType(enum.Enum):
+    BOOLEAN = "boolean"
+    INTEGER = "integer"
+    REAL = "real"
+    COMPLEX = "complex"
+    STRING = "string"
+    REGION_2D = "region-2d"
+    REGION_1D = "region-1d"
+    REGION_POINT = "region-point"
+    REGION_RECTANGLE = "region-rectangle"
+    REGION_ELLIPSE = "region-ellipse"
+    REGION_LINE = "region-line"
+    REGION_INTERVAL = "region-interval"
+    REGION_CHANNEL = "region-channel"
+    DATA_STRUCTURE = "data-structure"
+
+    @classmethod
+    def from_str(cls, value: str) -> ComputationProcessorVariableType | None:
+        try:
+            return cls(value)
+        except ValueError:
+            return None
+
+
 class ComputationProcessorValueInput(ComputationProcessorInput):
-    def __init__(self, param_type: ComputationVariableType, name: str, label: str | None, value: typing.Any, value_default: typing.Any | None, value_min: typing.Any | None, value_max: typing.Any | None, control_type: str | None) -> None:
+    def __init__(self, param_type: ComputationProcessorVariableType, name: str, label: str | None = None, value: typing.Any = None, value_default: typing.Any | None = None, value_min: typing.Any | None = None, value_max: typing.Any | None = None, control_type: str | None = None) -> None:
         super().__init__(ComputationProcessorInputType.VALUE, name, label)
         self.param_type = param_type
-        self.name = name
-        self.label = label
         self.value = value
         self.value_default = value_default
         self.value_min = value_min
         self.value_max = value_max
         self.control_type = control_type
 
+    @property
+    def variable_type(self) -> ComputationVariableType:
+        match self.param_type:
+            case ComputationProcessorVariableType.BOOLEAN:
+                return ComputationVariableType.BOOLEAN
+            case ComputationProcessorVariableType.INTEGER:
+                return ComputationVariableType.INTEGRAL
+            case ComputationProcessorVariableType.REAL:
+                return ComputationVariableType.REAL
+            case ComputationProcessorVariableType.COMPLEX:
+                return ComputationVariableType.COMPLEX
+            case ComputationProcessorVariableType.STRING:
+                return ComputationVariableType.STRING
+            case ComputationProcessorVariableType.REGION_2D:
+                return ComputationVariableType.GRAPHIC
+            case ComputationProcessorVariableType.REGION_1D:
+                return ComputationVariableType.GRAPHIC
+            case ComputationProcessorVariableType.REGION_POINT:
+                return ComputationVariableType.GRAPHIC
+            case ComputationProcessorVariableType.REGION_RECTANGLE:
+                return ComputationVariableType.GRAPHIC
+            case ComputationProcessorVariableType.REGION_ELLIPSE:
+                return ComputationVariableType.GRAPHIC
+            case ComputationProcessorVariableType.REGION_LINE:
+                return ComputationVariableType.GRAPHIC
+            case ComputationProcessorVariableType.REGION_INTERVAL:
+                return ComputationVariableType.GRAPHIC
+            case ComputationProcessorVariableType.REGION_CHANNEL:
+                return ComputationVariableType.GRAPHIC
+            case ComputationProcessorVariableType.DATA_STRUCTURE:
+                return ComputationVariableType.STRUCTURE
+
     @classmethod
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessorValueInput:
-        param_type = _map_identifier_to_variable_type[d["value_type"]]
+        param_type = ComputationProcessorVariableType(d["value_type"])
         name = d["name"]
         label = d.get("label", None)
-        value = d["value"]
+        value = d.get("value", None)
         value_default = d.get("value_default", None)
         value_min = d.get("value_min", None)
         value_max = d.get("value_max", None)
@@ -3694,10 +3754,11 @@ class ComputationProcessorValueInput(ComputationProcessorInput):
     def to_dict(self) -> dict[str, typing.Any]:
         d = {
             "type": self.input_type.value,
-            "value_type": _map_variable_type_to_identifier[self.param_type],
-            "name": self.name,
-            "value": self.value
+            "value_type": self.param_type.value,
+            "name": self.name
         }
+        if self.value is not None:
+            d["value"] = self.value
         if self.label:
             d["label"] = self.label
         if self.value_default is not None:
