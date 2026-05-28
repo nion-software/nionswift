@@ -3617,6 +3617,10 @@ class ComputationProcessorInput:
                 return ComputationProcessorDataInput.from_dict(d)
             case ComputationProcessorInputType.VALUE.value:
                 return ComputationProcessorValueInput.from_dict(d)
+            case ComputationProcessorInputType.LIST.value:
+                return ComputationProcessorListInput.from_dict(d)
+            case ComputationProcessorInputType.MAP.value:
+                return ComputationProcessorMapInput.from_dict(d)
             case _:
                 raise NotImplementedError(f"{input_type} is not a supported input type")
 
@@ -3769,6 +3773,52 @@ class ComputationProcessorValueInput(ComputationProcessorInput):
             d["value_max"] = self.value_max
         if self.control_type:
             d["control_type"] = self.control_type
+        return d
+
+
+class ComputationProcessorListInput(ComputationProcessorInput):
+    def __init__(self, name: str, label: str | None, items: typing.Sequence[ComputationProcessorInput]) -> None:
+        super().__init__(ComputationProcessorInputType.LIST, name, label)
+        self.items = tuple(items)
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorListInput:
+        name = d["name"]
+        label = d.get("label", None)
+        item_d_list = d.get("items", list())
+        return cls(name, label, tuple(ComputationProcessorInput.from_dict(item_d) for item_d in item_d_list))
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        d = {
+            "type": self.input_type.value,
+            "name": self.name,
+            "items": [item.to_dict() for item in self.items]
+        }
+        if self.label:
+            d["label"] = self.label
+        return d
+
+
+class ComputationProcessorMapInput(ComputationProcessorInput):
+    def __init__(self, name: str, label: str | None, item_map: typing.Mapping[str, ComputationProcessorInput]) -> None:
+        super().__init__(ComputationProcessorInputType.MAP, name, label)
+        self.item_map = dict(item_map)
+
+    @classmethod
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorMapInput:
+        name = d["name"]
+        label = d.get("label", None)
+        item_d_map = d.get("item_map", dict())
+        return cls(name, label, {key: ComputationProcessorInput.from_dict(item_d) for key, item_d in item_d_map.items()})
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        d = {
+            "type": self.input_type.value,
+            "name": self.name,
+            "item_map": {key: item.to_dict() for key, item in self.item_map.items()}
+        }
+        if self.label:
+            d["label"] = self.label
         return d
 
 
