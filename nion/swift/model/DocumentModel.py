@@ -2375,7 +2375,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # next process the parameters
         for param in processor.parameters:
             parameter_value = parameters.get(param.name, param.value)
-            computation.create_variable(param.name, param.param_type, parameter_value,
+            computation.create_variable(param.name, param.variable_type, parameter_value,
                                         value_default=param.value_default, value_min=param.value_min,
                                         value_max=param.value_max, control_type=param.control_type, label=param.label)
 
@@ -2469,7 +2469,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "control_type": "slider"}
             vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "expression": "xd.gaussian_blur({src}.cropped_display_xdata, sigma)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [sigma_param]}
-            filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integral", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
+            filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integer", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
             vs["median-filter"] = {"title": _("Median Filter"), "expression": "xd.median_filter({src}.cropped_display_xdata, filter_size)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [filter_size_param]}
             vs["uniform-filter"] = {"title": _("Uniform Filter"), "expression": "xd.uniform_filter({src}.cropped_display_xdata, filter_size)",
@@ -2479,28 +2479,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             do_flip_h_param = {"name": "do_flip_h", "label": _("Flip Horizontal"), "type": "boolean", "value": False, "value_default": False}
             vs["transpose-flip"] = {"title": _("Transpose/Flip"), "expression": "xd.transpose_flip({src}.cropped_display_xdata, do_transpose, do_flip_v, do_flip_h)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
-            width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
-            height_param = {"name": "height", "label": _("Height"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
+            width_param = {"name": "width", "label": _("Width"), "type": "integer", "value": 256, "value_default": 256, "value_min": 1}
+            height_param = {"name": "height", "label": _("Height"), "type": "integer", "value": 256, "value_default": 256, "value_min": 1}
             vs["rebin"] = {"title": _("Rebin"), "expression": "xd.rebin_image({src}.cropped_display_xdata, (height, width))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
             vs["resample"] = {"title": _("Resample"), "expression": "xd.resample_image({src}.cropped_display_xdata, (height, width))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
             vs["resize"] = {"title": _("Resize"), "expression": "xd.resize({src}.cropped_display_xdata, (height, width), 'mean')",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
-            x_binning_param = {"name": "x_binning", "label": _("X Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
-            y_binning_param = {"name": "y_binning", "label": _("Y Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
+            x_binning_param = {"name": "x_binning", "label": _("X Binning"), "type": "integer", "value": 2, "value_default": 2, "value_min": 1}
+            y_binning_param = {"name": "y_binning", "label": _("Y Binning"), "type": "integer", "value": 2, "value_default": 2, "value_min": 1}
             vs["rebin_factor"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (y_binning, x_binning))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [x_binning_param, y_binning_param]}
             vs["rebin_factor_1d"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (x_binning,))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [x_binning_param]}
             is_sequence_param = {"name": "is_sequence", "label": _("Sequence"), "type": "boolean", "value": False, "value_default": False}
-            collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
-            datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
+            collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integer", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
+            datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integer", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
             vs["redimension"] = {"title": _("Redimension"), "expression": "xd.redimension({src}.xdata, xd.data_descriptor(is_sequence=is_sequence, collection_dims=collection_dims, datum_dims=datum_dims))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}], "parameters": [is_sequence_param, collection_dims_param, datum_dims_param]}
             vs["squeeze"] = {"title": _("Squeeze"), "expression": "xd.squeeze({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}]}
-            bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
+            bins_param = {"name": "bins", "label": _("Bins"), "type": "integer", "value": 256, "value_default": 256, "value_min": 2}
             vs["histogram"] = {"title": _("Histogram"), "expression": "xd.histogram({src}.cropped_display_xdata, bins)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [bins_param]}
             vs["add"] = {"title": _("Add"), "expression": "{src1}.cropped_display_xdata + {src2}.cropped_display_xdata",
@@ -2520,8 +2520,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}.cropped_xdata, {src}.cropped_xdata.datum_dimension_indexes[0])",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_xdata", "croppable": True, "requirements": [requirement_2d_to_4d]}]}
-            slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
-            slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+            slice_center_param = {"name": "center", "label": _("Center"), "type": "integer", "value": 0, "value_default": 0, "value_min": 0}
+            slice_width_param = {"name": "width", "label": _("Width"), "type": "integer", "value": 1, "value_default": 1, "value_min": 1}
             vs["slice"] = {"title": _("Slice"), "expression": "xd.slice_sum({src}.cropped_xdata, center, width)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_xdata", "croppable": True, "requirements": [requirement_3d]}],
                 "parameters": [slice_center_param, slice_width_param]}
@@ -2558,12 +2558,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_2d_to_5d, requirement_is_navigable]}]}
             vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}]}
-            trim_start_param = {"name": "start", "label": _("Start"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
-            trim_end_param = {"name": "end", "label": _("End"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+            trim_start_param = {"name": "start", "label": _("Start"), "type": "integer", "value": 0, "value_default": 0, "value_min": 0}
+            trim_end_param = {"name": "end", "label": _("End"), "type": "integer", "value": 1, "value_default": 1, "value_min": 1}
             vs["sequence-trim"] = {"title": _("Trim"), "expression": "xd.sequence_trim({src}.xdata, start, end)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}],
                 "parameters": [trim_start_param, trim_end_param]}
-            index_param = {"name": "index", "label": _("Index"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+            index_param = {"name": "index", "label": _("Index"), "type": "integer", "value": 1, "value_default": 1, "value_min": 1}
             vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}.xdata, index)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}],
                 "parameters": [index_param]}
