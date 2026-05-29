@@ -33,8 +33,8 @@ class TestExportDialog(unittest.TestCase):
             prefix=None,
             directory=None)
         # initial case - no directory
-        # The warning and tool tip can be '' or None when the button is in a valid state
-        # So we check that the truthfulness when there is expected to be an invalid state to ensure there is a warning and tool-tip present
+        # The warning and tooltip can be '' or None when the button is in a valid state
+        # So we check the truthiness of the values when the state is expected to be invalid, to confirm a warning and tooltip are present
         self.assertTrue(model.directory_warning.value)
         self.assertFalse(model.export_button_enabled.value)
         self.assertTrue(model.export_button_tool_tip.value)

@@ -38,6 +38,13 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
+@dataclasses.dataclass(frozen=True)
+class ExportOptionsValidity:
+    """Contains the  export validity result of compute_export_options_validity."""
+    is_directory_valid: bool  # Is the directory a valid path
+    invalid_reasons: typing.Sequence[str]  # Reasons the export options are not valid
+
+
 class ExportDialogViewModel:
     """Represents the export dialog model."""
 
@@ -63,11 +70,11 @@ class ExportDialogViewModel:
         if not self.is_directory_valid:
             self.directory.value = None  # Clear the initial directory if it was invalid
 
-        def update_export_button(prefix_value: str | None, include_title: bool | None,
-                                 include_date: bool | None, include_dimensions: bool | None,
-                                 include_sequence: bool | None, is_directory_valid: bool | None) -> None:
-            """Update the export button enabled state and tooltip based on the current options selected and directory validity."""
-            invalid_reasons = list[str]()
+        def compute_export_options_validity(prefix_value: str | None, include_title: bool | None,
+                                            include_date: bool | None, include_dimensions: bool | None,
+                                            include_sequence: bool | None, is_directory_valid: bool | None) -> ExportOptionsValidity:
+            """Use the combined values of the export filename options and the directory validity to get a list of invalid reasons."""
+            invalid_reasons: list[str] = []
 
             prefix_str = prefix_value or str()
             if prefix_str != Utility.simplify_filename(prefix_str):
@@ -79,12 +86,19 @@ class ExportDialogViewModel:
 
             if not is_directory_valid:
                 invalid_reasons.append(_("Directory does not exist"))
+
+            return ExportOptionsValidity(bool(is_directory_valid), invalid_reasons)
+
+        def handle_export_options_validity_changed(export_validity: ExportOptionsValidity | None) -> None:
+            """Update the export button's enabled state and tooltip based on the computed invalid reasons and directory validity."""
+            export_validity = export_validity or ExportOptionsValidity(False, [])
+            if not export_validity.is_directory_valid:
                 self.directory.value = None  # Clear the directory if it is invalid
 
-            if invalid_reasons:
+            if export_validity.invalid_reasons:
                 self.export_button_enabled.value = False
-                self.export_button_tool_tip.value = ", ".join(invalid_reasons)
-                self.directory_warning.value = ", ".join(invalid_reasons)
+                self.export_button_tool_tip.value = ", ".join(export_validity.invalid_reasons)
+                self.directory_warning.value = "\n".join(export_validity.invalid_reasons)
             else:
                 self.export_button_enabled.value = True
                 self.export_button_tool_tip.value = None
@@ -101,8 +115,14 @@ class ExportDialogViewModel:
             Stream.PropertyChangedEventStream(self.__is_directory_valid, "value")
         ]
 
-        self.__export_button_update_stream: Stream.CombineLatestStream[str | bool, None] = Stream.CombineLatestStream(export_filename_option_streams, update_export_button)
-        update_export_button(self.prefix.value, self.include_title.value, self.include_date.value, self.include_dimensions.value, self.include_sequence.value, self.__is_directory_valid.value)
+        self.__export_button_update_action = Stream.ValueStreamAction(
+            Stream.CombineLatestStream(export_filename_option_streams, compute_export_options_validity),
+            handle_export_options_validity_changed
+        )
+
+        handle_export_options_validity_changed(compute_export_options_validity(self.prefix.value, self.include_title.value,
+                                                                               self.include_date.value, self.include_dimensions.value,
+                                                                               self.include_sequence.value, self.__is_directory_valid.value))
 
     @property
     def directory_path_object(self) -> pathlib.Path:
