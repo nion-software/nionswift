@@ -742,6 +742,19 @@ class Application(UIApplication.BaseApplication):
                             profile.remove_project_reference(project_reference_item.project_reference)
 
                         menu.add_menu_item(_(f"Remove Project from List"), functools.partial(remove_project, index))
+
+                        def rename_selected_project(project_reference: Profile.ProjectReference) -> None:
+                            document_controller = self.__application.document_controllers[0]
+                            if document_controller is not None:
+                                directory = project_reference.path.parent.as_posix()
+
+                                def handle_rename_clicked(new_name: str, _: str) -> bool:
+                                    self.__application.rename_project(project_reference, new_name)
+                                    return False  # Don't close the dialog since it will have already been closed when reopening the project
+
+                                NameProjectDialog(self.__application.ui, document_controller, self.__application, directory, project_reference.title, handle_rename_clicked, "Rename Project", False)
+
+                        menu.add_menu_item(_("Rename Project"), functools.partial(rename_selected_project, project_reference_item.project_reference))
                         menu.popup(gx, gy)
                     return True
 
@@ -1209,6 +1222,35 @@ class ChooseProjectAction(UIWindow.Action):
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
+class RenameCurrentProjectAction(UIWindow.Action):
+    action_id = "project.rename_current_project"
+    action_name = _("Rename Project")
+
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        raise NotImplementedError()
+
+    def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
+        document_controller = typing.cast(DocumentController.DocumentController, context.window)
+        application = typing.cast(Application, context.application)
+
+        current_project_reference = None
+        last_project_uuid = application.profile.last_project_reference
+        if last_project_uuid is not None:
+            current_project_reference = application.profile.get_project_reference(last_project_uuid)
+
+        if current_project_reference is None:
+            return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
+
+        def handle_rename_clicked(new_name: str, _: str) -> bool:
+            assert current_project_reference is not None
+            application.rename_project(current_project_reference, new_name)
+            return False  # Don't close the dialog since it will have already been closed when reopening the project
+
+        directory = current_project_reference.path.parent.as_posix()
+        NameProjectDialog(application.ui, document_controller, application, directory, current_project_reference.title, handle_rename_clicked, "Rename Project", False)
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
+
 
 @dataclasses.dataclass(frozen=True)
 class ProjectNameVerificationResult:
@@ -1372,3 +1414,4 @@ class NameProjectDialog(Declarative.Handler):
 UIWindow.register_action(NewProjectAction())
 UIWindow.register_action(OpenProjectAction())
 UIWindow.register_action(ChooseProjectAction())
+UIWindow.register_action(RenameCurrentProjectAction())
