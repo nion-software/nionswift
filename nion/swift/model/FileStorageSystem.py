@@ -3,7 +3,9 @@ from __future__ import annotations
 import abc
 import contextlib
 import copy
+import dataclasses
 import datetime
+import gettext
 import json
 import logging
 import traceback
@@ -28,6 +30,7 @@ from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Event
 
+_ = gettext.gettext
 
 # define the versions that get stored in the JSON files
 PROFILE_VERSION = 2
@@ -41,6 +44,18 @@ _CreateStorageHandlerFn = typing.Type[StorageHandler.StorageHandler]
 
 
 _g_large_format_size = 16 * 1024 * 1024
+
+
+@dataclasses.dataclass(frozen=True)
+class ProjectRenameResult:
+    """Result of the rename_project method.
+
+    project_path will be None when the project path did not change otherwise it will be the new project path.
+    error_message will be empty when there are no errors, otherwise it will be an error message.
+    Only the error message being empty should be used to determine whether the rename was successful.
+    """
+    error_message: str
+    project_path: pathlib.Path | None
 
 
 class ReaderInfo:
@@ -607,6 +622,16 @@ class ProjectStorageSystem(PersistentStorageSystem):
     @abc.abstractmethod
     def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType: ...
 
+    def rename_project(self, name: str) -> ProjectRenameResult:
+        """Rename the project.
+
+        Returns a ProjectRenameResult.
+        ProjectRenameResult.project_path will be None when the project path did not change otherwise it will be the new project path.
+        ProjectRenameResult.error_message will be empty when there are no errors, otherwise it will be an error message.
+        The project path changing names does not indicate success, only the error message being empty should be used to determine success.
+        """
+        return ProjectRenameResult("Project renaming is not supported for this storage system.", None)
+
     #
 
     @property
@@ -1114,6 +1139,48 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                         logging.error(str(e))
                         raise
         return storage_handlers
+
+    def rename_project(self, name: str) -> ProjectRenameResult:
+        """Renames the project file with the given name. See ProjectStorageSystem.rename_project.
+
+        The returned ProjectRenameResult.project_path will be the new project path or None if the project file was not renamed.
+        ProjectRenameResult.error_message will be empty when the rename was successful otherwise it will contain error message for the user, the exception is written separately to the logger.
+        The project file and data folder (if the data folder exists) are attempted to be renamed.
+        If the data folder did exist but failed be renamed then this will attempt to undo the renaming of the project file.
+        If undoing the renaming of the project file files then the project file's name will have changed so the new project path will be not None, but there will still be an error message.
+        """
+        old_project_path = self.__project_path
+        old_title = old_project_path.stem
+        old_data_path = self.__project_data_path or old_project_path.parent / f"{old_title} Data"
+        new_project_path = old_project_path.with_name(f"{name}.nsproj")
+        error_message = None
+        project_path = None
+        try:
+            if old_project_path.exists():
+                project_path = old_project_path.rename(new_project_path)
+        except Exception as e:
+            logging.exception(_("Failed to rename project. Renaming Project File gave an exception:\n") + str(e))
+            error_message = _("Exception while renaming the Project File")
+            project_path = None
+
+        if error_message is None:  # Only rename the data folder if the project file was renamed
+            new_data_path = old_data_path.parent / f"{name} Data"
+            try:
+                if old_data_path.exists():
+                    old_data_path.rename(new_data_path)
+            except Exception as e:
+                error_message = _("Exception while renaming the Data Folder")
+                logging.exception(_("Failed to rename project. Renaming Data Folder gave an exception:\n") + str(e))
+                try:  # Try to undo the rename of the project file when the data folder failed to rename
+                    if new_project_path.exists():
+                        new_project_path.rename(new_project_path.with_name(f"{old_title}.nsproj"))
+                        project_path = None
+                except Exception as e2:
+                    error_message = _("WARNING: Project File and Data Folder names have diverged")
+                    logging.exception(_("Failed to undo Data Folder rename. Renaming project file gave exception:\n") + str(e2))
+                    project_path = self.__project_path.with_name(f"{name}.nsproj")  # The undo failed meaning the project path remains as the new one
+
+        return ProjectRenameResult(error_message or str(), project_path)
 
 
 class MemoryStorageHandler(StorageHandler.StorageHandler):

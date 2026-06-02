@@ -939,6 +939,39 @@ class Application(UIApplication.BaseApplication):
 
         self.event_loop.call_later(command_delay or 0.0, execute_next_command, commands, list(commands), command_delay or 0.0, repeat or 1)
 
+    def rename_project(self, project_reference: Profile.ProjectReference, name: str) -> None:
+        """Rename the project reference to the given name.
+
+        If the project reference is the current project, it will be closed and reopened after renaming to update the title.
+        """
+        self._enter_prevent_close_state()
+        old_title = project_reference.title
+        renaming_current_project = self.profile.last_project_reference == project_reference.uuid
+        document_controller = self.document_controllers[0]
+        assert document_controller is not None
+        if renaming_current_project:
+            document_controller.request_close()
+        error_message: str | None = None
+        new_project_reference: Profile.ProjectReference | None = None
+        try:
+            new_project_reference, rename_result = self.profile.rename_project(project_reference, name)
+            error_message = rename_result.error_message
+        except Exception as e:
+            error_message = _("Exception during renaming project")
+            logging.exception(f"{error_message}:\n{e}")
+
+        if renaming_current_project and new_project_reference is not None:  # Reopen the project only when renaming the current project and when the project reference is returned
+            self.switch_project_reference(new_project_reference)
+            assert new_project_reference.project is not None
+            new_project_reference.project.title = name
+            self.profile.last_project_reference = new_project_reference.uuid
+
+        if error_message:
+            self.__show_project_error_dialog(_("Error Renaming Project"), error_message)
+        else:
+            logging.info(f"Renamed Project \"{old_title}\" to \"{name}\"")
+        self._exit_prevent_close_state()
+
 
 def get_root_dir() -> str:
     root_dir = os.path.dirname((os.path.dirname(os.path.abspath(__file__))))
