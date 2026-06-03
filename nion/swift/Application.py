@@ -745,14 +745,13 @@ class Application(UIApplication.BaseApplication):
 
                         def rename_selected_project(project_reference: Profile.ProjectReference) -> None:
                             document_controller = self.__application.document_controllers[0]
-                            if document_controller is not None:
-                                directory = project_reference.path.parent.as_posix()
+                            directory = project_reference.path.parent.as_posix()
 
-                                def handle_rename_clicked(new_name: str, _: str) -> bool:
-                                    self.__application.rename_project(project_reference, new_name)
-                                    return False  # Don't close the dialog since it will have already been closed when reopening the project
+                            def handle_rename_clicked(new_name: str, _: str) -> bool:
+                                self.__application.rename_project(project_reference, new_name)
+                                return False  # Don't close the dialog since it will have already been closed when reopening the project
 
-                                NameProjectDialog(self.__application.ui, document_controller, self.__application, directory, project_reference.title, handle_rename_clicked, "Rename Project", False)
+                            NameProjectDialog(self.__application.ui, document_controller, self.__application, directory, project_reference.title, handle_rename_clicked, "Rename Project", False)
 
                         menu.add_menu_item(_("Rename Project"), functools.partial(rename_selected_project, project_reference_item.project_reference))
                         menu.popup(gx, gy)
@@ -1223,6 +1222,10 @@ class ChooseProjectAction(UIWindow.Action):
 
 
 class RenameCurrentProjectAction(UIWindow.Action):
+    """Renames the current project, if it exists. If the current project is not found, this action does nothing.
+
+    The invoke method must be used to call the rename function, calling execute will raise a NotImplementedError.
+    """
     action_id = "project.rename_current_project"
     action_name = _("Rename Project")
 
@@ -1254,6 +1257,7 @@ class RenameCurrentProjectAction(UIWindow.Action):
 
 @dataclasses.dataclass(frozen=True)
 class ProjectNameVerificationResult:
+    """The return of verify_project_name, containing whether the name is valid and any error messages to show if it is not."""
     is_valid: bool
     error_messages: typing.Sequence[str]
 
@@ -1270,10 +1274,11 @@ class NameProjectViewModel:
 
     @classmethod
     def verify_project_name(cls, project_name: str, base_directory: str, profile: Profile.Profile,
-                            project_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None = None) -> ProjectNameVerificationResult:
+                            project_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None = None) \
+            -> ProjectNameVerificationResult:
         """Verify that a project name is a valid filename and doesn't already exist.
 
-        Returns a tuple with the first element being whether the project name is valid and the second being a sequence of error messages.
+        Returns a ProjectNameVerificationResult with is_valid, and a sequence of error messages.
         """
         if project_name == "":
             return ProjectNameVerificationResult(False, ["Project name cannot be empty"])
@@ -1324,7 +1329,7 @@ class NameProjectDialog(Declarative.Handler):
         # build the UI
         u = Declarative.DeclarativeUI()
 
-        def handle_rename_clicked() -> bool:
+        def handle_accept_clicked() -> bool:
             self.dialog.request_close()
             return accept_fn(self.viewmodel.filename.value or "Untitled", self.viewmodel.directory.value or str())
 
@@ -1390,7 +1395,7 @@ class NameProjectDialog(Declarative.Handler):
 
         self.dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(column, title=title), self))
         self.dialog.add_button(_("Cancel"), lambda: True)
-        self._accept_button = self.dialog.add_button(dialog_name, handle_rename_clicked)
+        self._accept_button = self.dialog.add_button(dialog_name, handle_accept_clicked)
 
         def update_accept_button(_: typing.Any) -> None:
             self._accept_button.enabled = self.viewmodel.accept_button_enabled.value or False

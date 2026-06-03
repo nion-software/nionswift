@@ -4645,7 +4645,7 @@ class TestStorageClass(unittest.TestCase):
         memory_usage = memory_usage_resource() - memory_start
         self.assertTrue(memory_usage < 0.2)
 
-    def test_rename_current_project_with_no_items_works(self):
+    def test_rename_current_project_with_no_items_works(self) -> None:
         with create_temp_profile_context() as profile_context:
             profile = profile_context.create_profile(project_name="Project")
             ui = TestUI.UserInterface()
@@ -4673,7 +4673,7 @@ class TestStorageClass(unittest.TestCase):
                 if document_controller.count > 0:
                     document_controller.request_close()
 
-    def test_rename_current_project_preserves_data_item(self):
+    def test_rename_current_project_preserves_data_item(self) -> None:
         with create_temp_profile_context() as profile_context:
             profile = profile_context.create_profile(project_name="Project")
             ui = TestUI.UserInterface()
@@ -4704,10 +4704,10 @@ class TestStorageClass(unittest.TestCase):
                 app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
-                if document_controller.count > 0:
+                if document_controller.count > 0:  # If the test fails the document controller may have not been closed by renaming so close it here
                     document_controller.request_close()
 
-    def test_rename_current_project_preserves_large_format_data_item(self):
+    def test_rename_current_project_preserves_large_format_data_item(self) -> None:
         with create_temp_profile_context() as profile_context:
             profile = profile_context.create_profile(project_name="Project")
             ui = TestUI.UserInterface()
@@ -4741,7 +4741,7 @@ class TestStorageClass(unittest.TestCase):
                 if document_controller.count > 0:
                     document_controller.request_close()
 
-    def test_rename_current_project_preserves_workspace(self):
+    def test_rename_current_project_preserves_workspace(self) -> None:
         with create_temp_profile_context() as profile_context:
             profile = profile_context.create_profile(project_name="Project")
             ui = TestUI.UserInterface()

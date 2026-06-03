@@ -148,7 +148,8 @@ class TestProjectClass(unittest.TestCase):
                 self.assertFalse(dialog._accept_button.enabled)
 
                 # Check that the rename button becomes enabled when the name becomes valid
-                dialog.handle_project_name_changed(app.ui.create_line_edit_widget(), "NewProjectName")
+
+                dialog.handle_project_name_changed(_widget=app.ui.create_line_edit_widget(), text="NewProjectName")
                 self.assertTrue(dialog._accept_button.enabled)
             finally:
                 # clean up

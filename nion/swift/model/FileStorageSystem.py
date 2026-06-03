@@ -48,7 +48,7 @@ _g_large_format_size = 16 * 1024 * 1024
 
 @dataclasses.dataclass(frozen=True)
 class ProjectNameResult:
-    """Result of checking a project name and renaming a project.
+    """Result of checking a project name is available or of renaming a project.
 
     project_path will be None when the project path does not change otherwise it will be the new project path.
     error_messages will be empty when there are no errors, otherwise it is a sequence of error messages.
@@ -624,7 +624,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
     @classmethod
     def check_project_name_is_available(cls, name: str, directory: str) -> ProjectNameResult:
-        """Check if the provided project name is available for use."""
+        """Check if the provided project name is available for use.
+
+        Returns a ProjectNameResult.
+        ProjectNameResult.project_path is set to the path that would be used for the project if the name is available, otherwise None.
+        ProjectNameResult.error_message contains a sequence of error messages if there are any.
+        """
         return ProjectNameResult([], None)
 
     def rename_project(self, name: str) -> ProjectNameResult:
@@ -1152,7 +1157,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         ProjectRenameResult.error_message will be empty when the rename was successful otherwise it will contain error message for the user, the exception is written separately to the logger.
         The project file and data folder (if the data folder exists) are attempted to be renamed.
         If the data folder did exist but failed be renamed then this will attempt to undo the renaming of the project file.
-        If undoing the renaming of the project file files then the project file's name will have changed so the new project path will be not None, but there will still be an error message.
+        If undoing the renaming of the project file fails then the project file's name will have changed so the new project path will be not None, but there will still be an error message.
         """
         old_project_path = self.__project_path
         old_title = old_project_path.stem
@@ -1205,6 +1210,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             error_messages.append(_("Data Folder") + f" \"{new_data_path.stem}\" " + _("already exists"))
 
         return ProjectNameResult(error_messages, new_project_path)
+
 
 class MemoryStorageHandler(StorageHandler.StorageHandler):
 
