@@ -968,7 +968,7 @@ class Application(UIApplication.BaseApplication):
         new_project_reference: Profile.ProjectReference | None = None
         try:
             new_project_reference, rename_result = self.profile.rename_project(project_reference, name)
-            error_message = rename_result.error_message
+            error_message = "\n".join(rename_result.error_messages)
         except Exception as e:
             error_message = _("Exception during renaming project")
             logging.exception(f"{error_message}:\n{e}")
@@ -1269,7 +1269,8 @@ class NameProjectViewModel:
         self.profile = profile
 
     @classmethod
-    def verify_project_name(cls, project_name: str, base_directory: str, profile: Profile.Profile) -> ProjectNameVerificationResult:
+    def verify_project_name(cls, project_name: str, base_directory: str, profile: Profile.Profile,
+                            project_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None = None) -> ProjectNameVerificationResult:
         """Verify that a project name is a valid filename and doesn't already exist.
 
         Returns a tuple with the first element being whether the project name is valid and the second being a sequence of error messages.
@@ -1278,26 +1279,25 @@ class NameProjectViewModel:
             return ProjectNameVerificationResult(False, ["Project name cannot be empty"])
         if project_name != Utility.simplify_filename(project_name):
             return ProjectNameVerificationResult(False, ["Project Name contains illegal characters"])
-        new_project_path = pathlib.Path(base_directory, project_name).with_suffix(".nsproj")
-        errors = []
-        new_data_path = new_project_path.parent / f"{project_name} Data"
-        new_project_path_exists = new_project_path.exists()
-        data_path_exists = new_data_path.is_dir()
-        if new_project_path_exists:
-            errors.append(_("Project Name") + f" \"{new_project_path.name}\" " + _("already exists"))
-        if data_path_exists:
-            errors.append(_("Data Folder") + f" \"{new_data_path.stem}\" " + _("already exists"))
 
-        # Check for an orphaned project reference exists, it would need to be removed manually
-        project_reference = profile.get_project_reference_by_path(new_project_path)
-        if not new_project_path_exists and not data_path_exists and project_reference is not None:
-            errors.append(_("Project Reference") + f" \"{project_reference.title}\" " + _("already exists, remove it via Choose Project before proceeding"))
+        errors: list[str] = []
+        if project_name_available_fn is None:
+            return ProjectNameVerificationResult(True, errors)
+
+        name_available_result = project_name_available_fn(project_name, base_directory)
+        errors.extend(name_available_result.error_messages)
+        if not errors and name_available_result.project_path:
+            # Check for an orphaned project reference exists, it would need to be removed manually
+            project_reference = profile.get_project_reference_by_path(name_available_result.project_path)
+            if project_reference is not None:
+                errors.append(_("Project Reference") + f" \"{project_reference.title}\" " + _("already exists, remove it via Choose Project before proceeding"))
 
         is_valid = len(errors) == 0
         return ProjectNameVerificationResult(is_valid, errors)
 
     def update_project_status_label(self, text: str) -> None:
-        project_name_verification_result = self.verify_project_name(text, self.directory.value or str(), self.profile)
+        project_name_verification_result = self.verify_project_name(text, self.directory.value or str(), self.profile,
+                                                                    FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available)
         self.accept_button_enabled.value = project_name_verification_result.is_valid
         if not project_name_verification_result.error_messages:  # The name is valid and doesn't already exist.
             self.project_name_status_label.value = str()

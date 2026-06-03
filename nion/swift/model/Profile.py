@@ -638,7 +638,7 @@ class Profile(Persistence.PersistentObject):
             return self.add_project_index(path, load=False)
         return None
 
-    def rename_project(self, project_reference: ProjectReference, name: str) -> tuple[ProjectReference, FileStorageSystem.ProjectRenameResult]:
+    def rename_project(self, project_reference: ProjectReference, name: str) -> tuple[ProjectReference, FileStorageSystem.ProjectNameResult]:
         """Rename the project, managing the loading and unloading of the project and calling the ProjectStorageSystem rename_project function.
 
         Returns the newly loaded project reference and the rename result as a tuple to be unpacked.

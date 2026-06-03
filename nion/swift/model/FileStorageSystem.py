@@ -47,14 +47,14 @@ _g_large_format_size = 16 * 1024 * 1024
 
 
 @dataclasses.dataclass(frozen=True)
-class ProjectRenameResult:
-    """Result of the rename_project method.
+class ProjectNameResult:
+    """Result of checking a project name and renaming a project.
 
-    project_path will be None when the project path did not change otherwise it will be the new project path.
-    error_message will be empty when there are no errors, otherwise it will be an error message.
-    Only the error message being empty should be used to determine whether the rename was successful.
+    project_path will be None when the project path does not change otherwise it will be the new project path.
+    error_messages will be empty when there are no errors, otherwise it is a sequence of error messages.
+    Only the error_messages being empty should be used to determine whether the check/rename was successful.
     """
-    error_message: str
+    error_messages: typing.Sequence[str]
     project_path: pathlib.Path | None
 
 
@@ -622,7 +622,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
     @abc.abstractmethod
     def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType: ...
 
-    def rename_project(self, name: str) -> ProjectRenameResult:
+    @classmethod
+    def check_project_name_is_available(cls, name: str, directory: str) -> ProjectNameResult:
+        """Check if the provided project name is available for use."""
+        return ProjectNameResult([], None)
+
+    def rename_project(self, name: str) -> ProjectNameResult:
         """Rename the project.
 
         Returns a ProjectRenameResult.
@@ -630,7 +635,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         ProjectRenameResult.error_message will be empty when there are no errors, otherwise it will be an error message.
         The project path changing names does not indicate success, only the error message being empty should be used to determine success.
         """
-        return ProjectRenameResult("Project renaming is not supported for this storage system.", None)
+        return ProjectNameResult(["Project renaming is not supported for this storage system."], None)
 
     #
 
@@ -1140,7 +1145,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                         raise
         return storage_handlers
 
-    def rename_project(self, name: str) -> ProjectRenameResult:
+    def rename_project(self, name: str) -> ProjectNameResult:
         """Renames the project file with the given name. See ProjectStorageSystem.rename_project.
 
         The returned ProjectRenameResult.project_path will be the new project path or None if the project file was not renamed.
@@ -1153,35 +1158,53 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         old_title = old_project_path.stem
         old_data_path = self.__project_data_path or old_project_path.parent / f"{old_title} Data"
         new_project_path = old_project_path.with_name(f"{name}.nsproj")
-        error_message = None
-        project_path = None
+        error_messages = []
+        project_path: pathlib.Path | None = None
         try:
             if old_project_path.exists():
                 project_path = old_project_path.rename(new_project_path)
         except Exception as e:
             logging.exception(_("Failed to rename project. Renaming Project File gave an exception:\n") + str(e))
-            error_message = _("Exception while renaming the Project File")
+            error_messages.append(_("Exception while renaming the Project File"))
             project_path = None
 
-        if error_message is None:  # Only rename the data folder if the project file was renamed
+        if not error_messages:  # Only rename the data folder if the project file was renamed
             new_data_path = old_data_path.parent / f"{name} Data"
             try:
                 if old_data_path.exists():
                     old_data_path.rename(new_data_path)
             except Exception as e:
-                error_message = _("Exception while renaming the Data Folder")
+                error_messages.append(_("Exception while renaming the Data Folder"))
                 logging.exception(_("Failed to rename project. Renaming Data Folder gave an exception:\n") + str(e))
                 try:  # Try to undo the rename of the project file when the data folder failed to rename
                     if new_project_path.exists():
                         new_project_path.rename(new_project_path.with_name(f"{old_title}.nsproj"))
                         project_path = None
                 except Exception as e2:
-                    error_message = _("WARNING: Project File and Data Folder names have diverged")
+                    error_messages.append(_("WARNING: Project File and Data Folder names have diverged"))
                     logging.exception(_("Failed to undo Data Folder rename. Renaming project file gave exception:\n") + str(e2))
                     project_path = self.__project_path.with_name(f"{name}.nsproj")  # The undo failed meaning the project path remains as the new one
 
-        return ProjectRenameResult(error_message or str(), project_path)
+        return ProjectNameResult(error_messages, project_path)
 
+    @classmethod
+    def check_project_name_is_available(cls, name: str, directory: str) -> ProjectNameResult:
+        """Check if the provided project name is available for use.
+
+        Checks that no project file or data folder exist in the directory that already use the name provided.
+        Returns ProjectNameResult with the calculated project_path, and error_messages for when the project file or data folder already exist.
+        """
+        new_project_path = pathlib.Path(directory, name).with_suffix(".nsproj")
+        error_messages = []
+        new_data_path = new_project_path.parent / f"{name} Data"
+        new_project_path_exists = new_project_path.exists()
+        data_path_exists = new_data_path.is_dir()
+        if new_project_path_exists:
+            error_messages.append(_("Project Name") + f" \"{new_project_path.name}\" " + _("already exists"))
+        if data_path_exists:
+            error_messages.append(_("Data Folder") + f" \"{new_data_path.stem}\" " + _("already exists"))
+
+        return ProjectNameResult(error_messages, new_project_path)
 
 class MemoryStorageHandler(StorageHandler.StorageHandler):
 
