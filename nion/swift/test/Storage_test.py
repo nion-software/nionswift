@@ -4645,6 +4645,131 @@ class TestStorageClass(unittest.TestCase):
         memory_usage = memory_usage_resource() - memory_start
         self.assertTrue(memory_usage < 0.2)
 
+    def test_rename_current_project_with_no_items_works(self):
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            ui = TestUI.UserInterface()
+            app = Application.Application(ui, set_global=False)
+            app._set_profile_for_test(profile)
+            project_reference = typing.cast(Profile.IndexProjectReference, profile.project_references[0])
+            document_controller = app.open_project_window(project_reference)
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                app.rename_project(project_reference, "new_name")
+                project_reference = typing.cast(Profile.IndexProjectReference, profile.project_references[0])
+
+                self.assertIsNotNone(project_reference.project)  # Check the project reopened
+                self.assertEqual("new_name", project_reference.project.title)  # Check the title was updated
+                self.assertEqual("loaded", project_reference.project_state)  # Check the project was reloaded
+                self.assertEqual("new_name", project_reference.project_path.stem)
+                self.assertEqual("new_name", project_reference.path.stem)
+                self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
+                self.assertFalse((profile_context.projects_dir / "new_name Data").is_dir())  # No data folder should exist since there are no data exists
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+                if document_controller.count > 0:
+                    document_controller.request_close()
+
+    def test_rename_current_project_preserves_data_item(self):
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            ui = TestUI.UserInterface()
+            app = Application.Application(ui, set_global=False)
+            app._set_profile_for_test(profile)
+            project_reference = typing.cast(Profile.IndexProjectReference, profile.project_references[0])
+            document_controller = app.open_project_window(project_reference)
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                document_model = app.document_model
+                data_item = DataItem.DataItem(numpy.zeros((6, 6)))
+                document_model.append_data_item(data_item)
+                original_snapshot = data_item.snapshot()
+
+                app.rename_project(project_reference, "new_name")
+                document_controller = app.document_controllers[0]
+                self.assertTrue((profile_context.projects_dir / "new_name Data").is_dir())  # Check the data folder has been renamed
+
+                self.assertEqual(1, len(document_controller.document_model.data_items))
+                self.assertTrue(numpy.array_equal(original_snapshot.data, document_controller.document_model.data_items[0].data))
+                self.assertEqual(original_snapshot.metadata, document_controller.document_model.data_items[0].metadata)
+                self.assertEqual(original_snapshot.title, document_controller.document_model.data_items[0].title)
+                self.assertEqual(original_snapshot.timezone, document_controller.document_model.data_items[0].timezone)
+                self.assertEqual(original_snapshot.timezone_offset, document_controller.document_model.data_items[0].timezone_offset)
+            finally:
+                original_snapshot.close()
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+                if document_controller.count > 0:
+                    document_controller.request_close()
+
+    def test_rename_current_project_preserves_large_format_data_item(self):
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            ui = TestUI.UserInterface()
+            app = Application.Application(ui, set_global=False)
+            app._set_profile_for_test(profile)
+            project_reference = typing.cast(Profile.IndexProjectReference, profile.project_references[0])
+            document_controller = app.open_project_window(project_reference)
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                document_model = app.document_model
+                data_item = DataItem.DataItem(numpy.zeros((6, 6, 5)), large_format=True)
+                document_model.append_data_item(data_item)
+                original_snapshot = data_item.snapshot()
+
+                app.rename_project(project_reference, "new_name")
+                document_controller = app.document_controllers[0]
+                self.assertTrue((profile_context.projects_dir / "new_name Data").is_dir())  # Check the data folder has been renamed
+
+                self.assertEqual(1, len(document_controller.document_model.data_items))
+                self.assertTrue(numpy.array_equal(original_snapshot.data, document_controller.document_model.data_items[0].data))
+                self.assertEqual(original_snapshot.metadata, document_controller.document_model.data_items[0].metadata)
+                self.assertEqual(original_snapshot.title, document_controller.document_model.data_items[0].title)
+                self.assertEqual(original_snapshot.timezone, document_controller.document_model.data_items[0].timezone)
+                self.assertEqual(original_snapshot.timezone_offset, document_controller.document_model.data_items[0].timezone_offset)
+            finally:
+                original_snapshot.close()
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+                if document_controller.count > 0:
+                    document_controller.request_close()
+
+    def test_rename_current_project_preserves_workspace(self):
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            ui = TestUI.UserInterface()
+            app = Application.Application(ui, set_global=False)
+            app._set_profile_for_test(profile)
+            project_reference = typing.cast(Profile.IndexProjectReference, profile.project_references[0])
+            document_controller = app.open_project_window(project_reference)
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                workspace_controller = document_controller.workspace_controller
+                assert workspace_controller is not None
+
+                display_panel = workspace_controller.display_panels[0]
+                document_controller.selected_display_panel = display_panel
+                document_controller.perform_action("workspace.split_horizontal")
+                old_workspace_layout = copy.deepcopy(document_controller.workspace_controller._workspace_layout)
+
+                app.rename_project(project_reference, "new_name")
+                document_controller = app.document_controllers[0]
+                self.assertEqual(old_workspace_layout, document_controller.workspace_controller._workspace_layout)
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+                if document_controller.count > 0:
+                    document_controller.request_close()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
