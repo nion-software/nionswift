@@ -12,8 +12,20 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.18.0 (2026-06-05)
+----------------------------
+* Improve reliability, consistency, and performance of display architecture.
+* Improve workspace create, rename, delete dialogs. [nion-software/nionswift#1825](https://github.com/nion-software/nionswift/issues/1825)
+* Improve SVG export by allowing custom aspect ratio for line plots. [nion-software/nionswift#1766](https://github.com/nion-software/nionswift/issues/1766)
+* Add a line to generator dialog to show pending file size. [nion-software/nionswift#1815](https://github.com/nion-software/nionswift/issues/1815)
+* Fix issue with orphaned computation cleanup. [nion-software/nionswift#1820](https://github.com/nion-software/nionswift/issues/1820)
+* Fix issue with scale marker appearing in SVG when copied or imported to Microsoft products. [nion-software/nionswift#1813](https://github.com/nion-software/nionswift/issues/1813)
+* Fix issue with graphic stroke width being saved incorrectly. [nion-software/nionswift#1812](https://github.com/nion-software/nionswift/issues/1812)
+* Improve line plot interval label drawing using transparency and background. [nion-software/nionswift#628](https://github.com/nion-software/nionswift/issues/628), [nion-software/nionswift#1810](https://github.com/nion-software/nionswift/issues/1810)
+
 Version 16.17.0 (2026-03-19)
 ----------------------------
+* Fix inconsistent behavior when deleting live computed data items. [nion-software/nionswift#1748](https://github.com/nion-software/nionswift/issues/1748)
 * Standardize naming of spot graphic, angular graphic, band-pass graphic, lattice graphic. [nion-software/nionswift#1508](https://github.com/nion-software/nionswift/issues/1508)
 * Fix several line plot drawing details. [nion-software/nionswift#1767](https://github.com/nion-software/nionswift/issues/1767), [nion-software/nionswift#1779](https://github.com/nion-software/nionswift/issues/1779), [nion-software/nionswift#1790](https://github.com/nion-software/nionswift/issues/1790)
 * Add ability to stop and see progress on long computations that support it. [nion-software/nionswift#320](https://github.com/nion-software/nionswift/issues/320)
