@@ -1325,7 +1325,7 @@ class NameProjectDialog(Declarative.Handler):
         self.ui = ui
         self.__application = application
         self.viewmodel = NameProjectViewModel(project_name, directory, self.__application.profile)
-
+        self._project_name_line_edit: UserInterface.LineEditWidget | None = None
         # build the UI
         u = Declarative.DeclarativeUI()
 
@@ -1364,7 +1364,7 @@ class NameProjectDialog(Declarative.Handler):
 
         project_name_row = u.create_row(
             u.create_spacing(26),
-            u.create_line_edit(text="@binding(viewmodel.filename.value)", width=400, on_text_edited="handle_project_name_changed"),
+            u.create_line_edit(name="_project_name_line_edit", text="@binding(viewmodel.filename.value)", width=400, on_text_edited="handle_project_name_changed"),
             u.create_stretch(),
             u.create_spacing(13)
         )

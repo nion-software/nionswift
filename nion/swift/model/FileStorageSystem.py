@@ -1159,25 +1159,23 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         If the data folder did exist but failed be renamed then this will attempt to undo the renaming of the project file.
         If undoing the renaming of the project file fails then the project file's name will have changed so the new project path will be not None, but there will still be an error message.
         """
+        old_data_path = self.__project_data_path
         old_project_path = self.__project_path
         old_title = old_project_path.stem
-        old_data_path = self.__project_data_path or old_project_path.parent / f"{old_title} Data"
         new_project_path = old_project_path.with_name(f"{name}.nsproj")
         error_messages = []
         project_path: pathlib.Path | None = None
         try:
-            if old_project_path.exists():
-                project_path = old_project_path.rename(new_project_path)
+            project_path = old_project_path.rename(new_project_path)
         except Exception as e:
             logging.exception(_("Failed to rename project. Renaming Project File gave an exception:\n") + str(e))
             error_messages.append(_("Exception while renaming the Project File"))
             project_path = None
 
         if not error_messages:  # Only rename the data folder if the project file was renamed
-            new_data_path = old_data_path.parent / f"{name} Data"
             try:
-                if old_data_path.exists():
-                    old_data_path.rename(new_data_path)
+                if old_data_path is not None:
+                    old_data_path.rename(old_data_path.parent / f"{name} Data")
             except Exception as e:
                 error_messages.append(_("Exception while renaming the Data Folder"))
                 logging.exception(_("Failed to rename project. Renaming Data Folder gave an exception:\n") + str(e))

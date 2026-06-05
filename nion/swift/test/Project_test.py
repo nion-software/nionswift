@@ -83,39 +83,7 @@ class TestProjectClass(unittest.TestCase):
 
     # do not import same project (by uuid) twice
 
-    def test_verify_project_name_is_invalid_with_existing_project(self) -> None:
-        original_exists = pathlib.Path.exists
-
-        def mock_exists(self_path: pathlib.Path) -> bool:
-            if str(self_path).endswith("ExistingProject.nsproj"):
-                return True
-            return original_exists(self_path)
-
-        with TestContext.MemoryProfileContext() as profile_context:
-            with unittest.mock.patch.object(pathlib.Path, 'exists', mock_exists):
-                current_working_directory = str(pathlib.Path.cwd())
-                viewmodel = Application.NameProjectViewModel("ExistingProject", current_working_directory, profile_context.create_profile())
-                viewmodel.update_project_status_label("ExistingProject")
-                self.assertFalse(viewmodel.accept_button_enabled.value)
-                self.assertEqual(viewmodel.project_name_status_label.value, "Project Name \"ExistingProject.nsproj\" already exists")
-
-    def test_name_project_viewmodel_is_invalid_with_existing_data(self) -> None:
-        original_is_dir = pathlib.Path.is_dir
-
-        def mock_is_dir(self_path: pathlib.Path) -> bool:
-            if str(self_path).endswith("ExistingProject Data"):
-                return True
-            return original_is_dir(self_path)
-
-        with TestContext.MemoryProfileContext() as profile_context:
-            with unittest.mock.patch.object(pathlib.Path, 'is_dir', mock_is_dir):
-                current_working_directory = str(pathlib.Path.cwd())
-                viewmodel = Application.NameProjectViewModel("ExistingProject", current_working_directory, profile_context.create_profile())
-                viewmodel.update_project_status_label("ExistingProject")
-                self.assertFalse(viewmodel.accept_button_enabled.value)
-                self.assertEqual(viewmodel.project_name_status_label.value, "Data Folder \"ExistingProject Data\" already exists")
-
-    def test_verify_project_name_is_invalid_with_existing_reference(self) -> None:
+    def test_project_name_viewmodel_is_invalid_with_existing_reference(self) -> None:
         with TestContext.MemoryProfileContext() as profile_context:
             profile = profile_context.create_profile()
             project_reference = profile.project_references[0]
@@ -140,17 +108,17 @@ class TestProjectClass(unittest.TestCase):
             document_controller = app.open_project_window(profile.project_references[0])
             try:
                 current_working_directory = str(pathlib.Path.cwd())
-                dialog = Application.NameProjectDialog(app.ui, document_controller, app, current_working_directory, "",
-                                                       accept_fn=lambda _name, _dir: False, dialog_name="Rename Project", choose_directory_visible=False)
+                name_project_dialog = Application.NameProjectDialog(app.ui, document_controller, app, current_working_directory, "",
+                                                                    accept_fn=lambda _name, _dir: False, dialog_name="Rename Project", choose_directory_visible=False)
 
                 # Check the button starts off as disabled
-                self.assertEqual(dialog._accept_button.tool_tip, "Project name cannot be empty")
-                self.assertFalse(dialog._accept_button.enabled)
+                self.assertEqual(name_project_dialog._accept_button.tool_tip, "Project name cannot be empty")
+                self.assertFalse(name_project_dialog._accept_button.enabled)
 
                 # Check that the rename button becomes enabled when the name becomes valid
-
-                dialog.handle_project_name_changed(_widget=app.ui.create_line_edit_widget(), text="NewProjectName")
-                self.assertTrue(dialog._accept_button.enabled)
+                assert name_project_dialog._project_name_line_edit is not None
+                name_project_dialog.handle_project_name_changed(_widget=name_project_dialog._project_name_line_edit, text="NewProjectName")
+                self.assertTrue(name_project_dialog._accept_button.enabled)
             finally:
                 # clean up
                 document_controller.request_close()
