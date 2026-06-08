@@ -835,6 +835,8 @@ class Workspace:
                              d: typing.Optional[Persistence.PersistentDictType] = None, new_uuid: typing.Optional[uuid.UUID] = None,
                              new_splits: typing.Optional[typing.List[float]] = None) -> Undo.UndoableCommand:
         assert self.__workspace
+        if self.document_controller.replaced_display_panel_content_flag:
+            self.document_controller.replaced_display_panel_content = {"uuid": display_panel.uuid, "identifier": display_panel.identifier}
         command = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
         self._insert_display_panel(display_panel, region, display_item, d, new_uuid, new_splits)
         return command
