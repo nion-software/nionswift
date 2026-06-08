@@ -1283,6 +1283,28 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[0].display_item.data_item, data_item2)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item.data_item, data_item1)
 
+    def test_dragging_header_to_split_self_works(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller.workspace_controller.display_panels[0].set_display_item(display_item)
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            # Simulate dragging the panel into the right split of the same panel. This should cause a split and the item should only be in the right panel.
+            mime_data = self._test_setup.app.ui.create_mime_data()
+            MimeTypes.mime_data_put_display_item(mime_data, display_item)
+            MimeTypes.mime_data_put_panel(mime_data, display_item, display_panel.save_contents())
+            document_controller.replaced_display_panel_content_flag = True  # This would be set by the drag command
+            action = document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "right", 160, 240)
+            self.assertEqual(action, "move")  # Ensure the returned action was a move
+            document_controller.workspace_controller.display_panels[0]._drag_finished(document_controller, action)
+            self.assertIsNone(document_controller.workspace_controller.display_panels[0].display_item)  # Ensure the item was removed from the original panel
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].display_item, display_item)  # Ensure the item was moved to the new panel
+
     def test_display_panel_selection_updates_properly_with_data_panel_filter(self):
         # this tests a failure where 2nd processing action would replace the source display item with something else.
         with TestContext.create_memory_context() as test_context:
