@@ -2,228 +2,322 @@
 
 .. _graphics:
 
-******************
-Graphics and Masks
-******************
-Graphics are used to highlight certain sections of a display item. Similarly, masks are used to mark off certain sections of a display item to focus on. Certain graphics can only be used on images and others can only be used on line plots. Masks can only be used on images. Selecting one or more graphics on the same display item will allow you to edit the parameters of the graphics in the :ref:`graphics inspector section` subsection of the Inspector Panel. Selecting a display panel with graphics on it will show parameters for editing all of the applied graphics in the Inspector Panel. You can copy, cut, and paste graphics by selecting them with [ctrl + click] (or [cmd + click] on macOS) or by using shortcuts like [ctrl + c] and [ctrl + v] (or [cmd + c] and [cmd + v] for macOS) To delete a graphic or graphics, select them and press the delete key or use the menu item [Edit > Delete].
+Graphics
+========
+Graphics mark and annotate regions in displays. They serve two roles: functional, where they designate a region for processing (such as a crop or line profile); and annotation, where they visually mark data for reference. Some graphics work with images, others with line plots.
 
-You can also select graphics behind other graphics by selecting the graphic in the foreground and using the :kbd:`Tab` key to cycle through the graphics in the order they were added. The :kbd:`Shift` + :kbd:`Tab` keys will cycle through the graphics in reverse order.
+Fourier graphics define filter regions that are applied when filtering Fourier data.
+
+Graphics can be labeled using the inspector; the label appears next to the graphic on screen.
+
+Most graphics can be added from menus or the Tool Bar (see :ref:`Tool Panel`).
+
+To select a graphic, click on it.
+
+To deselect all graphics, click outside them.
+
+To edit selected graphics, select one or more graphics on the same display item and use the :ref:`graphics inspector section` subsection of the :guilabel:`Inspector` panel.
+
+Selecting a display panel with graphics shows parameters for all applied graphics in the :guilabel:`Inspector` panel.
+
+Some graphics support position, shape, and rotation locks in the :guilabel:`Inspector` panel. When a lock is enabled, dragging that part has no effect.
+
+To copy graphics, select them with :kbd:`Ctrl` + click (or :kbd:`Command` + click on macOS), then use :kbd:`Ctrl+C` (or :kbd:`Command+C` on macOS).
+
+To cut graphics, select them and use :kbd:`Ctrl+X` (or :kbd:`Command+X` on macOS).
+
+To paste graphics, use :kbd:`Ctrl+V` (or :kbd:`Command+V` on macOS).
+
+To delete graphics, select them and press :kbd:`Delete` or use :menuselection:`Edit --> Delete`.
+
+To select a graphic behind another, click its control points directly — control points take priority over the body of graphics in front.
+
+To cycle through graphics on a display in the order they were added, press :kbd:`Tab`.
+
+To cycle through graphics in reverse order, press :kbd:`Shift` + :kbd:`Tab`.
 
 .. _Image Graphics:
 
 Image Graphics
-==============
-Image graphics are exclusive to data items displayed as images. They can only be placed on 2D images. You can add an image graphic by using the various graphic buttons in the toolbar or by using the [Graphics] menu item. 
+--------------
+Image graphics can only be placed on 2D image displays. Add one using the graphic buttons in the Tool Bar or the :menuselection:`Graphics` menu.
 
 .. _Line Graphic:
 
 Line Graphic
-------------
-The line graphic creates a line between two anchor points. 
+++++++++++++
+The line graphic draws a line between two anchor points.
 
 .. image:: graphics/line_graphic.png
     :width: 397
     :alt: Line Graphic
 
-To move the line, click and drag from any point along the line excluding the two anchor points. You can adjust the line by manipulating the two anchor points. Holding shift while moving an anchor point will snap the line to a multiple of a 45˚ angle.
+To move the line, click and drag anywhere along it (not on an anchor point).
 
-In the Inspector Panel, you can adjust the length of the line, angle of the line, and (x,y) coordinates of both anchor points.
+To adjust an endpoint, drag an anchor point.
+
+To resize symmetrically about the line midpoint, hold :kbd:`Alt` (or :kbd:`Option` on macOS) while dragging an anchor point.
+
+To snap to multiples of 45°, hold :kbd:`Shift` while dragging an anchor point.
+
+In the :guilabel:`Inspector` panel, you can adjust the length, angle, and (x,y) coordinates of both anchor points.
 
 .. _Ellipse Graphic:
 
 Ellipse Graphic
----------------
-The ellipse graphic creates an ellipse between four anchor points. 
++++++++++++++++
+The ellipse graphic draws an ellipse defined by four anchor points.
 
 .. image:: graphics/ellipse_graphic.png
     :width: 397
     :alt: Ellipse Graphic
 
-Holding shift while manipulating one of the anchor points will make the ellipse a perfect circle. To adjust the rotation of the ellipse, drag the fifth, exterior anchor point around the center point of the ellipse. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the ellipse.
+To resize the ellipse about its center, drag an anchor point.
 
-In the Inspector Panel, you can adjust the (x,y) coordinate of the center point, the height and width of the ellipse, and the rotation of the graphic.
+To resize with the opposite corner fixed, hold :kbd:`Alt` (or :kbd:`Option` on macOS) while dragging an anchor point.
+
+To constrain the ellipse to a circle, hold :kbd:`Shift` while dragging an anchor point.
+
+To rotate the ellipse, drag the fifth, exterior anchor point.
+
+To snap to 45° intervals when rotating, hold :kbd:`Shift`.
+
+To move the ellipse, click and drag from inside it.
+
+In the :guilabel:`Inspector` panel, you can adjust the center point, height, width, and rotation.
 
 .. _Rectangle Graphic:
 
 Rectangle Graphic
------------------
-The rectangle graphic creates a rectangle with four anchor points at the vertices. 
++++++++++++++++++
+The rectangle graphic draws a rectangle with anchor points at the vertices.
 
 .. image:: graphics/rectangle_graphic.png
     :width: 397
     :alt: Rectangle Graphic
 
-Holding shift while manipulating one of the anchor points will make the rectangle a perfect square. To adjust the rotation of the rectangle, drag the fifth, exterior anchor point around its center point. Holding shift while rotating the graphic will snap it to intervals of 45˚. To move the whole graphic, click and drag from anywhere within the rectangle.
+To resize the rectangle with the opposite corner fixed, drag a corner.
 
-In the Inspector Panel, you can adjust the (x,y) coordinate of the center point, the height and width of the rectangle, and the rotation of the graphic.
+To resize about the rectangle center, hold :kbd:`Alt` (or :kbd:`Option` on macOS) while dragging a corner.
+
+To constrain the rectangle to a square, hold :kbd:`Shift` while dragging a corner.
+
+To rotate the rectangle, drag the fifth, exterior anchor point.
+
+To snap to 45° intervals when rotating, hold :kbd:`Shift`.
+
+To move the rectangle, click and drag from inside it.
+
+In the :guilabel:`Inspector` panel, you can adjust the center point, height, width, and rotation.
 
 .. _Point Graphic:
 
 Point Graphic
--------------
-The point graphic highlights a point in the center of four anchor points. 
++++++++++++++
+The point graphic marks a single position with four surrounding anchor points.
 
 .. image:: graphics/point_graphic.png
     :width: 397
     :alt: Point Graphic
 
-The anchor points show the boundary of the graphic but cannot be moved in relation to the center of the graphic or to each other. To move the point graphic, click and drag from anywhere within the four anchor points.
+The anchor points indicate the graphic boundary and cannot be moved independently. Click and drag from inside the anchor points to move the graphic.
 
-In the Inspector Panel, you can adjust the (x,y) coordinate of the center point.
+In the :guilabel:`Inspector` panel, you can adjust the (x,y) position.
 
 .. _Line Plot Graphics:
 
 Line Plot Graphics
-==================
-Line plot graphics are exclusive to data items displayed as line plots. They can only be placed on 1D line plots. Add a line plot graphic by using the various graphic buttons in the toolbar or by using the [Graphics] menu item.
+------------------
+Line plot graphics can only be placed on 1D line plot displays. Add one using the graphic buttons in the Tool Bar or the :menuselection:`Graphics` menu.
 
 .. _Interval Graphic:
 
 Interval Graphic
-----------------
-The interval graphic highlights a section between two boundaries. 
+++++++++++++++++
+The interval graphic marks a range between two boundary positions on a line plot.
 
 .. image:: graphics/interval_graphic.png
     :width: 397
     :alt: Interval Graphic
 
-To adjust the boundaries of the interval, click and drag either of the boundaries left or right. To move the entire interval, click and drag the center anchor point between the two boundaries.
+To adjust a boundary, drag it.
 
-In the Inspector Panel, you can adjust the x values of each boundary.
+To move the entire interval, drag the center anchor point.
 
-If another interval graphic is blocking the creation of a new one, you can use the Interval Graphic button in the toolbar to force a new graphic.
+In the :guilabel:`Inspector` panel, you can adjust the channel values of each boundary.
+
+If another interval graphic blocks creation of a new one, use the :guilabel:`Interval Graphic` button in the Tool Bar to force a new graphic. This can happen when selection resolves to an existing interval instead of creating another overlapping one.
+
+When selected, the interval shows its left channel, right channel, and width values.
+
+To move the interval by dragging a boundary instead of editing that boundary, hold :kbd:`Ctrl` (Windows) or :kbd:`Command` (macOS) while dragging.
 
 .. _Channel Graphic:
 
 Channel Graphic
----------------
-The channel graphic marks a value along the x axis with an orange marker. 
++++++++++++++++
+The channel graphic marks a single position along the x axis with an orange marker.
 
 .. image:: graphics/channel_graphic.png
     :width: 397
     :alt: Channel Graphic
 
-To move the graphic, click and drag the orange marker along the x axis.
+To reposition the marker, drag the orange marker.
+
+In the :guilabel:`Inspector` panel, you can adjust the channel position.
+
+Processing Graphics
+-------------------
+
+Processing graphics are linked to a computation and automatically produce an output data item — editing the graphic updates the result in real time.
+
+.. _Line Profile Graphic:
+
+Line Profile
+++++++++++++
+The line profile graphic defines a line used to sample data along its length, producing a new 1D data item from the image beneath the line.
+
+Add a line profile using the :guilabel:`Line Profile` tool in the Tool Bar, or from the menu :menuselection:`Processing --> Line Profile`.
+
+In the :guilabel:`Inspector` panel, you can edit the start, end, length, angle, and width.
+
+To adjust an endpoint, drag it.
+
+To resize symmetrically about the line midpoint, hold :kbd:`Alt` (or :kbd:`Option` on macOS) while dragging an endpoint.
+
+To constrain adjustments to horizontal, vertical, or 45°, hold :kbd:`Shift` while dragging.
+
+To reposition the line, drag the middle of it.
+
+To constrain movement to horizontal or vertical, hold :kbd:`Shift` while dragging.
+
+Press :kbd:`+` or :kbd:`=` to increase the line width, or :kbd:`-` to decrease it.
+
+See :ref:`Line Profile Computation`.
+
+.. _Cropping:
+
+Using a Rectangle or an Interval as a Crop
+------------------------------------------
+A rectangle graphic on an image or an interval graphic on a line plot can be used as a crop to define a region of interest for processing.
+
+To add a computation with a crop, select the graphic and choose the desired computation from the :menuselection:`Processing` menu. The computation uses the selected graphic as a crop region.
 
 .. _Masking:
 
-Masks
-=====
-Masks are used to isolate sections of an image to gather information from just the specified area rather than the whole image. Preset masks are added to images just like graphics either by using the mask buttons in the toolbar or by using the [Graphics] menu item. 
+Using Graphics as Masks
+-----------------------
+Graphics that cover an area on images or an interval on line plots can be used as masks to define a region of interest for processing.
 
-Aside from the default masks, you can choose to make a regular image graphic part of a mask. To add a graphic to the mask, select the graphic and use the menu item [Graphics > Add to Mask]. Similarly, you can remove a graphic from the mask by selecting it and using the menu item [Graphics > Remove from Mask]. A graphic will turn blue when it is part of the mask on an image.
+Masks apply to any data, including non-Fourier data.
 
-A pixel is considered to be contained within the mask if the center of the pixel is within any of the Fourier filter graphics.
+Masks are per display item, because graphics are attached to individual displays.
 
-Below are the preset types of masks. For more information about adjusting the parameters of masks, see the :ref:`graphics inspector section` subsection of the Inspector Panel.
+To use a graphic as a mask, select it and choose :menuselection:`Graphics --> Add to Mask`. The graphic turns blue to indicate that it is part of the active mask region.
 
-.. _Lattice Mask:
+To remove a graphic from the mask, select it and choose :menuselection:`Graphics --> Remove from Mask`.
 
-Lattice Mask
-------------
-The lattice mask creates a grid of circles that tile the image. 
+.. _Fourier Filtering:
+.. _Fourier Filtering Graphics:
+
+Fourier Filtering Graphics
+--------------------------
+Fourier filtering graphics define filter regions on complex-valued image data. They let you isolate and process a specific region of Fourier space — for example, to remove or preserve particular frequencies or angles — rather than operating on the full image. Add them using the graphic tools in the Tool Bar or the :menuselection:`Graphics` menu.
+
+Because Fourier-space data is symmetric around an origin defined by the data calibration, Fourier filtering graphics are symmetric around that origin and provide intuitive control of frequency and angle regions.
+
+For Fourier-space images, the origin is at the center of the image.
+
+Diffractograms, which are captured from real-world cameras rather than computed, are not marked as Fourier-space internally and may have an off-center origin. Adjust the calibrations to set the origin for filtering.
+
+Fourier filtering graphics are also used by :menuselection:`Processing --> Arithmetic --> Mask` and :menuselection:`Processing --> Arithmetic --> Masked`.
+
+To add a regular image graphic to the active filter region, select it and choose :menuselection:`Graphics --> Add to Mask`.
+
+To remove a regular image graphic from the active filter region, select it and choose :menuselection:`Graphics --> Remove from Mask`.
+
+A graphic turns blue when it is part of the active filter region.
+
+Apply Fourier filtering using :menuselection:`Processing --> Fourier --> Fourier Filter`.
+
+A pixel is considered within the filter region if its center falls within any Fourier filtering graphic.
+
+Multiple Fourier filtering graphics combine as a union of their selected regions.
+
+Four preset Fourier filtering graphics are available: :ref:`Spot Graphic`, :ref:`Angular Graphic`, :ref:`Band-Pass Graphic`, and :ref:`Lattice Graphic`.
+
+For more information about adjusting parameters, see the :ref:`graphics inspector section` subsection of the :guilabel:`Inspector` panel.
+
+.. _Lattice Graphic:
+
+Lattice Graphic
++++++++++++++++
+The lattice graphic defines a repeating grid of circles across the image for filtering regularly spaced frequencies in Fourier space.
 
 .. image:: graphics/lattice_mask.png
     :width: 397
     :alt: Lattice Mask
 
-This can be used to filter related frequencies with regular spacing. 
-
 .. image:: graphics/lattice_mask_handles.png
     :width: 397
     :alt: Lattice Mask Handles
 
-There are two circles that can be moved to establish the pattern of the grid. These circles will be highlighted with green anchor points. One of the moveable circles will be inside the image and the other will be outside, so you may need to move or zoom out of the image using the [ - ] key in order to see it.
+Two movable circles (shown with green anchor points) define the grid pattern, one inside the image and one outside.
 
-.. _Ring Mask:
+If one circle is outside the visible image area, press :kbd:`-` to zoom out to see both.
 
-Ring Mask
----------
-The ring mask creates a ring centered around the top left corner of the image.
+.. _Band-Pass Graphic:
+
+Band-Pass Graphic
++++++++++++++++++
+The band-pass graphic creates a ring-shaped filter region centered on the Fourier origin.
 
 .. image:: graphics/ring_mask_band.png
     :width: 397
     :alt: Ring Mask Band
 
-The ring mask can either include the circle around the top left corner, exclude the circle around the top left corner, or be a band of a certain width surrounding the top left corner. Adjust the radius(es) of the circle(s) by dragging the anchor points along the edges of the image.
+The ring can include the area inside the ring (low-pass), exclude it (high-pass), or select just a band between two radii (band-pass).
 
-.. image:: graphics/ring_mask_high.png
-    :width: 397
-    :alt: Ring Mask High Pass
+To adjust the radii, drag the anchor points along the image edges.
 
-In the Inspector Panel, you can adjust both radiuses and the type of ring. Radius 1 is the outermost radius and is the radius used for the low and high ring masks. The low pass ring mask excludes a ring around the top left corner of the image. The high pass ring mask includes only a ring around the top left corner of the image. The band pass ring mask makes a ring around the top left corner with an inner and outer radius.
+In the :guilabel:`Inspector` panel, you can adjust both radii and the filter mode. Radius 1 is the outermost radius. Low-pass excludes frequencies outside the ring; high-pass includes only those outside; band-pass selects the region between the two radii.
 
-.. image:: graphics/ring_mask_low.png
-    :width: 397
-    :alt: Ring Mask Low Pass
+.. _Spot Graphic:
 
-.. _Spot Mask:
-
-Spot Mask
----------
-The spot mask creates two ellipses that are symmetrical and equidistant from the top left corner. This can be used to filter a specific frequency at a specific angle. 
+Spot Graphic
+++++++++++++
+The spot graphic creates a pair of identical, symmetrically placed ellipses for filtering a specific frequency at a specific angle.
 
 .. image:: graphics/spot_mask.png
     :width: 397
     :alt: Spot Mask
 
-One of the ellipses might be outside of the image so you may need to move or zoom out of the image by using the [ - ] key in order to see it. The ellipses will always be identical, so manipulating one will change the other. The ellipses can be manipulated just like the :ref:`ellipse graphic`. Moving one ellipse will also move the other ellipse to be exactly opposite the other one around the top left corner.
+The two ellipses are always identical and placed symmetrically around the Fourier origin.
+
+Manipulating one ellipse automatically updates the other.
+
+If one ellipse is outside the visible image area, press :kbd:`-` to zoom out.
+
+The ellipses behave like a regular :ref:`Ellipse Graphic`.
 
 .. image:: graphics/spot_mask_handles.png
     :width: 397
     :alt: Spot Mask Handles
 
-In the Inspector Panel, you can adjust the (x,y) coordinates of the centerpoint of the ellipse inside the image, and set the rotation of the ellipse inside the image.
+In the :guilabel:`Inspector` panel, you can adjust the center position and rotation of the ellipse inside the image.
 
-.. _Wedge Mask:
+.. _Angular Graphic:
 
-Wedge Mask
-----------
-The wedge mask creates slices through an image from the top left corner. 
+Angular Graphic
++++++++++++++++
+The angular graphic defines a wedge-shaped filter region radiating from the Fourier origin, for filtering a range of frequencies at a specific angle.
 
-.. image:: graphics/wedge_mask_half.png
+.. image:: graphics/wedge_mask.png
     :width: 397
     :alt: Wedge Mask Half
 
-This can be used to filter a range of frequencies at a specific angle. Move the slice by clicking and dragging from within the pink highlighted section. To adjust the angle of the wedge, click and drag one of the boundaries of the wedge.
+To move the wedge, click and drag within the highlighted region.
 
-.. image:: graphics/wedge_mask_split.png
-    :width: 397
-    :alt: Wedge Mask Split
+To adjust the angle range, drag either boundary line.
 
-In the Inspector Panel, you can adjust the starting and ending angles of the wedge.
-
-Processing Graphics
-===================
-.. This section is temporary until these can be moved into processing and analysis.
-..   I'm open to the idea of keeping them in a section like this if that is preferred. 
-
-These types of graphics are slightly different because they have a processing elementbuilt into them.
-
-.. _Line Profile Graphic:
-
-Line Profile
-------------
-A special line graphic can be used as the source of the line profile computation, which produces another data item with data of the image underneath the line.
-
-You can add a line graphic using the :guilabel:`Line Profile` tool in the tool panel.
-
-You can add a line profile by using the menu item :menuselection:`Processing -> Line Profile`.
-
-You can edit the start, end, length, angle, and width of the line profile in the :guilabel:`Inspector` panel.
-
-You can edit the end points of the line by dragging each end point. Holding the :kbd:`Shift` key while dragging will limit the line to be horizontal, vertical, or at a 45° angle.
-
-You can change the position of the line by dragging in the middle along the line. You can limit the movement to be horizontal or vertical by holding the :kbd:`Shift` key while dragging.
-
-You can also change the width of the line profile by clicking on the line profile graphic and pressing :kbd:`+` or :kbd:`=` keys to increase the width or :kbd:`-` key to decrease the width.
-
-See See :ref:`Line Profile Computation`.
-
-.. _Fourier Filtering:
-
-Fourier Filtering
------------------
-A special type of masking is called Fourier filtering. You can place Fourier filter graphics on complex-valued images and perform Fourier filtering using the menu item :menuselection:`Processing --> Fourier --> Fourier Filter`.
-
-The origin of the Fourier filter graphics will typically be in the middle of the center value of the complex-valued image. However, the origin can be changed by editing the spatial calibrations of the image.
+In the :guilabel:`Inspector` panel, you can adjust the starting and ending angles.
