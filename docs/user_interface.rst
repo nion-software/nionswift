@@ -2,9 +2,8 @@
 
 .. _user-interface:
 
-**************
 Utility Panels
-**************
+==============
 
 .. _Workspaces:
 
@@ -14,11 +13,11 @@ The workspace is the area where you can view your data.
 
 The workspace can be subdivided into display panels and the size of the display panels can be adjusted by dragging on their edges.
 
-You can drag external files into display panels to import them.
+To import external files, drag them into display panels.
 
-You can drag items from the data panel to the display panels to show them.
+To show items in display panels, drag them from the data panel.
 
-You can select one or more display panels for processing by clicking to select one or shift-clicking to select multiple.
+To select display panels for processing, click one panel or :kbd:`Shift` + click to select multiple.
 
 If you do processing or acquisition which produces new data, its associated display item will be displayed in an empty display panel if available.
 
@@ -31,7 +30,7 @@ Utility panels provide options for the selected item or items. There are various
 
 The layout of the utility panels can also be moved around and adjusted. There are several ways to customize the utility panel layout:
 
-* Show or hide any utility panel by using the [Window] menu.
+* Show or hide any utility panel using :menuselection:`Window`.
 
 * Close a utility panel by clicking the x button in the corner of its title bar.
 
@@ -47,7 +46,7 @@ The layout of the utility panels can also be moved around and adjusted. There ar
     :width: 396
     :alt: Customizing Utility Panels
 
-The utility panels are organized alphabetically in the [Window] menu and their functions are as follows:
+The utility panels are organized alphabetically in :menuselection:`Window` and their functions are as follows:
 
 .. _Activity Panel:
 
@@ -59,9 +58,9 @@ The Activity panel (:menuselection:`Window --> Activity`) shows the activity of 
     :width: 321
     :alt: Activity Panel
 
-The activity panel displays changes to computations and updates during live data acquisition or editing. Activity will only be displayed if a computation is actively running. Otherwise, the panel will not show anything. 
+The activity panel displays changes to computations and updates during live data acquisition or editing. When no computation is actively running, the panel is empty.
 
-Some computations are connected to a graphic. In this case, the activity panel will only display activity info while the graphic is being moved or manipulated. A computation like this is not always active.
+Some computations are connected to a graphic. When such a graphic is being moved or manipulated, the activity panel displays activity information for the associated computation.
 
 .. _Collections Panel:
 
@@ -73,21 +72,13 @@ The Collections panel (:menuselection:`Window --> Collections`) sorts the data i
     :width: 333
     :alt: Collections Panel
 
-Data items are automatically sorted into four categories:
-
-* :guilabel:`All` - All data items in the current project
-
-* :guilabel:`Persistent` - Data items that are permanently saved; these data items will not be overwritten by acquisition or recomputation without action by the user.
-
-* :guilabel:`Live` - Data items that can be used for live acquisition and/or recomputation
-
-* :guilabel:`Latest Session` - Data items used in the most recent session (since the most recent time the project was opened)
+Data items are automatically sorted into four standard collections. See :ref:`Standard Collections` below for the definitions.
 
 To view a collection, click on the title of the desired collection in the Collections panel. All data items in the collection will be listed in the Data panel. By default, the Data panel is set to show the "All" collection.
 
 The Collections panel also provides a collection called :guilabel:`My Data` which is curated by the user. "My Data" can be used to group any data items together. To add a data item to the "My Data" collection, drag the data item from the data panel into the "My Data" collection in the Collections panel.
 
-To add a new collection to the panel, use the menu item [File > Add Group]. Use this new folder just as the :guilabel:`My Data` folder above.
+To add a new collection to the panel, choose :menuselection:`File --> Add Group`. Use this new folder just as the :guilabel:`My Data` folder above.
 
 .. _Standard Collections:
 
@@ -105,15 +96,17 @@ There are four standard collections that are always available in the Collections
 
 Data Groups
 -----------
-In addition to the standard collections, you can create custom Data Groups to organize your items. You can create a new Data Group using :menuselection:`File --> Add Group`.
+You can create custom Data Groups to organize items.
 
-You can add items to a Data Group by dragging them from either the data panel or a display panel into the Data Group in the Collections panel.
+To create a new Data Group, choose :menuselection:`File --> Add Group`.
 
-You can remove items from a Data Group by clicking on the Data Group in the Collections panel, selecting the items you want to remove in the data panel, and pressing the delete key. This will not delete the items themselves, just their association with the Data Group.
+To add items to a Data Group, drag them from either the data panel or a display panel into the Data Group in the Collections panel.
 
-You can rename a Data Group by clicking on it and either hitting return or double-clicking the item.
+To remove items from a Data Group, click the Data Group in the Collections panel, select items in the data panel, and press :kbd:`Delete`. This removes only the association with the Data Group, not the items themselves.
 
-You can delete a Data Group by selecting it and pressing the delete key. This will not delete the items in the group, just the group itself.
+To rename a Data Group, click it and press :kbd:`Return`, or double-click the item.
+
+To delete a Data Group, select it and press :kbd:`Delete`. This deletes the group, not the items in it.
 
 .. _Data Panel:
 
@@ -129,11 +122,13 @@ Any data item in the data panel can be displayed in a display panel. To display 
 
 By default, the Data panel is set to show all data items in a project, but the data panel can show any other collection by choosing a different collection in the Collections panel.
 
-You can also search for data items in the selected collection by using the filter text box at the bottom of the Data panel. If a data item is not in the selected collection, it will not appear in the filtered results. The filter search bar looks for keywords in the titles and captions of data items.
+To search for data items in the selected collection, use the filter text box at the bottom of the Data panel. If a data item is not in the selected collection, it will not appear in filtered results. The filter matches keywords in item titles and captions.
 
 Newly created data items will appear in the data panel. Make sure the collection is set to "All." A new data item may not be applicable to the currently selected collection.
 
-To delete a data item, select it in the data panel and press the delete key. To select multiple data items, hold down the control key (command key for macOS) and select all the data items you want to delete in the data panel.
+To delete a data item, select it in the data panel and press :kbd:`Delete`.
+
+To select multiple data items, hold :kbd:`Control` (or :kbd:`Command` on macOS) while selecting items.
 
 .. _Histogram Panel:
 
@@ -145,11 +140,27 @@ The Histogram panel (:menuselection:`Window --> Histogram`) shows the frequency 
     :width: 321
     :alt: Histogram Panel
 
-The bar directly under the histogram displays the color range of the data and will change color to match the color map of the selected display. General values about the data (maximum value, mean, minimum value, etc.) are displayed under the histogram. If no display panel or data item is selected, if more than one display panel is selected, or if the selected display item contains more than one data item, the histogram panel will not display anything.
+The histogram displays several visual elements and information:
 
-To select a range of data, click and drag between two points on the histogram. Doing this will zoom into the histogram on the selected range and the associated display panel will only display data values within that range. To reset the range, double click on the histogram.
+* The color range bar directly under the histogram displays the color range and changes to match the color map of the selected display.
 
-If a graphic is selected, the histogram will show data within that graphic. Click on a display panel outside the graphic to show the histogram for the full range of the data item.
+* General values about the data (maximum value, mean, minimum value, etc.) are displayed under the histogram.
+
+* When no display panel is selected, more than one display panel is selected, or the selected display item contains more than one data item, the panel is empty.
+
+Selecting and adjusting ranges:
+
+* To select a range of data, click and drag between two points on the histogram.
+
+* The histogram zooms into the selected range, and the associated display panel shows only data values within that range.
+
+* To reset the range, double-click on the histogram.
+
+Graphic-specific behavior:
+
+* If a crop graphic is selected, the histogram shows data within that graphic only.
+
+* Click on a display panel outside the graphic to show the histogram for the full range of the data item.
 
 .. _Info Panel:
 
@@ -161,7 +172,7 @@ The Info panel (:menuselection:`Window --> Info`) shows the position of the curs
     :width: 321
     :alt: Info Panel
 
-When hovering the cursor over the histogram, the info panel will show the intensity for a given position along the histogram.
+When hovering the cursor over the histogram, the info panel shows the intensity for a given position along the histogram.
 
 .. _Inspector Panel:
 
@@ -203,7 +214,7 @@ The :guilabel:`Image Display` inspector subsection allows you to force the displ
     :width: 321
     :alt: Inspector Image Display Subsection
 
-You can revert to the default display for an image by choosing :guilabel:`Default`.
+To revert an image to the default display, choose :guilabel:`Default`.
 
 .. TODO: Scale marker customization options (position, text color, background color) are available
 .. when the feature flag "feature.scale_marker_customization" is enabled. Document here once official.
@@ -224,17 +235,27 @@ Image Data presents several controls and settings for a selected image:
 
 * :guilabel:`Data Range` - Displays the minimum and maximum values of the selected data.
   
-* :guilabel:`Display Limits` - Change the minimum and maximum values currently shown in the selected data. Editing these is the same as zooming in or out on an interval on the Histogram.
-  
+* :guilabel:`Display Limits` - Change the minimum and maximum values currently shown in the selected data. Editing these is equivalent to zooming on an interval in the Histogram.
+
 * :guilabel:`Color Map` - Change the color of the data. The data range is mapped to a range of colors. Choose from a list of preset color profiles. Grayscale is the default.
   
-* :guilabel:`Brightness` - Change the brightness of the color values on the color map. Moving the slider to the right will increase the brightness and moving the slider to the left will decrease the brightness. 0.0 is the default brightness setting. The slider ranges from -1.0 to 1.0.
-  
-* :guilabel:`Contrast` - Change the range of color values on the color map. Moving the slider to the right will increase the contrast and moving the slider to the left will decrease the contrast. 1.0 is the default contrast setting. The slider ranges from 1/10 to 10. You can enter values as fractions, such as "1/2".
+* :guilabel:`Brightness` - Change the brightness of the color values on the color map. The slider ranges from -1.0 to 1.0 (default is 0.0).
 
-* :guilabel:`Adjustment` - Change the equalization of the selected data. Choose between Equalized, Gamma, Log, or no adjustment. Equalized attempts to maximize color variation where intensity density is highest. Log applies a logarithmic transfer function. If intensity values are small or negative, Log behavior is undefined.
+* Moving the brightness slider to the right increases brightness; moving left decreases it.
 
-* :guilabel:`Gamma` - If :guilabel:`Gamma` is selected for the adjustment, a new slider will appear to adjust gamma values. Moving the slider to the right will decrease the gamma and moving the slider to the left will increase the gamma. 1.0 is the default gamma setting. The slider ranges from 10 to 1/10. You can enter values as fractions, such as "1/2".
+* :guilabel:`Contrast` - Change the range of color values on the color map. The slider ranges from 1/10 to 10 (default is 1.0). You can enter values as fractions, such as "1/2".
+
+* Moving the contrast slider to the right increases contrast; moving left decreases it.
+
+* :guilabel:`Adjustment` - Change the equalization of the selected data. Choose between Equalized, Gamma, Log, or no adjustment.
+
+  * **Equalized** attempts to maximize color variation where intensity density is highest.
+
+  * **Log** applies a logarithmic transfer function. If intensity values are small or negative, Log behavior is undefined.
+
+* :guilabel:`Gamma` - If :guilabel:`Gamma` is selected for the adjustment, a slider will appear to adjust gamma values. The slider ranges from 10 to 1/10 (default is 1.0). You can enter values as fractions, such as "1/2".
+
+* Moving the gamma slider to the right decreases the gamma value; moving left increases it.
 
 * :guilabel:`Complex Display` - If the data is complex, choose how to convert it to a scalar value for display. The options are Log Absolute, Absolute, Phase, Real, and Imaginary. The default is Log Absolute.
 
@@ -250,9 +271,17 @@ Line Plot Display presents several controls and settings for a selected line plo
 
 * :guilabel:`Display Type` - Force the selected line plot to display as an image instead of a line plot, or vice versa.
 
-* :guilabel:`Display` - Change the range of y values (intensity) shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot. You can reset either limit to auto by deleting the value and pressing :kbd:`Enter`.
+* :guilabel:`Display` - Change the range of y values (intensity) shown on the line plot.
 
-* :guilabel:`Channels` - Change the range of x values shown on the line plot. These values are set to automatically calculate by default, but changing them allows you to zoom into a specific section on the line plot. Changing the channel values is similar to zooming into an interval on the line plot with an interval graphic. You can reset either limit to auto by deleting the value and pressing :kbd:`Enter`.
+* The display range is set to automatically calculate by default, but you can edit it to zoom into a specific section.
+
+* Reset either display limit to auto by deleting the value and pressing :kbd:`Enter`.
+
+* :guilabel:`Channels` - Change the range of x values shown on the line plot.
+
+* The channel range is set to automatically calculate by default, but you can edit it to zoom into a specific section (similar to zooming with an interval graphic).
+
+* Reset either channel limit to auto by deleting the value and pressing :kbd:`Enter`.
 
 * :guilabel:`Log Scale Y` - Set the y axis to scale logarithmically.
 
@@ -288,11 +317,13 @@ When an image is selected, the calibrations subsection of the inspector panel wi
 
 With an image selected, use the calibrations subsection to
 
-* Change the offset, scale, and units on the y and x axes. The default units for images is nanometers (nm). The calibration formula is ``x' = x * scale + offset``. You can enter scale and offset values as fractions, such as "1/2".
+* Change the offset, scale, and units on the y and x axes. The default units for images is nanometers (nm).
+
+* Apply the calibration formula ``x' = x * scale + offset``. You can enter scale and offset values as fractions, such as "1/2".
 
 * Change the intensity offset, scale, and units of the selected image.
 
-* Change the coordinate system using the :guilabel:`Display` combo box. This also changes how the cursor position over a display item is shown in the Info panel. See :ref:`data-items` for more information.
+* Change the coordinate system using the :guilabel:`Display` combo box. This also affects how the cursor position is shown in the Info panel. See :ref:`data-items` for more information.
 
 Line Plot Calibrations
 ++++++++++++++++++++++
@@ -306,7 +337,9 @@ With a line plot selected, use the calibrations subsection to
 
 * Change the offset, scale, and units of the x axis (Channel). You can enter values as fractions, such as "1/2".
 
-* Change the coordinate system using the :guilabel:`Display` combo box. This also changes how the cursor position over a display item is shown in the Info panel. See :ref:`data-items` for more information.
+* Change the coordinate system using the :guilabel:`Display` combo box.
+
+* The coordinate system selection affects how the cursor position is shown in the Info panel. See :ref:`data-items` for more information on coordinate systems.
 
 .. _Session Inspector Section:
 
@@ -324,15 +357,21 @@ Editing session info in the inspector will not change global session info. Globa
 
 Computation
 -----------
-With the Computation subsection of the inspector, you can adjust several variables for a computation associated with the selected item.
+The Computation subsection of the Inspector can be used to adjust variables for a computation associated with the selected item.
 
 .. image:: graphics/inspector_computation_subsection.png
     :width: 321
     :alt: Inspector Computation Subsection  
 
-The variables in this subsection will change based on what kind of item is selected. For example, a line profile will have adjustments for the coordinates of each end of the line, the angle of the line, and the length and width of the line; whereas a processing filter like a gaussian blur may only have a single slider to adjust the sigma (or blur) value. If the selected item has no associated computations, the Computation subsection will say "None."
+The variables displayed in this subsection depend on the selected item type:
 
-The Computation subsection can also be accessed in a separate pop-up window by hitting :kbd:`Ctrl+E` (or :kbd:`Cmd+E` on macOS). The computation editor window is recommended for editing computations as it provides an easier-to-use interface for the same functionality.
+* A line profile will show adjustments for the coordinates of each end, the angle, and the length and width.
+
+* A processing filter (such as Gaussian blur) may show only a single slider to adjust the sigma (blur) value.
+
+* If the selected item has no associated computations, the subsection will display "None."
+
+To open the computation editor window (with a larger editing interface), press :kbd:`Ctrl+E` (or :kbd:`Command+E` on macOS). This provides the same functionality as the subsection with more screen space.
 
 .. image:: graphics/computation_window.png
     :width: 321
@@ -372,9 +411,9 @@ With the layered line plot selected, you can
 
 * Add or remove layers with the plus and minus buttons to the right of the arrow buttons.
 
-* Associate layers with data items in the stack using the text box labeled :guilabel:`Data Index`. Type the number of the data item as it appears in the stack. The first data item will be called "Data #0," the second will be called "Data #1," and so on. Type 0 or 1 into the text box to associate the layer with Data #0 or Data #1 respectively.
+* Associate layers with data items in the stack using the text box labeled :guilabel:`Data Index`. Type the data item number as it appears in the stack.
 
-* Choose which row of a data item to show. If a data item has multiple rows, use the "Row" text box to choose which one is shown. Like data items, the row numbering will start at 0 and count up.
+* Choose which row of a data item to show. If a data item has multiple rows, use the "Row" text box to select the desired row. Row numbering starts at 0.
 
 * Change the fill color and stroke color using the color or text boxes under each layer's section.
 
@@ -388,7 +427,7 @@ With the layered line plot selected, you can
 
   * Choose no color by deleting any text from the text box next to "Fill Color" or "Stroke Color." The text box will show a gray "None."
 
-* Change the stroke width by typing a number into the "Stroke Width" text box. This will create an outline of the stroke color around the associated layer.
+* Change the stroke width by typing a number into the "Stroke Width" text box. This creates an outline of the stroke color around the associated layer.
 
 * Change the complex display type for a layer. If the data is complex, choose Log Absolute, Absolute, Phase, Real, or Imaginary to control how the data is converted to a scalar for display.
 
@@ -402,7 +441,11 @@ The Graphics subsection shows options for selected graphics, or for graphics ass
     :width: 321
     :alt: Inspector Graphics Subsection
 
-Each graphic will have different variables that can be changed in this subsection. Most of the variables can either be manipulated by text in the inspector panel or by moving points around in the display panel. The inputs and outputs for the variables will be based off of the coordinate system selected in the calibration drop-down. See :ref:`data-items` (Calibrations) for information on different types of coordinate systems. 
+Each graphic has a different set of editable variables in this subsection.
+
+Most variables can be edited by typing values in the Inspector or by dragging control points in the display panel.
+
+Variable inputs and outputs use the coordinate system selected in the calibrations display drop-down. See :ref:`data-items` (Calibrations) for coordinate system details.
 
 Each graphic will have some or all of the following variables:
 
@@ -422,15 +465,15 @@ Each graphic will have some or all of the following variables:
 
 * :guilabel:`Start/End` - The end points of a graphic on a line plot in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* :guilabel:`Radius 1` - The outer radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`Radius 1` - The outer radius of a Band-Pass Graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* :guilabel:`Radius 2` - The inner radius of a ring mask in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
+* :guilabel:`Radius 2` - The inner radius of a Band-Pass Graphic in nanometers (nm), pixels, or a decimal fraction depending on the coordinate system selected.
 
-* :guilabel:`Mode` - The type of ring mask. See :ref:`graphics` for more information on ring masks.
+* :guilabel:`Mode` - The filter mode of a Band-Pass Graphic. See :ref:`graphics` for details.
 
-* :guilabel:`Start Angle` - The top left inside angle of a wedge mask in degrees.
+* :guilabel:`Start Angle` - The starting angle of an Angular Graphic in degrees.
 
-* :guilabel:`End Angle` - The inside opposite angle of a wedge mask in degrees.
+* :guilabel:`End Angle` - The ending angle of an Angular Graphic in degrees.
 
 * :guilabel:`Display` - The type of coordinate system used to label the coordinates on the image or line plot. See :ref:`data-items` for information on different types of coordinate systems.
 
@@ -466,9 +509,9 @@ The available coordinate variables differ by graphic type:
 
 * **Spot Graphic** - Center position, size, and rotation (in degrees) of the primary spot.
 
-* **Angular Graphic (Wedge Mask)** - Start angle and end angle (both in degrees).
+* **Angular Graphic** - Start angle and end angle (both in degrees).
 
-* **Band-Pass Graphic (Ring Mask)** - Inner radius (:guilabel:`Radius 2`), outer radius (:guilabel:`Radius 1`), and band-pass type (low, high, band) via :guilabel:`Mode`.
+* **Band-Pass Graphic** - Inner radius (:guilabel:`Radius 2`), outer radius (:guilabel:`Radius 1`), and filter mode (low, high, band) via :guilabel:`Mode`.
 
 * **Lattice Graphic** - Center position, size, and rotation (in degrees) of the primary and secondary lattice spots.
 
@@ -490,7 +533,7 @@ Additional debugging information may be available using debugger consoles if the
 
 Session
 =======
-The Session panel (:menuselection:`Window --> Session`) allows you to edit the session info for the whole project rather than for a single data item.
+The Session panel (:menuselection:`Window --> Session`) lets you edit the default session info that will be applied to new data items.
 
 .. image:: graphics/session_panel.png
     :width: 321
@@ -506,13 +549,13 @@ The Task panel (:menuselection:`Window --> Task Panel`) allows you to see the ou
 
 .. _Tool Panel:
 
-Toolbar
-=======
+Tool Bar
+========
 .. tools: pointer, hand, line, rectangle, ellipse, point, line profile, interval, spot, angular, band-pass, array
 .. images: zoom options
 .. workspace: split h,v, 2x2, 3x2, 3x3, 4x3, 4x4, 5x4, select more panels, clear selected panels, reset workspace, close selected panels
 
-The Tools panel (:menuselection:`Window --> Tools`) allows you to select tools, adjust image zooming, and modify the workspace.
+The Tool Bar (:menuselection:`Window --> Tools`) allows you to select tools, adjust image zooming, and modify the workspace.
 
 The tools available are the pointer, hand, line, rectangle, ellipse, point, line profile, interval, spot, angular, band-pass, and lattice tools. Some tools have keyboard shortcuts which can be seen by hovering over the tool.
 
@@ -524,7 +567,9 @@ The workspace buttons allow you to split the workspace panels horizontally and v
     :width: 310
     :alt: Toolbar Button Functions
 
-Some tools on the toolbar have key shortcuts. For example, hitting the lowercase E key will select the pointer tool. You can see the shortcuts for the various tools by hovering the cursor over the button for a tool.
+Some tools on the Tool Bar have keyboard shortcuts. For example, pressing :kbd:`E` selects the pointer tool.
+
+To view tool shortcuts, hover over a tool button.
 
 .. _Recorder Dialog:
 
@@ -533,7 +578,14 @@ Recorder
 
 The Recorder dialog (:menuselection:`File --> Data Item Recorder...`) allows you to record data at regular intervals from the display item selected when you open the recorder.
 
-To record acquisition, click on the live acquisition display panel. Then open the Recorder dialog. Enter the desired interval (in milliseconds) and the number of items to record. Then click Record. The resulting data item will be a sequence of data sampled from the live data at regular intervals.
+To record acquisition, follow these steps:
+
+1. Click the live acquisition display panel.
+2. Open the Recorder dialog.
+3. Enter the desired interval (in milliseconds) and the number of items to record.
+4. Click :guilabel:`Record`.
+
+The resulting data item will be a sequence of data sampled from the live data at regular intervals.
 
 .. _Notifications Panel:
 
