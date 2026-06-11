@@ -52,10 +52,14 @@ class ProjectNameResult:
 
     project_path will be None when the project path does not change otherwise it will be the new project path.
     error_messages will be empty when there are no errors, otherwise it is a sequence of error messages.
-    Only the error_messages being empty should be used to determine whether the check/rename was successful.
+    The success property is True when there are no errors and False when there are errors.
     """
     error_messages: typing.Sequence[str]
     project_path: pathlib.Path | None
+
+    @property
+    def success(self) -> bool:
+        return not self.error_messages
 
 
 class ReaderInfo:
@@ -638,7 +642,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         Returns a ProjectRenameResult.
         ProjectRenameResult.project_path will be None when the project path did not change otherwise it will be the new project path.
         ProjectRenameResult.error_message will be empty when there are no errors, otherwise it will be an error message.
-        The project path changing names does not indicate success, only the error message being empty should be used to determine success.
+        The project path changing names does not indicate success, only the ProjectNameResult.success should be used to check success.
         """
         return ProjectNameResult(["Project renaming is not supported for this storage system."], None)
 

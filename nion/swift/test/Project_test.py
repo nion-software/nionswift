@@ -12,8 +12,9 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import Facade
-from nion.swift.model import DataItem
+from nion.swift.model import DataItem, FileStorageSystem
 from nion.swift.model import Profile
+from nion.swift.model.FileStorageSystem import FileProjectStorageSystem
 from nion.swift.test import TestContext
 from nion.ui import TestUI
 
@@ -87,14 +88,17 @@ class TestProjectClass(unittest.TestCase):
         with TestContext.MemoryProfileContext() as profile_context:
             profile = profile_context.create_profile()
             project_reference = profile.project_references[0]
+            reference_path = project_reference.path
+            base_directory = reference_path.parent
 
             def mock_get_project_reference_by_path(_path: pathlib.Path) -> Profile.ProjectReference | None:
                 return project_reference
 
+            def mock_check_project_name_is_available(_name: str, _directory: str) -> FileStorageSystem.ProjectNameResult:
+                return FileStorageSystem.ProjectNameResult([], reference_path)  # Return the project path with no errors so it can be checked against the existing references
+
             with unittest.mock.patch.object(profile, 'get_project_reference_by_path', mock_get_project_reference_by_path):
-                reference_path = project_reference.path
-                base_directory = reference_path.parent
-                viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile)
+                viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, mock_check_project_name_is_available)
                 viewmodel.update_project_status_label(project_reference.title)
                 self.assertFalse(viewmodel.accept_button_enabled.value)
                 self.assertEqual(viewmodel.project_name_status_label.value, f"Project Reference \"{reference_path.stem}\" already exists, remove it via Choose Project before proceeding")
