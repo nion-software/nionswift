@@ -644,7 +644,7 @@ class Profile(Persistence.PersistentObject):
         Returns the newly loaded project reference and the rename result as a tuple to be unpacked.
         """
         project = project_reference.project
-        project_path = project_reference.path
+
         if project is None:
             project_storage_system = project_reference.make_storage(self.profile_context)
         else:
@@ -656,7 +656,9 @@ class Profile(Persistence.PersistentObject):
         self.remove_project_reference(project_reference)
 
         rename_result = project_storage_system.rename_project(name)
-        if rename_result.project_path is not None:  # The project file name changed, so update the project reference to point to the new path.
+
+        project_path = project_reference.path  # Load the old path unless the returned project path exists
+        if rename_result.project_path is not None and rename_result.project_path.exists():
             project_path = rename_result.project_path
 
         # Open project creates and adds the project to the profile, but does not read/load the project.

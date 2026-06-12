@@ -1280,7 +1280,7 @@ class NameProjectViewModel:
             -> FileStorageSystem.ProjectNameResult:
         """Verify that a project name is a valid filename and doesn't already exist.
 
-        Returns a ProjectNameVerificationResult with is_valid, and a sequence of error messages.
+        Returns a ProjectNameResult with a sequence of error messages if there are any.
         """
         if project_name == "":
             return FileStorageSystem.ProjectNameResult(["Project name cannot be empty"], None)
