@@ -2190,6 +2190,14 @@ class Computation(Persistence.PersistentObject):
         self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d)
 
     @property
+    def needs_recompute(self) -> bool:
+        return typing.cast(bool | None, self._get_persistent_property_value("needs_recompute")) == True
+
+    @needs_recompute.setter
+    def needs_recompute(self, value: bool) -> None:
+        self._set_persistent_property_value("needs_recompute", value)
+
+    @property
     def auto_update(self) -> bool:
         return typing.cast(bool | None, self._get_persistent_property_value("auto_update")) == True
 
