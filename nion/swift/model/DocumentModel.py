@@ -167,6 +167,8 @@ class TransactionManager:
                 items.add(item)
                 for dependent in self.__document_model.get_dependent_items(item):
                     self.__get_deep_transaction_item_set(dependent, items)
+                for computation in self.__document_model.get_dependent_computations(item):
+                    self.__get_deep_transaction_item_set(computation, items)
             if isinstance(item, DisplayItem.DisplayItem):
                 for display_data_channel in item.display_data_channels:
                     self.__get_deep_transaction_item_set(display_data_channel, items)
@@ -620,6 +622,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.__dependency_tree_lock = threading.RLock()
         self.__dependency_tree_source_to_target_map: typing.Dict[typing.Any, typing.List[Persistence.PersistentObject]] = dict()
         self.__dependency_tree_target_to_source_map: typing.Dict[typing.Any, typing.List[Persistence.PersistentObject]] = dict()
+        self.__input_to_computation_map = dict[typing.Any, list[Symbolic.Computation]]()
         self.__computation_changed_listeners: typing.Dict[Symbolic.Computation, Event.EventListener] = dict()
         self.__computation_output_changed_listeners: typing.Dict[Symbolic.Computation, Event.EventListener] = dict()
         self.__computation_changed_delay_list: typing.Optional[typing.List[Symbolic.Computation]] = None
@@ -1420,6 +1423,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for input in removed_inputs:
                 for output in old_outputs:
                     self.__remove_dependency(input, output)
+                # remove mapping from input to computation
+                input_ref = weakref.ref(input)
+                target_computations = self.__input_to_computation_map.setdefault(input_ref, list())
+                if computation in target_computations:
+                    target_computations.remove(computation)
+                if not target_computations:
+                    self.__input_to_computation_map.pop(input_ref, None)
             for output in removed_outputs:
                 for input in old_inputs:
                     self.__remove_dependency(input, output)
@@ -1428,6 +1438,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             for input in added_inputs:
                 for output in new_outputs:
                     self.__add_dependency(input, output)
+                # add mapping from input to computation
+                input_ref = weakref.ref(input)
+                target_computations = self.__input_to_computation_map.setdefault(input_ref, list())
+                if computation not in target_computations:
+                    target_computations.append(computation)
             for output in added_outputs:
                 for input in same_inputs:
                     self.__add_dependency(input, output)
@@ -1446,6 +1461,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         """Return the list of data items containing data that directly depends on data in this item."""
         with self.__dependency_tree_lock:
             return copy.copy(self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list()))
+
+    def get_dependent_computations(self, item: Persistence.PersistentObject) -> typing.List[Symbolic.Computation]:
+        with self.__dependency_tree_lock:
+            return copy.copy(self.__input_to_computation_map.get(weakref.ref(item), list()))
 
     def __get_deep_dependent_item_set(self, item: Persistence.PersistentObject, item_set: typing.Set[Persistence.PersistentObject]) -> None:
         """Return the list of data items containing data that directly depends on data in this item."""
