@@ -2049,6 +2049,8 @@ class Computation(Persistence.PersistentObject):
         self.__result_base_item_removed_event_listeners: typing.List[Event.EventListener] = list()
         self.__processor: typing.Optional[ComputationProcessor] = None
         self.last_evaluate_data_time = 0.0
+        self.__in_transaction_state = False
+        self.__write_delay_modified_count = 0
         self.__recompute_enabled = True  # used for disabling recompute machinery while close document
         self.__needs_update = True
         self.computation_mutated_event = Event.Event()
@@ -2099,6 +2101,39 @@ class Computation(Persistence.PersistentObject):
         # for soft delete and flags it to stop.
         self.is_deleted = True
         self.stop()
+
+    @property
+    def in_transaction_state(self) -> bool:
+        return self.__in_transaction_state
+
+    def __enter_write_delay_state(self) -> None:
+        self.__write_delay_modified_count = self.modified_count
+        if self.persistent_object_context:
+            self.enter_write_delay()
+
+    def __exit_write_delay_state(self) -> None:
+        if self.persistent_object_context:
+            self.exit_write_delay()
+            if self.modified_count > self.__write_delay_modified_count:
+                self.rewrite()
+
+    def _transaction_state_entered(self) -> None:
+        self.__in_transaction_state = True
+        # first enter the write delay state.
+        self.__enter_write_delay_state()
+
+    def _transaction_state_exited(self) -> None:
+        self.__in_transaction_state = False
+        # exit the write delay state.
+        self.__exit_write_delay_state()
+
+    def persistent_object_context_changed(self) -> None:
+        # handle case where persistent object context is set on an item that is already under transaction.
+        # this can occur during acquisition. any other cases?
+        super().persistent_object_context_changed()
+
+        if self.__in_transaction_state:
+            self.__enter_write_delay_state()
 
     @property
     def variables(self) -> typing.Sequence[ComputationVariable]:

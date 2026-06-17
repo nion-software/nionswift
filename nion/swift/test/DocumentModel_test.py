@@ -2512,6 +2512,46 @@ class TestDocumentModelClass(unittest.TestCase):
             # trigger the connection
             display_item.display_data_channel.collection_index = (1, 0)
 
+    def test_transaction_extends_to_computations(self):
+        with TestContext.create_memory_context() as test_context:
+            # create two data items with computations; and then another computation from the first computed item.
+            document_model = test_context.create_document_model()
+            data_item1 = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            computed_data_item1 = document_model.get_invert_new(display_item1, display_item1.data_item)
+            computed_data_item2 = document_model.get_invert_new(display_item2, display_item2.data_item)
+            computed_display_item1 = document_model.get_display_item_for_data_item(computed_data_item1)
+            computed_data_item11 = document_model.get_invert_new(computed_display_item1, computed_display_item1.data_item)
+            # check assumptions
+            self.assertFalse(document_model.computations[0].in_transaction_state)
+            self.assertFalse(document_model.computations[1].in_transaction_state)
+            self.assertFalse(document_model.computations[2].in_transaction_state)
+            # check transaction state
+            with document_model.item_transaction(data_item1):
+                self.assertTrue(document_model.computations[0].in_transaction_state)
+                self.assertFalse(document_model.computations[1].in_transaction_state)
+                self.assertTrue(document_model.computations[2].in_transaction_state)
+            # check return to normal
+            self.assertFalse(document_model.computations[0].in_transaction_state)
+            self.assertFalse(document_model.computations[1].in_transaction_state)
+            self.assertFalse(document_model.computations[2].in_transaction_state)
+            self.assertEqual(0, document_model.transaction_count)
+
+    def test_computation_added_to_data_item_in_transaction(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item1 = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            with document_model.item_transaction(data_item1):
+                computed_data_item1 = document_model.get_invert_new(display_item1, display_item1.data_item)
+                self.assertTrue(document_model.computations[0].in_transaction_state)
+            self.assertFalse(document_model.computations[0].in_transaction_state)
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
