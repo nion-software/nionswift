@@ -429,7 +429,7 @@ class Application(UIApplication.BaseApplication):
                 profile_name = pathlib.Path(self.ui.get_persistent_string("profile_name", "Profile"))
                 profile_path = data_dir / profile_name.with_suffix(".nsproj")
             # create the profile
-            profile, is_created = self.__establish_profile(profile_path)
+            profile, is_created = Profile.establish_profile(profile_path, self.event_loop)
         self.__profile = profile
         assert self.__profile
 
@@ -770,27 +770,6 @@ class Application(UIApplication.BaseApplication):
 
     def _set_profile_for_test(self, profile: typing.Optional[Profile.Profile]) -> None:
         self.__profile = profile
-
-    def __establish_profile(self, profile_path: pathlib.Path) -> typing.Tuple[typing.Optional[Profile.Profile], bool]:
-        assert profile_path.is_absolute()  # prevents tests from creating temporary files in test directory
-        create_new_profile = not profile_path.exists()
-        if create_new_profile:
-            logging.getLogger("loader").info(f"Creating new profile {profile_path}")
-            profile_json = json.dumps({"version": FileStorageSystem.PROFILE_VERSION, "uuid": str(uuid.uuid4())})
-            profile_path.write_text(profile_json, "utf-8")
-        else:
-            logging.getLogger("loader").info(f"Using existing profile {profile_path}")
-        storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
-        storage_system.load_properties()
-        old_cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
-        if old_cache_path.exists():
-            logging.getLogger("loader").info(f"Removing old cache {old_cache_path}")
-            old_cache_path.unlink()
-        cache_dir_path = profile_path.parent / "Cache"
-        cache_dir_path.mkdir(parents=True, exist_ok=True)
-        profile = Profile.Profile(self.event_loop, storage_system=storage_system, cache_dir_path=cache_dir_path)
-        profile.read_profile()
-        return profile, create_new_profile
 
     @property
     def document_controllers(self) -> typing.List[DocumentController.DocumentController]:

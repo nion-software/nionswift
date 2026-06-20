@@ -943,6 +943,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                     project_data_paths.append(project_data_path)
                 project_uuid = uuid.uuid4()
                 properties.setdefault("uuid", str(project_uuid))
+                properties.setdefault("version", PROJECT_VERSION)
                 properties["project_data_folders"] = [str(project_data_path) for project_data_path in project_data_paths]
                 json.dump(properties, fp)
 

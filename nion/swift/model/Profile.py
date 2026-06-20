@@ -705,3 +705,25 @@ class Profile(Persistence.PersistentObject):
             self.remove_project_reference(project_reference)
             return self.add_project_reference(new_project_reference, load=False)
         return None
+
+
+def establish_profile(profile_path: pathlib.Path, event_loop: asyncio.AbstractEventLoop) -> tuple[Profile | None, bool]:
+    assert profile_path.is_absolute()  # prevents tests from creating temporary files in test directory
+    create_new_profile = not profile_path.exists()
+    if create_new_profile:
+        logging.getLogger("loader").info(f"Creating new profile {profile_path}")
+        profile_json = json.dumps({"version": FileStorageSystem.PROFILE_VERSION, "uuid": str(uuid.uuid4())})
+        profile_path.write_text(profile_json, "utf-8")
+    else:
+        logging.getLogger("loader").info(f"Using existing profile {profile_path}")
+    storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
+    storage_system.load_properties()
+    old_cache_path = profile_path.parent / pathlib.Path(profile_path.stem + " Cache").with_suffix(".nscache")
+    if old_cache_path.exists():
+        logging.getLogger("loader").info(f"Removing old cache {old_cache_path}")
+        old_cache_path.unlink()
+    cache_dir_path = profile_path.parent / "Cache"
+    cache_dir_path.mkdir(parents=True, exist_ok=True)
+    profile = Profile(event_loop, storage_system=storage_system, cache_dir_path=cache_dir_path)
+    profile.read_profile()
+    return profile, create_new_profile
