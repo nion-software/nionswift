@@ -1116,6 +1116,8 @@ class GraphicStyleProperties:
 
 
 # Built-in property keys. Stylesheet identifiers use dashes; Python names use underscores.
+PROP_VISIBILITY: GraphicStylePropertyKey[str] = GraphicStylePropertyKey("visibility", str, "selection")
+PROP_LABEL_BACKGROUND_COLOR: GraphicStylePropertyKey[str] = GraphicStylePropertyKey("label-background-color", str, "#99ffffff")
 PROP_STROKE_COLOR: GraphicStylePropertyKey[str] = GraphicStylePropertyKey("stroke-color", str, "#F80")
 PROP_FILL_COLOR: GraphicStylePropertyKey[str] = GraphicStylePropertyKey("fill-color", str, "")  # empty string = no fill
 PROP_STROKE_WIDTH: GraphicStylePropertyKey[float] = GraphicStylePropertyKey("stroke-width", float, 1.0)
@@ -1216,11 +1218,16 @@ class GraphicStylesheet:
           channel-graphic::part(shape)                                   { stroke-color: #F00 }
           graphic[role="mask"]::part(shape)                              { stroke-color: #00F; fill-color: rgba(0,0,255,0.1) }
           graphic[role="fourier_mask"]::part(shape)                      { stroke-color: #F08; fill-color: rgba(255,0,127,0.1) }
+          interval-graphic::part(label)                                  { visibility: always; label-background-color: #99ffffff }
+          interval-graphic::part(label)[category="details"]             { visibility: selection }
+          interval-graphic[role="measurement"]::part(label)
+              [category="details"][type="width"]                       { visibility: always; label-background-color: white }
         """
         rules: list[GraphicStyleRule] = []
 
         # base default: all graphics, all parts are always visible
         base_properties = GraphicStyleProperties()
+        base_properties.set(PROP_VISIBILITY, "always")
         rules.append(GraphicStyleRule(GraphicStyleSelector(), base_properties, order=1))
 
         # base stroke/width defaults (matches Graphic._default_stroke_color and used_stroke_width)
@@ -1250,6 +1257,46 @@ class GraphicStylesheet:
         fourier_mask_shape_properties.set(PROP_STROKE_COLOR, "#F08")
         fourier_mask_shape_properties.set(PROP_FILL_COLOR, "rgba(255, 0, 127, 0.1)")
         rules.append(GraphicStyleRule(GraphicStyleSelector(role="fourier_mask", part="shape"), fourier_mask_shape_properties, order=2))
+
+        # interval-graphic base label defaults.
+        label_properties = GraphicStyleProperties()
+        label_properties.set(PROP_VISIBILITY, "always")
+        label_properties.set(PROP_LABEL_BACKGROUND_COLOR, "#99ffffff")
+        rules.append(GraphicStyleRule(GraphicStyleSelector(graphic_type="interval-graphic", part="label"), label_properties, order=2))
+
+        # details labels inherit from label and default to selection visibility.
+        details_label_properties = GraphicStyleProperties()
+        details_label_properties.set(PROP_VISIBILITY, "selection")
+        rules.append(GraphicStyleRule(
+            GraphicStyleSelector(graphic_type="interval-graphic", part="label", axes={"category": "details"}),
+            details_label_properties,
+            order=3,
+        ))
+
+        # measurement role overrides details width labels: always visible, white.
+        measurement_properties = GraphicStyleProperties()
+        measurement_properties.set(PROP_VISIBILITY, "always")
+        measurement_properties.set(PROP_LABEL_BACKGROUND_COLOR, "white")
+        rules.append(GraphicStyleRule(
+            GraphicStyleSelector(
+                graphic_type="interval-graphic",
+                role="measurement",
+                part="label",
+                axes={"category": "details", "type": "width"},
+            ),
+            measurement_properties,
+            order=4,
+        ))
+
+        # interval-graphic shape default stroke color
+        measurement_interval_shape_properties = GraphicStyleProperties()
+        measurement_interval_shape_properties.set(PROP_STROKE_COLOR, "#8C5E00")
+        rules.append(GraphicStyleRule(GraphicStyleSelector(graphic_type="interval-graphic", role="measurement", part="shape"), measurement_interval_shape_properties, order=4))
+
+        # interval-graphic shape default stroke color
+        measurement_interval_shape_properties = GraphicStyleProperties()
+        measurement_interval_shape_properties.set(PROP_STROKE_COLOR, "#8C5E00")
+        rules.append(GraphicStyleRule(GraphicStyleSelector(graphic_type="interval-graphic", role="measurement", part="shape"), measurement_interval_shape_properties, order=4))
 
         return GraphicStylesheet(rules)
 
@@ -1316,14 +1363,42 @@ class GraphicRenderer:
             return self.stroke_width
         return self.graphic_stylesheet.resolve(self.graphic_type, self.used_role, {"part": "shape"}, PROP_STROKE_WIDTH, graphic_state, graphic_attributes)
 
+    @staticmethod
+    def is_label_visible(text_visibility: str | None, is_selected: bool) -> bool:
+        """Return whether the label is visible based on the text visibility setting and if it is selected.
+
+        If the visibility is always then return true, if it is selection return the value of is_selected, otherwise return false.
+        """
+        if text_visibility == "always":
+            return True
+        elif text_visibility == "selection":
+            return is_selected
+        return False
+
     def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         label = self.label
-        if label:
+        label_visibility = self.graphic_stylesheet.resolve(
+            self.graphic_type,
+            self.used_role,
+            {"part": "label"},
+            PROP_VISIBILITY,
+            graphic_state,
+            graphic_attributes,
+        )
+        if label and self.is_label_visible(label_visibility, graphic_state.selected):
             padding = self.label_padding
             font = self.label_font
             font_metrics = ui_settings.get_font_metrics(font, label)
             text_pos = self.label_position(mapping, font_metrics, padding)
             if text_pos:
+                label_background_color = self.graphic_stylesheet.resolve(
+                    self.graphic_type,
+                    self.used_role,
+                    {"part": "label"},
+                    PROP_LABEL_BACKGROUND_COLOR,
+                    graphic_state,
+                    graphic_attributes,
+                )
                 with ctx.saver():
                     ctx.begin_path()
                     ctx.move_to(text_pos.x - font_metrics.width * 0.5 - padding,
@@ -1335,7 +1410,7 @@ class GraphicRenderer:
                     ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding,
                                 text_pos.y + font_metrics.height * 0.5 + padding)
                     ctx.close_path()
-                    ctx.fill_style = "rgba(255, 255, 255, 0.6)"
+                    ctx.fill_style = label_background_color
                     ctx.fill()
                     ctx.stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
                     ctx.stroke()
