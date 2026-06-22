@@ -718,6 +718,8 @@ class Graphic(Persistence.PersistentObject):
         self.define_property("is_rotation_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("role", None, changed=self._property_changed, validate=to_str, hidden=True)
+        self.define_property("text_visibility", "always", changed=self._property_changed, validate=to_str, hidden=True)
+        self.define_property("text_background_color", "#00000000", changed=self._property_changed, validate=to_str, hidden=True)  # Default to transparent
         self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
@@ -934,6 +936,22 @@ class Graphic(Persistence.PersistentObject):
         self.stroke_color = value
 
     @property
+    def text_background_color(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("text_background_color"))
+
+    @text_background_color.setter
+    def text_background_color(self, value: str) -> None:
+        self._set_persistent_property_value("text_background_color", value)
+
+    @property
+    def text_visibility(self) -> str:
+        return typing.cast(str, self._get_persistent_property_value("text_visibility"))
+
+    @text_visibility.setter
+    def text_visibility(self, value: str) -> None:
+        self._set_persistent_property_value("text_visibility", value)
+
+    @property
     def _constraints(self) -> typing.Set[str]:
         constraints: typing.Set[str] = set()
         if self.is_position_locked:
@@ -1029,6 +1047,8 @@ class GraphicRenderer:
         self.is_position_locked = graphic.is_position_locked
         self.is_shape_locked = graphic.is_shape_locked
         self.is_rotation_locked = graphic.is_rotation_locked
+        self.text_visibility = graphic.text_visibility
+        self.text_background_color = graphic.text_background_color
 
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         raise NotImplementedError()
@@ -1036,9 +1056,19 @@ class GraphicRenderer:
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         return None
 
-    def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike) -> None:
+    @classmethod
+    def is_label_visible(cls, text_visibility: str, is_selected: bool, is_focused: bool) -> bool:
+        if text_visibility == "always":
+            return True
+        elif text_visibility == "selection":
+            return is_selected
+        elif text_visibility == "focus":
+            return is_focused
+        return False
+
+    def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         label = self.label
-        if label:
+        if label and self.is_label_visible(self.text_visibility, is_selected, is_focused):
             padding = self.label_padding
             font = self.label_font
             font_metrics = ui_settings.get_font_metrics(font, label)
@@ -1360,7 +1390,7 @@ class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
                 ctx.stroke_style = used_stroke_style
                 ctx.stroke()
                 draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         bounds = Geometry.FloatRect.make(self.bounds)
@@ -1412,7 +1442,7 @@ class EllipseGraphicRenderer(RectangleTypeGraphicRenderer):
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
         draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style,  used_stroke_width, used_fill_style)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         bounds = self.bounds
@@ -1767,7 +1797,7 @@ class LineGraphicRenderer(LineTypeGraphicRenderer):
         if is_selected:
             draw_marker(ctx, p1, is_focused, is_shape_locked)
             draw_marker(ctx, p2, is_focused, is_shape_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
 
 
 class LineProfileGraphic(LineTypeGraphic):
@@ -1880,7 +1910,7 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
         if is_selected:
             draw_marker(ctx, p1, is_focused, is_shape_locked)
             draw_marker(ctx, p2, is_focused, is_shape_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
 
 
 class PointTypeGraphic(Graphic):
@@ -2026,7 +2056,7 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
             ctx.stroke_style = used_stroke_style
             ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
-            self.draw_label(ctx, ui_settings, mapping)
+            self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
         if is_selected:
             draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size), is_focused, False)
             draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size), is_focused, False)
@@ -2067,6 +2097,8 @@ class IntervalGraphic(Graphic):
         # interval is stored in image normalized coordinates
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval, hidden=True)
         self._default_drag_part = "end"
+        self.text_visibility = "selection"
+        self.text_background_color = "#99ffffff"
 
     @property
     def interval(self) -> typing.Tuple[float, float]:
@@ -2496,7 +2528,7 @@ class SpotGraphicRenderer(GraphicRenderer):
             ctx.rotate(math.pi)
             ctx.translate(-origin.x, -origin.y)
             draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, used_stroke_width, used_fill_style)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         center_widget = mapping.calibrated_origin_widget
@@ -2737,7 +2769,7 @@ class WedgeGraphicRenderer(GraphicRenderer):
 
         if is_selected:
             draw_marker(ctx, center, is_focused, is_shape_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
@@ -2976,7 +3008,7 @@ class RingGraphicRenderer(GraphicRenderer):
                         ctx.line_to(x, y)
                 ctx.close_path()
                 ctx.fill()
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
@@ -3294,7 +3326,7 @@ class LatticeGraphicRenderer(GraphicRenderer):
             draw_marker(ctx, v_pos_widget, is_focused, is_position_locked)
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget), is_focused, is_shape_locked)
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget), is_focused, is_shape_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, is_selected, is_focused)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
