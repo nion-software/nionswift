@@ -29,6 +29,7 @@ from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Graphics
 from nion.swift.model import LinePlotDisplay
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -595,11 +596,11 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
 
                 return Geometry.FloatRect.from_tlhw(rect_top, rect_left, height, width)
 
-            def _draw_label_with_background(label_text: str, label_x: float, label_y: float, text_align: str, text_baseline: str) -> None:
+            def _draw_label_with_background(label_text: str, label_x: float, label_y: float, text_align: str, text_baseline: str, background_color: str) -> None:
                 with drawing_context.saver():
                     drawing_context.text_baseline = text_baseline
                     drawing_context.text_align = text_align
-                    drawing_context.fill_style = self.text_background_color
+                    drawing_context.fill_style = background_color
                     label_rect = _get_text_rectangle(label_text, label_x, label_y, text_baseline, text_align)
 
                     # Draw the text background
@@ -655,23 +656,19 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.begin_path()
                     if region_selected:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color)
-                        drawing_context.font = self.font
-                        left_text = region.left_text
-                        right_text = region.right_text
-                        middle_text = region.middle_text
-                        if middle_text and region.style != "tag":
-                            _draw_label_with_background(middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom")
-                        drawing_context.fill_style = region_color
-                        if left_text:
-                            _draw_label_with_background(left_text, left - 5, level, "right", "middle")
-                        if right_text:
-                            _draw_label_with_background(right_text, right + 5, level, "left", "middle")
                     else:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
-
+                    drawing_context.font = self.font
+                    if region.middle_text and region.style != "tag" and Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "width_text"), region_selected):
+                        _draw_label_with_background(region.middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom", Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "width_text") or self.text_background_color)
+                    drawing_context.fill_style = region_color
+                    if region.left_text and Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "left_text"), region_selected):
+                        _draw_label_with_background(region.left_text, left - 5, level, "right", "middle", Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "left_text") or self.text_background_color)
+                    if region.right_text and Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "right_text"), region_selected):
+                        _draw_label_with_background(region.right_text, right + 5, level, "left", "middle", Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "right_text") or self.text_background_color)
                     label = region.label
-                    if label:
-                        _draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top")
+                    if label and Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "label_text"), region_selected):
+                        _draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top", Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "label_text") or self.text_background_color)
                     drawing_context.close_path()
 
 
