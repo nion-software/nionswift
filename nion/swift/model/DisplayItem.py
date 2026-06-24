@@ -2218,7 +2218,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.define_property("session_id", hidden=True, changed=self.__property_changed)
         self.define_property("calibration_style_id", "calibrated", hidden=True, changed=self.__property_changed)
         self.define_property("intensity_calibration_style_id", "calibrated", hidden=True, changed=self.__property_changed)
-        self.define_property("display_properties", dict(), hidden=True, copy_on_read=True, changed=self.__display_properties_changed)
+        self.define_property("display_properties", dict(), hidden=True, copy_on_read=True, changed=self.__property_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic, hidden=True)
         self.define_relationship("display_layers", typing.cast(Persistence._PersistentObjectFactoryFn, display_layer_factory), insert=self.__insert_display_layer, remove=self.__remove_display_layer, hidden=True)
         self.define_relationship("display_data_channels", display_data_channel_factory, insert=self.__insert_display_data_channel, remove=self.__remove_display_data_channel, hidden=True)
@@ -2537,9 +2537,6 @@ class DisplayItem(Persistence.PersistentObject):
             self.__specified_title_stream.value = value
             self.notify_property_changed("displayed_title")
 
-    def __display_properties_changed(self, name: str, value: typing.Any) -> None:
-        self.notify_property_changed(name)
-
     def clone(self) -> DisplayItem:
         display_item = self.__class__()
         display_item.uuid = self.uuid
@@ -2662,13 +2659,11 @@ class DisplayItem(Persistence.PersistentObject):
     def __insert_display_layer(self, name: str, before_index: int, display_layer: DisplayLayer) -> None:
         self.__display_layer_changed_event_listeners.insert(before_index, display_layer.property_changed_event.listen(self.__display_layer_changed))
         self.notify_insert_item("display_layers", display_layer, before_index)
-        self.auto_display_legend()
 
     def __remove_display_layer(self, name: str, index: int, display_layer: DisplayLayer) -> None:
         self.__display_layer_changed_event_listeners[index].close()
         del self.__display_layer_changed_event_listeners[index]
         self.notify_remove_item("display_layers", display_layer, index)
-        self.auto_display_legend()
 
     def __display_layer_changed(self, name: str) -> None:
         self.display_changed_event.fire()
