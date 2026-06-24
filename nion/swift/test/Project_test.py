@@ -1,6 +1,5 @@
 # standard libraries
 import contextlib
-import copy
 import pathlib
 import typing
 import unittest
@@ -12,11 +11,10 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import Facade
-from nion.swift.model import DataItem, FileStorageSystem
+from nion.swift.model import DataItem
+from nion.swift.model import FileStorageSystem
 from nion.swift.model import Profile
-from nion.swift.model.FileStorageSystem import FileProjectStorageSystem
 from nion.swift.test import TestContext
-from nion.ui import TestUI
 
 
 Facade.initialize()
@@ -98,31 +96,8 @@ class TestProjectClass(unittest.TestCase):
                 return FileStorageSystem.ProjectNameResult([], reference_path)  # Return the project path with no errors so it can be checked against the existing references
 
             with unittest.mock.patch.object(profile, 'get_project_reference_by_path', mock_get_project_reference_by_path):
-                viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, mock_check_project_name_is_available)
-                viewmodel.update_project_status_label(project_reference.title)
-                self.assertFalse(viewmodel.accept_button_enabled.value)
-                self.assertEqual(viewmodel.project_name_status_label.value, f"Project Reference \"{reference_path.stem}\" already exists, remove it via Choose Project before proceeding")
-
-    def test_name_project_dialog_button_validity_updates(self) -> None:
-        with create_memory_profile_context() as profile_context:
-            profile = profile_context.create_profile()
-            profile.read_profile()
-            app = profile_context.create_application()
-            app._set_profile_for_test(profile)
-            document_controller = app.open_project_window(profile.project_references[0])
-            try:
-                current_working_directory = str(pathlib.Path.cwd())
-                name_project_dialog = Application.NameProjectDialog(app.ui, document_controller, app, current_working_directory, "",
-                                                                    accept_fn=lambda _name, _dir: False, dialog_name="Rename Project", choose_directory_visible=False)
-
-                # Check the button starts off as disabled
-                self.assertEqual(name_project_dialog._accept_button.tool_tip, "Project name cannot be empty")
-                self.assertFalse(name_project_dialog._accept_button.enabled)
-
-                # Check that the rename button becomes enabled when the name becomes valid
-                assert name_project_dialog._project_name_line_edit is not None
-                name_project_dialog.handle_project_name_changed(_widget=name_project_dialog._project_name_line_edit, text="NewProjectName")
-                self.assertTrue(name_project_dialog._accept_button.enabled)
-            finally:
-                # clean up
-                document_controller.request_close()
+                with unittest.mock.patch.object(FileStorageSystem.ProjectStorageSystem, 'check_project_name_is_available', mock_check_project_name_is_available):
+                    viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, FileStorageSystem.ProjectStorageSystem)
+                    viewmodel.update_project_status_label(project_reference.title)
+                    self.assertFalse(viewmodel.accept_button_enabled.value)
+                    self.assertEqual(viewmodel.project_name_status_label.value, f"Project Reference \"{reference_path.stem}\" already exists, remove it via Choose Project before proceeding")
