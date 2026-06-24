@@ -1290,8 +1290,9 @@ class NameProjectViewModel:
         """
         if project_name == "":
             return FileStorageSystem.ProjectNameResult(["Project name cannot be empty"], None)
-        if project_name != Utility.simplify_filename(project_name):
-            return FileStorageSystem.ProjectNameResult(["Project Name contains illegal characters"], None)
+        is_valid, errors = Utility.verify_filename_is_legal(project_name)
+        if not is_valid and errors:
+            return FileStorageSystem.ProjectNameResult(errors, None)
 
         errors: list[str] = []
         name_available_result = project_storage_system.check_project_name_is_available(project_name, base_directory)
