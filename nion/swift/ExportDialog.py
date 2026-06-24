@@ -77,10 +77,20 @@ class ExportDialogViewModel:
             invalid_reasons: list[str] = []
 
             prefix_str = prefix_value or str()
-            if prefix_str != Utility.simplify_filename(prefix_str):
-                invalid_reasons.append(_("Prefix contains invalid characters"))
-
-            if not (prefix_str or include_title or include_date or include_dimensions or include_sequence):
+            if prefix_str:
+                if not (include_title or include_date or include_dimensions or include_sequence):
+                    # The prefix is the full filename so check it is allowed using the verify filename utility
+                    is_valid, errors = Utility.verify_filename_is_legal(prefix_str)
+                    if not is_valid and errors is not None:
+                        invalid_reasons.append(_("Prefix was not a valid filename:"))
+                        invalid_reasons.extend(errors)
+                else:  # The prefix will only be part of the filename so only check that it is made up of valid characters
+                    illegal_chars = re.findall(Utility.ILLEGAL_FILENAME_CHARS_REGEX, prefix_str)
+                    if len(illegal_chars) == 1:
+                        invalid_reasons.append(_("Prefix contains illegal character") + f" \"{illegal_chars[0]}\"")
+                    elif len(illegal_chars) > 1:
+                        invalid_reasons.append(_("Prefix contains illegal characters") + f" {illegal_chars}")
+            elif not (include_title or include_date or include_dimensions or include_sequence):
                 # There must be at least one option enabled otherwise the filenames will be empty
                 invalid_reasons.append(_("Filename requires at least one option to be selected"))
 
