@@ -1251,10 +1251,10 @@ class RenameProjectAction(UIWindow.Action):
         if self.project_reference is None:
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
 
-        if self.project_reference.project is not None:
-            project_storage_system = self.project_reference.project.project_storage_system
-        else:
+        if self.project_reference.project is None:
             project_storage_system = self.project_reference.make_storage(application.profile.profile_context)
+        else:
+            project_storage_system = self.project_reference.project.project_storage_system
 
         if project_storage_system is None:
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
@@ -1290,13 +1290,13 @@ class NameProjectViewModel:
         """
         if project_name == "":
             return FileStorageSystem.ProjectNameResult(["Project name cannot be empty"], None)
-        is_valid, errors = Utility.verify_filename_is_legal(project_name)
-        if not is_valid and errors:
-            return FileStorageSystem.ProjectNameResult(errors, None)
+        is_valid, error_messages = Utility.verify_filename_is_legal(project_name)
+        if not is_valid and error_messages:
+            return FileStorageSystem.ProjectNameResult(error_messages, None)
 
         errors: list[str] = []
         name_available_result = project_storage_system.check_project_name_is_available(project_name, base_directory)
-        errors.extend(name_available_result.error_messages)
+        errors.extend(name_available_result.error_messages or [])
         if name_available_result.success and name_available_result.project_path:
             # Check for an orphaned project reference exists, it would need to be removed manually
             project_reference = profile.get_project_reference_by_path(name_available_result.project_path)
