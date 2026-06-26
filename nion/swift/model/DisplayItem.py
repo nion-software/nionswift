@@ -2606,13 +2606,6 @@ class DisplayItem(Persistence.PersistentObject):
             self._get_persistent_property("created").value = timestamp
 
     @property
-    def properties(self) -> typing.Optional[Persistence.PersistentDictType]:
-        """ Used for debugging. """
-        if self.persistent_object_context:
-            return self.get_storage_properties()
-        return dict()
-
-    @property
     def in_transaction_state(self) -> bool:
         return self.__in_transaction_state
 

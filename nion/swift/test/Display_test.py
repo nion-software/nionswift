@@ -493,7 +493,8 @@ class TestDisplayClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_item.display_data_channels[0].reset_display_limits()
-                Utility.clean_dict(data_item.properties)
+                data_item_properties = data_item.persistent_storage.get_item_properties(data_item)
+                self.assertEqual(Utility.clean_dict(data_item_properties), data_item_properties)
 
     def test_reset_display_limits_on_complex_data_gives_reasonable_results(self):
         with TestContext.create_memory_context() as test_context:
@@ -572,7 +573,8 @@ class TestDisplayClass(unittest.TestCase):
             display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             display_panel.enter_key_pressed()
-            self.assertEqual(Utility.clean_dict(display_item.properties), display_item.properties)
+            display_item_properties = display_item.persistent_storage.get_item_properties(display_item)
+            self.assertEqual(Utility.clean_dict(display_item_properties), display_item_properties)
 
     def test_display_range_is_recalculated_with_new_data(self):
         with TestContext.create_memory_context() as test_context:

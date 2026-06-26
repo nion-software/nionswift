@@ -81,7 +81,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertNotEqual(id(data), id(data_item_copy.data))
             # make sure properties and other items got copied
             #self.assertEqual(len(data_item_copy.properties), 19)  # not valid since properties only exist if in document
-            self.assertIsNot(data_item.properties, data_item_copy.properties)
+            self.assertIsNot(data_item.persistent_storage.get_item_properties(data_item), data_item_copy.persistent_storage.get_item_properties(data_item_copy))
             # uuid should not match
             self.assertNotEqual(data_item.uuid, data_item_copy.uuid)
             # metadata get copied?
