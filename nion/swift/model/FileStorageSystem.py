@@ -47,12 +47,10 @@ class ReaderInfo:
     def __init__(self,
                  properties: PersistentDictType,
                  changed_ref: typing.List[bool],
-                 large_format: bool,
                  storage_handler: StorageHandler.StorageHandler,
                  identifier: str) -> None:
         self.properties = properties
         self.changed_ref = changed_ref
-        self.large_format = large_format
         self.storage_handler = storage_handler
         self.identifier = identifier
 
@@ -102,8 +100,6 @@ class MigrationReader(typing.Protocol):
 
     def _find_data_items(self, migration_stage: ProjectStorageSystemMigrationStage) -> typing.Sequence[StorageHandler.StorageHandler]: ...
 
-    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool: ...
-
     def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType: ...
 
 
@@ -145,11 +141,10 @@ def migrate_to_latest(source_project_storage_system: MigrationReader,
         preliminary_reader_info_list: typing.List[ReaderInfo] = list()
         for storage_handler in storage_handlers:
             try:
-                large_format = source_project_storage_system._is_storage_handler_large_format(storage_handler)
                 storage_handler_properties = storage_handler.read_properties()
                 assert storage_handler_properties is not None
                 properties = Migration.transform_to_latest(storage_handler_properties)
-                reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
+                reader_info = ReaderInfo(properties, [False], storage_handler, storage_handler.reference)
                 preliminary_reader_info_list.append(reader_info)
             except Exception:
                 storage_handler.close()
@@ -551,7 +546,7 @@ def make_storage_handler_attributes(data_item: DataItem.DataItem, n_bytes_overri
     dimensional_shape = data_item.dimensional_shape
     data_dtype = data_item.data_dtype
     n_bytes = n_bytes_override if n_bytes_override is not None else typing.cast(int, numpy.prod(dimensional_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
-    return StorageHandler.StorageHandlerAttributes(data_item.uuid, data_item.created_local, data_item.session_id, n_bytes, data_item.large_format)
+    return StorageHandler.StorageHandlerAttributes(data_item.uuid, data_item.created_local, data_item.session_id, n_bytes)
 
 
 class ProjectStorageSystem(PersistentStorageSystem):
@@ -594,9 +589,6 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
     @abc.abstractmethod
     def _find_data_items(self, migration_stage: ProjectStorageSystemMigrationStage) -> typing.Sequence[StorageHandler.StorageHandler]: ...
-
-    @abc.abstractmethod
-    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool: ...
 
     @abc.abstractmethod
     def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]: ...
@@ -656,13 +648,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
         reader_error_list = list()
         for storage_handler in storage_handlers:
             try:
-                large_format = self._is_storage_handler_large_format(storage_handler)
                 storage_handler_properties = storage_handler.read_properties()
                 storage_handler.prepare_move()
                 assert storage_handler_properties is not None
                 properties = Migration.transform_to_latest(storage_handler_properties)
                 assert properties.get("uuid")
-                reader_info = ReaderInfo(properties, [False], large_format, storage_handler, storage_handler.reference)
+                reader_info = ReaderInfo(properties, [False], storage_handler, storage_handler.reference)
                 reader_info_list.append(reader_info)
             except Exception as e:
                 reader_error_list.append(Persistence.ReaderError(storage_handler.reference, e, traceback.extract_stack()))
@@ -691,7 +682,6 @@ class ProjectStorageSystem(PersistentStorageSystem):
         for reader_info in reader_info_list:
             data_item_properties = reader_info.properties if reader_info.properties else dict()
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
-                data_item_properties["__large_format"] = reader_info.large_format
                 properties_copy.setdefault("data_items", list()).append(data_item_properties)
 
         def data_item_created(data_item_properties: PersistentDictType) -> str:
@@ -917,7 +907,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def _get_storage_handler_factory(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandlerFactoryLike:
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
-        is_large_format = storage_handler_attributes.n_bytes > _g_large_format_size or storage_handler_attributes._force_large_format
+        is_large_format = storage_handler_attributes.n_bytes > _g_large_format_size
         return self._file_handler_factories[-1] if is_large_format else self._file_handler_factories[0]
 
     def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler_factory: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler:
@@ -927,9 +917,6 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
     def _find_storage_handlers(self) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self.__find_storage_handlers(self.__project_data_path)
-
-    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool:
-        return isinstance(storage_handler, HDF5Handler.HDF5Handler)
 
     def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None:
         assert self.__project_data_path is not None
@@ -971,7 +958,6 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                             os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                             shutil.move(old_file_path, new_file_path)
                         self._make_storage_handler(make_storage_handler_attributes(data_item)).close()  # what's this line for?
-                        properties["__large_format"] = isinstance(storage_handler, HDF5Handler.HDF5Handler)
                         return properties
         finally:
             for storage_handler in storage_handlers:
@@ -1016,8 +1002,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                     shutil.copystat(storage_handler.reference, target_storage_handler.reference)
                     target_storage_handler.write_properties(Migration.transform_from_latest(copy.deepcopy(properties)), datetime.datetime.now())
                     logging.getLogger("migration").info(f"Copying data item ({index + 1}/{count}) {data_item_uuid} to new library.")
-                    return ReaderInfo(properties, [False], self._is_storage_handler_large_format(target_storage_handler),
-                                      target_storage_handler, target_storage_handler.reference)
+                    return ReaderInfo(properties, [False], target_storage_handler, target_storage_handler.reference)
             logging.getLogger("migration").warning(f"Unable to copy data item {data_item_uuid} to new library.")
             return None
 
@@ -1227,9 +1212,6 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
             storage_handlers.append(MemoryStorageHandler(key, self.__data_properties_map, self.__data_map, self._test_data_read_event))
         return storage_handlers
 
-    def _is_storage_handler_large_format(self, storage_handler: StorageHandler.StorageHandler) -> bool:
-        return False
-
     def _remove_storage_handler(self, storage_handler: StorageHandler.StorageHandler, *, safe: bool = False) -> None:
         storage_handler_reference = storage_handler.reference
         data = self.__data_map.pop(storage_handler_reference, None)
@@ -1252,7 +1234,6 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
         self.__data_properties_map[data_item_uuid_str] = Migration.transform_to_latest(trash_entry["properties"])
         self.__data_map[data_item_uuid_str] = trash_entry["data"]
         properties = self.__data_properties_map.get(data_item_uuid_str, dict())
-        properties["__large_format"] = False
         properties = Migration.transform_to_latest(properties)
         return properties
 
@@ -1276,7 +1257,6 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
         for reader_info in reader_info_list:
             data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
-                data_item_properties["__large_format"] = reader_info.large_format
                 data_properties_map[reader_info.identifier] = data_item_properties
 
         def data_item_created(data_item_properties: typing.Tuple[str, PersistentDictType]) -> str:

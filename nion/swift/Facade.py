@@ -2606,7 +2606,7 @@ class Library(metaclass=SharedInstance):
         data_item_reference = document_model.get_data_item_reference(data_item_reference_key)
         data_item = data_item_reference.data_item
         if data_item is None and create_if_needed:
-            data_item = DataItemModule.DataItem(large_format=large_format)
+            data_item = DataItemModule.DataItem()
             document_model.append_data_item(data_item)
             document_model.setup_channel(data_item_reference_key, data_item)
             data_item.session_id = document_model.session_id
