@@ -78,11 +78,11 @@ class TestUtilityClass(unittest.TestCase):
                           ("file.", "Cannot end with a period"),
                           ("file ", "Cannot end with a whitespace"),
                           ("COM¹", "\"COM¹\" is illegal as it is reserved on some platforms"),
-                          ("5>3>2024", "Contains illegal character '>'"),
+                          ("5>3>2024", "Contains illegal character >"),
                           ("1234567890" * 13, "Exceeds the allowed length of 128 characters"),
                           ("NUL", "\"NUL\" is illegal as it is reserved on some platforms"),
-                          ("abc\n\rdef", "Contains illegal characters ['\\n', '\\r']"),
-                          ("\26", "Contains illegal character '\x16'")]
+                          ("abc\n\rdef", "Contains illegal characters \n\r"),
+                          ("\26", "Contains illegal character \x16")]
 
         for test_input, expected in test_filenames:
             with self.subTest(test_input=test_input):
@@ -91,8 +91,8 @@ class TestUtilityClass(unittest.TestCase):
                 self.assertEqual(errors, [expected])
 
     def test_verify_path_is_legal_returns_multiple_errors(self) -> None:
-        multi_error_filenames = [("/file.", ["Cannot end with a period", "Contains illegal character '/'"]),
-                                 ("*>" + "1234567890" * 13, ["Exceeds the allowed length of 128 characters", r"Contains illegal characters ['*', '>']"])]
+        multi_error_filenames = [("/file.", ["Cannot end with a period", "Contains illegal character /"]),
+                                 ("*>" + "1234567890" * 13, ["Exceeds the allowed length of 128 characters", r"Contains illegal characters *>"])]
 
         for test_input, expected in multi_error_filenames:
             with self.subTest(test_input=test_input):

@@ -482,9 +482,9 @@ def verify_filename_is_legal(filename: str, maximum_length: int = 128) -> tuple[
     matches = sorted(set(matches))
     if matches:
         if len(matches) == 1:
-            errors.append(_("Contains illegal character '{character}'").format(character=matches[0]))
+            errors.append(_("Contains illegal character {character}").format(character=matches[0]))
         else:
-            errors.append(_("Contains illegal characters {characters}").format(characters=matches))
+            errors.append(_("Contains illegal characters {characters}").format(characters="".join(matches)))
 
     return len(errors) == 0, errors or None
 
