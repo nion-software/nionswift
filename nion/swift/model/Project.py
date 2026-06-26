@@ -427,8 +427,7 @@ class Project(Persistence.PersistentObject):
         item_d = self.__storage_system.restore_item(data_item_uuid)
         if item_d is not None:
             data_item_uuid = uuid.UUID(item_d.get("uuid"))
-            large_format = item_d.get("__large_format", False)
-            data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
+            data_item = DataItem.DataItem(item_uuid=data_item_uuid)
             data_item.begin_reading()
             data_item.read_from_dict(item_d)
             data_item.finish_reading()
@@ -507,9 +506,7 @@ class Project(Persistence.PersistentObject):
 
 def data_item_factory(lookup_id: typing.Callable[[str], str]) -> DataItem.DataItem:
     data_item_uuid = uuid.UUID(lookup_id("uuid"))
-    # TODO: typing hack for default arg
-    large_format = typing.cast(typing.Callable[..., typing.Any], lookup_id)("__large_format", False)
-    return DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
+    return DataItem.DataItem(item_uuid=data_item_uuid)
 
 
 def display_item_factory(lookup_id: typing.Callable[[str], str]) -> DisplayItem.DisplayItem:

@@ -184,11 +184,9 @@ class DataItem(Persistence.PersistentObject):
     storage_version = 13
     writer_version = 13
 
-    def __init__(self, data: typing.Optional[_ImageDataType] = None, item_uuid: typing.Optional[uuid.UUID] = None,
-                 large_format: bool = False) -> None:
+    def __init__(self, data: typing.Optional[_ImageDataType] = None, item_uuid: typing.Optional[uuid.UUID] = None, large_format: bool = False) -> None:
         super().__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
-        self.large_format = large_format
         self._document_model: typing.Optional[DocumentModel.DocumentModel] = None  # used only for Facade
         self.define_type("data-item")
         self.define_property("created", DateTime.utcnow(), hidden=True, converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
@@ -329,8 +327,6 @@ class DataItem(Persistence.PersistentObject):
     def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> DataItem:
         data_item_copy = self.__class__()
         try:
-            # data format (temporary until moved to buffered data source)
-            data_item_copy.large_format = self.large_format
             # metadata
             data_item_copy.created = self.created
             data_item_copy.timezone = self.timezone
@@ -586,7 +582,6 @@ class DataItem(Persistence.PersistentObject):
         return self.__get_file_path()
 
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
-        self.large_format = properties.get("__large_format", self.large_format)
         # when reading, handle changes specially. first, put everything into a change
         # block; then make sure that no change notifications actually occur. this makes
         # sure things like cached values are preserved after reading.
@@ -1471,7 +1466,7 @@ class DataItem(Persistence.PersistentObject):
 
 def new_data_item(data_and_metadata_in: typing.Optional[DataAndMetadata._DataAndMetadataLike] = None) -> DataItem:
     data_and_metadata = DataAndMetadata.promote_ndarray(data_and_metadata_in) if data_and_metadata_in is not None else None
-    data_item = DataItem(large_format=len(data_and_metadata.dimensional_shape) > 2 if data_and_metadata else False)
+    data_item = DataItem()
     data_item.set_xdata(data_and_metadata)
     return data_item
 

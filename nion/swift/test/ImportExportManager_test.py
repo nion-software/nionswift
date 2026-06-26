@@ -16,13 +16,12 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
-from nion.swift import Application
 from nion.swift.model import DataItem
+from nion.swift.model import FileStorageSystem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift.test import TestContext
-from nion.ui import TestUI
 from nion.utils import DateTime
 
 
@@ -410,46 +409,8 @@ class TestImportExportManagerClass(unittest.TestCase):
             data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=False)
             json.dumps(data_element)
 
-    def test_data_item_to_data_element_and_back_keeps_large_format_flag(self):
-        data_item = DataItem.DataItem(numpy.zeros((4, 4, 4)), large_format=True)
-        with contextlib.closing(data_item):
-            data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=True)
-            self.assertTrue(data_element.get("large_format"))
-            with contextlib.closing(ImportExportManager.create_data_item_from_data_element(data_element)) as data_item:
-                self.assertTrue(data_item.large_format)
-
-    def test_importing_rgb_does_not_set_large_format(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), dtype=float))
-        with contextlib.closing(data_item):
-            data_item_rgb = DataItem.DataItem(numpy.zeros((8, 8, 4), dtype=numpy.uint8))
-            with contextlib.closing(data_item_rgb):
-                data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=True)
-                data_element_rgb = ImportExportManager.create_data_element_from_data_item(data_item_rgb, include_data=True)
-                data_element.pop("large_format")
-                data_element_rgb.pop("large_format")
-                with contextlib.closing(ImportExportManager.create_data_item_from_data_element(data_element)) as data_item:
-                    with contextlib.closing(ImportExportManager.create_data_item_from_data_element(data_element_rgb)) as data_item_rgb:
-                        self.assertTrue(data_item.large_format)
-                        self.assertFalse(data_item_rgb.large_format)
-
-    def test_importing_large_numpy_file_sets_large_format_flag(self):
-        current_working_directory = os.getcwd()
-        file_path_npy = os.path.join(current_working_directory, "__file.npy")
-        numpy.save(file_path_npy, numpy.zeros((4, 4, 4)))
-        handler = ImportExportManager.NumPyImportExportHandler("numpy-io-handler", "npy", ["npy"])
-        try:
-            data_items = handler.read_data_items("npy", pathlib.Path(file_path_npy))
-            self.assertEqual(len(data_items), 1)
-            data_item = data_items[0]
-            self.assertTrue(data_item.large_format)
-            for data_item in data_items:
-                data_item.close()
-        finally:
-            os.remove(file_path_npy)
-
     def test_data_item_with_numpy_bool_to_data_element_produces_json_compatible_dict(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16)))
-        data_item.large_format = numpy.prod((2,3,4), dtype=numpy.int64) > 10  # produces a numpy.bool_
         with contextlib.closing(data_item):
             data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=False)
             json.dumps(data_element)

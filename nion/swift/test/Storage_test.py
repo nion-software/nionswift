@@ -871,22 +871,6 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.data_items))
                 self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
-    def test_data_changes_update_large_format_file(self):
-        with create_temp_profile_context() as profile_context:
-            zeros = numpy.zeros((8, 8), numpy.uint32)
-            ones = numpy.ones((8, 8), numpy.uint32)
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item = DataItem.DataItem(ones)
-                data_item.large_format = True
-                document_model.append_data_item(data_item)
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                document_model.data_items[0].set_data(zeros)
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
-
     def test_file_format_adjusts_to_data_size(self):
         with create_temp_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
@@ -913,29 +897,6 @@ class TestStorageClass(unittest.TestCase):
             with document_model.ref():
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, data16))
                 self.assertEqual(99, document_model.data_items[0].metadata["a"])
-
-    def test_data_changes_reserve_large_format_file(self):
-        with create_temp_profile_context() as profile_context:
-            zeros = numpy.zeros((8, 8), numpy.uint32)
-            ones = numpy.ones((8, 8), numpy.uint32)
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item = DataItem.DataItem()
-                data_item.large_format = True
-                document_model.append_data_item(data_item)
-                data_item.reserve_data(data_shape=ones.shape, data_dtype=ones.dtype, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
-                self.assertTrue(numpy.array_equal(zeros, data_item.data))
-                data_item.set_data_and_metadata_partial(data_item.xdata.data_metadata,
-                                                  DataAndMetadata.new_data_and_metadata(ones), (slice(0,8), slice(0, 8)),
-                                                  (slice(0,8), slice(0, 8)))
-                self.assertTrue(numpy.array_equal(ones, data_item.data))
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                self.assertTrue(numpy.array_equal(document_model.data_items[0].data, ones))
-                document_model.data_items[0].set_data(zeros)
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                self.assertTrue(numpy.array_equal(document_model.data_items[0].data, zeros))
 
     def test_file_format_adjusts_to_data_size_when_reserved(self):
         with create_temp_profile_context() as profile_context:
@@ -4166,48 +4127,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 self.assertEqual(len(document_model.data_items), 1)
-
-    def test_snapshot_copies_storage_format(self):
-        with create_temp_profile_context() as profile_context:
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item1 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                data_item2 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                data_item2.large_format = True
-                document_model.append_data_item(data_item1)
-                document_model.append_data_item(data_item2)
-            # read it back
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item1 = document_model.data_items[0]
-                data_item2 = document_model.data_items[1]
-                data_item1a = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item1)).data_item
-                data_item2a = document_model.get_display_item_snapshot_new(document_model.get_display_item_for_data_item(data_item2)).data_item
-                data_item1b = copy.deepcopy(data_item1)
-                data_item2b = copy.deepcopy(data_item2)
-                document_model.append_data_item(data_item1b)
-                document_model.append_data_item(data_item2b)
-                file_path1 = data_item1._test_get_file_path()
-                file_path2 = data_item2._test_get_file_path()
-                file_path1a = data_item1a._test_get_file_path()
-                file_path2a = data_item2a._test_get_file_path()
-                file_path1b = data_item1b._test_get_file_path()
-                file_path2b = data_item2b._test_get_file_path()
-            file_path1_base, file_path1_ext = os.path.splitext(file_path1)
-            file_path2_base, file_path2_ext = os.path.splitext(file_path2)
-            file_path1a_base, file_path1a_ext = os.path.splitext(file_path1a)
-            file_path2a_base, file_path2a_ext = os.path.splitext(file_path2a)
-            file_path1b_base, file_path1b_ext = os.path.splitext(file_path1b)
-            file_path2b_base, file_path2b_ext = os.path.splitext(file_path2b)
-            # check assumptions, works for both NData+HDF5 or HDF5 only
-            self.assertTrue(profile_context._file_handler_factories[0].is_matching(file_path1))
-            self.assertTrue(profile_context._file_handler_factories[-1].is_matching(file_path2))
-            # self.assertNotEqual(file_path1_ext, file_path2_ext)  # assumes different file formats, use 2 lines above instead
-            # check results
-            self.assertEqual(file_path1_ext, file_path1a_ext)
-            self.assertEqual(file_path2_ext, file_path2a_ext)
-            self.assertEqual(file_path1_ext, file_path1b_ext)
-            self.assertEqual(file_path2_ext, file_path2b_ext)
 
     def test_pending_data_on_new_data_item_updates_properly(self):
         with create_temp_profile_context() as profile_context:
