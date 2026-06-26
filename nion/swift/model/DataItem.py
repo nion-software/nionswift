@@ -677,11 +677,6 @@ class DataItem(Persistence.PersistentObject):
             self.dynamic_title = dynamic_string
 
     @property
-    def properties(self) -> typing.Optional[Persistence.PersistentDictType]:
-        """ Used for debugging. """
-        return self.get_storage_properties()
-
-    @property
     def is_live(self) -> bool:
         """Return whether this library item represents live acquisition."""
         return self.__is_live

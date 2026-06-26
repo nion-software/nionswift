@@ -94,8 +94,6 @@ class DataItemStorageAdapter:
 
 class MigrationReader(typing.Protocol):
 
-    def get_storage_properties(self) -> PersistentDictType: ...
-
     def _get_migration_stages(self) -> typing.Sequence[ProjectStorageSystemMigrationStage]: ...
 
     def _find_data_items(self, migration_stage: ProjectStorageSystemMigrationStage) -> typing.Sequence[StorageHandler.StorageHandler]: ...
@@ -128,6 +126,8 @@ def migrate_to_latest(source_project_storage_system: MigrationReader,
     # versioning. run newest to oldest so that deletions in newer libraries won't be migrated; nor will data items
     # in older projects with the same uuid in a newer project.
 
+    source_library_uuid: uuid.UUID | None = None
+
     for migration_stage in source_project_storage_system._get_migration_stages():
 
         # find all data items for the given migration stage and return a list of storage handlers.
@@ -154,10 +154,15 @@ def migrate_to_latest(source_project_storage_system: MigrationReader,
                 traceback.print_stack()
             storage_handler.prepare_move()
 
+        new_library_properties = source_project_storage_system._read_library_properties(migration_stage)
+
+        # grab the source_library_uuid if not known already
+        if not source_library_uuid:
+            source_library_uuid = uuid.UUID(new_library_properties.get("uuid", str(uuid.uuid4())))
+
         # now read the library properties which contains the data item deletions. data item deletions exist to
         # facilitate switching between library versions. if the user deletes an item in a newer library, that item
         # is marked as deleted so that if migration is performed again, that deleted item will not be re-migrated.
-        new_library_properties = source_project_storage_system._read_library_properties(migration_stage)
         for deletion in copy.deepcopy(new_library_properties.get("data_item_deletions", list())):
             if deletion not in deletions:
                 deletions.append(deletion)
@@ -235,9 +240,8 @@ def migrate_to_latest(source_project_storage_system: MigrationReader,
     assert library_properties["version"] == PROJECT_VERSION
 
     # propagate the UUID
-    source_library_properties = source_project_storage_system.get_storage_properties()
-    if source_library_properties and "uuid" in source_library_properties:
-        library_properties["uuid"] = source_library_properties["uuid"]
+    if source_library_uuid is not None:
+        library_properties["uuid"] = str(source_library_uuid)
 
     target_project_storage_system._migrate_library_properties(library_properties, reader_info_list)
 
@@ -245,7 +249,7 @@ def migrate_to_latest(source_project_storage_system: MigrationReader,
 class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     """Abstract base class for persistent storage which implements the persistent storage interface.
 
-    Subclasses must implement _read_properties and _write_properties to read/write to persistent storage.
+    Subclasses must implement _read_untransformed_properties and _write_untransformed_properties to read/write to persistent storage.
 
     The `load_properties` method must be called after instantiating the subclass.
     """
@@ -268,35 +272,39 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
         return self.__identifier
 
     @abc.abstractmethod
-    def _write_properties(self) -> None:
-        """Write internal properties, retrieved using _get_properties, to persistent storage."""
+    def _read_untransformed_properties(self) -> PersistentDictType:
+        """Read internal properties from persistent storage.
+
+        Always returns a new copy.
+        """
         ...
 
     @abc.abstractmethod
-    def _read_properties(self) -> PersistentDictType:
-        """Read internal properties from persistent storage."""
+    def _write_untransformed_properties(self, untransformed_properties: PersistentDictType) -> None:
+        """Write internal properties, retrieved using _get_properties, to persistent storage."""
         ...
 
     def __set_persistent_storage(self, item: Persistence.PersistentObject, persistent_dict: typing.Optional[Persistence.PersistentDictType], persistent_storage: typing.Optional[Persistence.PersistentStorageInterface]) -> None:
-        persistent_storage = typing.cast(typing.Optional[PersistentStorageSystem], persistent_storage)
-        if persistent_storage:
-            persistent_storage._unregister_persistent_dict(item)
-        item.persistent_storage = persistent_storage
-        if persistent_storage:
-            persistent_storage._register_persistent_dict(item, persistent_dict)
-        for key in item.item_names:
-            component_item = item.get_item(key)
-            if component_item:
-                d = item.persistent_storage._get_item_persistent_dict(item, key) if item.persistent_storage else None
-                self.__set_persistent_storage(component_item, d if persistent_dict is not None else None, item.persistent_storage if persistent_dict is not None else None)
-        for key in item.relationship_names:
-            for index, relationship_item in enumerate(item.get_relationship_items(key)):
-                d = item.persistent_storage._get_relationship_persistent_dict(item, relationship_item, key, index) if item.persistent_storage else None
-                self.__set_persistent_storage(relationship_item, d if persistent_dict is not None else None, item.persistent_storage if persistent_dict is not None else None)
+        with self.__properties_lock:
+            persistent_storage = typing.cast(typing.Optional[PersistentStorageSystem], persistent_storage)
+            if persistent_storage:
+                persistent_storage._unregister_persistent_dict(item)
+            item.persistent_storage = persistent_storage
+            if persistent_storage:
+                persistent_storage._register_persistent_dict(item, persistent_dict)
+            for key in item.item_names:
+                component_item = item.get_item(key)
+                if component_item:
+                    d = item.persistent_storage._get_item_persistent_dict(item, key) if item.persistent_storage else None
+                    self.__set_persistent_storage(component_item, d if persistent_dict is not None else None, item.persistent_storage if persistent_dict is not None else None)
+            for key in item.relationship_names:
+                for index, relationship_item in enumerate(item.get_relationship_items(key)):
+                    d = item.persistent_storage._get_relationship_persistent_dict(item, relationship_item, key, index) if item.persistent_storage else None
+                    self.__set_persistent_storage(relationship_item, d if persistent_dict is not None else None, item.persistent_storage if persistent_dict is not None else None)
 
     def set_root_item(self, item: Persistence.PersistentObject) -> None:
         """Set the storage system for this item."""
-        self.__set_persistent_storage(item, self.get_storage_properties(), self)
+        self.__set_persistent_storage(item, self.__properties, self)
 
     def unload_item(self, item: Persistence.PersistentObject) -> None:
         self._unregister_persistent_dict(item)
@@ -304,16 +312,38 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def load_properties(self) -> None:
         """Read properties and store them in internal storage. Should be called immediately after instantiation."""
         with self.__properties_lock:
-            self.__properties = self._read_properties()
+            self.__properties = self._transform_properties(self._read_untransformed_properties())
 
-    def read_project_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[Persistence.ReaderError]]:
+    def get_properties(self) -> PersistentDictType:
+        with self.__properties_lock:
+            return copy.deepcopy(self.__properties)
+
+    def get_combined_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[Persistence.ReaderError]]:
         # dummy implementation for now until this is combined with load_properties.
         # subclass may override.
-        return dict(), list()
+        with self.__properties_lock:
+            return self.get_properties(), list()
 
-    def get_storage_properties(self) -> PersistentDictType:
-        """Return the internal properties. Callers should not modify; it is ok to not return a copy."""
-        return self.__properties
+    @property
+    def storage_uuid(self) -> uuid.UUID | None:
+        try:
+            with self.__properties_lock:
+                return uuid.UUID(self.__properties.get("uuid", str(uuid.uuid4()))) if self.__properties else None
+        except Exception as e:
+            return None
+
+    @property
+    def is_storage_empty(self) -> bool:
+        with self.__properties_lock:
+            return self.__properties is not None and not self.__properties
+
+    @property
+    def storage_version(self) -> int | None:
+        try:
+            with self.__properties_lock:
+                return self.__properties.get("version", None) if self.__properties else None
+        except Exception as e:
+            return None
 
     def migrate_to_latest(self) -> None:
         pass
@@ -350,13 +380,23 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
 
     def _write_item_properties(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
         persistent_object_parent = item.persistent_object_parent if item else None
+        # if it's the root and not write delayed, write it out.
         if not persistent_object_parent:
             if self.__write_delay_count == 0:
-                self._write_properties()
+                with self.__properties_lock:
+                    self._write_untransformed_properties(self._untransform_properties(self.__properties))
         else:
             self.__write_properties_if_not_delayed(persistent_object_parent.parent)
 
-    def get_properties(self, item: Persistence.PersistentObject) -> typing.Optional[PersistentDictType]:
+    def _transform_properties(self, properties: PersistentDictType) -> PersistentDictType:
+        # subclasses can override to implement transformations to the properties before writing to disk, often for backwards compatibility.
+        return properties
+
+    def _untransform_properties(self, properties: PersistentDictType) -> PersistentDictType:
+        # subclasses can override to implement un-transformations to the properties before writing to disk, often for backwards compatibility.
+        return properties
+
+    def get_item_properties(self, item: Persistence.PersistentObject) -> PersistentDictType | None:
         return self._get_persistent_dict(item)
 
     def __update_modified_and_get_storage_dict(self, item: Persistence.PersistentObject) -> PersistentDictType:
@@ -498,7 +538,7 @@ class FilePersistentStorageSystem(PersistentStorageSystem):
     def path(self) -> pathlib.Path:
         return self.__path
 
-    def _read_properties(self) -> PersistentDictType:
+    def _read_untransformed_properties(self) -> PersistentDictType:
         properties = dict()
         if self.__path and self.__path.exists():
             try:
@@ -508,10 +548,10 @@ class FilePersistentStorageSystem(PersistentStorageSystem):
                 os.replace(self.__path, self.__path.with_suffix(".bak"))
         return properties
 
-    def _write_properties(self) -> None:
+    def _write_untransformed_properties(self, untransformed_properties: PersistentDictType) -> None:
         if self.__path:
             with Utility.AtomicFileWriter(self.__path) as fp:
-                properties = Utility.clean_dict(self.get_storage_properties())
+                properties = Utility.clean_dict(untransformed_properties)
                 json.dump(properties, fp)
 
 
@@ -519,22 +559,22 @@ class MemoryPersistentStorageSystem(PersistentStorageSystem):
     """File based persistent storage system. Useful for testing."""
 
     def __init__(self, *, library_properties: typing.Optional[PersistentDictType] = None) -> None:
-        self.__library_properties = library_properties if library_properties is not None else dict()
+        self.__library_untransformed_properties = library_properties if library_properties is not None else dict()
         super().__init__()
 
     def close(self) -> None:
         pass
 
-    def _read_properties(self) -> PersistentDictType:
-        return copy.deepcopy(self.__library_properties)
+    def _read_untransformed_properties(self) -> PersistentDictType:
+        return copy.deepcopy(self.__library_untransformed_properties)
 
-    def _write_properties(self) -> None:
-        self.__library_properties.clear()
-        self.__library_properties.update(self.get_storage_properties())
+    def _write_untransformed_properties(self, untransformed_properties: PersistentDictType) -> None:
+        self.__library_untransformed_properties.clear()
+        self.__library_untransformed_properties.update(untransformed_properties)
 
     def set_library_properties(self, library_properties: PersistentDictType) -> None:
-        self.__library_properties.clear()
-        self.__library_properties.update(library_properties)
+        self.__library_untransformed_properties.clear()
+        self.__library_untransformed_properties.update(library_properties)
         self.load_properties()
 
 
@@ -599,6 +639,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
     @abc.abstractmethod
     def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType: ...
 
+    @abc.abstractmethod
+    def normalize_project_data_path(self) -> None: ...
+
     #
 
     @property
@@ -623,21 +666,13 @@ class ProjectStorageSystem(PersistentStorageSystem):
         else:
             return super()._get_relationship_persistent_dict_by_uuid(container, item, key)
 
-    def get_persistent_dict(self, name: str, item_uuid: uuid.UUID) -> PersistentDictType:
-        if name == "data_items":
-            return self._data_properties_map[item_uuid].properties
-        for item_d in self.get_storage_properties()[name]:
-            if uuid.UUID(item_d["uuid"]) == item_uuid:
-                return typing.cast(PersistentDictType, item_d)
-        assert False
-
     def register_storage_handler(self, storage_handler: StorageHandler.StorageHandler, properties: PersistentDictType) -> None:
         data_item_uuid = uuid.UUID(properties["uuid"])
         assert data_item_uuid not in self.__storage_adapter_map
         storage_adapter = DataItemStorageAdapter(storage_handler, properties)
         self.__storage_adapter_map[data_item_uuid] = storage_adapter
 
-    def read_project_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[Persistence.ReaderError]]:
+    def get_combined_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[Persistence.ReaderError]]:
         """Read data items from the data reference handler and return as a dict.
 
         The dict may contain keys for data_items, display_items, data_structures, connections, and computations.
@@ -651,9 +686,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 storage_handler_properties = storage_handler.read_properties()
                 storage_handler.prepare_move()
                 assert storage_handler_properties is not None
-                properties = Migration.transform_to_latest(storage_handler_properties)
-                assert properties.get("uuid")
-                reader_info = ReaderInfo(properties, [False], storage_handler, storage_handler.reference)
+                combined_properties = Migration.transform_to_latest(storage_handler_properties)
+                assert combined_properties.get("uuid")
+                reader_info = ReaderInfo(combined_properties, [False], storage_handler, storage_handler.reference)
                 reader_info_list.append(reader_info)
             except Exception as e:
                 reader_error_list.append(Persistence.ReaderError(storage_handler.reference, e, traceback.extract_stack()))
@@ -661,39 +696,41 @@ class ProjectStorageSystem(PersistentStorageSystem):
         # to allow later writing back to storage, associate the data items with their storage adapters
         for reader_info in reader_info_list:
             storage_handler = reader_info.storage_handler
-            properties = reader_info.properties
-            data_item_uuid = uuid.UUID(properties["uuid"])
-            storage_adapter = DataItemStorageAdapter(storage_handler, properties)
+            combined_properties = reader_info.properties
+            data_item_uuid = uuid.UUID(combined_properties["uuid"])
+            storage_adapter = DataItemStorageAdapter(storage_handler, combined_properties)
             old_storage_adapter = self.__storage_adapter_map.pop(data_item_uuid, None)
             if old_storage_adapter:
                 old_storage_adapter.close()
             self.__storage_adapter_map[data_item_uuid] = storage_adapter
 
-        properties_copy = self._read_properties()
+        combined_properties = self.get_properties()
 
         # ensure unique connections
-        connections_list = properties_copy.get("connections", list())
+        connections_list = combined_properties.get("connections", list())
         assert len(connections_list) == len({connection.get("uuid") for connection in connections_list})
 
         # ensure unique computations
-        computations_list = properties_copy.get("computations", list())
+        computations_list = combined_properties.get("computations", list())
         assert len(computations_list) == len({computation.get("uuid") for computation in computations_list})
+
+        # note: combined properties are already "transformed" so there is currently no transform capability for data items.
 
         for reader_info in reader_info_list:
             data_item_properties = reader_info.properties if reader_info.properties else dict()
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
-                properties_copy.setdefault("data_items", list()).append(data_item_properties)
+                combined_properties.setdefault("data_items", list()).append(data_item_properties)
 
         def data_item_created(data_item_properties: PersistentDictType) -> str:
             # created is a utc timestamp
             earliest_datetime = datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc).isoformat()
             return typing.cast(str, data_item_properties.get("created", earliest_datetime))
 
-        data_items_copy = sorted(properties_copy.get("data_items", list()), key=data_item_created)
+        data_items_copy = sorted(combined_properties.get("data_items", list()), key=data_item_created)
         if len(data_items_copy) > 0:
-            properties_copy["data_items"] = data_items_copy
+            combined_properties["data_items"] = data_items_copy
 
-        return Model.transform_forward(properties_copy), reader_error_list
+        return combined_properties, reader_error_list
 
     # override
     def _write_item_properties(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
@@ -701,6 +738,14 @@ class ProjectStorageSystem(PersistentStorageSystem):
             self.__rewrite_data_item_properties(item)
         else:
             super()._write_item_properties(item)
+
+    def _transform_properties(self, properties: PersistentDictType) -> PersistentDictType:
+        # called by the base class to transform properties after reading from storage. this is where we can apply any transformations needed for the data item properties.
+        return Model.transform_forward(copy.deepcopy(properties))
+
+    def _untransform_properties(self, properties: PersistentDictType) -> PersistentDictType:
+        # called by the base class to untransform properties before writing to storage. this is where we can apply any transformations needed for the data item properties.
+        return Model.transform_backward(copy.deepcopy(properties))
 
     # override
     def _insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
@@ -842,14 +887,13 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         self.__project_path = project_path
         self.__project_data_path = project_data_path
 
-    def load_properties(self) -> None:
+    def normalize_project_data_path(self) -> None:
         # in order to be resilient to name changes, first make a list of folders in project_data_folders which
         # (1) can be constructed and (2) which exist. if none actually exist, see if one exists based on the
         # root name. then, if a folder exists, use it. otherwise, use the first one that can be constructed from
         # either the project_data_folders or the root name. this method is expected to supply a project_data_path
         # that can be written; the case where the project is created is where the folder will not exist in the
         # first place.
-        super().load_properties()
         project_data_folder_paths = list()
         existing_project_data_folder_paths = list()
         # always prefer the index file root with " Data" suffix first
@@ -860,7 +904,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         if project_data_folder_path.exists():
             existing_project_data_folder_paths.append(project_data_folder_path)
         # now check for any folders listed in the properties
-        for project_data_folder in self.get_storage_properties().get("project_data_folders", list()):
+        properties, errors = self.get_combined_properties()
+        for project_data_folder in properties.get("project_data_folders", list()):
             project_data_folder_path = pathlib.Path(project_data_folder)
             if not project_data_folder_path.is_absolute():
                 project_data_folder_path = self.__project_path.parent / project_data_folder_path
@@ -876,15 +921,15 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def project_path(self) -> pathlib.Path:
         return self.__project_path
 
-    def _read_properties(self) -> PersistentDictType:
+    def _read_untransformed_properties(self) -> PersistentDictType:
         properties = dict()
         if self.__project_path and self.__project_path.exists():
             with self.__project_path.open("r") as fp:
                 properties = json.load(fp)
         return properties
 
-    def _write_properties(self) -> None:
-        self.__write_properties_inner(Model.transform_backward(copy.deepcopy(self.get_storage_properties())))
+    def _write_untransformed_properties(self, untransformed_properties: PersistentDictType) -> None:
+        self.__write_properties_inner(untransformed_properties)
 
     def __write_properties_inner(self, properties: PersistentDictType) -> None:
         if self.__project_path:
@@ -1187,13 +1232,13 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
         self._test_data_read_event = data_read_event or Event.Event()
         self._write_count = 0
 
-    def _read_properties(self) -> PersistentDictType:
+    def _read_untransformed_properties(self) -> PersistentDictType:
         return copy.deepcopy(self.__library_properties)
 
-    def _write_properties(self) -> None:
+    def _write_untransformed_properties(self, untransformed_properties: PersistentDictType) -> None:
         self._write_count += 1
         self.__library_properties.clear()
-        self.__library_properties.update(Model.transform_backward(copy.deepcopy(self.get_storage_properties())))
+        self.__library_properties.update(untransformed_properties)
 
     def get_identifier(self) -> str:
         return "memory"
@@ -1274,6 +1319,9 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
 
     def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType:
         return copy.deepcopy(self.__library_properties)
+
+    def normalize_project_data_path(self) -> None:
+        pass
 
     def _find_data_items(self, migration_stage: ProjectStorageSystemMigrationStage) -> typing.Sequence[StorageHandler.StorageHandler]:
         return self._find_storage_handlers()
