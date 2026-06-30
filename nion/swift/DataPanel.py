@@ -53,6 +53,29 @@ _ = gettext.gettext
 """
 
 
+def get_mime_data_and_thumbnail_data(drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent,
+                                     ui: UserInterface.UserInterface) -> tuple[UserInterface.MimeData | None, _NDArray | None]:
+    display_item = typing.cast(DisplayItem.DisplayItem, drag_started_event.item)
+    assert display_item is not None
+    display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in drag_started_event.selected_items)
+    display_item = typing.cast(DisplayItem.DisplayItem, drag_started_event.item)
+    mime_data = ui.create_mime_data()
+    if len(display_items) <= 1:
+        MimeTypes.mime_data_put_display_item(mime_data, display_item)
+    else:
+        MimeTypes.mime_data_put_display_items(mime_data, display_items)
+
+    # Get and scale thumbnail
+    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(ui, display_item)
+    thumbnail_data = thumbnail_source.thumbnail_data
+
+    if thumbnail_data is not None:
+        scaled_view = Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), tuple(Geometry.IntSize(w=80, h=80)))
+        thumbnail_data = Image.get_rgba_data_from_rgba(scaled_view)
+
+    return mime_data, thumbnail_data
+
+
 class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw a data panel list item.
 
@@ -304,7 +327,7 @@ class DataPanel(Panel.Panel):
                 return True
 
             def drag_started_event(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> bool:
-                mime_data, thumbnail_data = self._get_mime_data_and_thumbnail_data(drag_started_event)
+                mime_data, thumbnail_data = get_mime_data_and_thumbnail_data(drag_started_event, self.__data_panel.ui)
                 if mime_data:
                     self.__data_panel.widget.drag(mime_data, thumbnail_data)
                     return True
@@ -319,30 +342,6 @@ class DataPanel(Panel.Panel):
                     document_controller.select_display_items_in_data_panel(display_items)
                 return "accept"
 
-            def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
-                mime_data = None
-                thumbnail_data = None
-                display_item = typing.cast(DisplayItem.DisplayItem, drag_started_event.item)
-                display_items = tuple(
-                    typing.cast(DisplayItem.DisplayItem, item) for item in drag_started_event.selected_items)
-                if len(display_items) <= 1 and display_item is not None:
-                    mime_data = document_controller.ui.create_mime_data()
-                    MimeTypes.mime_data_put_display_item(mime_data, display_item)
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, display_item)
-                    thumbnail_data = thumbnail_source.thumbnail_data
-                    if thumbnail_data is not None:
-                        # scaling is very slow
-                        thumbnail_data = Image.get_rgba_data_from_rgba(
-                            Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data),
-                                         tuple(Geometry.IntSize(w=80, h=80))))
-                elif len(display_items) > 1:
-                    mime_data = document_controller.ui.create_mime_data()
-                    MimeTypes.mime_data_put_display_items(mime_data, display_items)
-                    anchor_index = self.__selection.anchor_index or 0
-                    thumbnail_display_item = display_items[anchor_index]
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, thumbnail_display_item)
-                    thumbnail_data = thumbnail_source.thumbnail_data
-                return mime_data, thumbnail_data
 
         item_delegate = ItemDelegate(self, self.__selection)
 
