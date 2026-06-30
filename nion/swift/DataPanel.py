@@ -338,9 +338,13 @@ class DataPanel(Panel.Panel):
                 elif len(display_items) > 1:
                     mime_data = document_controller.ui.create_mime_data()
                     MimeTypes.mime_data_put_display_items(mime_data, display_items)
-                    anchor_index = self.__selection.anchor_index or 0
-                    thumbnail_display_item = display_items[anchor_index]
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, thumbnail_display_item)
+                    # Thumbnail preference order: The display item the drag started from, then the anchor item, then the first display item in the list
+                    if display_item is None:
+                        if self.__selection.anchor_index is not None:
+                            display_item = self.__data_panel.document_controller.display_items_model.items[self.__selection.anchor_index]
+                        else:
+                            display_item = display_items[0]
+                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, display_item)
                     thumbnail_data = thumbnail_source.thumbnail_data
                 return mime_data, thumbnail_data
 
