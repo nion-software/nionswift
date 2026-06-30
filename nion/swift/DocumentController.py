@@ -2691,13 +2691,16 @@ class DocumentController(Window.Window):
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
 
-    # receive files into the document model. data_group and index can optionally
-    # be specified. if data_group is specified, the item is added to an arbitrary
-    # position in the document model (the end) and at the group at the position
-    # specified by the index. if the data group is not specified, the item is added
-    # at the index within the document model.
     def receive_files(self, files: typing.Sequence[str], data_group: typing.Optional[DataGroup.DataGroup] = None, index: int = -1) -> typing.Sequence[DisplayItem.DisplayItem]:
-        display_items = list[DisplayItem.DisplayItem]()
+        """Import files using the provided file paths and add them to the document model.
+
+        data_group and index can optionally be specified.
+        If data_group is specified, the item is added to an arbitrary position in the document model (the end) and at the group at the position specified by the index.
+        If the data group is not specified, the item is added at the index within the document model.
+        The newly created display items are selected in the data panel.
+        Returns the display items created by importing the files.
+        """
+        new_display_items = list[DisplayItem.DisplayItem]()  # Newly created display items to be returned
         file_paths = [pathlib.Path(file_path) for file_path in files]
         for file_index, file_path in enumerate(file_paths):
             try:
@@ -2753,12 +2756,13 @@ class DocumentController(Window.Window):
                         index += 1
                     else:
                         display_items.append(display_item)
+                new_display_items.extend(display_items)
             except Exception as e:
                 logging.debug(f"Could not read image {file_path} / {e}")
                 traceback.print_exc()
                 traceback.print_stack()
-        self.select_display_items_in_data_panel(display_items)
-        return display_items
+        self.select_display_items_in_data_panel(new_display_items)
+        return new_display_items
 
     def create_context_menu_for_display(self, display_items: typing.List[DisplayItem.DisplayItem]) -> UserInterface.Menu:
         # only used in tests
