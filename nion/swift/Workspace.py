@@ -86,23 +86,17 @@ class CreateWorkspaceCommand(Undo.UndoableCommand):
 class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
     """Create a workspace, then split the panels and insert the selected display items."""
     def __init__(self, workspace_controller: Workspace, name: str,
-                 selection: list[DisplayItem.DisplayItem], layout_shape: tuple[int, int]) -> None:
+                 selection: list[DisplayItem.DisplayItem]) -> None:
         super().__init__(workspace_controller, name)
         self.__selection = selection
-        self.__layout_shape = layout_shape
         self.__workspace_controller = workspace_controller
 
     def _perform(self) -> None:
         super()._perform()
-        horizontal, vertical = self.__layout_shape
         # The newly created workspace will have one display panel which is the selected one
         selected_display_panel = self.__workspace_controller.document_controller.selected_display_panel
         assert selected_display_panel
-        # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion
-        display_panels = [selected_display_panel]
-        display_panels = self.__workspace_controller.apply_layouts(selected_display_panel, display_panels, horizontal, vertical)
-        for display_item, display_panel in zip(self.__selection, display_panels):  # Populate the display panels with the items
-            display_panel.set_display_item(display_item)
+        self.__workspace_controller.split_panel_and_insert_display_items(selected_display_panel, self.__selection)
 
 
 class RemoveWorkspaceCommand(Undo.UndoableCommand):
@@ -1051,7 +1045,7 @@ class Workspace:
         Depending on if the division of columns have ceil and floor applied first will affect the final split.
         Both are calculated and the one that will have the least unused panels is returned.
         """
-        if selection_count == 0:
+        if selection_count <= 1:
             return 1, 1
 
         ratio = 0.6
@@ -1070,6 +1064,14 @@ class Workspace:
             return columns_floor, rows_floor
 
         return columns_ceil, rows_ceil
+
+    def split_panel_and_insert_display_items(self, display_panel: DisplayPanel.DisplayPanel, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
+        """Split the display panel into a grid that fits the display items, then populate the new panels with the display items."""
+        horizontal, vertical = self.get_split_for_selection(len(display_items))
+        # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion
+        display_panels = self.apply_layouts(display_panel, [display_panel], horizontal, vertical)
+        for display_item, display_panel in zip(display_items, display_panels):  # Populate the display panels with the items
+            display_panel.set_display_item(display_item)
 
 
 class WorkspaceManager(metaclass=Utility.Singleton):

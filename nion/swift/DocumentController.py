@@ -3838,8 +3838,7 @@ class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
         workspace_controller = window.workspace_controller
         assert workspace_controller is not None
         selection = list(window.selected_display_items)
-        split = Workspace.Workspace.get_split_for_selection(len(selection))
-        command = Workspace.CreateWorkspaceFromSelectionCommand(workspace_controller, text, selection, split)
+        command = Workspace.CreateWorkspaceFromSelectionCommand(workspace_controller, text, selection)
         command.perform()
         window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
