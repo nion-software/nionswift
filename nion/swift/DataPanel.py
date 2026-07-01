@@ -314,9 +314,7 @@ class DataPanel(Panel.Panel):
                 return mime_data.has_file_paths
 
             def drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int | None) -> str:
-                display_items = document_controller.receive_files(mime_data.file_paths)
-                if set(display_items).intersection(set(document_controller.filtered_display_items_model.display_items)):
-                    document_controller.select_display_items_in_data_panel(display_items)
+                document_controller.receive_files(mime_data.file_paths)
                 return "accept"
 
             def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
@@ -336,11 +334,14 @@ class DataPanel(Panel.Panel):
                             Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data),
                                          tuple(Geometry.IntSize(w=80, h=80))))
                 elif len(display_items) > 1:
+                    # Thumbnail preference order: The display item the drag started from, then the anchor item, then the first display item in the list
+                    if display_item is None and self.__selection.anchor_index is not None:
+                        display_item = self.__data_panel.document_controller.display_items_model.items[self.__selection.anchor_index]
+                    else:
+                        display_item = display_items[0]
                     mime_data = document_controller.ui.create_mime_data()
                     MimeTypes.mime_data_put_display_items(mime_data, display_items)
-                    anchor_index = self.__selection.anchor_index or 0
-                    thumbnail_display_item = display_items[anchor_index]
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, thumbnail_display_item)
+                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, display_item)
                     thumbnail_data = thumbnail_source.thumbnail_data
                 return mime_data, thumbnail_data
 
