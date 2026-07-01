@@ -794,39 +794,40 @@ class Workspace:
         source_details: dict[str, typing.Any] | None = None
         source_display_item: DisplayItem.DisplayItem | None = None
         source_display_items: list[DisplayItem.DisplayItem] = list()
-        return_type = "copy"
+        return_type = "ignore"
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             source_display_item, source_details = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
             return_type = "move"
         elif mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
             source_display_items = MimeTypes.mime_data_get_display_items(mime_data, self.document_model)
+            return_type = "copy"
         elif mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             source_display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
+            return_type = "copy"
         elif mime_data.has_format("text/uri-list"):
             index = len(self.document_model.data_items)
             display_items = self.document_controller.receive_files(list(reversed(mime_data.file_paths)), None, index)
             if len(display_items) == 1:
                 source_display_item = display_items[0]
+                return_type = "copy"
             elif len(display_items) > 1:
                 source_display_items = list(display_items)
+                return_type = "copy"
 
-        if source_display_item:
-            if destination_display_panel.handle_drop_display_item(region, source_display_item):
-                pass  # If handle_drop_display_item returns true then the drop was handled by the function
-            elif region == "right" or region == "left" or region == "top" or region == "bottom":
-                display_item = source_display_item if not source_details else None  # Prefer using the details over the display_item in the case of a panel drop
-                command = self.insert_display_panel(destination_display_panel, region, display_item, source_details)
-                self.document_controller.push_undo_command(command)
-            else:
-                command = self.__replace_displayed_display_item(destination_display_panel, source_display_item)
-                self.document_controller.push_undo_command(command)
-            return return_type
-        elif source_display_items:
-            command = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
+        if source_display_items:
+            command: Undo.UndoableCommand = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
             self.split_panel_and_insert_display_items(destination_display_panel, source_display_items)
             self.document_controller.push_undo_command(command)
-            return return_type
-        return "ignore"
+        elif source_display_item and destination_display_panel.handle_drop_display_item(region, source_display_item):
+            pass  # If handle_drop_display_item returns true then the drop was handled by the function
+        elif region == "right" or region == "left" or region == "top" or region == "bottom":
+            display_item = source_display_item if not source_details else None  # Prefer using the details over the display_item in the case of a panel drop
+            command = self.insert_display_panel(destination_display_panel, region, display_item, source_details)
+            self.document_controller.push_undo_command(command)
+        else:
+            command = self.__replace_displayed_display_item(destination_display_panel, source_display_item)
+            self.document_controller.push_undo_command(command)
+        return return_type
 
     def _replace_displayed_display_item(self, display_panel: DisplayPanel.DisplayPanel,
                                         display_item: typing.Optional[DisplayItem.DisplayItem],
