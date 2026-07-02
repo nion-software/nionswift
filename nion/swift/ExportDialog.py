@@ -70,53 +70,6 @@ class ExportDialogViewModel:
         if not self.is_directory_valid:
             self.directory.value = None  # Clear the initial directory if it was invalid
 
-        def compute_export_options_validity(prefix_value: str | None, include_title: bool | None,
-                                            include_date: bool | None, include_dimensions: bool | None,
-                                            include_sequence: bool | None, is_directory_valid: bool | None) -> ExportOptionsValidity:
-            """Use the combined values of the export filename options and the directory validity to get a list of invalid reasons."""
-            invalid_reasons: list[str] = []
-
-            prefix_str = prefix_value or str()
-            prefix_enabled = prefix_str != str()
-            non_prefix_options_enabled = include_title or include_date or include_dimensions or include_sequence
-            if prefix_enabled and non_prefix_options_enabled:
-                # The prefix will only be part of the filename so only check that it is made up of valid characters
-                matches = re.findall(Utility.ILLEGAL_FILENAME_CHARS_REGEX, prefix_str)
-                matches = sorted(set(matches))
-                if len(matches) == 1:
-                    invalid_reasons.append(_("Prefix contains illegal character") + f" {matches[0]}")
-                elif len(matches) > 1:
-                    invalid_reasons.append(_("Prefix contains illegal characters {characters}").format(characters="".join(matches)))
-            elif prefix_enabled and not non_prefix_options_enabled:
-                # The prefix is the full filename so check it is allowed using the verify filename utility
-                is_valid, errors = Utility.verify_filename_is_legal(prefix_str)
-                if not is_valid and errors is not None:
-                    invalid_reasons.append(_("Prefix was not a valid filename:"))
-                    invalid_reasons.extend(errors)
-            elif not prefix_enabled and not non_prefix_options_enabled:
-                # There must be at least one option enabled otherwise the filenames will be empty
-                invalid_reasons.append(_("Filename requires at least one option to be selected"))
-
-            if not is_directory_valid:
-                invalid_reasons.append(_("Directory does not exist"))
-
-            return ExportOptionsValidity(bool(is_directory_valid), tuple(invalid_reasons))
-
-        def handle_export_options_validity_changed(export_validity: ExportOptionsValidity | None) -> None:
-            """Update the export button's enabled state and tooltip based on the computed invalid reasons and directory validity."""
-            export_validity = export_validity or ExportOptionsValidity(False, tuple())
-            if not export_validity.is_directory_valid:
-                self.directory.value = None  # Clear the directory if it is invalid
-
-            if export_validity.invalid_reasons:
-                self.export_button_enabled.value = False
-                self.export_button_tool_tip.value = ", ".join(export_validity.invalid_reasons)
-                self.directory_warning.value = "\n".join(export_validity.invalid_reasons)
-            else:
-                self.export_button_enabled.value = True
-                self.export_button_tool_tip.value = None
-                self.directory_warning.value = str()
-
         export_filename_option_streams: typing.Sequence[Stream.PropertyChangedEventStream[str | bool]] = [
             # Update the button when one of the options changes
             Stream.PropertyChangedEventStream(self.prefix, "value"),
@@ -129,13 +82,64 @@ class ExportDialogViewModel:
         ]
 
         self.__export_button_update_action = Stream.ValueStreamAction(
-            Stream.CombineLatestStream(export_filename_option_streams, compute_export_options_validity),
-            handle_export_options_validity_changed
+            Stream.CombineLatestStream(export_filename_option_streams, self.__compute_export_options_validity),
+            self.__handle_export_options_validity_changed
         )
+        self.update_options()
 
-        handle_export_options_validity_changed(compute_export_options_validity(self.prefix.value, self.include_title.value,
-                                                                               self.include_date.value, self.include_dimensions.value,
-                                                                               self.include_sequence.value, self.__is_directory_valid.value))
+    @staticmethod
+    def __compute_export_options_validity(prefix_value: str | None, include_title: bool | None,
+                                        include_date: bool | None, include_dimensions: bool | None,
+                                        include_sequence: bool | None, is_directory_valid: bool | None) -> ExportOptionsValidity:
+        """Use the combined values of the export filename options and the directory validity to get a list of invalid reasons."""
+        invalid_reasons: list[str] = []
+
+        prefix_str = prefix_value or str()
+        prefix_enabled = prefix_str != str()
+        non_prefix_options_enabled = include_title or include_date or include_dimensions or include_sequence
+        if prefix_enabled and non_prefix_options_enabled:
+            # The prefix will only be part of the filename so only check that it is made up of valid characters
+            is_valid, error = Utility.verify_filename_has_no_illegal_characters(prefix_str)
+            if not is_valid and error is not None:
+                invalid_reasons.append(_("Prefix ") + error[0].lower() + error[1:])
+        elif prefix_enabled and not non_prefix_options_enabled:
+            # The prefix is the full filename so check it is allowed using the verify filename utility
+            is_valid, errors = Utility.verify_filename_is_legal(prefix_str)
+            if not is_valid and errors is not None:
+                invalid_reasons.append(_("Prefix was not a valid filename:"))
+                invalid_reasons.extend(errors)
+        elif not prefix_enabled and not non_prefix_options_enabled:
+            # There must be at least one option enabled otherwise the filenames will be empty
+            invalid_reasons.append(_("Filename requires at least one option to be selected"))
+
+        if not is_directory_valid:
+            invalid_reasons.append(_("Directory does not exist"))
+
+        return ExportOptionsValidity(bool(is_directory_valid), tuple(invalid_reasons))
+
+    def __handle_export_options_validity_changed(self, export_validity: ExportOptionsValidity | None) -> None:
+        """Update the export button's enabled state and tooltip based on the computed invalid reasons and directory validity."""
+        export_validity = export_validity or ExportOptionsValidity(False, tuple())
+        if not export_validity.is_directory_valid:
+            self.directory.value = None  # Clear the directory if it is invalid
+
+        if export_validity.invalid_reasons:
+            self.export_button_enabled.value = False
+            self.export_button_tool_tip.value = ", ".join(export_validity.invalid_reasons)
+            self.directory_warning.value = "\n".join(export_validity.invalid_reasons)
+        else:
+            self.export_button_enabled.value = True
+            self.export_button_tool_tip.value = None
+            self.directory_warning.value = str()
+
+    def update_options(self, prefix_value: str | None = None) -> None:
+        """Directly refresh the validity of the export button's enabled state and tooltip."""
+        self.__handle_export_options_validity_changed(
+            self.__compute_export_options_validity(
+                prefix_value or self.prefix.value, self.include_title.value, self.include_date.value,
+                self.include_dimensions.value, self.include_sequence.value, self.__is_directory_valid.value
+            )
+        )
 
     @property
     def directory_path_object(self) -> pathlib.Path:
@@ -268,6 +272,9 @@ class ExportDialog(Declarative.Handler):
         writer = self.__writers[current_index]
         self.viewmodel.writer.value = writer
 
+    def handle_prefix_edited(self, widget: UserInterface.LineEditWidget, text: str) -> None:
+        self.viewmodel.update_options(text)
+
     def __build_ui(self, u: Declarative.DeclarativeUI) -> None:
         """Build the UI and store it in self.ui_view. This is called from __init__."""
 
@@ -303,7 +310,7 @@ class ExportDialog(Declarative.Handler):
 
         # Prefix. Include a messy callback so that prefix gets updated during typing.
         prefix_label = u.create_label(text=_("Prefix:"))
-        prefix_textbox = u.create_line_edit(text="@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=230)
+        prefix_textbox = u.create_line_edit(text="@binding(viewmodel.prefix.value)", placeholder_text=_("None"), width=230, on_text_edited="handle_prefix_edited")
         prefix_row = u.create_row(prefix_label, prefix_textbox, u.create_stretch(), spacing=10)
 
         # File Type
