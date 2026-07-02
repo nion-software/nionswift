@@ -626,8 +626,8 @@ class ProjectStorageSystem(PersistentStorageSystem):
     @abc.abstractmethod
     def _read_library_properties(self, migration_stage: ProjectStorageSystemMigrationStage) -> PersistentDictType: ...
 
-    @classmethod
-    def check_project_name_is_available(cls, name: str, directory: str) -> ProjectNameResult:
+    @staticmethod
+    def check_project_name_is_available(name: str, directory: str) -> ProjectNameResult:
         """Check if the provided project name is available for use.
 
         Returns a ProjectNameResult.
@@ -1188,8 +1188,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
         return ProjectNameResult(error_messages, self.__project_path)
 
-    @classmethod
-    def check_project_name_is_available(cls, name: str, directory: str) -> ProjectNameResult:
+    @staticmethod
+    def check_project_name_is_available(name: str, directory: str) -> ProjectNameResult:
         """Check if the provided project name is available for use.
 
         Checks that no project file or data folder exist in the directory that already use the name provided.
