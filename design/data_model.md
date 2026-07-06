@@ -1,81 +1,99 @@
 # Nion Data Model
 
-## Dataset
+## Annotated Array
 
-A **Dataset** is one complete unit of data: array, descriptor, dimensions, and associated metadata. This section describes the Dataset model in two parts: the current implementation state and the planned state.
+An **annotated array** is one complete unit of data: an underlying array, descriptor, dimensions, and associated metadata. The name reflects the composition: an array, annotated with axis groups, calibrations, coordinate system references, and metadata. The implementation class name is `AnnotatedArray`; text uses "annotated array"; "underlying array" always refers to the raw value buffer inside an annotated array. This section describes the annotated array model in two parts: the current implementation state and the planned state.
 
 ### Current Implementation
 
-This section uses dataset and axis-set terminology where possible, although the current implementation calls dataset a `DataAndMetadata` or `xdata`.
+This section uses annotated-array and axis-group terminology where possible, although the current implementation calls an annotated array a `DataAndMetadata` or `xdata`.
 
-A Dataset is organized into three ordered sections: an optional sequence axis of rank 1, an optional collection axis set of rank 1 or 2, and a datum axis set of rank 0, 1, 2.
+An annotated array is organized into three ordered sections: an optional sequence axis of rank 1, an optional collection axis group of rank 1 or 2, and a signal axis group of rank 0, 1, 2.
 
-A Dataset holds values of type scalar, complex, RGB, or RGBA.
+An annotated array holds values of type scalar, complex, RGB, or RGBA.
 
 Each axis has a single calibration associated with it. The calibration may be an identity calibration.
 
 ### Planned Implementation
 
-The planned Dataset model specifies an ordered list of axis sets, each with an identifier and rank, and a Dataset value type.
+The planned annotated array model specifies an ordered list of axis groups, each with an identifier and rank, and a value type.
 
 Value types are scalar, complex, RGB, RGBA, or fixed-length vector (1/2/3).
 
-A Dataset always contains at least one axis set. All axis sets must have at least one axis except the final axis set may have zero.
+An annotated array always contains at least one axis group. All axis groups must have at least one axis except the final axis group may have zero.
 
-Each axis set has an optional associated coordinate system reference.
+Coordinate systems are physical coordinate spaces typically representing an orientation of axes in space.
 
-Each axis has zero or more associated calibrations or coordinates.
+Coordinate mappings are mappings from the index coordinate space of an axis group into calibrated coordinates.
+
+Each axis group has zero or more associated coordinate mappings. One coordinate mapping may be designated the primary coordinate mapping.
+
+Each axis group designates the coordinate system of its index coordinate space. The designated coordinate system may be null, indicating that the coordinate system is unknown.
+
+Within a coordinate mapping, each axis has exactly one associated calibration or coordinate array.
+
+The annotated array has zero or more coordinate system transforms, which are affine transforms from one coordinate system to another, recorded at acquisition time. They normally only apply to isotropic coordinate mappings.
 
 Future extensions may expand the value types and/or support variable length (ragged) value types.
 
-### Glossary
+### Terms and Definitions
 
-- **Axis set:** An ordered set of axes in a Dataset. The rank of an axis set is the number of axes in the group.
-- **Datum axis set:** The final axis set in a Dataset.
-- **Value type:** The value types: scalar, complex, RGB, RGBA, vector.
-- **Calibration:** A structure containing `scale`, `offset`, and `units` used to map index values to calibrated values using the formula `x' = x * scale + offset`. Calibrations support sampled (uniformly spaced) axes.
-- **Coordinate:** A structure containing coordinate arrays that map index values to coordinate values. Coordinates support non-sampled (non-uniformly spaced) axes.
-- **Coordinate System:** A shared coordinate system common to axis sets in one or more Datasets.
+An **annotated array** is one complete unit of data: an underlying array together with its annotations (axis groups, coordinate mappings, coordinate system transforms, and metadata). The implementation class name is `AnnotatedArray`. *Note on nomenclature:* "annotations" here means the structural and calibration metadata attached to the array - not display graphics such as rectangles, lines, or region markers drawn on a displayed image.
 
-## Iteration
+An **axis group** is an ordered group of axes in an annotated array. The rank of an axis group is the number of axes in the group.
 
-Iteration describes how a computation traverses a Dataset.
+The **signal axis group** is the final axis group in an annotated array. *Note on nomenclature:* "signal" is not a perfect term - axes outside the signal axis group may also carry meaningful signal - but it is the least bad of the candidates considered and a clear improvement over the previous term "datum," which read as surveying jargon and was an awkward singular of "data."
 
-For iteration, one axis set is designated as the compute axis set and the others become the navigation axis sets. The navigation axis sets are in the order they appear in the original Dataset. The compute axis set is the input to the computation at each iteration position.
+A **value type** is one of the supported value types: scalar, complex, RGB, RGBA, or vector.
 
-At each iteration position, defined by one point from each axis included in the navigation axis sets, a slice of the compute axis set called the compute slice is sent to a computation. The outputs of the computation are assembled into a new Dataset.
+A **coordinate system** is a physical coordinate space, typically representing an orientation of axes in space, consisting of an ordered list of coordinate system axes; it is the node type of the coordinate system graph. Each coordinate system has a unique identifier; identity is by identifier, so two coordinate systems with identical coordinate system axes are still distinct systems. Coordinate systems are shared: axis groups in one or more annotated arrays may designate the same coordinate system.
 
-At each iteration position, a mask can be applied to the compute slice before being passed to the computation. The mask must have axes matching the compute axis set.
+A **coordinate system axis** is a per-dimension component of a coordinate system: a name and optional direction metadata. Coordinate system axes carry no units; units belong to calibrations.
 
-Iteration supports windowed iteration for axis sets with one axis. The window is passed to the computation as compute slice with an extra dimension.
+A **coordinate system graph** is the set of coordinate system definitions and the current coordinate system transforms. The coordinate system graph is maintained outside annotated arrays, at the instrument level.
 
-Iteration supports tiled iteration. The tile is passed to the computation as compute slice and assembled automatically into a new axis set.
+A **calibration** is a structure containing `scale`, `offset`, and `units` used to map index values to calibrated values using the formula `x' = x * scale + offset`. A calibration is a linear transform on a single axis. A calibration exists within a coordinate mapping, one per axis. Calibrations support sampled (uniformly spaced) axes.
 
-Iteration supports paired iteration with broadcasting.
+A **coordinate array** is a structure containing arrays that map index values to coordinate values. Coordinate arrays support non-sampled (non-uniformly spaced) axes.
 
-Iteration computations will support stateful aggregation style computations, for example computing a sum or mean along an iterated axis.
+An **index coordinate space** is the space of index values of an axis group.
 
-The output Datasets are constructed by replacing the compute axis set of the original Dataset with an axis set with the shape, calibrations, and value type of the computation outputs. Computations with multiple outputs are supported.
+A **coordinate mapping** is a mapping from the index coordinate space of an axis group into calibrated coordinates, consisting of one calibration or coordinate array per axis. An axis group may have zero or more coordinate mappings; coordinate mappings are coherent across all axes of the group.
 
-Iteration is limited to one axis set.
+A **primary coordinate mapping** is the coordinate mapping of an axis group used by default for display and by consumers unaware of multiple coordinate mappings.
 
-Iteration staging is where multiple iterations are stacked together. For example, first measure shifts, then apply shifts and sum. The output of the first iteration (shifts) is used as input to the second iteration (apply shifts and sum).
+A **coordinate system transform** is an invertible affine transform from one coordinate system to another, stored with the annotated array and typically recorded from the coordinate system graph at acquisition time. Coordinate system transforms typically compose only with isotropic coordinate mappings.
 
-Iteration pipelining is where the output of one computation is passed as input to the next computation within the same iteration. For example, first apply a blur to each slice, then compute the mean of each blurred slice.
+An **isotropic coordinate mapping** is a coordinate mapping in which every axis has the same units and the same scale. Offsets may differ between axes; the classification considers units and scale only. Example: a camera image with square pixels calibrated in nm, with the origin at the image center.
 
-### Future Extensions
+An **anisotropic coordinate mapping** is a coordinate mapping in which every axis has the same units but the scales differ between axes. Example: a camera image with rectangular pixels calibrated in nm.
 
-- Iteration over multiple axis sets.
-- Iteration over a subset of axes in a particular axis set.
+A **mixed coordinate mapping** is a coordinate mapping in which the axes have different units. Example: a coordinate mapping with one axis calibrated in eV (energy) and another in nm (position).
 
-### Iteration Use Cases
+### Coordinate System Graph
 
-Apply a pixel to pixel transformation to each computed slice. Result has same shape/calibrations as input. Example is applying a blur to each 2D computed slice of a sequence of 2D images.
+The coordinate system graph is maintained at the instrument level; an annotated array's coordinate system transforms are recorded from it at acquisition time. Examples: camera space, scan space, stage space.
 
-Apply a reduction function to each computed slice, for example computing the mean of each slice. Result has the same shape/calibrations as the iterated dimensions, but the axes or axis set used for the computed slice are removed.
+A point is translated between two annotated arrays by composition: from index coordinate space to calibrated coordinates via a coordinate mapping, between coordinate systems via a coordinate system transform, and back to index coordinate space via the inverse coordinate mapping.
 
-Apply a reduction to each 2D image in a collection by integrating along the y-axis to produce 1D data.
+Point translation is exact and produces fractional index values. Combining or overlaying data between coordinate systems requires resampling with interpolation, which is a computation, not a data model operation.
 
-Apply computation or reduction to the first axis set (collection) or second axis set (image) in a 4D-image dataset.
+### Coordinate Mapping Use Cases
 
-Align and sum is two operations: first computes a shift dataset by aligning all slices to a reference slice, second applies the shifts to the original dataset and sums the shifted data.
+Translate a point on an image from one camera to the equivalent point on another camera, where the cameras differ in rotation, flip, pixel size, or binning.
+
+Map a point on a camera image to stage coordinates for stage movement.
+
+### Detailed Use Case: Camera Image with Multiple Coordinate Mappings, Graphics, and Overlays
+
+A camera image is acquired with two isotropic coordinate mappings — real space in nm and angular in rad — and one coordinate system transform, the camera-to-stage rotation recorded at acquisition. The real-space coordinate mapping is designated primary. Stage-oriented coordinates are derived by composing a coordinate mapping with the coordinate system transform; the real-space coordinate mapping is used because stage space is in length units, although because both coordinate mappings are isotropic, the same rotation applies to either.
+
+The image displays in index coordinate space. The user chooses whether the scale marker and mouse-over readout show nm or rad; switching changes the readout only, not the displayed data.
+
+Graphics are drawn in graphics coordinates — a fixed per-axis scaling of index coordinate space in which each axis spans 0 to 1 — independent of any coordinate mapping. A graphic may instead be defined in stage coordinates: its points are converted to fractional indices through inverse coordinate mapping. An axes indicator showing the stage directions uses only the rotational component of the stored coordinate system transform, sized and positioned in graphics coordinates.
+
+All of this is point translation; no data is resampled. Because the coordinate system transform is recorded at acquisition-time, stage-space graphics remain correctly positioned offline, and a second image acquired at a different rotation carries its own coordinate system transform, so the same stage-space graphic maps correctly onto both images.
+
+### Open Questions
+
+- Pixel center versus pixel corner convention for index values (deliberately deferred).
