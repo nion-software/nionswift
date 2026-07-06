@@ -1,81 +1,107 @@
 # Nion Data Model
 
-## Dataset
+## Annotated Array
 
-A **Dataset** is one complete unit of data: array, descriptor, dimensions, and associated metadata. This section describes the Dataset model in two parts: the current implementation state and the planned state.
+An **annotated array** is one complete unit of data: an underlying array, array descriptor, and array metadata. The implementation class name is `AnnotatedArray`; text uses "annotated array"; "underlying array" always refers to the raw value buffer inside an annotated array. This section describes the annotated array model in two parts: the current implementation state and the planned state.
 
 ### Current Implementation
 
-This section uses dataset and axis-set terminology where possible, although the current implementation calls dataset a `DataAndMetadata` or `xdata`.
+This section uses annotated-array and axis-group terminology where possible, although the current implementation calls an annotated array a `DataAndMetadata` or `xdata`.
 
-A Dataset is organized into three ordered sections: an optional sequence axis of rank 1, an optional collection axis set of rank 1 or 2, and a datum axis set of rank 0, 1, 2.
+An annotated array is organized into three ordered sections: an optional sequence axis of rank 1, an optional collection axis group of rank 1 or 2, and a signal axis group of rank 0, 1, 2.
 
-A Dataset holds values of type scalar, complex, RGB, or RGBA.
+An annotated array holds values of type scalar, complex, RGB, or RGBA.
 
 Each axis has a single calibration associated with it. The calibration may be an identity calibration.
 
 ### Planned Implementation
 
-The planned Dataset model specifies an ordered list of axis sets, each with an identifier and rank, and a Dataset value type.
+The planned model expands the current representation so it can support more axis groups, multiple calibrations per axis group, and extensions such as provenance and coordinate transformations without reshaping the core structure. It also leaves room for richer coordinate-system references, non-uniform coordinates, and additional value types as the model evolves.
 
-Value types are scalar, complex, RGB, RGBA, or fixed-length vector (1/2/3).
+An annotated array contains an underlying array, array descriptor, and array metadata. An array header packages the descriptor and metadata with the storage data type.
 
-A Dataset always contains at least one axis set. All axis sets must have at least one axis except the final axis set may have zero.
+The array metadata contains a creation time, free-form attributes, and structured extension records. An extension record is a versioned, typed container for an opaque encoded payload whose semantics and access interface are defined outside the annotated array model. Extension records track things like computation provenance and coordinate transforms.
 
-Each axis set has an optional associated coordinate system reference.
+The array descriptor contains an ordered list of axis groups and a value type. At least one axis group is required; only the final group may have rank zero.
 
-Each axis has zero or more associated calibrations or coordinates.
+Each axis group may have coordinate mappings and may reference the coordinate system in which its mapped coordinates are interpreted. One coordinate mapping may be primary.
 
-Future extensions may expand the value types and/or support variable length (ragged) value types.
+### Terms and Definitions
 
-### Glossary
+An **annotated array** is one complete unit of data: an underlying array, array descriptor, and array metadata.
 
-- **Axis set:** An ordered set of axes in a Dataset. The rank of an axis set is the number of axes in the group.
-- **Datum axis set:** The final axis set in a Dataset.
-- **Value type:** The value types: scalar, complex, RGB, RGBA, vector.
-- **Calibration:** A structure containing `scale`, `offset`, and `units` used to map index values to calibrated values using the formula `x' = x * scale + offset`. Calibrations support sampled (uniformly spaced) axes.
-- **Coordinate:** A structure containing coordinate arrays that map index values to coordinate values. Coordinates support non-sampled (non-uniformly spaced) axes.
-- **Coordinate System:** A shared coordinate system common to axis sets in one or more Datasets.
+An **array descriptor** contains the intrinsic fields required to interpret an underlying array.
 
-## Iteration
+**Array metadata** is contextual information that travels with an annotated array but is not required to interpret its underlying array.
 
-Iteration describes how a computation traverses a Dataset.
+An **array header** is a utility value containing an array descriptor, storage data type, and array metadata without an underlying array.
 
-For iteration, one axis set is designated as the compute axis set and the others become the navigation axis sets. The navigation axis sets are in the order they appear in the original Dataset. The compute axis set is the input to the computation at each iteration position.
+An **intrinsic field** is information whose semantics and invariants are part of the annotated array model, such as axis groups, coordinate mappings, coordinate system references, and intensity calibrations.
 
-At each iteration position, defined by one point from each axis included in the navigation axis sets, a slice of the compute axis set called the compute slice is sent to a computation. The outputs of the computation are assembled into a new Dataset.
+The **storage data type** specifies how values are represented in the underlying array. It is distinct from the value type, which describes the meaning of one logical value.
 
-At each iteration position, a mask can be applied to the compute slice before being passed to the computation. The mask must have axes matching the compute axis set.
+The **creation time** is the time at which an annotated-array value is created.
 
-Iteration supports windowed iteration for axis sets with one axis. The window is passed to the computation as compute slice with an extra dimension.
+An **extension record** is versioned, code-interpreted array metadata whose semantics are owned outside the fundamental annotated array model. Examples are acquisition coordinate context and computation provenance.
 
-Iteration supports tiled iteration. The tile is passed to the computation as compute slice and assembled automatically into a new axis set.
+**Free-form metadata** is information that travels with an annotated array without a machine-enforced schema and is not interpreted by the annotated array model.
 
-Iteration supports paired iteration with broadcasting.
+An **axis group** is an ordered group of axes in an annotated array. The rank of an axis group is the number of axes in the group.
 
-Iteration computations will support stateful aggregation style computations, for example computing a sum or mean along an iterated axis.
+The **array rank** (called `ndim` in NumPy-oriented code) is the total number of axes in an annotated array, equal to the sum of axis-group ranks.
 
-The output Datasets are constructed by replacing the compute axis set of the original Dataset with an axis set with the shape, calibrations, and value type of the computation outputs. Computations with multiple outputs are supported.
+A **bound axis group** is an axis group in which every axis has a concrete positive size. Its axis sizes determine the shape of the group.
 
-Iteration is limited to one axis set.
+The **signal axis group** is the final axis group in an annotated array. *Note on nomenclature:* "signal" is not a perfect term - axes outside the signal axis group may also carry meaningful signal - but it is the least bad of the candidates considered and a clear improvement over the previous term "datum," which read as surveying jargon and was an awkward singular of "data."
 
-Iteration staging is where multiple iterations are stacked together. For example, first measure shifts, then apply shifts and sum. The output of the first iteration (shifts) is used as input to the second iteration (apply shifts and sum).
+A **value type** is one of the supported value types: scalar, complex, RGB, RGBA, or vector.
 
-Iteration pipelining is where the output of one computation is passed as input to the next computation within the same iteration. For example, first apply a blur to each slice, then compute the mean of each blurred slice.
+A **coordinate system** represents a physical coordinate space, typically defined by an orientation of axes, and contains an ordered list of coordinate axes. Each coordinate system has a unique identifier that solely determines its identity; systems with identical axes are distinct if their identifiers differ. Coordinate systems are shared objects and may be referenced by axis groups in multiple annotated arrays.
 
-### Future Extensions
+A **coordinate system axis** is a per-dimension component of a coordinate system: a name and optional direction metadata. Coordinate system axes carry no units; units belong to calibrations.
 
-- Iteration over multiple axis sets.
-- Iteration over a subset of axes in a particular axis set.
+A **coordinate system graph** is the set of coordinate system definitions and the current coordinate system transforms. The coordinate system graph is maintained outside annotated arrays, at the instrument level.
 
-### Iteration Use Cases
+A **calibration** is a structure containing `scale`, `offset`, and `units` used to map index values to calibrated values using the formula `x' = x * scale + offset`. A calibration is a linear transform on a single axis. A calibration exists within a coordinate mapping, one per axis. Calibrations support sampled (uniformly spaced) axes.
 
-Apply a pixel to pixel transformation to each computed slice. Result has same shape/calibrations as input. Example is applying a blur to each 2D computed slice of a sequence of 2D images.
+A **coordinate array** is a structure containing arrays that map index values to coordinate values. Coordinate arrays support non-sampled (non-uniformly spaced) axes.
 
-Apply a reduction function to each computed slice, for example computing the mean of each slice. Result has the same shape/calibrations as the iterated dimensions, but the axes or axis set used for the computed slice are removed.
+An **index coordinate space** is the space of index values of an axis group.
 
-Apply a reduction to each 2D image in a collection by integrating along the y-axis to produce 1D data.
+A **coordinate mapping** is a mapping from the index coordinate space of an axis group into calibrated coordinates, consisting of one calibration or coordinate array per axis. An axis group may have zero or more coordinate mappings; coordinate mappings are coherent across all axes of the group.
 
-Apply computation or reduction to the first axis set (collection) or second axis set (image) in a 4D-image dataset.
+A **primary coordinate mapping** is the coordinate mapping of an axis group used by default for display and by consumers unaware of multiple coordinate mappings.
 
-Align and sum is two operations: first computes a shift dataset by aligning all slices to a reference slice, second applies the shifts to the original dataset and sums the shifted data.
+A **coordinate system transform** is an invertible affine transform from one coordinate system to another. Coordinate system transforms are relationships in the coordinate system graph and typically compose only with isotropic coordinate mappings.
+
+An **isotropic coordinate mapping** is a coordinate mapping in which every axis has the same units and the same scale. Offsets may differ between axes; the classification considers units and scale only. Example: a camera image with square pixels calibrated in nm, with the origin at the image center.
+
+An **anisotropic coordinate mapping** is a coordinate mapping in which every axis has the same units but the scales differ between axes. Example: a camera image with rectangular pixels calibrated in nm.
+
+A **mixed coordinate mapping** is a coordinate mapping in which the axes have different units. Example: a coordinate mapping with one axis calibrated in eV (energy) and another in nm (position).
+
+### Array Metadata
+
+The array descriptor and array metadata are separate fields because computations handle them differently. A computation produces a descriptor consistent with the structure and interpretation of its result, while array metadata follows metadata-specific propagation rules.
+
+The creation time records when the annotated-array value is created. A derived result has its own creation time; an acquisition time that must survive derivation belongs in an acquisition extension record.
+
+The creation time is timezone-aware. Its timezone object carries the UTC offset and, when represented by an IANA timezone, the IANA zone identifier; array metadata has no separate timezone or timezone-offset fields.
+
+Each extension record has a globally unique extension type identifier, schema version, and opaque encoded payload. The component that defines an extension owns its validation, encoding, decoding, schema migration, and semantic access. Extension records are accessed through their defined interfaces rather than as reserved free-form metadata keys.
+
+Lossless serialization and exact copying preserve all extension records, including extension types unknown to the consumer. A computation includes an extension record in a derived annotated array only when the computation or extension definition supplies an explicit rule to preserve, transform, replace, or generate it.
+
+### Array Header
+
+An array header can be derived from an annotated array and passed independently of the underlying array for inspection, allocation, streaming, serialization, and computation planning. The array shape is derived from the bound axis groups in its array descriptor; the storage data type is retained separately so that an exact underlying array can be allocated or validated. Pairing an underlying array with a header validates the array against the header and produces an annotated array whose descriptor and metadata are direct fields.
+
+### External Coordinate Systems
+
+Coordinate-system definitions and transforms are maintained outside annotated arrays. Annotated arrays participate in coordinate translation through the coordinate-system references and coordinate mappings in their axis groups.
+
+Point translation, transform composition, resampling boundaries, and display use cases are described in [Coordinate Translation and Display](./coordinate_translation.md).
+
+### Open Questions
+
+- Pixel center versus pixel corner convention for index values (deliberately deferred).
