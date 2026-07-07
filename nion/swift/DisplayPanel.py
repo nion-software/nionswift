@@ -1904,6 +1904,10 @@ class DisplayPanelGridCanvasItem(GridCanvasItem.GridCanvasItem2):
 
 
 class HeaderCanvasItemDelegate:
+    """Canvas item delegate for handling the header of a display panel.
+
+    Handles the editing of titles and tool tip as well as ensuring proper closure of the display panel.
+    """
     def __init__(self, document_controller: DocumentController.DocumentController, display_panel: DisplayPanel) -> None:
         self.__weak_document_controller = typing.cast(_DocumentControllerWeakRefType, weakref.ref(document_controller))
         self.__weak_display_panel = weakref.ref(display_panel)

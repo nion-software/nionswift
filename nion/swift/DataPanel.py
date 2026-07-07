@@ -388,7 +388,6 @@ class DataPanel(Panel.Panel):
         self.widget.add(search_widget)
         self.widget.add_spacing(6)
 
-
         self.__list_canvas_item = list_canvas_item
         self.__grid_canvas_item = grid_canvas_item
 

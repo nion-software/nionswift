@@ -8,26 +8,39 @@ from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Thumbnails
 from nion.swift.model import DisplayItem
-from nion.ui import Bitmap, Window
+from nion.ui import Bitmap
 from nion.ui import GridFlowCanvasItem
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Geometry
 from nion.utils import Selection
 
-_NDArray = numpy.typing.NDArray[typing.Any]
+_NDArray = numpy.typing.NDArray[typing.Any]  # numpy arrays can have any dtype
 
 
 if typing.TYPE_CHECKING:
-    from nion.swift import DocumentController, DisplayPanel, Workspace
+    from nion.swift import DisplayPanel
+    from nion.swift import DocumentController
+    from nion.swift import Workspace
+
 
 class DragHandler(typing.Protocol):
+    """Protocol for a method that can be called on drag events.
+
+    The default arguments can be specified rather than using a typing.Callable where the names and default values are not visible.
+    """
     def __call__(self, mime_data: UserInterface.MimeData, thumbnail: Bitmap.BitmapOrArray | None = None,
                  hot_spot_x: int | None = None, hot_spot_y: int | None = None,
-                 drag_finished_fn: typing.Callable[[str], None] | None = None, /) -> None: ...
+                 drag_finished_fn: typing.Callable[[str], None] | None = None, /) -> None:
+        ...
 
 
 class DraggableGridFlowCanvasItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+    """Delegate for handling the grid canvas item for draggable display items.
 
+    This manages the drag and drop events, context menu events, delete events and item tool tip events.
+    T
+    """
     def __init__(self, document_controller: DocumentController.DocumentController, selection: Selection.IndexedSelection, drag: DragHandler) -> None:
         self._document_controller_ref = weakref.ref(document_controller)
         self._selection = selection
@@ -61,7 +74,7 @@ class DraggableGridFlowCanvasItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemD
 
     def drag_started_event(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> bool:
         mime_data, thumbnail_data = self._get_mime_data_and_thumbnail_data(drag_started_event)
-        if mime_data and callable(self._drag):
+        if mime_data:
             self._drag(mime_data, thumbnail_data)
             return True
         return False
@@ -111,11 +124,15 @@ class DraggableGridFlowCanvasItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemD
 
 
 class DisplayPanelItemDelegate(DraggableGridFlowCanvasItemDelegate):
+    """Delegate for handling a display panel's grid canvas item.
+
+    Manages the dragging and dropping in the display panel while it is in a grid canvas view.
+    """
     def __init__(self, document_controller: DocumentController.DocumentController,
                  selection: Selection.IndexedSelection, display_panel: DisplayPanel.DisplayPanel, workspace_controller: Workspace.Workspace | None) -> None:
         super().__init__(document_controller, selection, display_panel.content_canvas_item.drag)
         self._display_panel_ref = weakref.ref(display_panel)
-        self._workspace_controller_ref = weakref.ref(workspace_controller)
+        self._workspace_controller_ref = weakref.ref(workspace_controller) if workspace_controller else lambda : None
 
     def context_menu_event(self, context_menu_event: GridFlowCanvasItem.GridFlowCanvasItemContextMenuEvent) -> bool:
         display_panel = self._display_panel_ref()
@@ -141,7 +158,7 @@ class DisplayPanelItemDelegate(DraggableGridFlowCanvasItemDelegate):
         if display_panel:
             display_panel.cycle_display()
             return True
-        return True
+        return False
 
     def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         document_controller = self._document_controller_ref()
