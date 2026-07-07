@@ -2118,39 +2118,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return True
 
             def drag_started_event(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> bool:
-                mime_data, thumbnail_data = self._get_mime_data_and_thumbnail_data(drag_started_event)
+                mime_data, thumbnail_data = DataPanel.get_mime_data_and_thumbnail_data(drag_started_event, self.__ui)
                 display_panel = self.__display_panel_ref()
                 if mime_data and display_panel:
                     display_panel.content_canvas_item.drag(mime_data, thumbnail_data)
                     return True
                 return False
 
-            def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
-                mime_data = None
-                thumbnail_data = None
-                display_item = typing.cast(DisplayItem.DisplayItem, drag_started_event.item)
-                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in drag_started_event.selected_items)
-                if len(display_items) <= 1 and display_item is not None:
-                    mime_data = document_controller.ui.create_mime_data()
-                    MimeTypes.mime_data_put_display_item(mime_data, display_item)
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, display_item)
-                    thumbnail_data = thumbnail_source.thumbnail_data
-                    if thumbnail_data is not None:
-                        # scaling is very slow
-                        thumbnail_data = Image.get_rgba_data_from_rgba(
-                            Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), tuple(Geometry.IntSize(w=80, h=80))))
-                elif len(display_items) > 1:
-                    mime_data = document_controller.ui.create_mime_data()
-                    MimeTypes.mime_data_put_display_items(mime_data, display_items)
-                    # Thumbnail preference order: The display item the drag started from, then the anchor item, then the first display item in the list
-                    if display_item is None:
-                        if self.__selection.anchor_index is not None:
-                            display_item = document_controller.display_items_model.items[self.__selection.anchor_index]
-                        else:
-                            display_item = display_items[0]
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, display_item)
-                    thumbnail_data = thumbnail_source.thumbnail_data
-                return mime_data, thumbnail_data
 
             def key_pressed_event(self, key_event: GridFlowCanvasItem.GridFlowCanvasItemKeyPressedEvent) -> bool:
                 return key_pressed(key_event.key)

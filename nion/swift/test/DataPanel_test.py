@@ -818,6 +818,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item_3)
 
             data_panel = document_controller.find_dock_panel("data-panel")
+            assert data_panel is not None
             project_panel = document_controller.find_dock_panel("collections-panel")
 
             display_item_3 = document_model.get_display_item_for_data_item(data_item_3)
@@ -831,7 +832,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.periodic()
             # display_item_1 is passed in first so the anchor index will be 2, which is greater than the number of items in the selection, if _get_mime_data_and_thumbnail_data indexed into the selection itself there would be an error
             document_controller.select_display_items_in_data_panel(selected_display_items)
-            mime_data, thumbnail = data_panel._list_canvas_item._delegate._get_mime_data_and_thumbnail_data(ListCanvasItem.ListCanvasItem2DragStartedEvent(None, selected_display_items, Geometry.IntPoint(), CanvasItem.KeyboardModifiers()))
+            mime_data, thumbnail = DataPanel.get_mime_data_and_thumbnail_data(ListCanvasItem.ListCanvasItem2DragStartedEvent(selected_display_items[0], selected_display_items, Geometry.IntPoint(), CanvasItem.KeyboardModifiers()), data_panel.ui)
             self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE))
             mime_data_display_items = MimeTypes.mime_data_get_display_items(mime_data, document_model)
             self.assertEqual(mime_data_display_items, selected_display_items)
