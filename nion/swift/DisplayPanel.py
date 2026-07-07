@@ -1903,6 +1903,43 @@ class DisplayPanelGridCanvasItem(GridCanvasItem.GridCanvasItem2):
         return super().key_pressed(key)
 
 
+class HeaderCanvasItemDelegate:
+    def __init__(self, document_controller: DocumentController.DocumentController, display_panel: DisplayPanel) -> None:
+        self.__weak_document_controller = typing.cast(_DocumentControllerWeakRefType, weakref.ref(document_controller))
+        self.__weak_display_panel = weakref.ref(display_panel)
+
+    def edit_title(self) -> None:
+        document_controller = self.__weak_document_controller()
+        if document_controller is not None:
+            if display_panel := self.__weak_display_panel():
+                action_context = document_controller._get_action_context()
+                action_context.display_panel = display_panel
+                action_context.display_item = display_panel.display_item
+                document_controller.perform_action_in_context("window.open_title_edit", action_context)
+
+    def header_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        # Header double click just opens the mini-edit window
+        self.edit_title()
+        return True
+
+    def handle_header_tool_tip(self) -> str | None:
+        if display_panel := self.__weak_display_panel():
+            if display_item := display_panel.display_item:
+                return display_item.tool_tip_str
+        return None
+
+    def close(self) -> None:
+        document_controller = self.__weak_document_controller()
+        display_panel = self.__weak_display_panel()
+        if document_controller is None or display_panel is None:
+            return
+
+        workspace_controller = document_controller.workspace_controller
+        if workspace_controller and len(workspace_controller.display_panels) > 1:
+            command = workspace_controller.remove_display_panel(display_panel)
+            document_controller.push_undo_command(command)
+
+
 class DisplayPanel(CanvasItem.LayerCanvasItem):
     """A canvas item to display a library item. Allows library item to be changed."""
 
@@ -1932,25 +1969,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__header_canvas_item = Panel.HeaderCanvasItem(DisplayPanelUISettings(document_controller.ui), display_close_control=True, display_edit_control=True)
 
-        def edit_title() -> None:
-            action_context = document_controller._get_action_context()
-            action_context.display_panel = self
-            action_context.display_item = self.display_item
-            document_controller.perform_action_in_context("window.open_title_edit", action_context)
+        self.__header_canvas_item_delegate = HeaderCanvasItemDelegate(document_controller, self)
 
-        def header_double_clicked(x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-            # Header double click just opens the mini-edit window
-            edit_title()
-            return True
-
-        self.__header_canvas_item.on_double_clicked = header_double_clicked
-
-        def handle_header_tool_tip() -> typing.Optional[str]:
-            if display_item := self.display_item:
-                return display_item.tool_tip_str
-            return None
-
-        self.__header_canvas_item.on_tool_tip = handle_header_tool_tip
+        self.__header_canvas_item.on_double_clicked = self.__header_canvas_item_delegate.header_double_clicked
+        self.__header_canvas_item.on_tool_tip = self.__header_canvas_item_delegate.handle_header_tool_tip
 
         self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
@@ -1989,10 +2011,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__header_canvas_item.on_select_pressed = self._select
         self.__header_canvas_item.on_drag_pressed = self.__handle_begin_drag
-        self.__header_canvas_item.on_close_clicked = close
-        self.__header_canvas_item.on_edit_clicked = edit_title
-
-        ui = document_controller.ui
+        self.__header_canvas_item.on_close_clicked = self.__header_canvas_item_delegate.close
+        self.__header_canvas_item.on_edit_clicked = self.__header_canvas_item_delegate.edit_title
 
         self.__display_canvas_item: DisplayCanvasItem.DisplayCanvasItem | None = None
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
