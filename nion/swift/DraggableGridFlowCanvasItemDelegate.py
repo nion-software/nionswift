@@ -5,8 +5,12 @@ import numpy
 
 from nion.data import Image
 
+
+from nion.swift import DisplayPanel
+from nion.swift import DocumentController
 from nion.swift import MimeTypes
 from nion.swift import Thumbnails
+from nion.swift import Workspace
 from nion.swift.model import DisplayItem
 from nion.ui import Bitmap
 from nion.ui import GridFlowCanvasItem
@@ -18,10 +22,6 @@ from nion.utils import Selection
 _NDArray = numpy.typing.NDArray[typing.Any]  # numpy arrays can have any dtype
 
 
-if typing.TYPE_CHECKING:
-    from nion.swift import DisplayPanel
-    from nion.swift import DocumentController
-    from nion.swift import Workspace
 
 
 class DragHandler(typing.Protocol):
@@ -90,7 +90,7 @@ class DraggableGridFlowCanvasItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemD
             document_controller.select_display_items_in_data_panel(display_items)
         return "accept"
 
-    def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> typing.Tuple[UserInterface.MimeData | None, _NDArray | None]:
+    def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> tuple[UserInterface.MimeData | None, _NDArray | None]:
         document_controller = self._document_controller_ref()
         assert document_controller
         mime_data = None
@@ -165,7 +165,7 @@ class DisplayPanelItemDelegate(DraggableGridFlowCanvasItemDelegate):
         assert document_controller
         display_panel = self._display_panel_ref()
         assert display_panel
-        display_canvas_item = display_panel.display_canvas_item if display_panel else None
+        display_canvas_item = display_panel.display_canvas_item
         if display_canvas_item and hasattr(display_canvas_item, "get_drop_regions_map"):
             # give the display canvas item a chance to provide drop regions based on the display item being dropped
             display_item = None
