@@ -82,20 +82,20 @@ class ExportDialogViewModel:
         ]
 
         self.__export_button_update_action = Stream.ValueStreamAction(
-            Stream.CombineLatestStream(export_filename_option_streams, self.__compute_export_options_validity),
+            Stream.CombineLatestStream(export_filename_option_streams, ExportDialogViewModel.compute_export_options_validity),
             self.__handle_export_options_validity_changed
         )
         self.update_options()
 
     @staticmethod
-    def __compute_export_options_validity(prefix_value: str | None, include_title: bool | None,
+    def compute_export_options_validity(prefix_value: str | None, include_title: bool | None,
                                         include_date: bool | None, include_dimensions: bool | None,
                                         include_sequence: bool | None, is_directory_valid: bool | None) -> ExportOptionsValidity:
         """Use the combined values of the export filename options and the directory validity to get a list of invalid reasons."""
         invalid_reasons: list[str] = []
 
         prefix_str = prefix_value or str()
-        prefix_enabled = prefix_str != str()
+        prefix_enabled = bool(prefix_str)
         non_prefix_options_enabled = include_title or include_date or include_dimensions or include_sequence
         if prefix_enabled and non_prefix_options_enabled:
             # The prefix will only be part of the filename so only check that it is made up of valid characters
@@ -134,12 +134,11 @@ class ExportDialogViewModel:
 
     def update_options(self, prefix_value: str | None = None) -> None:
         """Directly refresh the validity of the export button's enabled state and tooltip."""
-        self.__handle_export_options_validity_changed(
-            self.__compute_export_options_validity(
-                prefix_value or self.prefix.value, self.include_title.value, self.include_date.value,
-                self.include_dimensions.value, self.include_sequence.value, self.__is_directory_valid.value
-            )
+        export_options_validity = ExportDialogViewModel.compute_export_options_validity(
+            prefix_value or self.prefix.value, self.include_title.value, self.include_date.value,
+            self.include_dimensions.value, self.include_sequence.value, self.__is_directory_valid.value
         )
+        self.__handle_export_options_validity_changed(export_options_validity)
 
     @property
     def directory_path_object(self) -> pathlib.Path:
