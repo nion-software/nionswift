@@ -10,8 +10,7 @@ import typing
 import numpy.typing
 
 # local libraries
-from nion.data import Image
-from nion.swift import MimeTypes
+from nion.swift import DraggableGridFlowCanvasItemDelegate
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift.model import DisplayItem
@@ -21,7 +20,6 @@ from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
-from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
 from nion.utils import Event
@@ -34,7 +32,6 @@ if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
     from nion.utils import Selection
 
-_NDArray = numpy.typing.NDArray[typing.Any]
 
 _ = gettext.gettext
 
@@ -271,80 +268,11 @@ class DataPanel(Panel.Panel):
 
         self.__selection = self.document_controller.selection
 
-        def selection_changed() -> None:
-            # called when the selection changes; notify selected display item changed if focused.
-            self.__notify_focus_changed()
+        # called when the selection changes; notify selected display item changed if focused.
+        self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__notify_focus_changed)
 
-        self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
-
-        class ItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
-            def __init__(self, data_panel: DataPanel, selection: Selection.IndexedSelection) -> None:
-                self.__data_panel = data_panel
-                self.__selection = selection
-
-            def item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
-                display_item = typing.cast(DisplayItem.DisplayItem, item)
-                return display_item.list_tool_tip_str
-
-            def context_menu_event(self, context_menu_event: GridFlowCanvasItem.GridFlowCanvasItemContextMenuEvent) -> bool:
-                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in context_menu_event.selected_items)
-                menu = document_controller.create_context_menu()
-                action_context = document_controller._get_action_context_for_display_items(display_items, None)
-                document_controller.populate_context_menu(menu, action_context)
-                menu.add_separator()
-                document_controller.add_action_to_menu_if_enabled(menu, "workspace.new_workspace_from_selection", action_context)
-                menu.add_separator()
-                document_controller.add_action_to_menu(menu, "item.delete", action_context)
-                menu.popup(context_menu_event.gp.x, context_menu_event.gp.y)
-                return True
-
-            def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
-                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in delete_event.selected_items)
-                document_controller.delete_display_items(display_items)
-                return True
-
-            def drag_started_event(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> bool:
-                mime_data, thumbnail_data = self._get_mime_data_and_thumbnail_data(drag_started_event)
-                if mime_data:
-                    self.__data_panel.widget.drag(mime_data, thumbnail_data)
-                    return True
-                return False
-
-            def can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int | None) -> bool:
-                return mime_data.has_file_paths
-
-            def drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int | None) -> str:
-                display_items = document_controller.receive_files(mime_data.file_paths)
-                if set(display_items).intersection(set(document_controller.filtered_display_items_model.display_items)):
-                    document_controller.select_display_items_in_data_panel(display_items)
-                return "accept"
-
-            def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
-                mime_data = None
-                thumbnail_data = None
-                display_item = typing.cast(DisplayItem.DisplayItem, drag_started_event.item)
-                display_items = tuple(
-                    typing.cast(DisplayItem.DisplayItem, item) for item in drag_started_event.selected_items)
-                if len(display_items) <= 1 and display_item is not None:
-                    mime_data = document_controller.ui.create_mime_data()
-                    MimeTypes.mime_data_put_display_item(mime_data, display_item)
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, display_item)
-                    thumbnail_data = thumbnail_source.thumbnail_data
-                    if thumbnail_data is not None:
-                        # scaling is very slow
-                        thumbnail_data = Image.get_rgba_data_from_rgba(
-                            Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data),
-                                         tuple(Geometry.IntSize(w=80, h=80))))
-                elif len(display_items) > 1:
-                    mime_data = document_controller.ui.create_mime_data()
-                    MimeTypes.mime_data_put_display_items(mime_data, display_items)
-                    anchor_index = self.__selection.anchor_index or 0
-                    thumbnail_display_item = display_items[anchor_index]
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__data_panel.ui, thumbnail_display_item)
-                    thumbnail_data = thumbnail_source.thumbnail_data
-                return mime_data, thumbnail_data
-
-        item_delegate = ItemDelegate(self, self.__selection)
+        self.widget = ui.create_column_widget(properties=properties)
+        item_delegate = DraggableGridFlowCanvasItemDelegate.DraggableGridFlowCanvasItemDelegate(self.document_controller, self.__selection, self.widget.drag)
 
         def list_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanelListItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, document_controller.get_font_metrics)
@@ -454,14 +382,11 @@ class DataPanel(Panel.Panel):
         self.__status_section.add_spacing(4)
         self.__status_section.add(divider_widget)
 
-        widget = ui.create_column_widget(properties=properties)
-        widget.add(self.__status_section)
-        widget.add(self.data_view_widget)
-        widget.add_spacing(6)
-        widget.add(search_widget)
-        widget.add_spacing(6)
-
-        self.widget = widget
+        self.widget.add(self.__status_section)
+        self.widget.add(self.data_view_widget)
+        self.widget.add_spacing(6)
+        self.widget.add(search_widget)
+        self.widget.add_spacing(6)
 
         self.__list_canvas_item = list_canvas_item
         self.__grid_canvas_item = grid_canvas_item

@@ -802,6 +802,40 @@ class TestDataPanelClass(unittest.TestCase):
             mime_data, thumbnail = data_panel._list_canvas_item._delegate._get_mime_data_and_thumbnail_data(ListCanvasItem.ListCanvasItem2DragStartedEvent(display_item, [display_item], Geometry.IntPoint(), CanvasItem.KeyboardModifiers()))
             self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
 
+    def test_multi_drag_from_data_panel_has_correct_items_in_mime_data(self):
+        """Test that a drag started in the data panel with multiple selected items has all the expected items in the mime data.
+
+        The anchor index will be 2 for this configuration ensuring that _get_mime_data_and_thumbnail_data does not index into the selected_display_items list with the anchor index which would produce an index out of range.
+        """
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item_1 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item_2 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item_3 = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item_1)
+            document_model.append_data_item(data_item_2)
+            document_model.append_data_item(data_item_3)
+
+            data_panel = document_controller.find_dock_panel("data-panel")
+            project_panel = document_controller.find_dock_panel("collections-panel")
+
+            display_item_3 = document_model.get_display_item_for_data_item(data_item_3)
+            display_item_2 = document_model.get_display_item_for_data_item(data_item_2)
+            display_item_1 = document_model.get_display_item_for_data_item(data_item_1)
+            # The order of the display items means display_item_1 is index 2
+            self.assertEqual(document_controller.display_items_model.items, [display_item_3, display_item_2, display_item_1])
+            selected_display_items = [display_item_1, display_item_2]
+            # index, parent_row, parent_id
+            project_panel._collection_selection.set(1)
+            document_controller.periodic()
+            # display_item_1 is passed in first so the anchor index will be 2, which is greater than the number of items in the selection, if _get_mime_data_and_thumbnail_data indexed into the selection itself there would be an error
+            document_controller.select_display_items_in_data_panel(selected_display_items)
+            mime_data, thumbnail = data_panel._list_canvas_item._delegate._get_mime_data_and_thumbnail_data(ListCanvasItem.ListCanvasItem2DragStartedEvent(None, selected_display_items, Geometry.IntPoint(), CanvasItem.KeyboardModifiers()))
+            self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE))
+            mime_data_display_items = MimeTypes.mime_data_get_display_items(mime_data, document_model)
+            self.assertEqual(mime_data_display_items, selected_display_items)
+
     def test_changing_filter_validates_data_browser_selection(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

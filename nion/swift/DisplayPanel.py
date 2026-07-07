@@ -24,6 +24,7 @@ from nion.data import Image
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
 from nion.swift import DisplayCanvasItem
+from nion.swift import DraggableGridFlowCanvasItemDelegate
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import MimeTypes
@@ -42,14 +43,12 @@ from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
-from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
 from nion.ui import Window
 from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Process
 from nion.utils import ReferenceCounting
@@ -1904,6 +1903,47 @@ class DisplayPanelGridCanvasItem(GridCanvasItem.GridCanvasItem2):
         return super().key_pressed(key)
 
 
+class HeaderCanvasItemDelegate:
+    """Canvas item delegate for handling the header of a display panel.
+
+    Handles the editing of titles and tool tip as well as ensuring proper closure of the display panel.
+    """
+    def __init__(self, document_controller: DocumentController.DocumentController, display_panel: DisplayPanel) -> None:
+        self.__weak_document_controller = typing.cast(_DocumentControllerWeakRefType, weakref.ref(document_controller))
+        self.__weak_display_panel = weakref.ref(display_panel)
+
+    def edit_title(self) -> None:
+        document_controller = self.__weak_document_controller()
+        if document_controller is not None:
+            if display_panel := self.__weak_display_panel():
+                action_context = document_controller._get_action_context()
+                action_context.display_panel = display_panel
+                action_context.display_item = display_panel.display_item
+                document_controller.perform_action_in_context("window.open_title_edit", action_context)
+
+    def header_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        # Header double click just opens the mini-edit window
+        self.edit_title()
+        return True
+
+    def handle_header_tool_tip(self) -> str | None:
+        if display_panel := self.__weak_display_panel():
+            if display_item := display_panel.display_item:
+                return display_item.tool_tip_str
+        return None
+
+    def close(self) -> None:
+        document_controller = self.__weak_document_controller()
+        display_panel = self.__weak_display_panel()
+        if document_controller is None or display_panel is None:
+            return
+
+        workspace_controller = document_controller.workspace_controller
+        if workspace_controller and len(workspace_controller.display_panels) > 1:
+            command = workspace_controller.remove_display_panel(display_panel)
+            document_controller.push_undo_command(command)
+
+
 class DisplayPanel(CanvasItem.LayerCanvasItem):
     """A canvas item to display a library item. Allows library item to be changed."""
 
@@ -1933,25 +1973,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.__header_canvas_item = Panel.HeaderCanvasItem(DisplayPanelUISettings(document_controller.ui), display_close_control=True, display_edit_control=True)
 
-        def edit_title() -> None:
-            action_context = document_controller._get_action_context()
-            action_context.display_panel = self
-            action_context.display_item = self.display_item
-            document_controller.perform_action_in_context("window.open_title_edit", action_context)
+        self.__header_canvas_item_delegate = HeaderCanvasItemDelegate(document_controller, self)
 
-        def header_double_clicked(x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-            # Header double click just opens the mini-edit window
-            edit_title()
-            return True
-
-        self.__header_canvas_item.on_double_clicked = header_double_clicked
-
-        def handle_header_tool_tip() -> typing.Optional[str]:
-            if display_item := self.display_item:
-                return display_item.tool_tip_str
-            return None
-
-        self.__header_canvas_item.on_tool_tip = handle_header_tool_tip
+        self.__header_canvas_item.on_double_clicked = self.__header_canvas_item_delegate.header_double_clicked
+        self.__header_canvas_item.on_tool_tip = self.__header_canvas_item_delegate.handle_header_tool_tip
 
         self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
@@ -1968,80 +1993,30 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.add_canvas_item(background_composition_canvas_item)
         self.add_canvas_item(self.__footer_canvas_item)
 
-        self.__display_panel_id: typing.Optional[str] = None
+        self.__display_panel_id: str | None = None
 
-        workspace_controller = self.__document_controller.workspace_controller
+        self.__selection = document_controller.filtered_display_items_model.make_selection()
+        self.__selection.expanded_changed_event = True
+        self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
 
-        def drag_enter(mime_data: UserInterface.MimeData) -> str:
-            display_canvas_item = self.display_canvas_item
-            if display_canvas_item and hasattr(display_canvas_item, "get_drop_regions_map"):
-                # give the display canvas item a chance to provide drop regions based on the display item being dropped
-                display_item = None
-                if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
-                    display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_controller.document_model)
-                if not display_item:
-                    display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_controller.document_model)
-                if display_item:
-                    self.__content_canvas_item.drop_regions_map = getattr(display_canvas_item, "get_drop_regions_map")(display_item)
-            else:
-                self.__content_canvas_item.drop_regions_map = dict()
-            if workspace_controller:
-                return workspace_controller.handle_drag_enter(self, mime_data)
-            return "ignore"
-
-        def drag_leave() -> str:
-            if workspace_controller:
-                return workspace_controller.handle_drag_leave(self)
-            return "ignore"
-
-        def drag_move(mime_data: UserInterface.MimeData, x: int, y: int) -> str:
-            if workspace_controller:
-                return workspace_controller.handle_drag_move(self, mime_data, x, y)
-            return "ignore"
-
-        def wants_drag_event(mime_data: UserInterface.MimeData) -> bool:
-            if workspace_controller:
-                return workspace_controller.should_handle_drag_for_mime_data(mime_data)
-            return False
-
-        def drop(mime_data: UserInterface.MimeData, region: str, x: int, y: int) -> str:
-            if workspace_controller:
-                return workspace_controller.handle_drop(self, mime_data, region, x, y)
-            return "ignore"
-
-        def adjust_secondary_focus(modifiers: UserInterface.KeyboardModifiers) -> None:
-            display_canvas_item = self.display_canvas_item
-            if display_canvas_item and display_canvas_item.bypass_multi_select:
-                display_canvas_item.bypass_multi_select = False
-                self.__document_controller.selected_display_panel = self
-            elif modifiers.only_shift:
-                self.__document_controller.add_secondary_display_panel(self)
-            elif modifiers.only_control:
-                self.__document_controller.toggle_secondary_display_panel(self)
+        item_delegate = DraggableGridFlowCanvasItemDelegate.DisplayPanelItemDelegate(document_controller, self.__selection, self, self.__document_controller.workspace_controller)
 
         # list to the content_canvas_item messages and pass them along to listeners of this class.
-        self.__content_canvas_item.on_drag_enter = drag_enter
-        self.__content_canvas_item.on_drag_leave = drag_leave
-        self.__content_canvas_item.on_drag_move = drag_move
-        self.__content_canvas_item.on_wants_drag_event = wants_drag_event
-        self.__content_canvas_item.on_drop = drop
+        self.__content_canvas_item.on_drag_enter = item_delegate.drag_enter
+        self.__content_canvas_item.on_drag_leave = item_delegate.drag_leave
+        self.__content_canvas_item.on_drag_move = item_delegate.drag_move
+        self.__content_canvas_item.on_wants_drag_event = item_delegate.wants_drag_event
+        self.__content_canvas_item.on_drop = item_delegate.drop
         self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
         self.__content_canvas_item.on_key_released = self._handle_key_released
         self.__content_canvas_item.on_mouse_clicked_event = self.__handle_mouse_clicked
         self.__content_canvas_item.on_select_all = self.select_all
-        self.__content_canvas_item.on_adjust_secondary_focus = adjust_secondary_focus
-
-        def close() -> None:
-            if workspace_controller and len(workspace_controller.display_panels) > 1:
-                command = workspace_controller.remove_display_panel(self)
-                document_controller.push_undo_command(command)
+        self.__content_canvas_item.on_adjust_secondary_focus = item_delegate.adjust_secondary_focus
 
         self.__header_canvas_item.on_select_pressed = self._select
         self.__header_canvas_item.on_drag_pressed = self.__handle_begin_drag
-        self.__header_canvas_item.on_close_clicked = close
-        self.__header_canvas_item.on_edit_clicked = edit_title
-
-        ui = document_controller.ui
+        self.__header_canvas_item.on_close_clicked = self.__header_canvas_item_delegate.close
+        self.__header_canvas_item.on_edit_clicked = self.__header_canvas_item_delegate.edit_title
 
         self.__display_canvas_item: DisplayCanvasItem.DisplayCanvasItem | None = None
         self.__display_item: typing.Optional[DisplayItem.DisplayItem] = None
@@ -2068,99 +2043,15 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # the data item panel consists of the data item display canvas item and the related icons canvas item
         self.__display_composition_canvas_item = CanvasItem.CanvasItemComposition()
 
-        self.__selection = document_controller.filtered_display_items_model.make_selection()
-        self.__selection.expanded_changed_event = True
-        self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
-
         # display_items_changed() is fired when the list of display items changes. after firing
         # display_items and display_item will return the proper values.
         self.display_items_changed_event = Event.Event()
         # the cached __display_items value is used to determine whether the display items have
         # changed since the last time the display_items_changed_event was fired.
         self.__display_items: typing.List[DisplayItem.DisplayItem] = list()
-
-        def data_list_drag_started(mime_data: UserInterface.MimeData, thumbnail_data: typing.Optional[_NDArray]) -> None:
-            self.content_canvas_item.drag(mime_data, thumbnail_data)
-
-        # this handles the case of a key press in a grid or list controller.
-        def key_pressed(key: UserInterface.Key) -> bool:
-            action = Window.get_action_for_key(["display_panel_browser"], key)
-            if action:
-                document_controller.perform_action(action)
-                return True
-            return False
-
         self.__filtered_display_items_model = document_controller.filtered_display_items_model
 
-        class ItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
-            def __init__(self, display_panel: DisplayPanel, selection: Selection.IndexedSelection, ui: UserInterface.UserInterface) -> None:
-                self.__display_panel_ref = weakref.ref(display_panel)
-                self.__selection = selection
-                self.__ui = ui
-
-            def item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
-                display_item = typing.cast(DisplayItem.DisplayItem, item)
-                return display_item.list_tool_tip_str
-
-            def context_menu_event(self, context_menu_event: GridFlowCanvasItem.GridFlowCanvasItemContextMenuEvent) -> bool:
-                display_panel = self.__display_panel_ref()
-                if display_panel:
-                    display_panel.handle_context_menu_for_display(context_menu_event.item,
-                                                          context_menu_event.selected_items,
-                                                          context_menu_event.p.x, context_menu_event.p.y,
-                                                          context_menu_event.gp.x, context_menu_event.gp.y)
-                    return True
-                return False
-
-            def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
-                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in delete_event.selected_items)
-                document_controller.delete_display_items(display_items)
-                return True
-
-            def drag_started_event(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> bool:
-                mime_data, thumbnail_data = self._get_mime_data_and_thumbnail_data(drag_started_event)
-                display_panel = self.__display_panel_ref()
-                if mime_data and display_panel:
-                    display_panel.content_canvas_item.drag(mime_data, thumbnail_data)
-                    return True
-                return False
-
-            def _get_mime_data_and_thumbnail_data(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> typing.Tuple[typing.Optional[UserInterface.MimeData], typing.Optional[_NDArray]]:
-                mime_data = None
-                thumbnail_data = None
-                display_item = typing.cast(DisplayItem.DisplayItem, drag_started_event.item)
-                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in drag_started_event.selected_items)
-                if len(display_items) <= 1 and display_item is not None:
-                    mime_data = document_controller.ui.create_mime_data()
-                    MimeTypes.mime_data_put_display_item(mime_data, display_item)
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, display_item)
-                    thumbnail_data = thumbnail_source.thumbnail_data
-                    if thumbnail_data is not None:
-                        # scaling is very slow
-                        thumbnail_data = Image.get_rgba_data_from_rgba(
-                            Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), tuple(Geometry.IntSize(w=80, h=80))))
-                elif len(display_items) > 1:
-                    mime_data = document_controller.ui.create_mime_data()
-                    MimeTypes.mime_data_put_display_items(mime_data, display_items)
-                    anchor_index = self.__selection.anchor_index or 0
-                    thumbnail_display_item = display_items[anchor_index]
-                    thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, thumbnail_display_item)
-                    thumbnail_data = thumbnail_source.thumbnail_data
-                return mime_data, thumbnail_data
-
-            def key_pressed_event(self, key_event: GridFlowCanvasItem.GridFlowCanvasItemKeyPressedEvent) -> bool:
-                return key_pressed(key_event.key)
-
-            def mouse_double_clicked_event(self, double_clicked_event: GridFlowCanvasItem.GridFlowCanvasItemDoubleClickedEvent) -> bool:
-                display_panel = self.__display_panel_ref()
-                if display_panel:
-                    display_panel.cycle_display()
-                    return True
-                return True
-
         display_items_model = document_controller.filtered_display_items_model
-
-        item_delegate = ItemDelegate(self, self.__selection, document_controller.ui)
 
         def strip_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui), draw_label=False)
