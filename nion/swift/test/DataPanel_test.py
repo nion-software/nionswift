@@ -799,13 +799,13 @@ class TestDataPanelClass(unittest.TestCase):
             project_panel._collection_selection.set(1)
             document_controller.periodic()
             document_controller.selected_display_panel.set_display_panel_display_item(display_item)
-            mime_data, thumbnail = data_panel._list_canvas_item._delegate._get_mime_data_and_thumbnail_data(ListCanvasItem.ListCanvasItem2DragStartedEvent(display_item, [display_item], Geometry.IntPoint(), CanvasItem.KeyboardModifiers()))
+            mime_data, thumbnail = DataPanel.get_mime_data_and_thumbnail_data(ListCanvasItem.ListCanvasItem2DragStartedEvent(display_item, [display_item], Geometry.IntPoint(), CanvasItem.KeyboardModifiers()), data_panel.ui)
             self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE))
 
     def test_multi_drag_from_data_panel_has_correct_items_in_mime_data(self):
         """Test that a drag started in the data panel with multiple selected items has all the expected items in the mime data.
 
-        The anchor index will be 2 for this configuration ensuring that _get_mime_data_and_thumbnail_data does not index into the selected_display_items list with the anchor index which would produce an index out of range.
+        The anchor index will be 2 for this configuration ensuring that get_mime_data_and_thumbnail_data does not index into the selected_display_items list with the anchor index which would produce an index out of range.
         """
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -830,7 +830,7 @@ class TestDataPanelClass(unittest.TestCase):
             # index, parent_row, parent_id
             project_panel._collection_selection.set(1)
             document_controller.periodic()
-            # display_item_1 is passed in first so the anchor index will be 2, which is greater than the number of items in the selection, if _get_mime_data_and_thumbnail_data indexed into the selection itself there would be an error
+            # display_item_1 is passed in first so the anchor index will be 2, which is greater than the number of items in the selection, if get_mime_data_and_thumbnail_data indexed into the selection itself there would be an error
             document_controller.select_display_items_in_data_panel(selected_display_items)
             mime_data, thumbnail = DataPanel.get_mime_data_and_thumbnail_data(ListCanvasItem.ListCanvasItem2DragStartedEvent(selected_display_items[0], selected_display_items, Geometry.IntPoint(), CanvasItem.KeyboardModifiers()), data_panel.ui)
             self.assertTrue(mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE))
