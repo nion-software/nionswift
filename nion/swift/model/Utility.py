@@ -451,7 +451,12 @@ ILLEGAL_FILENAME_CHARS_REGEX = r'[<>:/\\|?*"\0-\31]'  # Capture illegal characte
 ILLEGAL_FILENAME_CHARS_AND_POSITION_REGEX = f'^[. ]|{ILLEGAL_FILENAME_CHARS_REGEX}|[. ]$'
 ILLEGAL_FILENAMES = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
                      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9', 'COM¹', 'COM²', 'COM³', 'LPT¹', 'LPT²', 'LPT³']
-
+CONTROL_CHAR_NAMES = {
+    '\t': _("'\\t' (Tab)"),
+    '\r': _("'\\r' (Carriage Return)"),
+    '\n': _("'\\n' (New Line)"),
+    '\\': r"'\'",
+}
 
 def verify_filename_has_no_illegal_characters(filename: str) -> tuple[bool, str | None]:
     """Check if a filename contains illegal characters.
@@ -462,14 +467,10 @@ def verify_filename_has_no_illegal_characters(filename: str) -> tuple[bool, str 
     matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
     illegal_chars = []
     for match in matches:
-        if match == "\\":
-            match = "'\\'"
-        elif match == '\r':
-            match = r"'\r' (Carriage Return)"
-        elif match == '\n':
-            match = r"'\n' (New Line)"
+        if match in CONTROL_CHAR_NAMES:
+            match = CONTROL_CHAR_NAMES[match]
         else:
-            match = repr(match)  # repr ensures the character is printable and has quotations
+            match = repr(match) + " (Control Character)"  # repr ensures the character is printable and has quotations
         if match not in illegal_chars:
             illegal_chars.append(match)
 
