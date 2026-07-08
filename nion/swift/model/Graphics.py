@@ -718,8 +718,6 @@ class Graphic(Persistence.PersistentObject):
         self.define_property("is_rotation_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("role", None, changed=self._property_changed, validate=to_str, hidden=True)
-        self.define_property("text_visibility", "always", changed=self._property_changed, validate=to_str, hidden=True)
-        self.define_property("text_background_color", "#00000000", changed=self._property_changed, validate=to_str, hidden=True)  # Default to transparent
         self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
@@ -930,10 +928,10 @@ class Graphic(Persistence.PersistentObject):
         return self.stroke_width if self.stroke_width is not None else 1.0
 
     def used_text_visibility(self, part: str) -> str:
-        return self.text_visibility if self.text_visibility is not None else "always"
+        return "always"
 
     def used_text_background_color(self, part: str) -> str:
-        return self.text_background_color if self.text_background_color is not None else "rgba(255, 255, 255, 0.6)"
+        return "rgba(255, 255, 255, 0.6)"
 
     @property
     def color(self) -> typing.Optional[str]:
@@ -942,22 +940,6 @@ class Graphic(Persistence.PersistentObject):
     @color.setter
     def color(self, value: typing.Optional[str]) -> None:
         self.stroke_color = value
-
-    @property
-    def text_background_color(self) -> str | None:
-        return typing.cast(str, self._get_persistent_property_value("text_background_color"))
-
-    @text_background_color.setter
-    def text_background_color(self, value: str | None) -> None:
-        self._set_persistent_property_value("text_background_color", value)
-
-    @property
-    def text_visibility(self) -> str | None:
-        return typing.cast(str, self._get_persistent_property_value("text_visibility"))
-
-    @text_visibility.setter
-    def text_visibility(self, value: str | None) -> None:
-        self._set_persistent_property_value("text_visibility", value)
 
     @property
     def _constraints(self) -> typing.Set[str]:
@@ -1078,7 +1060,7 @@ class GraphicRenderer:
 
     def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool) -> None:
         label = self.label
-        if label and self.is_label_visible(self.used_text_visibility_fn("label"), is_selected):
+        if label and self.is_label_visible(self.used_text_visibility_fn("label_text"), is_selected):
             padding = self.label_padding
             font = self.label_font
             font_metrics = ui_settings.get_font_metrics(font, label)
@@ -1095,7 +1077,7 @@ class GraphicRenderer:
                     ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding,
                                 text_pos.y + font_metrics.height * 0.5 + padding)
                     ctx.close_path()
-                    ctx.fill_style = self.used_text_background_color_fn("label")
+                    ctx.fill_style = self.used_text_background_color_fn("label_text")
                     ctx.fill()
                     ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
@@ -2107,23 +2089,17 @@ class IntervalGraphic(Graphic):
         # interval is stored in image normalized coordinates
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval, hidden=True)
         self._default_drag_part = "end"
-        self.text_visibility = None
-        self.text_background_color = None
 
     def used_text_background_color(self, part: str) -> str:
-        if self.text_background_color:
-            return self.text_background_color
-        if self.used_role == "measurement" and part == "width":
+        if self.used_role == "measurement" and part == "width_text":
             return "white"
         else:
             return "#99ffffff"
 
     def used_text_visibility(self, part: str) -> str:
-        if self.text_visibility:
-            return self.text_visibility
         if part == "label":
             return "always"
-        if self.used_role == "measurement" and part == "width":
+        if self.used_role == "measurement" and part == "width_text":
             return "always"
         else:
             return "selection"
