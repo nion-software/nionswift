@@ -1001,6 +1001,254 @@ class Graphic(Persistence.PersistentObject):
         return False
 
 
+T = typing.TypeVar('T')
+
+
+class GraphicInteractionState:
+    """Transient UI state used while resolving style rules."""
+
+    def __init__(self, selected: bool = False, focused: bool = False) -> None:
+        self.selected = selected
+        self.focused = focused
+
+    @staticmethod
+    def default() -> GraphicInteractionState:
+        """Return the default interaction state (not selected and not focused)."""
+        return GraphicInteractionState(selected=False, focused=False)
+
+
+class GraphicAttributes:
+    """Persistent graphic attributes used while resolving style rules."""
+
+    def __init__(self, position_locked: bool = False, shape_locked: bool = False, rotation_locked: bool = False) -> None:
+        self.position_locked = position_locked
+        self.shape_locked = shape_locked
+        self.rotation_locked = rotation_locked
+
+    @staticmethod
+    def default() -> GraphicAttributes:
+        """Return the default attributes (no locks enabled)."""
+        return GraphicAttributes(position_locked=False, shape_locked=False, rotation_locked=False)
+
+
+class GraphicInteractionStateSelector:
+    """Selector constraints for GraphicInteractionState.
+
+    A field set to None is a wildcard and matches either True or False.
+    """
+
+    def __init__(self, selected: bool | None = None, focused: bool | None = None) -> None:
+        self.selected = selected
+        self.focused = focused
+
+    @staticmethod
+    def wildcard() -> GraphicInteractionStateSelector:
+        """Return a selector with no interaction-state constraints."""
+        return GraphicInteractionStateSelector()
+
+    def matches(self, graphic_state: GraphicInteractionState) -> bool:
+        """Return True if this selector matches the given interaction state."""
+        if self.selected is not None and self.selected != graphic_state.selected:
+            return False
+        if self.focused is not None and self.focused != graphic_state.focused:
+            return False
+        return True
+
+
+class GraphicAttributesSelector:
+    """Selector constraints for GraphicAttributes.
+
+    A field set to None is a wildcard and matches either True or False.
+    """
+
+    def __init__(self, position_locked: bool | None = None, shape_locked: bool | None = None, rotation_locked: bool | None = None) -> None:
+        self.position_locked = position_locked
+        self.shape_locked = shape_locked
+        self.rotation_locked = rotation_locked
+
+    @staticmethod
+    def wildcard() -> GraphicAttributesSelector:
+        """Return a selector with no attribute constraints."""
+        return GraphicAttributesSelector()
+
+    def matches(self, graphic_attributes: GraphicAttributes) -> bool:
+        """Return True if this selector matches the given graphic attributes."""
+        if self.position_locked is not None and self.position_locked != graphic_attributes.position_locked:
+            return False
+        if self.shape_locked is not None and self.shape_locked != graphic_attributes.shape_locked:
+            return False
+        if self.rotation_locked is not None and self.rotation_locked != graphic_attributes.rotation_locked:
+            return False
+        return True
+
+
+class GraphicStylePropertyKey(typing.Generic[T]):
+    def __init__(self, name: str, value_type: typing.Type[T], default: T):
+        self.name = name
+        self.value_type = value_type
+        self.default = default
+
+
+class GraphicStyleProperties:
+    """A type-safe bundle of graphical properties."""
+
+    def __init__(self) -> None:
+        self.__storage: dict[str, typing.Any] = {}
+
+    def has(self, key: GraphicStylePropertyKey[T]) -> bool:
+        return key.name in self.__storage
+
+    def get(self, key: GraphicStylePropertyKey[T]) -> T:
+        return typing.cast(T, self.__storage.get(key.name, key.default))
+
+    def set(self, key: GraphicStylePropertyKey[T], value: T) -> None:
+        if not isinstance(value, key.value_type):
+            raise TypeError(
+                f"Graphic property '{key.name}' requires type {key.value_type.__name__}, "
+                f"but received {type(value).__name__}."
+            )
+        self.__storage[key.name] = value
+
+
+# Built-in property keys. Stylesheet identifiers use dashes; Python names use underscores.
+PROP_STROKE_COLOR: GraphicStylePropertyKey[str] = GraphicStylePropertyKey("stroke-color", str, "#F80")
+PROP_FILL_COLOR: GraphicStylePropertyKey[str] = GraphicStylePropertyKey("fill-color", str, "")  # empty string = no fill
+PROP_STROKE_WIDTH: GraphicStylePropertyKey[float] = GraphicStylePropertyKey("stroke-width", float, 1.0)
+
+
+class GraphicStyleSelector:
+    """Matches a resolution context (graphic_type, role, part, interaction state, attributes).
+
+    Fields graphic_type, role, and part use None as a wildcard.
+    """
+
+    def __init__(
+        self,
+        graphic_type: str | None = None,
+        role: str | None = None,
+        part: str | None = None,
+        axes: dict[str, str] | None = None,
+        state_selector: GraphicInteractionStateSelector | None = None,
+        attributes_selector: GraphicAttributesSelector | None = None,
+    ) -> None:
+        self.graphic_type = graphic_type
+        self.role = role
+        self.part = part
+        self.axes = axes if axes is not None else dict()
+        self.state_selector = state_selector if state_selector is not None else GraphicInteractionStateSelector.wildcard()
+        self.attributes_selector = attributes_selector if attributes_selector is not None else GraphicAttributesSelector.wildcard()
+
+    def matches(self, graphic_type: str, role: str | None, part: str | None, state: GraphicInteractionState,
+                attributes: GraphicAttributes, axes: dict[str, str] | None = None) -> bool:
+        if self.graphic_type is not None and self.graphic_type != graphic_type:
+            return False
+        if self.role is not None and self.role != role:
+            return False
+        if self.part is not None and self.part != part:
+            return False
+        resolved_axes = axes if axes is not None else dict()
+        for axis_name, axis_value in self.axes.items():
+            if resolved_axes.get(axis_name) != axis_value:
+                return False
+        return self.state_selector.matches(state) and self.attributes_selector.matches(attributes)
+
+
+class GraphicStyleRule:
+    """A selector paired with a declaration (set of properties) and a source order."""
+
+    def __init__(self, selector: GraphicStyleSelector, declaration: GraphicStyleProperties, order: int = 0) -> None:
+        self.selector = selector
+        self.declaration = declaration
+        self.order = order
+
+
+class GraphicStylesheet:
+    """A list of style rules resolved against a graphic context.
+
+    Use ``resolve(graphic_type, role, part, key, state, attributes)`` to retrieve a typed property
+    value, where ``state`` is a ``GraphicInteractionState`` object capturing transient UI state
+    and ``attributes`` is a ``GraphicAttributes`` object capturing persistent lock attributes.
+
+    State and attributes are selector inputs that styling can react to,
+    but rules cannot set them. Source order controls precedence: last matching rule wins.
+
+    ``GraphicStylesheet.default()`` returns a stylesheet whose rules reproduce
+    the current hard-coded visibility and color behaviour.
+    """
+
+    def __init__(self, rules: list[GraphicStyleRule] | None = None) -> None:
+        self._rules: list[GraphicStyleRule] = rules if rules is not None else []
+
+    def resolve(
+        self,
+        graphic_type: str,
+        role: str | None,
+        selector_fragment: dict[str, str | None],
+        key: GraphicStylePropertyKey[T],
+        state: GraphicInteractionState,
+        attributes: GraphicAttributes,
+    ) -> T:
+        """Resolve *key* against a selector fragment.
+
+        Axes inside the fragment are unordered constraints.
+        """
+        result = key.default
+        fragment_part = selector_fragment.get("part")
+        fragment_axes = {k: v for k, v in selector_fragment.items() if k != "part" and v is not None}
+        for rule in self._rules:
+            if rule.selector.matches(graphic_type, role, fragment_part, state, attributes, fragment_axes) and rule.declaration.has(key):
+                result = rule.declaration.get(key)
+        return result
+
+    @staticmethod
+    def default() -> GraphicStylesheet:
+        """Return a stylesheet that encodes the current built-in defaults as explicit rules.
+
+        Rule mapping (reproduces existing hard-coded logic, last match wins):
+          graphic                                                        { visibility: always }
+          graphic                                                        { stroke-color: #F80; stroke-width: 1.0 }
+          interval-graphic::part(shape)                                  { stroke-color: #F00 }
+          channel-graphic::part(shape)                                   { stroke-color: #F00 }
+          graphic[role="mask"]::part(shape)                              { stroke-color: #00F; fill-color: rgba(0,0,255,0.1) }
+          graphic[role="fourier_mask"]::part(shape)                      { stroke-color: #F08; fill-color: rgba(255,0,127,0.1) }
+        """
+        rules: list[GraphicStyleRule] = []
+
+        # base default: all graphics, all parts are always visible
+        base_properties = GraphicStyleProperties()
+        rules.append(GraphicStyleRule(GraphicStyleSelector(), base_properties, order=1))
+
+        # base stroke/width defaults (matches Graphic._default_stroke_color and used_stroke_width)
+        base_shape_properties = GraphicStyleProperties()
+        base_shape_properties.set(PROP_STROKE_COLOR, "#F80")
+        base_shape_properties.set(PROP_STROKE_WIDTH, 1.0)
+        rules.append(GraphicStyleRule(GraphicStyleSelector(), base_shape_properties, order=1))
+
+        # interval-graphic shape default stroke color
+        interval_shape_properties = GraphicStyleProperties()
+        interval_shape_properties.set(PROP_STROKE_COLOR, "#F00")
+        rules.append(GraphicStyleRule(GraphicStyleSelector(graphic_type="interval-graphic", part="shape"), interval_shape_properties, order=2))
+
+        # channel-graphic shape default stroke color
+        channel_shape_properties = GraphicStyleProperties()
+        channel_shape_properties.set(PROP_STROKE_COLOR, "#F00")
+        rules.append(GraphicStyleRule(GraphicStyleSelector(graphic_type="channel-graphic", part="shape"), channel_shape_properties, order=2))
+
+        # mask role: blue stroke and semi-transparent fill
+        mask_shape_properties = GraphicStyleProperties()
+        mask_shape_properties.set(PROP_STROKE_COLOR, "#00F")
+        mask_shape_properties.set(PROP_FILL_COLOR, "rgba(0, 0, 255, 0.1)")
+        rules.append(GraphicStyleRule(GraphicStyleSelector(role="mask", part="shape"), mask_shape_properties, order=2))
+
+        # fourier_mask role: magenta stroke and semi-transparent fill
+        fourier_mask_shape_properties = GraphicStyleProperties()
+        fourier_mask_shape_properties.set(PROP_STROKE_COLOR, "#F08")
+        fourier_mask_shape_properties.set(PROP_FILL_COLOR, "rgba(255, 0, 127, 0.1)")
+        rules.append(GraphicStyleRule(GraphicStyleSelector(role="fourier_mask", part="shape"), fourier_mask_shape_properties, order=2))
+
+        return GraphicStylesheet(rules)
+
+
 class GraphicRenderer:
     """Drawing state for rendering a Graphic.
 

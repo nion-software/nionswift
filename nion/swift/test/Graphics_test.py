@@ -1764,6 +1764,294 @@ class TestGraphicsClass(unittest.TestCase):
             self.assertEqual(mask[5, 2], 1.0) # inbetween radius
             self.assertEqual(mask[0, 0], 0.0) # outside outer
 
+
+# Focused unit tests for stylesheet rule resolution and typed style properties.
+class TestGraphicStylesheetClass(unittest.TestCase):
+
+    def setUp(self):
+        TestContext.begin_leaks()
+        self._test_setup = TestContext.TestSetup()
+
+    def tearDown(self):
+        self._test_setup = typing.cast(typing.Any, None)
+        TestContext.end_leaks(self)
+
+    def test_style_properties_returns_property_default_when_missing(self):
+        properties = Graphics.GraphicStyleProperties()
+        self.assertEqual(properties.get(Graphics.PROP_STROKE_COLOR), "#F80")
+
+    def test_style_properties_set_get_and_has(self):
+        properties = Graphics.GraphicStyleProperties()
+        properties.set(Graphics.PROP_STROKE_WIDTH, 2.5)
+        self.assertTrue(properties.has(Graphics.PROP_STROKE_WIDTH))
+        self.assertEqual(properties.get(Graphics.PROP_STROKE_WIDTH), 2.5)
+
+    def test_style_properties_set_rejects_wrong_type(self):
+        properties = Graphics.GraphicStyleProperties()
+        with self.assertRaises(TypeError):
+            properties.set(Graphics.PROP_STROKE_WIDTH, "2.5")
+
+    def test_stylesheet_resolve_returns_key_default_when_no_rule_matches(self):
+        stylesheet = Graphics.GraphicStylesheet([])
+        value = stylesheet.resolve(
+            "interval-graphic",
+            "measurement",
+            {"part": "shape"},
+            Graphics.PROP_STROKE_COLOR,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        self.assertEqual(value, "#F80")
+
+    def test_stylesheet_resolve_last_matching_rule_wins(self):
+        first_properties = Graphics.GraphicStyleProperties()
+        first_properties.set(Graphics.PROP_STROKE_COLOR, "#111")
+        second_properties = Graphics.GraphicStyleProperties()
+        second_properties.set(Graphics.PROP_STROKE_COLOR, "#222")
+        stylesheet = Graphics.GraphicStylesheet([
+            Graphics.GraphicStyleRule(Graphics.GraphicStyleSelector(graphic_type="interval-graphic", part="shape"), first_properties),
+            Graphics.GraphicStyleRule(Graphics.GraphicStyleSelector(graphic_type="interval-graphic", part="shape"), second_properties),
+        ])
+        value = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "shape"},
+            Graphics.PROP_STROKE_COLOR,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        self.assertEqual(value, "#222")
+
+    def test_stylesheet_resolve_applies_state_selector(self):
+        # A rule that only fires when selected=True changes the stroke color.
+        selected_properties = Graphics.GraphicStyleProperties()
+        selected_properties.set(Graphics.PROP_STROKE_COLOR, "#FF0000")
+        stylesheet = Graphics.GraphicStylesheet([
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(
+                    graphic_type="interval-graphic",
+                    part="shape",
+                    state_selector=Graphics.GraphicInteractionStateSelector(selected=True),
+                ),
+                selected_properties,
+            )
+        ])
+        unselected_value = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "shape"},
+            Graphics.PROP_STROKE_COLOR,
+            Graphics.GraphicInteractionState(selected=False),
+            Graphics.GraphicAttributes.default(),
+        )
+        selected_value = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "shape"},
+            Graphics.PROP_STROKE_COLOR,
+            Graphics.GraphicInteractionState(selected=True),
+            Graphics.GraphicAttributes.default(),
+        )
+        # Unselected: no rule fires, so key default is returned.
+        self.assertEqual(unselected_value, "#F80")
+        # Selected: matching rule fires.
+        self.assertEqual(selected_value, "#FF0000")
+
+    def test_stylesheet_resolve_applies_attributes_selector(self):
+        locked_properties = Graphics.GraphicStyleProperties()
+        locked_properties.set(Graphics.PROP_STROKE_WIDTH, 3.0)
+        stylesheet = Graphics.GraphicStylesheet([
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(
+                    graphic_type="interval-graphic",
+                    part="shape",
+                    attributes_selector=Graphics.GraphicAttributesSelector(shape_locked=True),
+                ),
+                locked_properties,
+            )
+        ])
+        unlocked_value = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "shape"},
+            Graphics.PROP_STROKE_WIDTH,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes(shape_locked=False),
+        )
+        locked_value = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "shape"},
+            Graphics.PROP_STROKE_WIDTH,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes(shape_locked=True),
+        )
+        self.assertEqual(unlocked_value, 1.0)
+        self.assertEqual(locked_value, 3.0)
+
+    def test_stylesheet_resolve_uses_ordered_fragments(self):
+        base_properties = Graphics.GraphicStyleProperties()
+        base_properties.set(Graphics.PROP_STROKE_WIDTH, 1.1)
+        details_properties = Graphics.GraphicStyleProperties()
+        details_properties.set(Graphics.PROP_STROKE_WIDTH, 2.2)
+        width_properties = Graphics.GraphicStyleProperties()
+        width_properties.set(Graphics.PROP_STROKE_WIDTH, 3.3)
+        details_width_properties = Graphics.GraphicStyleProperties()
+        details_width_properties.set(Graphics.PROP_STROKE_WIDTH, 4.4)
+
+        stylesheet = Graphics.GraphicStylesheet([
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(graphic_type="interval-graphic", part="label"),
+                base_properties,
+                order=1,
+            ),
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(graphic_type="interval-graphic", part="label", axes={"category": "details"}),
+                details_properties,
+                order=2,
+            ),
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(graphic_type="interval-graphic", part="label", axes={"type": "width"}),
+                width_properties,
+                order=3,
+            ),
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(graphic_type="interval-graphic", part="label", axes={"category": "details", "type": "width"}),
+                details_width_properties,
+                order=4,
+            ),
+        ])
+
+        # Test that the most specific rule matches (category + type)
+        stroke_width = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "label", "category": "details", "type": "width"},
+            Graphics.PROP_STROKE_WIDTH,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        self.assertEqual(stroke_width, 4.4)
+
+    def test_stylesheet_selector_axes_dict_order_does_not_matter(self):
+        properties = Graphics.GraphicStyleProperties()
+        properties.set(Graphics.PROP_FILL_COLOR, "rgba(171, 205, 239, 0.5)")
+        stylesheet = Graphics.GraphicStylesheet([
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(
+                    graphic_type="interval-graphic",
+                    part="label",
+                    axes={"category": "details", "type": "width"},
+                ),
+                properties,
+            )
+        ])
+        fill_color = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "label", "type": "width", "category": "details"},
+            Graphics.PROP_FILL_COLOR,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        self.assertEqual(fill_color, "rgba(171, 205, 239, 0.5)")
+
+    def test_stylesheet_role_specific_shape_stroke_width_uses_fragment_axes(self):
+        base_properties = Graphics.GraphicStyleProperties()
+        base_properties.set(Graphics.PROP_STROKE_WIDTH, 1.5)
+        details_properties = Graphics.GraphicStyleProperties()
+        details_properties.set(Graphics.PROP_STROKE_WIDTH, 2.5)
+        measurement_details_width_properties = Graphics.GraphicStyleProperties()
+        measurement_details_width_properties.set(Graphics.PROP_STROKE_WIDTH, 4.5)
+
+        stylesheet = Graphics.GraphicStylesheet([
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(graphic_type="interval-graphic", part="shape"),
+                base_properties,
+                order=1,
+            ),
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(graphic_type="interval-graphic", part="shape", axes={"category": "details"}),
+                details_properties,
+                order=2,
+            ),
+            Graphics.GraphicStyleRule(
+                Graphics.GraphicStyleSelector(
+                    graphic_type="interval-graphic",
+                    role="measurement",
+                    part="shape",
+                    axes={"category": "details", "type": "width"},
+                ),
+                measurement_details_width_properties,
+                order=3,
+            ),
+        ])
+
+        measurement_stroke_width = stylesheet.resolve(
+            "interval-graphic",
+            "measurement",
+            {"part": "shape", "category": "details", "type": "width"},
+            Graphics.PROP_STROKE_WIDTH,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        non_measurement_stroke_width = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "shape", "category": "details", "type": "width"},
+            Graphics.PROP_STROKE_WIDTH,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+
+        self.assertEqual(measurement_stroke_width, 4.5)
+        self.assertEqual(non_measurement_stroke_width, 2.5)
+
+    def test_default_stylesheet_interval_shape_overrides_base_stroke_color(self):
+        # A type-specific rule (interval-graphic + shape) overrides the base wildcard rule.
+        stylesheet = Graphics.GraphicStylesheet.default()
+        # Base rule sets #F80; interval-graphic/shape rule overrides to #F00.
+        interval_value = stylesheet.resolve(
+            "interval-graphic",
+            None,
+            {"part": "shape"},
+            Graphics.PROP_STROKE_COLOR,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        # A graphic type with no specific rule falls back to the base #F80.
+        other_value = stylesheet.resolve(
+            "rect-graphic",
+            None,
+            {"part": "shape"},
+            Graphics.PROP_STROKE_COLOR,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        self.assertEqual(interval_value, "#F00")
+        self.assertEqual(other_value, "#F80")
+
+    def test_default_stylesheet_mask_shape_colors(self):
+        stylesheet = Graphics.GraphicStylesheet.default()
+        stroke_color = stylesheet.resolve(
+            "spot-graphic",
+            "mask",
+            {"part": "shape"},
+            Graphics.PROP_STROKE_COLOR,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        fill_color = stylesheet.resolve(
+            "spot-graphic",
+            "mask",
+            {"part": "shape"},
+            Graphics.PROP_FILL_COLOR,
+            Graphics.GraphicInteractionState.default(),
+            Graphics.GraphicAttributes.default(),
+        )
+        self.assertEqual(stroke_color, "#00F")
+        self.assertEqual(fill_color, "rgba(0, 0, 255, 0.1)")
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
