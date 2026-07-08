@@ -25,7 +25,6 @@ from nion.utils import Geometry
 @dataclasses.dataclass
 class RegionInfo:
     channels: typing.Tuple[float, float]
-    selected: bool
     index: int
     left_text: str
     right_text: str
@@ -33,6 +32,11 @@ class RegionInfo:
     label: typing.Optional[str]
     style: typing.Optional[str]
     color: typing.Optional[str]
+    graphic_stylesheet: Graphics.GraphicStylesheet
+    graphic_type: str
+    graphic_used_role: str | None
+    graphic_state: Graphics.GraphicInteractionState
+    graphic_attributes: Graphics.GraphicAttributes
 
 
 def nice_label(value: float, precision: int) -> str:
@@ -487,6 +491,20 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                                                                                include_units=False))
 
                 for graphic_index, graphic_renderer in enumerate(graphic_renderers):
+                    graphic_state = Graphics.GraphicInteractionState(graphic_selection.contains(graphic_index), False)
+                    graphic_attributes = Graphics.GraphicAttributes(
+                        position_locked=graphic_renderer.is_position_locked,
+                        shape_locked=graphic_renderer.is_shape_locked,
+                        rotation_locked=graphic_renderer.is_rotation_locked,
+                    )
+                    graphic_color = graphic_renderer.graphic_stylesheet.resolve(
+                        graphic_renderer.graphic_type,
+                        graphic_renderer.used_role,
+                        {"part": "shape"},
+                        Graphics.PROP_STROKE_COLOR,
+                        graphic_state,
+                        graphic_attributes,
+                    )
                     if isinstance(graphic_renderer, Graphics.IntervalGraphicRenderer):
                         graphic_start, graphic_end = graphic_renderer.start, graphic_renderer.end
                         graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
@@ -496,9 +514,10 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         right_text = convert_to_calibrated_value_str(right_channel)
                         middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
                         region = RegionInfo((graphic_start, graphic_end),
-                                            graphic_selection.contains(graphic_index),
                                             graphic_index, left_text, right_text, middle_text,
-                                            graphic_renderer.label, None, graphic_renderer.used_stroke_style)
+                                            graphic_renderer.label, None, graphic_color,
+                                            graphic_renderer.graphic_stylesheet, graphic_renderer.graphic_type,
+                                            graphic_renderer.used_role, graphic_state, graphic_attributes)
                         regions.append(region)
                     elif isinstance(graphic_renderer, Graphics.ChannelGraphicRenderer):
                         graphic_start, graphic_end = graphic_renderer.position, graphic_renderer.position
@@ -509,9 +528,10 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         right_text = convert_to_calibrated_value_str(right_channel)
                         middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
                         region = RegionInfo((graphic_start, graphic_end),
-                                            graphic_selection.contains(graphic_index),
                                             graphic_index, left_text, right_text, middle_text,
-                                            graphic_renderer.label, "tag", graphic_renderer.used_stroke_style)
+                                            graphic_renderer.label, "tag", graphic_color,
+                                            graphic_renderer.graphic_stylesheet, graphic_renderer.graphic_type,
+                                            graphic_renderer.used_role, graphic_state, graphic_attributes)
                         regions.append(region)
             self.__regions = regions
         return self.__regions or list()

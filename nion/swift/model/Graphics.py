@@ -946,9 +946,14 @@ class Graphic(Persistence.PersistentObject):
             constraints.add("bounds")
         return constraints
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState) -> None:
         if not self._closed:
-            self.get_renderer().draw(ctx, ui_settings, mapping, is_selected, is_focused)
+            graphic_attributes = GraphicAttributes(
+                position_locked=self.is_position_locked,
+                shape_locked=self.is_shape_locked,
+                rotation_locked=self.is_rotation_locked,
+            )
+            self.get_renderer().draw(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
     def get_renderer(self) -> GraphicRenderer:
         raise NotImplementedError()
@@ -1265,26 +1270,53 @@ class GraphicRenderer:
     """
 
     def __init__(self, graphic: Graphic) -> None:
+        self.graphic_type = graphic.type
         self.graphic_uuid = graphic.uuid
         self.modified_count = graphic.modified_count
         self.stroke_color = graphic.stroke_color
-        self.used_stroke_style = graphic.used_stroke_style
-        self.used_stroke_width = graphic.used_stroke_width
-        self.used_fill_style = graphic.used_fill_style
+        self.stroke_width = graphic.stroke_width
+        self.fill_color = graphic.fill_color
+        self.used_role = graphic.used_role
+        self.is_shape_locked = graphic.is_shape_locked
+        self.is_position_locked = graphic.is_position_locked
+        self.is_rotation_locked = graphic.is_rotation_locked
         self.label = graphic.label
         self.label_padding = graphic.label_padding
         self.label_font = graphic.label_font
-        self.is_position_locked = graphic.is_position_locked
-        self.is_shape_locked = graphic.is_shape_locked
-        self.is_rotation_locked = graphic.is_rotation_locked
+        self.graphic_stylesheet = GraphicStylesheet.default()
+        default_interaction_state = GraphicInteractionState.default()
+        default_graphic_attributes = GraphicAttributes(
+            position_locked=self.is_position_locked,
+            shape_locked=self.is_shape_locked,
+            rotation_locked=self.is_rotation_locked,
+        )
+        # Keep these values for legacy call sites that do not pass style context.
+        self.used_stroke_style = self.resolve_shape_stroke_color(default_interaction_state, default_graphic_attributes)
+        self.used_stroke_width = self.resolve_shape_stroke_width(default_interaction_state, default_graphic_attributes)
+        self.used_fill_style = self.resolve_shape_fill_color(default_interaction_state, default_graphic_attributes)
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         raise NotImplementedError()
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         return None
 
-    def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike) -> None:
+    def resolve_shape_stroke_color(self, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> str:
+        if self.stroke_color is not None:
+            return self.stroke_color
+        return self.graphic_stylesheet.resolve(self.graphic_type, self.used_role, {"part": "shape"}, PROP_STROKE_COLOR, graphic_state, graphic_attributes)
+
+    def resolve_shape_fill_color(self, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> str:
+        if self.fill_color is not None:
+            return self.fill_color
+        return self.graphic_stylesheet.resolve(self.graphic_type, self.used_role, {"part": "shape"}, PROP_FILL_COLOR, graphic_state, graphic_attributes)
+
+    def resolve_shape_stroke_width(self, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> float:
+        if self.stroke_width is not None:
+            return self.stroke_width
+        return self.graphic_stylesheet.resolve(self.graphic_type, self.used_role, {"part": "shape"}, PROP_STROKE_WIDTH, graphic_state, graphic_attributes)
+
+    def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         label = self.label
         if label:
             padding = self.label_padding
@@ -1305,7 +1337,7 @@ class GraphicRenderer:
                     ctx.close_path()
                     ctx.fill_style = "rgba(255, 255, 255, 0.6)"
                     ctx.fill()
-                    ctx.stroke_style = self.used_stroke_style
+                    ctx.stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
                     ctx.stroke()
                     ctx.font = font
                     ctx.text_baseline = "middle"
@@ -1328,7 +1360,7 @@ class MissingGraphic(Graphic):
 
 class MissingGraphicRenderer(GraphicRenderer):
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         pass
 
 
@@ -1557,15 +1589,17 @@ class RectangleGraphic(RectangleTypeGraphic):
 
 class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         bounds = self.bounds
         rotation = self.rotation
-        used_stroke_width = self.used_stroke_width
-        used_stroke_style = self.used_stroke_style
-        used_fill_style = self.used_fill_style
-        is_shape_locked = self.is_shape_locked
-        is_position_locked = self.is_position_locked
-        is_rotation_locked = self.is_rotation_locked
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        used_fill_style = self.resolve_shape_fill_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
+        is_shape_locked = graphic_attributes.shape_locked
+        is_position_locked = graphic_attributes.position_locked
+        is_rotation_locked = graphic_attributes.rotation_locked
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(bounds.origin)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
@@ -1608,7 +1642,7 @@ class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
                 ctx.stroke_style = used_stroke_style
                 ctx.stroke()
                 draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         bounds = Geometry.FloatRect.make(self.bounds)
@@ -1647,20 +1681,22 @@ class EllipseGraphic(RectangleTypeGraphic):
 
 class EllipseGraphicRenderer(RectangleTypeGraphicRenderer):
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         bounds = self.bounds
         rotation = self.rotation
-        used_stroke_width = self.used_stroke_width
-        used_stroke_style = self.used_stroke_style
-        used_fill_style = self.used_fill_style
-        is_shape_locked = self.is_shape_locked
-        is_position_locked = self.is_position_locked
-        is_rotation_locked = self.is_rotation_locked
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        used_fill_style = self.resolve_shape_fill_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
+        is_shape_locked = graphic_attributes.shape_locked
+        is_position_locked = graphic_attributes.position_locked
+        is_rotation_locked = graphic_attributes.rotation_locked
         # origin is top left
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
         draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style,  used_stroke_width, used_fill_style)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         bounds = self.bounds
@@ -1991,14 +2027,16 @@ class LineGraphic(LineTypeGraphic):
 
 class LineGraphicRenderer(LineTypeGraphicRenderer):
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         start = self.start
         end = self.end
         start_arrow_enabled = self.start_arrow_enabled
         end_arrow_enabled = self.end_arrow_enabled
-        used_stroke_width = self.used_stroke_width
-        used_stroke_style = self.used_stroke_style
-        is_shape_locked = self.is_shape_locked
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
+        is_shape_locked = graphic_attributes.shape_locked
         p1 = mapping.map_point_image_norm_to_widget(start)
         p2 = mapping.map_point_image_norm_to_widget(end)
         with ctx.saver():
@@ -2015,7 +2053,7 @@ class LineGraphicRenderer(LineTypeGraphicRenderer):
         if is_selected:
             draw_marker(ctx, p1, is_focused, is_shape_locked)
             draw_marker(ctx, p2, is_focused, is_shape_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
 
 class LineProfileGraphic(LineTypeGraphic):
@@ -2068,7 +2106,7 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
         self.width = graphic.width
         self.interval_descriptors = copy.deepcopy(graphic.interval_descriptors)
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         start = self.start
         end = self.end
         start_arrow_enabled = self.start_arrow_enabled
@@ -2076,9 +2114,11 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
         width = self.width
         interval_descriptors = self.interval_descriptors
         stroke_color = self.stroke_color
-        used_stroke_width = self.used_stroke_width
-        used_stroke_style = self.used_stroke_style
-        is_shape_locked = self.is_shape_locked
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
+        is_shape_locked = graphic_attributes.shape_locked
         p1 = mapping.map_point_image_norm_to_widget(start)
         p2 = mapping.map_point_image_norm_to_widget(end)
         w = mapping.map_size_image_to_widget(Geometry.FloatSize(width=width)).width
@@ -2128,7 +2168,7 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
         if is_selected:
             draw_marker(ctx, p1, is_focused, is_shape_locked)
             draw_marker(ctx, p2, is_focused, is_shape_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
 
 class PointTypeGraphic(Graphic):
@@ -2253,11 +2293,13 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
         super().__init__(graphic)
         self.cross_hair_size = graphic.cross_hair_size
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         position = self.position
         cross_hair_size = self.cross_hair_size
-        used_stroke_width = self.used_stroke_width
-        used_stroke_style = self.used_stroke_style
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
         p = mapping.map_point_image_norm_to_widget(position)
         with ctx.saver():
             ctx.begin_path()
@@ -2272,9 +2314,9 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
             ctx.line_to(p.x, p.y + cross_hair_size)
             ctx.line_width = used_stroke_width
             ctx.stroke_style = used_stroke_style
-            ctx.stroke_style = self.used_stroke_style
+            ctx.stroke_style = used_stroke_style
             ctx.stroke()
-            self.draw_label(ctx, ui_settings, mapping)
+            self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
         if is_selected:
             draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size), is_focused, False)
             draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size), is_focused, False)
@@ -2440,7 +2482,7 @@ class IntervalGraphicRenderer(GraphicRenderer):
         self.start = graphic.start
         self.end = graphic.end
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         pass
 
 
@@ -2451,6 +2493,7 @@ class ChannelGraphic(Graphic):
 
     def __init__(self) -> None:
         super().__init__("channel-graphic")
+        self._default_stroke_color = "#F00"
         self.title = _("Channel")
         # channel is stored in image normalized coordinates
         self.define_property("position", 0.5, changed=self._property_changed, validate=lambda value: float(value), hidden=True)
@@ -2524,7 +2567,7 @@ class ChannelGraphicRenderer(GraphicRenderer):
         super().__init__(graphic)
         self.position = graphic.position
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         pass
 
 
@@ -2725,15 +2768,17 @@ class SpotGraphicRenderer(GraphicRenderer):
         self.center = graphic.center
         self.size = graphic.size
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         bounds = self.bounds
         rotation = self.rotation
-        used_stroke_style = self.used_stroke_style
-        used_stroke_width = self.used_stroke_width
-        used_fill_style = self.used_fill_style
-        is_shape_locked = self.is_shape_locked
-        is_position_locked = self.is_position_locked
-        is_rotation_locked = self.is_rotation_locked
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_fill_style = self.resolve_shape_fill_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
+        is_shape_locked = graphic_attributes.shape_locked
+        is_position_locked = graphic_attributes.position_locked
+        is_rotation_locked = graphic_attributes.rotation_locked
         # origin is top left
         origin = mapping.calibrated_origin_widget
         center = origin + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
@@ -2744,7 +2789,7 @@ class SpotGraphicRenderer(GraphicRenderer):
             ctx.rotate(math.pi)
             ctx.translate(-origin.x, -origin.y)
             draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, used_stroke_width, used_fill_style)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         center_widget = mapping.calibrated_origin_widget
@@ -2933,13 +2978,15 @@ class WedgeGraphicRenderer(GraphicRenderer):
         self.start_angle = graphic.start_angle
         self.end_angle = graphic.end_angle
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         start_angle = self.start_angle
         end_angle = self.end_angle
-        used_stroke_width = self.used_stroke_width
-        used_stroke_style = self.used_stroke_style
-        used_fill_style = self.used_fill_style
-        is_shape_locked = self.is_shape_locked
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        used_fill_style = self.resolve_shape_fill_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
+        is_shape_locked = graphic_attributes.shape_locked
         center = mapping.calibrated_origin_widget
         size = mapping.map_size_image_norm_to_widget(Geometry.FloatSize(1.0, 1.0))
         bounds = Geometry.FloatRect(Geometry.FloatPoint(), size) + mapping.map_point_image_norm_to_widget(Geometry.FloatPoint())
@@ -2985,7 +3032,7 @@ class WedgeGraphicRenderer(GraphicRenderer):
 
         if is_selected:
             draw_marker(ctx, center, is_focused, is_shape_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
@@ -3137,14 +3184,16 @@ class RingGraphicRenderer(GraphicRenderer):
         self.radius_2 = graphic.radius_2
         self.mode = graphic.mode
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         radius_1 = self.radius_1
         radius_2 = self.radius_2
         mode = self.mode
-        used_stroke_width = self.used_stroke_width
-        used_stroke_style = self.used_stroke_style
-        used_fill_style = self.used_fill_style
-        is_shape_locked = self.is_shape_locked
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        used_fill_style = self.resolve_shape_fill_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
+        is_shape_locked = graphic_attributes.shape_locked
         # origin is top left
         center = mapping.calibrated_origin_widget
         bounds0 = mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(0.0, 0.0))
@@ -3224,7 +3273,7 @@ class RingGraphicRenderer(GraphicRenderer):
                         ctx.line_to(x, y)
                 ctx.close_path()
                 ctx.fill()
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
@@ -3477,15 +3526,17 @@ class LatticeGraphicRenderer(GraphicRenderer):
         self.v_pos = graphic.v_pos
         self.radius = graphic.radius
 
-    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, graphic_state: GraphicInteractionState, graphic_attributes: GraphicAttributes) -> None:
         u_pos = self.u_pos
         v_pos = self.v_pos
         radius = self.radius
-        used_stroke_width = self.used_stroke_width
-        used_stroke_style = self.used_stroke_style
-        used_fill_style = self.used_fill_style
-        is_position_locked = self.is_position_locked
-        is_shape_locked = self.is_shape_locked
+        used_stroke_width = self.resolve_shape_stroke_width(graphic_state, graphic_attributes)
+        used_stroke_style = self.resolve_shape_stroke_color(graphic_state, graphic_attributes)
+        used_fill_style = self.resolve_shape_fill_color(graphic_state, graphic_attributes)
+        is_selected = graphic_state.selected
+        is_focused = graphic_state.focused
+        is_shape_locked = graphic_attributes.shape_locked
+        is_position_locked = graphic_attributes.position_locked
         start = mapping.calibrated_origin_image_norm
         u_pos = Geometry.FloatSize.make(u_pos)
         v_pos = Geometry.FloatSize.make(v_pos)
@@ -3542,7 +3593,7 @@ class LatticeGraphicRenderer(GraphicRenderer):
             draw_marker(ctx, v_pos_widget, is_focused, is_position_locked)
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget), is_focused, is_shape_locked)
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget), is_focused, is_shape_locked)
-        self.draw_label(ctx, ui_settings, mapping)
+        self.draw_label(ctx, ui_settings, mapping, graphic_state, graphic_attributes)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget

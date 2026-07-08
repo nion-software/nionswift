@@ -179,7 +179,16 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 for graphic_index, graphic_renderer in enumerate(graphic_renderers):
                     try:
-                        graphic_renderer.draw(drawing_context, ui_settings, widget_mapping, graphic_selection.contains(graphic_index), is_focused)
+                        graphic_state = Graphics.GraphicInteractionState(
+                            graphic_selection.contains(graphic_index),
+                            is_focused,
+                        )
+                        graphic_attributes = Graphics.GraphicAttributes(
+                            position_locked=graphic_renderer.is_position_locked,
+                            shape_locked=graphic_renderer.is_shape_locked,
+                            rotation_locked=graphic_renderer.is_rotation_locked,
+                        )
+                        graphic_renderer.draw(drawing_context, ui_settings, widget_mapping, graphic_state, graphic_attributes)
                     except Exception as e:
                         import traceback
                         logging.debug("Graphic Repaint Error: %s", e)

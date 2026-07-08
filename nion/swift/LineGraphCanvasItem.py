@@ -29,6 +29,7 @@ from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Graphics
 from nion.swift.model import LinePlotDisplay
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -615,7 +616,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
 
             for region in regions:
                 left_channel, right_channel = region.channels
-                region_selected = region.selected
+                region_selected = region.graphic_state.selected
                 index = region.index
                 level = canvas_size.height - canvas_size.height * 0.8 + index * 8
                 with drawing_context.saver():
