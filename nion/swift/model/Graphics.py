@@ -927,11 +927,19 @@ class Graphic(Persistence.PersistentObject):
     def used_stroke_width(self) -> float:
         return self.stroke_width if self.stroke_width is not None else 1.0
 
-    def used_text_visibility(self, part: str) -> str:
-        return "always"
+    @property
+    def used_text_visibility_map(self) -> dict[str, str]:
+        return {"default": "always"}
 
-    def used_text_background_color(self, part: str) -> str:
-        return "rgba(255, 255, 255, 0.6)"
+    @property
+    def used_text_background_color_map(self) -> dict[str, str]:
+        return {"default": "rgba(255, 255, 255, 0.6)"}
+
+    @staticmethod
+    def resolve_used_property(prop: dict[str, str], part: str) -> str:
+        if part not in prop:
+            return prop["default"]
+        return prop[part]
 
     @property
     def color(self) -> typing.Optional[str]:
@@ -1037,8 +1045,8 @@ class GraphicRenderer:
         self.is_position_locked = graphic.is_position_locked
         self.is_shape_locked = graphic.is_shape_locked
         self.is_rotation_locked = graphic.is_rotation_locked
-        self.used_text_visibility_fn = graphic.used_text_visibility
-        self.used_text_background_color_fn = graphic.used_text_background_color
+        self.used_text_visibility_map = graphic.used_text_visibility_map
+        self.used_text_background_color_map = graphic.used_text_background_color_map
 
     def draw(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         raise NotImplementedError()
@@ -1060,7 +1068,7 @@ class GraphicRenderer:
 
     def draw_label(self, ctx: DrawingContextLike, ui_settings: UISettings.UISettings, mapping: CoordinateMappingLike, is_selected: bool) -> None:
         label = self.label
-        if label and self.is_label_visible(self.used_text_visibility_fn("label_text"), is_selected):
+        if label and self.is_label_visible(Graphic.resolve_used_property(self.used_text_visibility_map, "label_text"), is_selected):
             padding = self.label_padding
             font = self.label_font
             font_metrics = ui_settings.get_font_metrics(font, label)
@@ -1077,7 +1085,7 @@ class GraphicRenderer:
                     ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding,
                                 text_pos.y + font_metrics.height * 0.5 + padding)
                     ctx.close_path()
-                    ctx.fill_style = self.used_text_background_color_fn("label_text")
+                    ctx.fill_style = Graphic.resolve_used_property(self.used_text_background_color_map, "label_text")
                     ctx.fill()
                     ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
@@ -2090,19 +2098,29 @@ class IntervalGraphic(Graphic):
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=validate_interval, hidden=True)
         self._default_drag_part = "end"
 
-    def used_text_background_color(self, part: str) -> str:
-        if self.used_role == "measurement" and part == "width_text":
-            return "white"
+    @property
+    def used_text_background_color_map(self) -> dict[str, str]:
+        """Get the background color property dictionary.
+        
+        For intervals the default text background is slight transparent white.
+        For width text when the interval is a measurement where it should be white.
+        """
+        if self.used_role == "measurement":
+            return {"default": "#99ffffff", "width_text": "white"}
         else:
-            return "#99ffffff"
+            return {"default": "#99ffffff"}
 
-    def used_text_visibility(self, part: str) -> str:
-        if part == "label":
-            return "always"
-        if self.used_role == "measurement" and part == "width_text":
-            return "always"
+    @property
+    def used_text_visibility_map(self) -> dict[str, str]:
+        """Get the background color property dictionary.
+
+        For intervals the default text visibility is always.
+        When the interval is a measurement the width text should always show but the others should only show when the interval is selected.
+        """
+        if self.used_role == "measurement":
+            return {"default": "selection", "width_text": "always"}
         else:
-            return "selection"
+            return {"default": "always"}
 
     @property
     def interval(self) -> typing.Tuple[float, float]:
