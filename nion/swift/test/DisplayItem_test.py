@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import math
+import threading
 import typing
 import unittest
 
@@ -564,6 +565,30 @@ class TestDisplayItemClass(unittest.TestCase):
                     display_item.graphics[1].label = "label"
 
                 self.assertEqual(2, change_count)
+
+    def test_display_info_stream_direct_updates_after_data_ref_single_pixel_change(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+
+            # update data once to ensure _display_info_stream_direct is up-to-date
+            with data_item.data_ref() as data_ref:
+                data_ref.data[0, 0] = 1
+                data_ref.data_updated()
+
+            stream_updated_event = threading.Event()
+
+            def handle_display_info_stream_change(display_info: DisplayInfo.DisplayInfo | None) -> None:
+                stream_updated_event.set()
+
+            with contextlib.closing(Stream.ValueStreamAction(display_item._display_info_stream_direct, handle_display_info_stream_change)):
+                with data_item.data_ref() as data_ref:
+                    data_ref.data[0, 0] = 1
+                    data_ref.data_updated()
+
+                self.assertTrue(stream_updated_event.wait(timeout=2.0))
 
     def test_displayed_title_is_inherited_from_source(self):
         with create_memory_profile_context() as profile_context:
