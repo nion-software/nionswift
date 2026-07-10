@@ -821,8 +821,6 @@ class Graphic(Persistence.PersistentObject):
         self._set_persistent_property_value("role", value)
         self.notify_property_changed("used_stroke_style")
         self.notify_property_changed("used_fill_style")
-        self.notify_property_changed("used_text_visibility")
-        self.notify_property_changed("used_text_background_color")
 
     @property
     def project(self) -> typing.Optional[Project.Project]:
