@@ -3,6 +3,7 @@ from __future__ import annotations
 # standard libraries
 import asyncio
 import concurrent.futures
+import copy
 import logging
 import math
 import threading
@@ -231,7 +232,8 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__graphics_for_compare = graphics_for_compare
             needs_update = True
         if self.__graphic_selection != graphic_selection:
-            self.__graphic_selection = graphic_selection
+            # copy the selection to avoid external mutation
+            self.__graphic_selection = copy.copy(graphic_selection)
             needs_update = True
         if needs_update:
             self.update()
