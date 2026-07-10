@@ -1838,15 +1838,21 @@ class DisplayPropertiesLayersGraphics:
 
 @dataclasses.dataclass(frozen=True)
 class DisplayDataChannelsAndCalibrationStyle:
+    # must be non-equal when data changes, so data modified counts are included.
+    # equality is used to check for stream changes.
     display_data_channels: typing.Sequence[DisplayDataChannel | None]
     calibration_style_id: str | None
     intensity_calibration_style_id: str | None
+    data_modified_counts: tuple[int, ...] | None
 
 
 @dataclasses.dataclass(frozen=True)
 class DisplayDataAndCalibrationInfo:
+    # must be non-equal when data changes, so data modified counts are included.
+    # equality is used to check for stream changes.
     display_data_info_list: typing.Sequence[DisplayDataInfo | None]
     display_calibration_info: DisplayCalibrationInfo
+    data_modified_counts: tuple[int, ...] | None
 
 
 def compute_display_data_rank(display_data_channels_and_calibration_style: DisplayDataChannelsAndCalibrationStyle | None) -> int:
@@ -1870,7 +1876,9 @@ def compute_display_data_and_calibration_info(display_data_channels_and_calibrat
                                                           display_data_channels_and_calibration_style.calibration_style_id,
                                                           display_data_channels_and_calibration_style.intensity_calibration_style_id)
 
-        return DisplayDataAndCalibrationInfo(display_data_info_list, display_calibration_info)
+        data_modified_counts = display_data_channels_and_calibration_style.data_modified_counts
+
+        return DisplayDataAndCalibrationInfo(display_data_info_list, display_calibration_info, data_modified_counts)
     return None
 
 
@@ -1887,6 +1895,11 @@ def compute_display_info(display_data_and_calibration_info: DisplayDataAndCalibr
 
 
 class DisplayDataChannelsAndCalibrationStyleStream(Stream.ValueStream[DisplayDataChannelsAndCalibrationStyle]):
+    """A stream that provides the display data channels and calibration style for a display item.
+
+    Data updates (via the display data channel) will trigger a new value to be sent on the stream.
+    The stream will also send a new value when the calibration style changes.
+    """
     def __init__(self, display_item: DisplayItem) -> None:
         super().__init__()
 
@@ -1914,10 +1927,15 @@ class DisplayDataChannelsAndCalibrationStyleStream(Stream.ValueStream[DisplayDat
         self.__send_delta()
 
     def __send_delta(self) -> None:
+        # data item data changes will end up here via:
+        #   data_item.did_change_event -> __data_item_did_changed -> __update_displays -> update_display_data -> display_data_and_metadata_changed event.
+        # other changes will also end up here.
+        data_modified_counts = tuple(display_data_channel.data_item.modified_count if display_data_channel and display_data_channel.data_item else 0 for display_data_channel in self.__display_data_channels)
         display_data_channels_and_calibration_style = DisplayDataChannelsAndCalibrationStyle(
             self.__display_data_channels,
             self.__calibration_style_id_stream.value,
-            self.__intensity_calibration_style_id_stream.value)
+            self.__intensity_calibration_style_id_stream.value,
+            data_modified_counts)
         self.send_value(display_data_channels_and_calibration_style)
 
     def __display_item_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
