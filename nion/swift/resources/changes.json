@@ -1,7 +1,159 @@
 [
   {
+    "version": "16.18.1-20260711",
+    "notes": [
+      {
+        "summary": "Improve display of intervals with 'measurement' role (always display width).",
+        "date": "2026-07-10",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1717"
+        ]
+      },
+      {
+        "summary": "Fix issue where partial data updates didn't always display immediately.",
+        "date": "2026-07-10",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1902"
+        ]
+      },
+      {
+        "summary": "Fix issue where changing selected graphics would not always update properly.",
+        "date": "2026-07-10",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1865"
+        ]
+      },
+      {
+        "summary": "Fix issue with arrow keys to change sequence index when using line plot display.",
+        "date": "2026-07-01",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1888"
+        ]
+      },
+      {
+        "summary": "Fix issue with legend position in SVG export.",
+        "date": "2026-06-26",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1776"
+        ]
+      },
+      {
+        "summary": "Improve filename validity feedback in new project dialog.",
+        "date": "2026-06-23",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1848"
+        ]
+      },
+      {
+        "summary": "Fix issue with duplicated display when dragging a display item to split itself.",
+        "date": "2026-06-23",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1797"
+        ]
+      },
+      {
+        "summary": "Add menu commands to create new workspace from selected display items.",
+        "date": "2026-06-23",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1805"
+        ]
+      },
+      {
+        "summary": "Fix regression where computations on live data items caused significant slowdown.",
+        "date": "2026-06-17",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1881"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "16.18.0-20260605",
+    "notes": [
+      {
+        "summary": "Improve reliability, consistency, and performance of display architecture.",
+        "date": "2026-05-14",
+        "repository": "nionswift"
+      },
+      {
+        "summary": "Improve workspace create, rename, delete dialogs.",
+        "date": "2026-05-13",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1825"
+        ]
+      },
+      {
+        "summary": "Improve SVG export by allowing custom aspect ratio for line plots.",
+        "date": "2026-05-13",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1766"
+        ]
+      },
+      {
+        "summary": "Add a line to generator dialog to show pending file size.",
+        "date": "2026-04-17",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1815"
+        ]
+      },
+      {
+        "summary": "Fix issue with orphaned computation cleanup.",
+        "date": "2026-04-13",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1820"
+        ]
+      },
+      {
+        "summary": "Fix issue with scale marker appearing in SVG when copied or imported to Microsoft products.",
+        "date": "2026-03-26",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1813"
+        ]
+      },
+      {
+        "summary": "Fix issue with graphic stroke width being saved incorrectly.",
+        "date": "2026-03-26",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1812"
+        ]
+      },
+      {
+        "summary": "Improve line plot interval label drawing using transparency and background.",
+        "date": "2026-03-20",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/628",
+          "https://github.com/nion-software/nionswift/issues/1810"
+        ]
+      }
+    ]
+  },
+  {
     "version": "16.17.0",
     "notes": [
+      {
+        "summary": "Fix inconsistent behavior when deleting live computed data items.",
+        "date": "2026-03-05",
+        "repository": "nionswift",
+        "issues": [
+          "https://github.com/nion-software/nionswift/issues/1748"
+        ]
+      },
       {
         "summary": "Standardize naming of spot graphic, angular graphic, band-pass graphic, lattice graphic.",
         "date": "2026-02-27",

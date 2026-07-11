@@ -12,6 +12,18 @@ them for evaluation and feedback. If you encounter an issue or have feedback abo
 please contact us or `file issues
 <https://github.com/nion-software/nionswift/issues>`_.
 
+Version 16.18.1 (2026-07-11)
+----------------------------
+* Improve display of intervals with 'measurement' role (always display width). [nion-software/nionswift#1717](https://github.com/nion-software/nionswift/issues/1717)
+* Fix issue where partial data updates didn't always display immediately. [nion-software/nionswift#1902](https://github.com/nion-software/nionswift/issues/1902)
+* Fix issue where changing selected graphics would not always update properly. [nion-software/nionswift#1865](https://github.com/nion-software/nionswift/issues/1865)
+* Fix issue with arrow keys to change sequence index when using line plot display. [nion-software/nionswift#1888](https://github.com/nion-software/nionswift/issues/1888)
+* Fix issue with legend position in SVG export. [nion-software/nionswift#1776](https://github.com/nion-software/nionswift/issues/1776)
+* Improve filename validity feedback in new project dialog. [nion-software/nionswift#1848](https://github.com/nion-software/nionswift/issues/1848)
+* Fix issue with duplicated display when dragging a display item to split itself. [nion-software/nionswift#1797](https://github.com/nion-software/nionswift/issues/1797)
+* Add menu commands to create new workspace from selected display items. [nion-software/nionswift#1805](https://github.com/nion-software/nionswift/issues/1805)
+* Fix regression where computations on live data items caused significant slowdown. [nion-software/nionswift#1881](https://github.com/nion-software/nionswift/issues/1881)
+
 Version 16.18.0 (2026-06-05)
 ----------------------------
 * Improve reliability, consistency, and performance of display architecture.
