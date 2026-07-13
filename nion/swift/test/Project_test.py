@@ -89,15 +89,11 @@ class TestProjectClass(unittest.TestCase):
             reference_path = project_reference.path
             base_directory = reference_path.parent
 
-            def mock_get_project_reference_by_path(_path: pathlib.Path) -> Profile.ProjectReference | None:
-                return project_reference
-
             def mock_check_project_name_is_available(_name: str, _directory: str) -> FileStorageSystem.ProjectNameResult:
                 return FileStorageSystem.ProjectNameResult([], reference_path)  # Return the project path with no errors so it can be checked against the existing references
 
-            with unittest.mock.patch.object(profile, 'get_project_reference_by_path', mock_get_project_reference_by_path):
-                with unittest.mock.patch.object(FileStorageSystem.ProjectStorageSystem, 'check_project_name_is_available', mock_check_project_name_is_available):
-                    viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, FileStorageSystem.ProjectStorageSystem)
-                    viewmodel.update_project_status_label(project_reference.title)
-                    self.assertFalse(viewmodel.accept_button_enabled.value)
-                    self.assertEqual(viewmodel.project_name_status_label.value, f"Project Reference \"{reference_path.stem}\" already exists, remove it via Choose Project before proceeding")
+            with unittest.mock.patch.object(FileStorageSystem.ProjectStorageSystem, 'check_project_name_is_available', mock_check_project_name_is_available):
+                viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, FileStorageSystem.ProjectStorageSystem)
+                viewmodel.update_project_status_label(project_reference.title)
+                self.assertFalse(viewmodel.accept_button_enabled.value)
+                self.assertEqual(viewmodel.project_name_status_label.value, f"Project Reference \"{reference_path.stem}\" already exists, remove it via Choose Project before proceeding")

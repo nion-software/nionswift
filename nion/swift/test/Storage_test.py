@@ -4783,18 +4783,20 @@ class TestStorageClass(unittest.TestCase):
                     document_controller.request_close()
 
     def test_file_project_storage_system_check_project_name_is_unavailable_with_existing_project(self) -> None:
-        with unittest.mock.patch.object(pathlib.Path, 'exists', lambda _self: True):
+        with open("ExistingProject.nsproj", "w"):
             current_working_directory = pathlib.Path.cwd()
             check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(current_working_directory))
             self.assertEqual(check_name_result.project_path, (current_working_directory / "ExistingProject").with_suffix(".nsproj"))
             self.assertEqual(check_name_result.error_messages, ["Project Name \"ExistingProject.nsproj\" already exists"])
+        os.remove("ExistingProject.nsproj")
 
     def test_file_project_storage_system_check_project_name_is_unavailable_with_existing_data_folder(self) -> None:
-        with unittest.mock.patch.object(pathlib.Path, 'is_dir', lambda _self: True):
-            current_working_directory = pathlib.Path.cwd()
-            check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(current_working_directory))
-            self.assertEqual(check_name_result.project_path, (current_working_directory / "ExistingProject").with_suffix(".nsproj"))
-            self.assertEqual(check_name_result.error_messages, ["Data Folder \"ExistingProject Data\" already exists"])
+        os.mkdir("ExistingProject Data")
+        current_working_directory = pathlib.Path.cwd()
+        check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(current_working_directory))
+        self.assertEqual(check_name_result.project_path, (current_working_directory / "ExistingProject").with_suffix(".nsproj"))
+        self.assertEqual(check_name_result.error_messages, ["Data Folder \"ExistingProject Data\" already exists"])
+        os.rmdir("ExistingProject Data")
 
     def test_file_project_storage_system_renames_project_file(self) -> None:
         """Test that the FileProjectStorageSystem rename_project renames the project file.
