@@ -659,16 +659,29 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     else:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
                     drawing_context.font = self.font
-                    if region.middle_text and region.style != "tag" and Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "width_text"), region_selected):
-                        _draw_label_with_background(region.middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom", Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "width_text") or self.text_background_color)
+
+                    is_label_visible = True
+                    is_middle_label_visible = Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "width_text"), region_selected)
+                    is_left_label_visible = Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "left_text"), region_selected)
+                    is_right_label_visible = Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "right_text"), region_selected)
+
+                    text_background_color = self.text_background_color
+
+                    label_background_color = Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "label_text") or text_background_color
+                    middle_background_color = Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "width_text") or text_background_color
+                    left_background_color = Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "left_text") or text_background_color
+                    right_background_color = Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "right_text") or text_background_color
+
+                    if region.middle_text and region.style != "tag" and is_middle_label_visible:
+                        _draw_label_with_background(region.middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom", middle_background_color)
                     drawing_context.fill_style = region_color
-                    if region.left_text and Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "left_text"), region_selected):
-                        _draw_label_with_background(region.left_text, left - 5, level, "right", "middle", Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "left_text") or self.text_background_color)
-                    if region.right_text and Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "right_text"), region_selected):
-                        _draw_label_with_background(region.right_text, right + 5, level, "left", "middle", Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "right_text") or self.text_background_color)
+                    if region.left_text and is_left_label_visible:
+                        _draw_label_with_background(region.left_text, left - 5, level, "right", "middle", left_background_color)
+                    if region.right_text and is_right_label_visible:
+                        _draw_label_with_background(region.right_text, right + 5, level, "left", "middle", right_background_color)
                     label = region.label
-                    if label and Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "label_text"), region_selected):
-                        _draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top", Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "label_text") or self.text_background_color)
+                    if label and is_label_visible:
+                        _draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top", label_background_color)
                     drawing_context.close_path()
 
 
