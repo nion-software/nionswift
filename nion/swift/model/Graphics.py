@@ -2118,7 +2118,7 @@ class IntervalGraphic(Graphic):
         if self.used_role == "measurement":
             return {"default": "selection", "width_text": "always"}
         else:
-            return {"default": "always"}
+            return {"default": "selection"}
 
     @property
     def interval(self) -> typing.Tuple[float, float]:
