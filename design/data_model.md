@@ -34,8 +34,6 @@ Axis groups in different annotated arrays are correlated when they reference the
 
 Within a coordinate mapping, each axis has exactly one associated calibration or coordinate array.
 
-The annotated array has zero or more coordinate system transforms, which are affine transforms from one coordinate system to another, recorded at acquisition time. They normally only apply to isotropic coordinate mappings.
-
 Future extensions may expand the value types and/or support variable length (ragged) value types.
 
 ### Terms and Definitions
@@ -64,7 +62,7 @@ A **coordinate mapping** is a mapping from the index coordinate space of an axis
 
 A **primary coordinate mapping** is the coordinate mapping of an axis group used by default for display and by consumers unaware of multiple coordinate mappings.
 
-A **coordinate system transform** is an invertible affine transform from one coordinate system to another, stored with the annotated array and typically recorded from the coordinate system graph at acquisition time. Coordinate system transforms typically compose only with isotropic coordinate mappings.
+A **coordinate system transform** is an invertible affine transform from one coordinate system to another. Coordinate system transforms are relationships in the coordinate system graph and typically compose only with isotropic coordinate mappings.
 
 An **isotropic coordinate mapping** is a coordinate mapping in which every axis has the same units and the same scale. Offsets may differ between axes; the classification considers units and scale only. Example: a camera image with square pixels calibrated in nm, with the origin at the image center.
 
@@ -74,9 +72,9 @@ A **mixed coordinate mapping** is a coordinate mapping in which the axes have di
 
 ### Coordinate System Graph
 
-The coordinate system graph is maintained at the instrument level; an annotated array's coordinate system transforms are recorded from it at acquisition time. Examples: camera space, scan space, stage space.
+The coordinate system graph is maintained outside annotated arrays, typically at the instrument level. Examples of coordinate systems in the graph include camera space, scan space, and stage space.
 
-A point is translated between two annotated arrays by composition: from index coordinate space to calibrated coordinates via a coordinate mapping, between coordinate systems via a coordinate system transform, and back to index coordinate space via the inverse coordinate mapping.
+An external coordinate tool translates a point between two annotated arrays by composition: from index coordinate space to calibrated coordinates via a coordinate mapping, when necessary between coordinate systems via a transform from the coordinate system graph, and back to index coordinate space via the inverse coordinate mapping.
 
 Point translation is exact and produces fractional index values. Combining or overlaying data between coordinate systems requires resampling with interpolation, which is a computation, not a data model operation.
 
@@ -88,13 +86,13 @@ Map a point on a camera image to stage coordinates for stage movement.
 
 ### Detailed Use Case: Camera Image with Multiple Coordinate Mappings, Graphics, and Overlays
 
-A camera image is acquired with two isotropic coordinate mappings — real space in nm and angular in rad — and one coordinate system transform, the camera-to-stage rotation recorded at acquisition. The real-space coordinate mapping is designated primary. Stage-oriented coordinates are derived by composing a coordinate mapping with the coordinate system transform; the real-space coordinate mapping is used because stage space is in length units, although because both coordinate mappings are isotropic, the same rotation applies to either.
+A camera image has two isotropic coordinate mappings — real space in nm and angular in rad — and the real-space coordinate mapping is designated primary. An external coordinate tool derives stage-oriented coordinates by composing a coordinate mapping with the camera-to-stage transform from the coordinate system graph; the real-space coordinate mapping is used because stage space is in length units, although because both coordinate mappings are isotropic, the same rotation applies to either.
 
 The image displays in index coordinate space. The user chooses whether the scale marker and mouse-over readout show nm or rad; switching changes the readout only, not the displayed data.
 
-Graphics are drawn in graphics coordinates — a fixed per-axis scaling of index coordinate space in which each axis spans 0 to 1 — independent of any coordinate mapping. A graphic may instead be defined in stage coordinates: its points are converted to fractional indices through inverse coordinate mapping. An axes indicator showing the stage directions uses only the rotational component of the stored coordinate system transform, sized and positioned in graphics coordinates.
+Graphics are drawn in graphics coordinates — a fixed per-axis scaling of index coordinate space in which each axis spans 0 to 1 — independent of any coordinate mapping. A graphic may instead be defined in stage coordinates: an external coordinate tool converts its points through the coordinate system graph and then to fractional indices through inverse coordinate mapping. An axes indicator showing the stage directions uses only the rotational component of the camera-to-stage transform supplied by the coordinate system graph, sized and positioned in graphics coordinates.
 
-All of this is point translation; no data is resampled. Because the coordinate system transform is recorded at acquisition-time, stage-space graphics remain correctly positioned offline, and a second image acquired at a different rotation carries its own coordinate system transform, so the same stage-space graphic maps correctly onto both images.
+All of this is point translation; no data is resampled. The external coordinate tool uses the coordinate system graph to map a stage-space graphic into each image's referenced coordinate system.
 
 ### Open Questions
 
