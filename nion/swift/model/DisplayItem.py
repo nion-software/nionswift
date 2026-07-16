@@ -1623,6 +1623,7 @@ class DisplayLayer(Schema.Entity):
     stroke_color = Schema.EntityAttribute[typing.Optional[str]]()
     fill_color = Schema.EntityAttribute[typing.Optional[str]]()
     stroke_width = Schema.EntityAttribute[typing.Optional[int]]()
+    graph_style = Schema.EntityAttribute[typing.Optional[str]]()  # "bar" | "line" | "scatter"
     display_data_channel = Schema.EntityAttribute[typing.Optional[DisplayDataChannel]]()
 
     def __init__(self, display_layer_properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
@@ -1684,6 +1685,7 @@ class DisplayLayerInfo:
     stroke_color: str | None
     fill_color: str | None
     stroke_width: int | None
+    graph_style: str | None = None  # line-plot style: "bar" | "line" | "scatter" (None = default "bar")
 
 
 @dataclasses.dataclass
@@ -2700,7 +2702,8 @@ class DisplayItem(Persistence.PersistentObject):
                 label=label,
                 stroke_color=display_layer.stroke_color,
                 fill_color=display_layer.fill_color,
-                stroke_width=display_layer.stroke_width
+                stroke_width=display_layer.stroke_width,
+                graph_style=display_layer.graph_style,
             )
             display_layer_list.append(display_layer_info)
         return display_layer_list
@@ -2721,7 +2724,7 @@ class DisplayItem(Persistence.PersistentObject):
     @display_layers_list.setter
     def display_layers_list(self, value: list[DisplayLayer]) -> None:
         assert len(value) == len(self.display_layers)
-        properties = ["data_row", "fill_color", "stroke_color", "label", "stroke_width"]
+        properties = ["data_row", "fill_color", "stroke_color", "label", "stroke_width", "graph_style"]
         for index, (display_layer, new_display_layer) in enumerate(zip(self.display_layers, value)):
             for property in properties:
                 property_value = getattr(new_display_layer, property)
