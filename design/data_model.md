@@ -38,7 +38,7 @@ Future extensions may expand the value types and/or support variable length (rag
 
 ### Terms and Definitions
 
-An **annotated array** is one complete unit of data: an underlying array together with its annotations (axis groups, coordinate mappings, coordinate system transforms, and metadata). The implementation class name is `AnnotatedArray`. *Note on nomenclature:* "annotations" here means the structural and calibration metadata attached to the array - not display graphics such as rectangles, lines, or region markers drawn on a displayed image.
+An **annotated array** is one complete unit of data: an underlying array together with its annotations. *Note on nomenclature:* "annotations" here means the structural and calibration metadata attached to the array - not display graphics such as rectangles, lines, or region markers drawn on a displayed image.
 
 An **axis group** is an ordered group of axes in an annotated array. The rank of an axis group is the number of axes in the group.
 
@@ -46,7 +46,7 @@ The **signal axis group** is the final axis group in an annotated array. *Note o
 
 A **value type** is one of the supported value types: scalar, complex, RGB, RGBA, or vector.
 
-A **coordinate system** is a physical coordinate space, typically representing an orientation of axes in space, consisting of an ordered list of coordinate system axes; it is the node type of the coordinate system graph. Each coordinate system has a unique identifier; identity is by identifier, so two coordinate systems with identical coordinate system axes are still distinct systems. Coordinate systems are shared: axis groups in one or more annotated arrays may designate the same coordinate system.
+A **coordinate system** represents a physical coordinate space, typically defined by an orientation of axes, and contains an ordered list of coordinate axes. Each coordinate system has a unique identifier that solely determines its identity; systems with identical axes are distinct if their identifiers differ. Coordinate systems are shared objects and may be referenced by axis groups in multiple annotated arrays.
 
 A **coordinate system axis** is a per-dimension component of a coordinate system: a name and optional direction metadata. Coordinate system axes carry no units; units belong to calibrations.
 
