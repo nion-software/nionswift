@@ -932,6 +932,13 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
+                u.create_label(text=_("Graph Style"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_combo_box(items=self._line_plot_display_layer_model.graph_style_items,
+                                   current_index="@binding(_line_plot_display_layer_model.current_graph_style_index_model.value)"),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
                 u.create_label(text=_("Complex Display"), width=120),
                 u.create_combo_box(items=self._line_plot_display_layer_model.display_type_items,
                                    current_index="@binding(_line_plot_display_layer_model.current_display_type_index_model.value)"),
@@ -1007,6 +1014,12 @@ class LinePlotDisplayLayerModel(Observable.Observable):
         self.stroke_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_color")
         self.stroke_width_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_width")
 
+        self.graph_style_items = [_("Bar"), _("Line")]
+        self._graph_style_flags = ["bar", "line"]
+        self._graph_style_reverse_map = {p: i for i, p in enumerate(self._graph_style_flags)}
+        current_graph_style = display_layer.graph_style or "bar"
+        self.current_graph_style_index_model = Model.PropertyModel[int](self._graph_style_reverse_map.get(current_graph_style, 0))
+
         self.display_type_items = [_("Log Absolute"), _("Absolute"), _("Phase"), _("Real"), _("Imaginary")]
         self._display_type_flags = ["log-absolute", "absolute", "phase", "real", "imaginary"]
         self._display_type_reverse_map = {p: i for i, p in enumerate(self._display_type_flags)}
@@ -1018,6 +1031,8 @@ class LinePlotDisplayLayerModel(Observable.Observable):
             ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_data_index_changed, self))
         self.__display_type_index_listener_model = self.current_display_type_index_model.property_changed_event.listen(
             ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_type_index_changed, self))
+        self.__graph_style_index_listener_model = self.current_graph_style_index_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_graph_style_index_changed, self))
 
     @property
     def is_data_complex(self) -> bool:
@@ -1045,6 +1060,16 @@ class LinePlotDisplayLayerModel(Observable.Observable):
                                                                    complex_display_type=new_type)
             command.perform()
             self.document_controller.push_undo_command(command)
+
+    def __on_graph_style_index_changed(self, property: str) -> None:
+        if property == "value":
+            new_style = self._graph_style_flags[self.current_graph_style_index_model.value or 0]
+            index = self.display_item.display_layers.index(self.display_layer)
+            if self.display_item.get_display_layer_property(index, "graph_style") != new_style:
+                command = ChangeDisplayLayerPropertyCommand(self.document_controller.document_model,
+                                                            self.display_item, index, "graph_style", new_style)
+                command.perform()
+                self.document_controller.push_undo_command(command)
 
     def __on_display_layer_list_changed(self, key: str, value: typing.Any, index: int) -> None:
         # changes affect all indices after index of change
@@ -2068,6 +2093,7 @@ class DisplayTypeChooserHandler(Declarative.Handler):
             command = ChangeDisplayTypeCommand(self._document_controller.document_model, self._display_item, display_type=current_display_type)
             command.perform()
             self._document_controller.push_undo_command(command)
+
 
 
 class ContrastStringConverter(Converter.ConverterLike[float, str]):
