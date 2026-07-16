@@ -2,7 +2,7 @@
 
 ## Annotated Array
 
-An **annotated array** is one complete unit of data: an underlying array, descriptor, dimensions, and associated metadata. The name reflects the composition: an array, annotated with axis groups, calibrations, coordinate system references, and metadata. The implementation class name is `AnnotatedArray`; text uses "annotated array"; "underlying array" always refers to the raw value buffer inside an annotated array. This section describes the annotated array model in two parts: the current implementation state and the planned state.
+An **annotated array** is one complete unit of data: an underlying array, descriptor, dimensions, and associated metadata. The descriptor supplies its axis groups, calibrations, coordinate system references, structured extensions, and free-form metadata. The implementation class name is `AnnotatedArray`; text uses "annotated array"; "underlying array" always refers to the raw value buffer inside an annotated array. This section describes the annotated array model in two parts: the current implementation state and the planned state.
 
 ### Current Implementation
 
@@ -34,11 +34,21 @@ Axis groups in different annotated arrays are correlated when they reference the
 
 Within a coordinate mapping, each axis has exactly one associated calibration or coordinate array.
 
-Future extensions may expand the value types and/or support variable length (ragged) value types.
+An annotated array has structured extensions and free-form metadata in addition to its intrinsic fields.
+
+An annotated array carries structured extensions and free-form metadata in addition to its intrinsic fields.
+
+Future revisions may expand the value types and/or support variable length (ragged) value types.
 
 ### Terms and Definitions
 
-An **annotated array** is one complete unit of data: an underlying array together with its annotations. *Note on nomenclature:* "annotations" here means the structural and calibration metadata attached to the array - not display graphics such as rectangles, lines, or region markers drawn on a displayed image.
+An **annotated array** is one complete unit of data: an underlying array together with its intrinsic fields, structured extensions, and free-form metadata.
+
+An **intrinsic field** is information whose semantics and invariants are part of the annotated array model, such as axis groups, coordinate mappings, coordinate system references, intensity calibrations, and the timestamp.
+
+A **structured extension** is versioned, code-interpreted information that travels with an annotated array but whose semantics are owned outside the fundamental annotated array model. Examples are coordinate system transforms or computation provenance. Each structured extension has a globally unique type identifier and schema.
+
+**Free-form metadata** is information that travels with an annotated array without a machine-enforced schema and is not interpreted by the annotated array model.
 
 An **axis group** is an ordered group of axes in an annotated array. The rank of an axis group is the number of axes in the group.
 
