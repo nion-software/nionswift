@@ -16,7 +16,7 @@ Each axis has a single calibration associated with it. The calibration may be an
 
 ### Planned Implementation
 
-The planned annotated array model specifies an ordered list of axis groups, each with an identifier and rank, and a value type.
+The planned annotated array model specifies an ordered list of axis groups, each with a rank, and a value type.
 
 Value types are scalar, complex, RGB, RGBA, or fixed-length vector (1/2/3).
 
@@ -29,6 +29,8 @@ Coordinate mappings are mappings from the index coordinate space of an axis grou
 Each axis group has zero or more associated coordinate mappings. One coordinate mapping may be designated the primary coordinate mapping.
 
 Each axis group designates the coordinate system of its index coordinate space. The designated coordinate system may be null, indicating that the coordinate system is unknown.
+
+Axis groups in different annotated arrays are correlated when they reference the same coordinate system.
 
 Within a coordinate mapping, each axis has exactly one associated calibration or coordinate array.
 
