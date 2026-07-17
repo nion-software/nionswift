@@ -2,7 +2,7 @@
 
 ## Annotated Array
 
-An **annotated array** is one complete unit of data: an underlying array, data descriptor, and array metadata. The implementation class name is `AnnotatedArray`; text uses "annotated array"; "underlying array" always refers to the raw value buffer inside an annotated array. This section describes the annotated array model in two parts: the current implementation state and the planned state.
+An **annotated array** is one complete unit of data: an underlying array, array descriptor, and array metadata. The implementation class name is `AnnotatedArray`; text uses "annotated array"; "underlying array" always refers to the raw value buffer inside an annotated array. This section describes the annotated array model in two parts: the current implementation state and the planned state.
 
 ### Current Implementation
 
@@ -34,29 +34,29 @@ Axis groups in different annotated arrays are correlated when they reference the
 
 Within a coordinate mapping, each axis has exactly one associated calibration or coordinate array.
 
-An annotated array contains an underlying array, data descriptor, and array metadata.
+An annotated array contains an underlying array, array descriptor, and array metadata.
 
-The data descriptor contains the intrinsic fields used to interpret the array.
+The array descriptor contains the intrinsic fields used to interpret the array.
 
-The array metadata contains a timestamp, structured extensions, and free-form metadata.
+The array metadata contains a creation time, extension records, and free-form metadata.
 
-An array header packages a data descriptor, storage data type, and array metadata.
+An array header packages an array descriptor, storage data type, and array metadata.
 
 Future revisions may expand the value types and/or support variable length (ragged) value types.
 
 ### Terms and Definitions
 
-An **annotated array** is one complete unit of data: an underlying array, data descriptor, and array metadata.
+An **annotated array** is one complete unit of data: an underlying array, array descriptor, and array metadata.
 
-An **array header** is a utility value containing a data descriptor, storage data type, and array metadata without an underlying array.
+An **array header** is a utility value containing an array descriptor, storage data type, and array metadata without an underlying array.
 
-A **data descriptor** contains the intrinsic fields required to interpret an underlying array.
+An **array descriptor** contains the intrinsic fields required to interpret an underlying array.
 
 An **intrinsic field** is information whose semantics and invariants are part of the annotated array model, such as axis groups, coordinate mappings, coordinate system references, and intensity calibrations.
 
 **Array metadata** is contextual information that travels with an annotated array but is not required to interpret its underlying array.
 
-A **structured extension** is versioned, code-interpreted array metadata whose semantics are owned outside the fundamental annotated array model. Examples are acquisition coordinate context and computation provenance.
+An **extension record** is versioned, code-interpreted array metadata whose semantics are owned outside the fundamental annotated array model. Examples are acquisition coordinate context and computation provenance.
 
 **Free-form metadata** is information that travels with an annotated array without a machine-enforced schema and is not interpreted by the annotated array model.
 
@@ -92,13 +92,13 @@ A **mixed coordinate mapping** is a coordinate mapping in which the axes have di
 
 ### Array Header and Metadata
 
-An array header can be derived from an annotated array and passed independently of the underlying array for inspection, allocation, streaming, serialization, and computation planning. The array shape is derived from the bound axis groups in its data descriptor; the storage data type is retained separately so that an exact underlying array can be allocated or validated. Pairing an underlying array with a header validates the array against the header and produces an annotated array whose descriptor and metadata are direct fields.
+An array header can be derived from an annotated array and passed independently of the underlying array for inspection, allocation, streaming, serialization, and computation planning. The array shape is derived from the bound axis groups in its array descriptor; the storage data type is retained separately so that an exact underlying array can be allocated or validated. Pairing an underlying array with a header validates the array against the header and produces an annotated array whose descriptor and metadata are direct fields.
 
-The data descriptor and array metadata are separate fields because computations handle them differently. A computation produces a descriptor consistent with the structure and interpretation of its result, while array metadata follows metadata-specific propagation rules.
+The array descriptor and array metadata are separate fields because computations handle them differently. A computation produces a descriptor consistent with the structure and interpretation of its result, while array metadata follows metadata-specific propagation rules.
 
-Each structured extension has a globally unique type identifier, schema version, and opaque encoded payload. The component that defines an extension owns its validation, encoding, decoding, schema migration, and semantic access. Structured extensions are accessed through their defined interfaces rather than as reserved free-form metadata keys.
+Each extension record has a globally unique extension type identifier, schema version, and opaque encoded payload. The component that defines an extension owns its validation, encoding, decoding, schema migration, and semantic access. Extension records are accessed through their defined interfaces rather than as reserved free-form metadata keys.
 
-Lossless serialization and exact copying preserve all structured extensions, including extension types unknown to the consumer. A computation includes a structured extension in a derived annotated array only when the computation or extension definition supplies an explicit rule to preserve, transform, replace, or generate it.
+Lossless serialization and exact copying preserve all extension records, including extension types unknown to the consumer. A computation includes an extension record in a derived annotated array only when the computation or extension definition supplies an explicit rule to preserve, transform, replace, or generate it.
 
 ### Coordinate System Graph
 
