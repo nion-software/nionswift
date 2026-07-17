@@ -96,6 +96,8 @@ An array header can be derived from an annotated array and passed independently 
 
 The array descriptor and array metadata are separate fields because computations handle them differently. A computation produces a descriptor consistent with the structure and interpretation of its result, while array metadata follows metadata-specific propagation rules.
 
+The creation time is timezone-aware. Its timezone object carries the UTC offset and, when represented by an IANA timezone, the IANA zone identifier; array metadata has no separate timezone or timezone-offset fields.
+
 Each extension record has a globally unique extension type identifier, schema version, and opaque encoded payload. The component that defines an extension owns its validation, encoding, decoding, schema migration, and semantic access. Extension records are accessed through their defined interfaces rather than as reserved free-form metadata keys.
 
 Lossless serialization and exact copying preserve all extension records, including extension types unknown to the consumer. A computation includes an extension record in a derived annotated array only when the computation or extension definition supplies an explicit rule to preserve, transform, replace, or generate it.
