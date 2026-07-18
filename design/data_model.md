@@ -16,6 +16,8 @@ Each axis has a single calibration associated with it. The calibration may be an
 
 ### Planned Implementation
 
+The planned model expands the current representation so it can support more axis groups, multiple calibrations per axis group, and extensions such as provenance and coordinate transformations without reshaping the core structure. It also leaves room for richer coordinate-system references, non-uniform coordinates, and additional value types as the model evolves.
+
 An annotated array contains an underlying array, array descriptor, and array metadata. An array header packages the descriptor and metadata with the storage data type.
 
 The array metadata contains a creation time, free-form attributes, and structured extension records. An extension record is a versioned, typed container for an opaque encoded payload whose semantics and access interface are defined outside the annotated array model. Extension records track things like computation provenance and coordinate transforms.
