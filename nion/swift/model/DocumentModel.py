@@ -29,6 +29,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
+from nion.swift.model import Model
 from nion.swift.model import Observer
 from nion.swift.model import Persistence
 from nion.swift.model import Project
@@ -2254,7 +2255,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             requirements = src.requirements
             data_metadata = data_item.data_metadata
             for requirement in requirements:
-                if not data_metadata or not requirement.is_data_metadata_valid(data_metadata):
+                if not data_metadata or not (requirement.is_data_metadata_valid(data_metadata) or Symbolic.is_iterable(src, data_metadata)):
                     return None
 
             # each source can have a list of regions to be matched to arguments or created on the source
@@ -2370,7 +2371,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if src.is_croppable:
                 secondary_item = graphic
             display_data_channel = in_display_item.get_display_data_channel_for_data_item(data_item) if data_item else None
-            computation.create_input_item(src.name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src.label)
+            input_operation: Symbolic.ComputationInputOperation | None = None
+            if src.name in Model.display_data_processors.get(processing_id, []):
+                # Backward compatibility: these legacy sources default to display-based input semantics.
+                input_operation = Symbolic.ComputationInputOperation.create_display_operation()
+            computation.create_input_item(src.name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src.label, input_operation=input_operation)
         # process the regions
         for region_name, region, region_label in regions:
             computation.create_input_item(region_name, Symbolic.make_item(region), label=region_label)
@@ -2440,6 +2445,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if not cls._builtin_processors:
             vs: typing.Dict[str, typing.Any] = dict()
 
+            requirement_standard = {"type": "dimensionality", "min": 1, "max": 2}
             requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
             requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
             requirement_4d = {"type": "dimensionality", "min": 4, "max": 4}
@@ -2456,7 +2462,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                                                                {"type": "bool", "operator": "and",
                                                                 "operands": [requirement_is_sequence, requirement_4d]}]}
 
-            vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "cropped_display_xdata"}]}
+            # new style built-ins
+            vs["fft"] = {"title": _("FFT"), "expression": "target = xd.fft(src)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "xdata", "requirements": [requirement_standard]}], "outputs": [{"name": "target", "label": "Result", "rank": "input", "domain": "spectral"}], "old_built_in": False}
+
+            # old style built-ins
+            # vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "cropped_display_xdata"}]}
             vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}]}
             vs["auto-correlate"] = {"title": _("Auto Correlate"), "expression": "xd.autocorrelate({src}.cropped_display_xdata)",
@@ -2593,7 +2603,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 d["inputs"] = inputs
                 return d
 
-            cls._builtin_processors = {k: Symbolic.ComputationProcessor.from_dict(migrate_processor_description(copy.deepcopy(v))) for k, v in vs.items()}
+            for processing_id, computation_processor_d in vs.items():
+                computation_processor = Symbolic.ComputationProcessor.from_dict(migrate_processor_description(copy.deepcopy(computation_processor_d)))
+
+                # Temporary migration rule: mapped/window processors use new-style behavior; others default to old built-ins unless opted out.
+                if processing_id.startswith("mapped-") or processing_id.endswith("-window"):
+                    computation_processor.old_built_in = False
+                else:
+                    computation_processor.old_built_in = computation_processor_d.get("old_built_in", True)
+
+                cls._builtin_processors[processing_id] = computation_processor
+
         return cls._builtin_processors
 
     def get_fft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
@@ -3045,9 +3065,6 @@ class ImplicitLineProfileIntervalsConnection:
 
 def _register_processors() -> None:
     for processing_id, computation_processor in DocumentModel._get_builtin_processors().items():
-        # temporary hack to handle mapped scalar and window functions
-        if not processing_id.startswith("mapped-") and not processing_id.endswith("-window"):
-            computation_processor.old_built_in = True
         Symbolic.ComputationProcessor.register(processing_id, computation_processor)
 
 

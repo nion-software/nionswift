@@ -231,6 +231,7 @@ ComputationVariable = Schema.entity("variable", None, None, {
     "items": Schema.array(Schema.component(Specifier), Schema.OPTIONAL),
     "property_name": Schema.prop(Schema.STRING),
     "control_type": Schema.prop(Schema.STRING),
+    "input_operation": Schema.prop(Schema.STRING),
 })
 
 ComputationVariable.rename("item", "specifier")
@@ -339,6 +340,43 @@ processing_id_update_map = {
 }
 
 reverse_processing_id_update_map = {v: k for k, v in processing_id_update_map.items()}
+
+# Backward-compatibility map for processing IDs whose listed sources default to display-based input semantics.
+display_data_processors = {
+    "add": ["src1", "src2"],
+    "auto-correlate": ["src"],
+    "convert-to-scalar": ["src"],
+    "crop": ["src"],
+    "cross-correlate": ["src1", "src2"],
+    "divide": ["src1", "src2"],
+    "extract-luminance": ["src"],
+    "extract-red": ["src"],
+    "extract-green": ["src"],
+    "extract-blue": ["src"],
+    "extract-alpha": ["src"],
+    "fft": ["src"],
+    "gaussian-blur": ["src"],
+    "histogram": ["src"],
+    "invert": ["src"],
+    "laplace": ["src"],
+    "line-profile": ["src"],
+    "make-rgb": ["src_red", "src_green", "src_blue"],
+    "median-filter": ["src"],
+    "multiply": ["src1", "src2"],
+    "power-spectrum": ["src"],
+    "radial-profile": ["src"],
+    "rebin": ["src"],
+    "rebin_factor": ["src"],
+    "rebin_factor_1d": ["src"],
+    "resample": ["src"],
+    "resize": ["src"],
+    "slice": ["src"],
+    "sobel": ["src"],
+    "subtract": ["src1", "src2"],
+    "sum": ["src"],
+    "transpose-flip": ["src"],
+    "uniform-filter": ["src"],
+}
 
 
 def transform_forward(d: PersistentDictType) -> PersistentDictType:
