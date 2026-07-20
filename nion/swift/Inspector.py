@@ -878,7 +878,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text=_("Layer:")),
+                u.create_label(text=_("Layer")),
                 u.create_line_edit(text="@binding(_line_plot_display_layer_model.label_model.value)", placeholder_text="@binding(_line_plot_display_layer_model.placeholder_label_model.value)"),
                 u.create_spacing(12),
                 spacing=12
@@ -1269,21 +1269,21 @@ class ImageDataInspectorHandler(Declarative.Handler):
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Data Range:"), width=120),
+                u.create_label(text=_("Data Range"), width=120),
                 u.create_label(text="@binding(_model.data_range_low_model.value, converter=_float_point_2_converter)", fallback=_("N/A"), width=80),
                 u.create_spacing(8),
                 u.create_label(text="@binding(_model.data_range_high_model.value, converter=_float_point_2_converter)", fallback=_("N/A"), width=80),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Display Limits:"), width=120),
+                u.create_label(text=_("Display Limits"), width=120),
                 u.create_line_edit(text="@binding(_model.display_limits_low_model.value, converter=_float_point_2_none_converter)", placeholder_text=_("Auto"), width=80, name="display_limits_limit_low"),
                 u.create_spacing(8),
                 u.create_line_edit(text="@binding(_model.display_limits_high_model.value, converter=_float_point_2_none_converter)", placeholder_text=_("Auto"), width=80, name="display_limits_limit_high"),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Color Map:"), width=120),
+                u.create_label(text=_("Color Map"), width=120),
                 u.create_combo_box(items=self._model.color_map_items, on_current_index_changed="_change_color_map", current_index="@binding(_model.current_colormap_index.value)", width=120),
                 u.create_stretch()
             ),
@@ -1302,7 +1302,7 @@ class ImageDataInspectorHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Adjustment:"), width=120),
+                u.create_label(text=_("Adjustment"), width=120),
                 u.create_combo_box(items=self._model.adjustment_options_items, on_current_index_changed="_change_adjustment_option", current_index="@binding(_model.current_adjustment_options_index.value)", width=120),
                 u.create_stretch(),
             ),
@@ -2164,7 +2164,7 @@ class LegendPositionChooserHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
 
         self.ui_view = u.create_row(
-            u.create_label(text=_("Legend Position:"), width=120),
+            u.create_label(text=_("Legend Position"), width=120),
             u.create_combo_box(items=self._legend_position_items, on_current_index_changed="change_legend_position", current_index="@binding(_current_index)"),
             u.create_stretch()
         )
@@ -2209,14 +2209,14 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
 
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text=_("Display:"), width=120),
+                u.create_label(text=_("Display"), width=120),
                 u.create_line_edit(text="@binding(_y_min_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="y_min_field"),
                 u.create_spacing(8),
                 u.create_line_edit(text="@binding(_y_max_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="y_max_field"),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Channels:"), width=120),
+                u.create_label(text=_("Channels"), width=120),
                 u.create_line_edit(text="@binding(_left_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="left_channel_field"),
                 u.create_spacing(8),
                 u.create_line_edit(text="@binding(_right_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="right_channel_field"),
