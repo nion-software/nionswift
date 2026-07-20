@@ -932,7 +932,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Complex Display Type:"), width=120),
+                u.create_label(text=_("Complex Display"), width=120),
                 u.create_combo_box(items=self._line_plot_display_layer_model.display_type_items,
                                    current_index="@binding(_line_plot_display_layer_model.current_display_type_index_model.value)"),
                 u.create_stretch(),
@@ -1337,8 +1337,9 @@ class ComplexDisplayTypeChooserHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
 
         self.ui_view = u.create_row(
-            u.create_label(text=_("Complex Display Type:"), width=120),
-            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)")
+            u.create_label(text=_("Complex Display"), width=120),
+            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)"),
+            u.create_stretch()
         )
 
     def change_display_type(self, widget: Declarative.UIWidget, current_index: int) -> None:
