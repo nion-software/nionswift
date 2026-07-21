@@ -48,6 +48,8 @@ An **extension record** is versioned, code-interpreted array metadata whose sema
 
 An **axis group** is an ordered group of axes in an annotated array. The rank of an axis group is the number of axes in the group.
 
+The **array rank** (called `ndim` in NumPy-oriented code) is the total number of axes in an annotated array, equal to the sum of axis-group ranks.
+
 A **bound axis group** is an axis group in which every axis has a concrete positive size. Its axis sizes determine the shape of the group.
 
 The **signal axis group** is the final axis group in an annotated array. *Note on nomenclature:* "signal" is not a perfect term - axes outside the signal axis group may also carry meaningful signal - but it is the least bad of the candidates considered and a clear improvement over the previous term "datum," which read as surveying jargon and was an awkward singular of "data."
