@@ -1284,6 +1284,7 @@ class ImageDataInspectorHandler(Declarative.Handler):
             ),
             u.create_row(
                 u.create_label(text=_("Color Map"), width=120),
+                # note: specify maximum width on color map combo box since it is constructed dynamically and may have long names
                 u.create_combo_box(items=self._model.color_map_items, on_current_index_changed="_change_color_map", current_index="@binding(_model.current_colormap_index.value)", width=120),
                 u.create_stretch()
             ),
@@ -1303,7 +1304,7 @@ class ImageDataInspectorHandler(Declarative.Handler):
             ),
             u.create_row(
                 u.create_label(text=_("Adjustment"), width=120),
-                u.create_combo_box(items=self._model.adjustment_options_items, on_current_index_changed="_change_adjustment_option", current_index="@binding(_model.current_adjustment_options_index.value)", width=120),
+                u.create_combo_box(items=self._model.adjustment_options_items, on_current_index_changed="_change_adjustment_option", current_index="@binding(_model.current_adjustment_options_index.value)"),
                 u.create_stretch(),
             ),
             u.create_row(
