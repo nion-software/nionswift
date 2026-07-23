@@ -2236,8 +2236,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         parameters = parameters or dict()
 
-        processors = Symbolic._processors
-        processor = processors[processing_id]
+        processor = Symbolic.ComputationProcessor._processors[processing_id]
 
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
         sources = processor.sources
@@ -2427,25 +2426,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     _builtin_processors = dict[str, Symbolic.ComputationProcessor]()
 
     @classmethod
-    def register_processors(cls, processors: dict[str, Symbolic.ComputationProcessor]) -> None:
-        assert len(set(Symbolic._processors.keys()).intersection(set(processors.keys()))) == 0
-        for key, processor in processors.items():
-            assert key not in Symbolic._processors
-            Symbolic._processors[key] = processor
-
-    @classmethod
-    def unregister_processors(cls, processing_ids: typing.Sequence[str]) -> None:
-        assert len(set(Symbolic._processors.keys()).intersection(set(processing_ids))) == len(processing_ids)
-        for processing_id in processing_ids:
-            Symbolic._processors.pop(processing_id)
-
-    @classmethod
     def register_processing_descriptions(cls, processing_descriptions: typing.Dict[str, typing.Any]) -> None:
-        cls.register_processors({key: Symbolic.ComputationProcessor.from_dict(d) for key, d in processing_descriptions.items()})
+        for processing_id, d in processing_descriptions.items():
+            Symbolic.ComputationProcessor.register(processing_id, Symbolic.ComputationProcessor.from_dict(d))
 
     @classmethod
     def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]) -> None:
-        cls.unregister_processors(processing_ids)
+        for processing_id in processing_ids:
+            Symbolic.ComputationProcessor.unregister(processing_id)
 
     @classmethod
     def _get_builtin_processors(cls) -> dict[str, Symbolic.ComputationProcessor]:
@@ -3025,7 +3013,13 @@ class ImplicitLineProfileIntervalsConnection:
             self.__observer.close()
 
 
-DocumentModel.register_processors(DocumentModel._get_builtin_processors())
+def _register_processors() -> None:
+    for processing_id, computation_processor in DocumentModel._get_builtin_processors().items():
+        computation_processor.old_built_in = True
+        Symbolic.ComputationProcessor.register(processing_id, computation_processor)
+
+
+_register_processors()
 
 
 def handle_processing_component_registered(component: Registry._ComponentType, component_types: typing.Set[str]) -> None:
@@ -3055,7 +3049,7 @@ def handle_processing_component_registered(component: Registry._ComponentType, c
             # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
             # TODO: in appropriate places.
             d["requirements"] = [{"type": "dimensionality", "min": 4, "max": 4}]
-        DocumentModel.register_processors({processing_component.processing_id: Symbolic.ComputationProcessor.from_dict(d)})
+        DocumentModel.register_processing_descriptions({processing_component.processing_id: d})
 
 
 _handle_processing_component_registered_listener = Registry.listen_component_registered_event(handle_processing_component_registered)
