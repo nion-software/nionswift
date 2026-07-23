@@ -241,10 +241,6 @@ class ComputationOutput(Persistence.PersistentObject):
         computation = container if isinstance(container, Computation) else None
         name = self.name
         if computation:
-            if processor := computation._processor_description:
-                if name and (output := processor.get_output(name)):
-                    if label := output.label:
-                        return label
             computation_processor = computation.computation_processor
             if computation_processor and name:
                 if label := computation_processor.get_output_label(name):
@@ -1061,13 +1057,6 @@ class ComputationVariable(Persistence.PersistentObject):
         name = self.name
         label: str | None
         if isinstance(computation, Computation):
-            if processor := computation._processor_description:
-                if name and (source := processor.get_source(name)):
-                    if label := source.label:
-                        return label
-                if name and (parameter := processor.get_parameter(name)):
-                    if label := parameter.label:
-                        return label
             computation_processor = computation.computation_processor
             if computation_processor and name:
                 if label := computation_processor.get_input_label(name):
@@ -2058,7 +2047,6 @@ class Computation(Persistence.PersistentObject):
         self.__result_changed_event_listeners: typing.List[Event.EventListener] = list()
         self.__result_base_item_inserted_event_listeners: typing.List[Event.EventListener] = list()
         self.__result_base_item_removed_event_listeners: typing.List[Event.EventListener] = list()
-        self.__processor: typing.Optional[ComputationProcessor] = None
         self.last_evaluate_data_time = 0.0
         self.__in_transaction_state = False
         self.__write_delay_modified_count = 0
@@ -2165,11 +2153,6 @@ class Computation(Persistence.PersistentObject):
     def item_specifier(self) -> Persistence.PersistentObjectSpecifier:
         return Persistence.PersistentObjectSpecifier(self.uuid)
 
-    def read_from_dict(self, properties: PersistentDictType) -> None:
-        super().read_from_dict(properties)
-        processing_id = self.processing_id
-        self.__processor = _processors.get(processing_id) if processing_id else None
-
     def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
         self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d.get("source_uuid", None))
         self.original_expression = d.get("original_expression", self.original_expression)
@@ -2223,7 +2206,6 @@ class Computation(Persistence.PersistentObject):
     @processing_id.setter
     def processing_id(self, value: typing.Optional[str]) -> None:
         self._set_persistent_property_value("processing_id", value)
-        self.__processor = _processors.get(value) if value else None
 
     @property
     def label(self) -> typing.Optional[str]:
@@ -2236,9 +2218,6 @@ class Computation(Persistence.PersistentObject):
             - using the computation handler if it exists
             - using the label property if it exists
         """
-        if processor := self.__processor:
-            if title := processor.title:
-                return title
         if computation_processor := self.computation_processor:
             if label := computation_processor.title:
                 return label
@@ -2261,8 +2240,6 @@ class Computation(Persistence.PersistentObject):
             - using the processor description if it exists
             - using the computation handler if it exists
         """
-        if self.__processor and attribute in self.__processor.attributes:
-            return self.__processor.attributes.get(attribute)
         if computation_processor := self.computation_processor:
             return computation_processor.attributes.get(attribute, default)
         processing_id = self.processing_id
@@ -2416,7 +2393,7 @@ class Computation(Persistence.PersistentObject):
         assert name == "variables"
 
         def needs_update(variable: ComputationVariable, event_type: BoundDataEventType) -> None:
-            if not self.__processor or self.__processor.needs_update_for_event(variable.name, event_type) and self.is_resolved and not self.is_deleted:
+            if not self.computation_processor or self.computation_processor.needs_update_for_event(variable.name, event_type) and self.is_resolved and not self.is_deleted:
                 self.needs_update = True
             self.computation_mutated_event.fire()
 
@@ -2560,7 +2537,6 @@ class Computation(Persistence.PersistentObject):
         if value != self.original_expression:
             self.original_expression = value
             self.processing_id = None
-            self.__processor = None
             self.needs_update = True
             self.computation_mutated_event.fire()
 
@@ -2608,7 +2584,7 @@ class Computation(Persistence.PersistentObject):
         self.needs_update = False
         if needs_update:
             api = PlugInManager.api_broker_fn("~1.0", None)
-            use_registered_executor = not self.expression or self.computation_processor is not None
+            use_registered_executor = not self.expression or (self.computation_processor is not None and not self.computation_processor.old_built_in)
             if use_registered_executor:
                 executor = RegisteredComputationExecutor(self, api)
             else:
@@ -2635,7 +2611,7 @@ class Computation(Persistence.PersistentObject):
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
-            use_registered_executor = not self.expression or self.computation_processor is not None
+            use_registered_executor = not self.expression or (self.computation_processor is not None and not self.computation_processor.old_built_in)
             if use_registered_executor:
                 executor = RegisteredComputationExecutor(self, api)
             else:
@@ -2803,16 +2779,12 @@ class Computation(Persistence.PersistentObject):
             self.needs_update = True
 
     def update_script(self) -> None:
-        if processor := self.__processor:
-            if expression := processor.expression:
-                src_names = [processing_description_source.name for processing_description_source in processor.sources]
+        if computation_processor := self.computation_processor:
+            if expression := computation_processor.expression:
+                src_names = [processing_description_source.name for processing_description_source in computation_processor.sources]
                 script = xdata_expression(expression)
                 script = script.format(**dict(zip(src_names, src_names)))
                 self._get_persistent_property("original_expression").value = script
-
-    @property
-    def _processor_description(self) -> typing.Optional[ComputationProcessor]:
-        return self.__processor
 
     @property
     def computation_processor(self) -> ComputationProcessor | None:
@@ -3740,6 +3712,7 @@ class ComputationProcessor:
         self.attributes = dict(attributes)
         self.out_regions = list(out_regions)
         self.outputs = list(outputs)
+        self.old_built_in = False
 
     @classmethod
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessor:
@@ -3754,7 +3727,12 @@ class ComputationProcessor:
 
     @classmethod
     def register(cls, processor_id: str, computation_processor: ComputationProcessor) -> None:
+        assert processor_id not in ComputationProcessor._processors
         ComputationProcessor._processors[processor_id] = computation_processor
+
+    @classmethod
+    def unregister(cls, processor_id: str) -> None:
+        del ComputationProcessor._processors[processor_id]
 
     def to_dict(self) -> PersistentDictType:
         return {
@@ -4042,11 +4020,6 @@ class ComputationActivity(Activity.Activity):
     @property
     def displayed_title(self) -> str:
         return self.title + " (" + self.state + ")"
-
-
-# processors
-
-_processors = dict[str, ComputationProcessor]()
 
 
 # for computations
