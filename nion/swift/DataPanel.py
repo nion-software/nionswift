@@ -337,9 +337,7 @@ class DataPanel(Panel.Panel):
                 return mime_data.has_file_paths
 
             def drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int | None) -> str:
-                display_items = document_controller.receive_files(mime_data.file_paths)
-                if set(display_items).intersection(set(document_controller.filtered_display_items_model.display_items)):
-                    document_controller.select_display_items_in_data_panel(display_items)
+                document_controller.receive_files(mime_data.file_paths)
                 return "accept"
 
 
