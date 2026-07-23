@@ -532,6 +532,11 @@ class ComputationInputOperation:
     def __init__(self, operation_id: str | None = None) -> None:
         self.operation_id = operation_id
 
+    def __eq__(self, other: typing.Any) -> bool:
+        if isinstance(other, ComputationInputOperation):
+            return self.operation_id == other.operation_id
+        return False
+
     @staticmethod
     def from_operation_id(operation_id: str | None) -> ComputationInputOperation:
         if (operation_id and operation_id.startswith("axes:")) or (operation_id in ("display",)):
