@@ -514,6 +514,21 @@
                     },
                     {
                         "type": "item",
+                        "action_id": "processing.gaussian_window"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.hamming_window"
+                    },
+                    {
+                        "type": "item",
+                        "action_id": "processing.hann_window"
+                    },
+                    {
+                        "type": "separator"
+                    },
+                    {
+                        "type": "item",
                         "action_id": "graphics.add_spot_graphic"
                     },
                     {

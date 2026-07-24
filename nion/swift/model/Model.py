@@ -330,6 +330,16 @@ Project.rename("workspace", "workspace_uuid")
 
 PersistentDictType = typing.Dict[str, typing.Any]
 
+processing_id_update_map = {
+    "gaussian_window": "gaussian-window",
+    "hamming_window": "hamming-window",
+    "hann_window": "hann-window",
+    "mapped_sum": "mapped-sum",
+    "mapped_average": "mapped-average"
+}
+
+reverse_processing_id_update_map = {v: k for k, v in processing_id_update_map.items()}
+
 
 def transform_forward(d: PersistentDictType) -> PersistentDictType:
     # ensure the display_layer has a uuid and modified and looks like a regular entity.
@@ -378,6 +388,12 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
                     r["reference_uuid"] = r.pop("uuid")
                     if r.get("type") == "graphic":
                         r["type"] = "graphic-specifier"
+
+    # map old processing id's to new processing id's. cheap migration during computation rework.
+    for computation_d in d.get("computations", list()):
+        processing_id = computation_d.get("processing_id")
+        if processing_id:
+            computation_d["processing_id"] = processing_id_update_map.get(processing_id, processing_id)
 
     return d
 
@@ -433,6 +449,12 @@ def transform_backward(d: PersistentDictType) -> PersistentDictType:
                         r["uuid"] = r.pop("reference_uuid")
                     if r.get("type") == "graphic-specifier":
                         r["type"] = "graphic"
+
+    # map old processing id's to new processing id's. cheap migration during computation rework.
+    for computation_d in d.get("computations", list()):
+        processing_id = computation_d.get("processing_id")
+        if processing_id:
+            computation_d["processing_id"] = reverse_processing_id_update_map.get(processing_id, processing_id)
 
     return d
 

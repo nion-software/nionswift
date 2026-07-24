@@ -3638,8 +3638,8 @@ class DataSourceVariableHandler(Declarative.Handler):
         self.variable = variable
         self.variable_model = variable_model
         self.is_croppable = False
-        if processor_description := computation._processor_description:
-            if source_description := processor_description.get_source(variable.name):
+        if computation_processor := computation.computation_processor:
+            if source_description := computation_processor.get_source(variable.name):
                 self.is_croppable = source_description.is_croppable
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")

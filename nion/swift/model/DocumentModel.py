@@ -29,7 +29,6 @@ from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
 from nion.swift.model import Observer
 from nion.swift.model import Persistence
-from nion.swift.model import Processing
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
 from nion.utils import Event
@@ -40,8 +39,6 @@ from nion.utils import ReferenceCounting
 from nion.utils import Registry
 
 _ = gettext.gettext
-
-Processing.init()
 
 
 def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[Persistence.PersistentObjectSpecifier]:
@@ -2236,8 +2233,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
         parameters = parameters or dict()
 
-        processors = Symbolic._processors
-        processor = processors[processing_id]
+        processor = Symbolic.ComputationProcessor._processors[processing_id]
 
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
         sources = processor.sources
@@ -2254,8 +2250,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # implicit "and" connection between the requirements in the list. Could be changed to use the new
             # boolean options, but leave it like this for backwards compatibility for now.
             requirements = src.requirements
+            data_metadata = data_item.data_metadata
             for requirement in requirements:
-                if not requirement.is_data_item_valid(data_item):
+                if not data_metadata or not requirement.is_data_metadata_valid(data_metadata):
                     return None
 
             # each source can have a list of regions to be matched to arguments or created on the source
@@ -2378,7 +2375,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         # next process the parameters
         for param in processor.parameters:
             parameter_value = parameters.get(param.name, param.value)
-            computation.create_variable(param.name, param.param_type, parameter_value,
+            computation.create_variable(param.name, param.variable_type, parameter_value,
                                         value_default=param.value_default, value_min=param.value_min,
                                         value_max=param.value_max, control_type=param.control_type, label=param.label)
 
@@ -2427,25 +2424,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     _builtin_processors = dict[str, Symbolic.ComputationProcessor]()
 
     @classmethod
-    def register_processors(cls, processors: dict[str, Symbolic.ComputationProcessor]) -> None:
-        assert len(set(Symbolic._processors.keys()).intersection(set(processors.keys()))) == 0
-        for key, processor in processors.items():
-            assert key not in Symbolic._processors
-            Symbolic._processors[key] = processor
-
-    @classmethod
-    def unregister_processors(cls, processing_ids: typing.Sequence[str]) -> None:
-        assert len(set(Symbolic._processors.keys()).intersection(set(processing_ids))) == len(processing_ids)
-        for processing_id in processing_ids:
-            Symbolic._processors.pop(processing_id)
-
-    @classmethod
     def register_processing_descriptions(cls, processing_descriptions: typing.Dict[str, typing.Any]) -> None:
-        cls.register_processors({key: Symbolic.ComputationProcessor.from_dict(d) for key, d in processing_descriptions.items()})
+        for processing_id, d in processing_descriptions.items():
+            Symbolic.ComputationProcessor.register(processing_id, Symbolic.ComputationProcessor.from_dict(d))
 
     @classmethod
     def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]) -> None:
-        cls.unregister_processors(processing_ids)
+        for processing_id in processing_ids:
+            Symbolic.ComputationProcessor.unregister(processing_id)
 
     @classmethod
     def _get_builtin_processors(cls) -> dict[str, Symbolic.ComputationProcessor]:
@@ -2483,7 +2469,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "control_type": "slider"}
             vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "expression": "xd.gaussian_blur({src}.cropped_display_xdata, sigma)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [sigma_param]}
-            filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integral", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
+            filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integer", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
             vs["median-filter"] = {"title": _("Median Filter"), "expression": "xd.median_filter({src}.cropped_display_xdata, filter_size)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [filter_size_param]}
             vs["uniform-filter"] = {"title": _("Uniform Filter"), "expression": "xd.uniform_filter({src}.cropped_display_xdata, filter_size)",
@@ -2493,28 +2479,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             do_flip_h_param = {"name": "do_flip_h", "label": _("Flip Horizontal"), "type": "boolean", "value": False, "value_default": False}
             vs["transpose-flip"] = {"title": _("Transpose/Flip"), "expression": "xd.transpose_flip({src}.cropped_display_xdata, do_transpose, do_flip_v, do_flip_h)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
-            width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
-            height_param = {"name": "height", "label": _("Height"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
+            width_param = {"name": "width", "label": _("Width"), "type": "integer", "value": 256, "value_default": 256, "value_min": 1}
+            height_param = {"name": "height", "label": _("Height"), "type": "integer", "value": 256, "value_default": 256, "value_min": 1}
             vs["rebin"] = {"title": _("Rebin"), "expression": "xd.rebin_image({src}.cropped_display_xdata, (height, width))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
             vs["resample"] = {"title": _("Resample"), "expression": "xd.resample_image({src}.cropped_display_xdata, (height, width))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
             vs["resize"] = {"title": _("Resize"), "expression": "xd.resize({src}.cropped_display_xdata, (height, width), 'mean')",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [width_param, height_param]}
-            x_binning_param = {"name": "x_binning", "label": _("X Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
-            y_binning_param = {"name": "y_binning", "label": _("Y Binning"), "type": "integral", "value": 2, "value_default": 2, "value_min": 1}
+            x_binning_param = {"name": "x_binning", "label": _("X Binning"), "type": "integer", "value": 2, "value_default": 2, "value_min": 1}
+            y_binning_param = {"name": "y_binning", "label": _("Y Binning"), "type": "integer", "value": 2, "value_default": 2, "value_min": 1}
             vs["rebin_factor"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (y_binning, x_binning))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [x_binning_param, y_binning_param]}
             vs["rebin_factor_1d"] = {"title": _("Rebin"), "expression": "xd.rebin_factor({src}.cropped_display_xdata, (x_binning,))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [x_binning_param]}
             is_sequence_param = {"name": "is_sequence", "label": _("Sequence"), "type": "boolean", "value": False, "value_default": False}
-            collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
-            datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
+            collection_dims_param = {"name": "collection_dims", "label": _("Collection Dimensions"), "type": "integer", "value": 0, "value_default": 0, "value_min": 0, "value_max": 0}
+            datum_dims_param = {"name": "datum_dims", "label": _("Datum Dimensions"), "type": "integer", "value": 1, "value_default": 1, "value_min": 1, "value_max": 0}
             vs["redimension"] = {"title": _("Redimension"), "expression": "xd.redimension({src}.xdata, xd.data_descriptor(is_sequence=is_sequence, collection_dims=collection_dims, datum_dims=datum_dims))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}], "parameters": [is_sequence_param, collection_dims_param, datum_dims_param]}
             vs["squeeze"] = {"title": _("Squeeze"), "expression": "xd.squeeze({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}]}
-            bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
+            bins_param = {"name": "bins", "label": _("Bins"), "type": "integer", "value": 256, "value_default": 256, "value_min": 2}
             vs["histogram"] = {"title": _("Histogram"), "expression": "xd.histogram({src}.cropped_display_xdata, bins)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}], "parameters": [bins_param]}
             vs["add"] = {"title": _("Add"), "expression": "{src1}.cropped_display_xdata + {src2}.cropped_display_xdata",
@@ -2534,8 +2520,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True}]}
             vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}.cropped_xdata, {src}.cropped_xdata.datum_dimension_indexes[0])",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_xdata", "croppable": True, "requirements": [requirement_2d_to_4d]}]}
-            slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
-            slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+            slice_center_param = {"name": "center", "label": _("Center"), "type": "integer", "value": 0, "value_default": 0, "value_min": 0}
+            slice_width_param = {"name": "width", "label": _("Width"), "type": "integer", "value": 1, "value_default": 1, "value_min": 1}
             vs["slice"] = {"title": _("Slice"), "expression": "xd.slice_sum({src}.cropped_xdata, center, width)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_xdata", "croppable": True, "requirements": [requirement_3d]}],
                 "parameters": [slice_center_param, slice_width_param]}
@@ -2572,12 +2558,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_2d_to_5d, requirement_is_navigable]}]}
             vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}]}
-            trim_start_param = {"name": "start", "label": _("Start"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
-            trim_end_param = {"name": "end", "label": _("End"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+            trim_start_param = {"name": "start", "label": _("Start"), "type": "integer", "value": 0, "value_default": 0, "value_min": 0}
+            trim_end_param = {"name": "end", "label": _("End"), "type": "integer", "value": 1, "value_default": 1, "value_min": 1}
             vs["sequence-trim"] = {"title": _("Trim"), "expression": "xd.sequence_trim({src}.xdata, start, end)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}],
                 "parameters": [trim_start_param, trim_end_param]}
-            index_param = {"name": "index", "label": _("Index"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+            index_param = {"name": "index", "label": _("Index"), "type": "integer", "value": 1, "value_default": 1, "value_min": 1}
             vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}.xdata, index)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_is_sequence]}],
                 "parameters": [index_param]}
@@ -2590,7 +2576,30 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             vs["extract-green"] = {"title": _("Green"), "expression": "xd.green({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
             vs["extract-blue"] = {"title": _("Blue"), "expression": "xd.blue({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
             vs["extract-alpha"] = {"title": _("Alpha"), "expression": "xd.alpha({src}.display_rgba)", "sources": [{"name": "src", "label": _("Source"), "data_type": "display_rgba", "requirements": [requirement_is_rgb_type]}]}
-            cls._builtin_processors = {k: Symbolic.ComputationProcessor.from_dict(v) for k, v in vs.items()}
+            # new style descriptions that operate on xdata (src) directly
+            window_sigma_param = {"name": "sigma", "label": _("Sigma"), "type": "real", "value": 0.3, "value_default": 0.3, "value_min": 0.001, "value_max": 10, "control_type": "slider"}
+            is_mapped_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string", "value": "none", "value_default": "none", "control_type": "choice"}
+            vs["gaussian-window"] = {"title": _("Gaussian Window"), "expression": "target = src * xd.gaussian_window(src.data_shape, sigma * int(numpy.amin(src.data_shape)))", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param, window_sigma_param], "outputs": [{"name": "target", "label": "Result"}]}
+            vs["hamming-window"] = {"title": _("Hamming Window"), "expression": "target = src * xd.hamming_window(src.data_shape)", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param], "outputs": [{"name": "target", "label": "Result"}]}
+            vs["hann-window"] = {"title": _("Hann Window"), "expression": "target = src * xd.hann_window(src.data_shape)", "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "croppable": True}], "parameters": [is_mapped_param], "outputs": [{"name": "target", "label": "Result"}]}
+            vs["mapped-sum"] = {"title": _("Sum"), "expression": "target = xd.sum_scalar(src)", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]}], "outputs": [{"name": "target", "label": "Result", "data_type": "scalar"}], "attributes": {"connection_type": "map"}, "out_regions": [{"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}]}
+            vs["mapped-average"] = {"title": _("Average"), "expression": "target = xd.mean_scalar(src)", "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [{"type": "datum_rank", "values": (1, 2)}]}], "outputs": [{"name": "target", "label": "Result", "data_type": "scalar"}], "attributes": {"connection_type": "map"}, "out_regions": [{"name": "pick_point", "type": "point", "params": {"label": _("Pick"), "role": "collection_index"}}]}
+
+            def migrate_processor_description(d: dict[str, typing.Any]) -> dict[str, typing.Any]:
+                inputs = list[dict[str, typing.Any]]()
+                sources = d.pop("sources", [])
+                for source_d in sources:
+                    source_d["type"] = "data"
+                    inputs.append(source_d)
+                parameters = d.pop("parameters", [])
+                for parameter_d in parameters:
+                    parameter_d["value_type"] = parameter_d.pop("type")
+                    parameter_d["type"] = "value"
+                    inputs.append(parameter_d)
+                d["inputs"] = inputs
+                return d
+
+            cls._builtin_processors = {k: Symbolic.ComputationProcessor.from_dict(migrate_processor_description(copy.deepcopy(v))) for k, v in vs.items()}
         return cls._builtin_processors
 
     def get_fft_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
@@ -2619,6 +2628,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def get_uniform_filter_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("uniform-filter", [(display_item, data_item, crop_region)])
+
+    def get_mapped_sum_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("mapped-sum", [(display_item, data_item, crop_region)], None, parameters)
+
+    def get_mapped_average_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("mapped-average", [(display_item, data_item, crop_region)], None, parameters)
+
+    def get_gaussian_window_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("gaussian-window", [(display_item, data_item, crop_region)], None, parameters)
+
+    def get_hamming_window_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("hamming-window", [(display_item, data_item, crop_region)], None, parameters)
+
+    def get_hann_window_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None, parameters: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> typing.Optional[DataItem.DataItem]:
+        return self.__make_computation("hann-window", [(display_item, data_item, crop_region)], None, parameters)
 
     def get_transpose_flip_new(self, display_item: DisplayItem.DisplayItem, data_item: DataItem.DataItem, crop_region: typing.Optional[Graphics.Graphic]=None) -> typing.Optional[DataItem.DataItem]:
         return self.__make_computation("transpose-flip", [(display_item, data_item, crop_region)])
@@ -3025,43 +3049,15 @@ class ImplicitLineProfileIntervalsConnection:
             self.__observer.close()
 
 
-DocumentModel.register_processors(DocumentModel._get_builtin_processors())
+def _register_processors() -> None:
+    for processing_id, computation_processor in DocumentModel._get_builtin_processors().items():
+        # temporary hack to handle mapped scalar and window functions
+        if not processing_id.startswith("mapped-") and not processing_id.endswith("-window"):
+            computation_processor.old_built_in = True
+        Symbolic.ComputationProcessor.register(processing_id, computation_processor)
 
 
-def handle_processing_component_registered(component: Registry._ComponentType, component_types: typing.Set[str]) -> None:
-    if "processing-component" in component_types:
-        processing_component = typing.cast(Processing.ProcessingBase, component)
-        processing_component.register_computation()
-        d = {
-            "title": processing_component.title,
-            "sources": processing_component.sources,
-            "parameters": processing_component.parameters,
-            "attributes": processing_component.attributes,
-            "outputs": processing_component.outputs
-        }
-        # if processing is mappable, it can be applied to elements of a sequence/collection (navigable) data item
-        # this also create a UI element to indicate whether the operation _should_ be mapped if it is able to be mapped.
-        if processing_component.is_mappable and not processing_component.is_scalar:
-            mapping_param = {"name": "mapping", "label": _("Sequence/Collection Mapping"), "type": "string",
-                             "value": "none", "value_default": "none", "control_type": "choice"}
-            d["parameters"] = [mapping_param] + typing.cast(list[Processing.PersistentDictType], d["parameters"])
-        # if processing produces scalar data, it must be applied to a sequence/collection (navigable) data item
-        # this also creates a connection between a pick point on the output to the navigable location on the source.
-        if processing_component.is_mappable and processing_component.is_scalar:
-            map_out_region = {"name": "pick_point", "type": "point",
-                              "params": {"label": _("Pick"), "role": "collection_index"}}
-            d["out_regions"] = [map_out_region]
-            # TODO: generalize this so that other sequence/collections can be accepted by making a coordinate system monitor or similar
-            # TODO: processing should declare its relationship to input coordinate system and swift should automatically connect pickers
-            # TODO: in appropriate places.
-            d["requirements"] = [{"type": "dimensionality", "min": 4, "max": 4}]
-        DocumentModel.register_processors({processing_component.processing_id: Symbolic.ComputationProcessor.from_dict(d)})
-
-
-_handle_processing_component_registered_listener = Registry.listen_component_registered_event(handle_processing_component_registered)
-# listening to processing-component is used in two places, so do not use `fire_existing_...`
-for component in Registry.get_components_by_type("processing-component"):
-    handle_processing_component_registered(component, {"processing-component"})
+_register_processors()
 
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:

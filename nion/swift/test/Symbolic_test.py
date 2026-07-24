@@ -1976,6 +1976,83 @@ class TestSymbolicClass(unittest.TestCase):
             # check that computation was deleted
             self.assertNotIn(computation, document_model.computations)
 
+    def test_passing_region_to_computation(self):
+        p = Symbolic.ComputationProcessor(
+            expression="target = numpy.full((2, 2), point_region.position.y)",
+            title="Test region input",
+            inputs=[Symbolic.ComputationProcessorValueInput(Symbolic.ComputationProcessorVariableType.REGION_POINT, "point_region")],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("target", None, "xdata")]
+        )
+        Symbolic.ComputationProcessor.register("_test_region_input", p)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data_item = DataItem.DataItem(numpy.zeros((10, 10), int))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                graphic = Graphics.PointGraphic()
+                graphic.position = Geometry.FloatPoint(0.3, 0.7)
+                display_item.add_graphic(graphic)
+                new_data_item = DataItem.new_data_item()
+                document_model.append_data_item(new_data_item)
+                computation = document_model.create_computation()
+                computation.processing_id = "_test_region_input"
+                computation.create_input_item("point_region", Symbolic.make_item(graphic))
+                computation.create_output_item("target", Symbolic.make_item(new_data_item))
+                document_model.append_computation(computation)
+                document_model.recompute_all()
+                self.assertIsNone(computation.error_text)
+                self.assertTrue(numpy.array_equal(new_data_item.data, numpy.full((2, 2), 0.3)))
+        finally:
+            Symbolic.ComputationProcessor.unregister("_test_region_input")
+
+    def test_passing_region_list_to_computation(self):
+        p = Symbolic.ComputationProcessor(
+            expression="target = numpy.full((2, 2), len(regions))",
+            title="Test regions input",
+            inputs=[Symbolic.ComputationProcessorListInput("regions", "Regions", [Symbolic.ComputationProcessorValueInput(Symbolic.ComputationProcessorVariableType.REGION_POINT, "point_region")])],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("target", None, "xdata")]
+        )
+        Symbolic.ComputationProcessor.register("_test_regions_input", p)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data_item = DataItem.DataItem(numpy.zeros((10, 10), int))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                graphic1 = Graphics.PointGraphic()
+                display_item.add_graphic(graphic1)
+                graphic2 = Graphics.PointGraphic()
+                display_item.add_graphic(graphic2)
+                graphic3 = Graphics.PointGraphic()
+                display_item.add_graphic(graphic3)
+                new_data_item = DataItem.new_data_item()
+                document_model.append_data_item(new_data_item)
+                computation = document_model.create_computation()
+                computation.processing_id = "_test_regions_input"
+                computation.create_input_item("regions", Symbolic.make_item_list([graphic1, graphic2, graphic3]))
+                computation.create_output_item("target", Symbolic.make_item(new_data_item))
+                document_model.append_computation(computation)
+                document_model.recompute_all()
+                self.assertIsNone(computation.error_text)
+                self.assertTrue(numpy.array_equal(new_data_item.data, numpy.full((2, 2), 3)))
+                computation.remove_item_from_objects("regions", 1)
+                document_model.recompute_all()
+                self.assertIsNone(computation.error_text)
+                self.assertTrue(numpy.array_equal(new_data_item.data, numpy.full((2, 2), 2)))
+                computation.insert_item_into_objects("regions", 1, Symbolic.make_item(graphic2))
+                document_model.recompute_all()
+                self.assertIsNone(computation.error_text)
+                self.assertTrue(numpy.array_equal(new_data_item.data, numpy.full((2, 2), 3)))
+        finally:
+            Symbolic.ComputationProcessor.unregister("_test_regions_input")
+
     def disabled_test_reshape_rgb(self):
         assert False
 
