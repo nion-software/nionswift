@@ -3862,11 +3862,40 @@ class ComputationProcessor:
         self.outputs = list(outputs)
         self.old_built_in = False
 
+    @staticmethod
+    def _from_source(d: PersistentDictType) -> ComputationProcessorInput:
+        # handle backward compatibility until all clients updated
+        input_name = typing.cast(str, d["name"])
+        input_label = typing.cast(str | None, d.get("label"))
+        if input_name == "src" or "data_item" in input_name:
+            return ComputationProcessorDataInput(input_name, input_label, "xdata", tuple(), tuple(), False)
+        if "regions" in input_name:
+            return ComputationProcessorListInput.from_dict(d)
+        if "list" in input_name or "shifts" in input_name:
+            return ComputationProcessorListInput.from_dict(d)
+        if "graphic" in input_name or "region" in input_name:
+            return ComputationProcessorValueInput(ComputationProcessorVariableType.REGION_2D, input_name, input_label)
+        if "gamma" in input_name or "weight" in input_name or "rotation" in input_name:
+            return ComputationProcessorValueInput(ComputationProcessorVariableType.REAL, input_name, input_label)
+        if "index" in input_name:
+            return ComputationProcessorValueInput(ComputationProcessorVariableType.INTEGER, input_name, input_label)
+        if "enabled" in input_name or "flip" in input_name or "show" in input_name or "crop_to_valid":
+            return ComputationProcessorValueInput(ComputationProcessorVariableType.BOOLEAN, input_name, input_label)
+        if "str" in input_name:
+            return ComputationProcessorValueInput(ComputationProcessorVariableType.STRING, input_name, input_label)
+        if "min" in input_name or "max" in input_name:
+            return ComputationProcessorValueInput(ComputationProcessorVariableType.REAL, input_name, input_label)
+        if "vector" in input_name:
+            return ComputationProcessorValueInput(ComputationProcessorVariableType.COMPLEX, input_name, input_label)
+        raise NotImplementedError(f"{input_name} is not handled")
+
     @classmethod
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessor:
         expression = d.get("expression", None)
         title = d.get("title", None)
         inputs = [ComputationProcessorInput.from_dict(input_d) for input_d in d.get("inputs", list())]
+        if not inputs:
+            inputs = [cls._from_source(input_d) for input_d in d.get("sources", list())]
         attributes = d.get("attributes", dict())
         out_regions = [ComputationProcessorRegion.from_dict(region_d) for region_d in d.get("out_regions", list())]
         outputs = [ComputationProcessorOutput.from_dict(source_d) for source_d in d.get("outputs", list())]
