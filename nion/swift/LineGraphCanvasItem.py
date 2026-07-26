@@ -618,7 +618,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 left_channel, right_channel = region.channels
                 region_selected = region.selected
                 index = region.index
-                level = canvas_size.height - canvas_size.height * 0.8 + index * 8
+                level = canvas_size.height - canvas_size.height * 0.8 + index * int(self.__device_metrics.scale_length(8))
                 with drawing_context.saver():
                     drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                     drawing_context.clip_rect(0, 0, canvas_size.width, canvas_size.height)
@@ -646,9 +646,10 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.stroke()
 
                     mid_x = (left + right) / 2
+                    offset_marker = int(self.__device_metrics.scale_length(3))
                     drawing_context.move_to(left, level)
-                    drawing_context.line_to(mid_x - 3, level)
-                    drawing_context.move_to(mid_x + 3, level)
+                    drawing_context.line_to(mid_x - offset_marker, level)
+                    drawing_context.move_to(mid_x + offset_marker, level)
                     drawing_context.line_to(right, level)
                     drawing_context.stroke()
                     drawing_context.close_path()  # A new path is needed for the label to have a transparency in the background
@@ -676,9 +677,9 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         _draw_label_with_background(region.middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom", middle_background_color)
                     drawing_context.fill_style = region_color
                     if region.left_text and is_left_label_visible:
-                        _draw_label_with_background(region.left_text, left - 5, level, "right", "middle", left_background_color)
+                        _draw_label_with_background(region.left_text, left - int(self.__device_metrics.scale_length(5)), level, "right", "middle", left_background_color)
                     if region.right_text and is_right_label_visible:
-                        _draw_label_with_background(region.right_text, right + 5, level, "left", "middle", right_background_color)
+                        _draw_label_with_background(region.right_text, right + int(self.__device_metrics.scale_length(5)), level, "left", "middle", right_background_color)
                     label = region.label
                     if label and is_label_visible:
                         _draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top", label_background_color)
@@ -1187,8 +1188,8 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
         for index, legend_entry in enumerate(effective_entries):
             legend_width = max(legend_width, ui_settings.get_font_metrics(font, legend_entry.label).width)
 
-        line_height = font_size + 4
-        border = 4
+        line_height = font_size + int(self.__device_metrics.scale_length(4))
+        border = int(self.__device_metrics.scale_length(4))
         font = "{0:d}px".format(font_size)
 
         effective_entries_and_foreign = list(effective_entries)
@@ -1226,10 +1227,12 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.text_align = "right"
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(legend_entry.label, legend_width + border, line_height * (index + 1) - 4 + border)
+                    drawing_context.fill_text(legend_entry.label, legend_width + border, line_height * (index + 1) - int(self.__device_metrics.scale_length(4)) + border)
 
                     drawing_context.begin_path()
-                    drawing_context.rect(legend_width + border + 3, line_height * index + 3 + border, line_height - 6, line_height - 6)
+                    margin_offset = int(self.__device_metrics.scale_length(3))
+                    size_offset = int(self.__device_metrics.scale_length(6))
+                    drawing_context.rect(legend_width + border + margin_offset, line_height * index + margin_offset + border, line_height - size_offset, line_height - size_offset)
                     if legend_entry.fill_color:
                         drawing_context.fill_style = legend_entry.fill_color
                         drawing_context.fill()
