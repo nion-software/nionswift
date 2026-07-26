@@ -530,10 +530,11 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
                 self.on_adjust_secondary_focus(modifiers)
 
 
-def create_display_canvas_item(display_item: DisplayItem.DisplayItem, ui_settings: UISettings.UISettings,
+def create_display_canvas_item(display_item: DisplayItem.DisplayItem, drawing_metrics: UISettings.DrawingMetrics,
                                delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
                                event_loop: typing.Optional[asyncio.AbstractEventLoop],
                                draw_background: bool = True) -> DisplayCanvasItem.DisplayCanvasItem:
+    ui_settings = drawing_metrics.ui_settings
     display_type = display_item.used_display_type
     if display_type == "line_plot":
         return LinePlotCanvasItem.LinePlotCanvasItem(ui_settings, delegate)
@@ -2590,9 +2591,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     # update the display type so we can know when it changes.
                     self.__display_type = display_item.used_display_type
                     ui_settings = DisplayPanelUISettings(self.ui)
+                    drawing_metrics = UISettings.DrawingMetrics(ui_settings=ui_settings, ppi=96.0)
                     self.__display_about_to_be_removed_event_listener = display_item.about_to_be_removed_event.listen(clear_display)
                     self.__display_property_changed_event_listener = display_item.property_changed_event.listen(display_item_property_changed)
-                    new_display_canvas_item = create_display_canvas_item(display_item, ui_settings, self, document_controller.event_loop, True)
+                    new_display_canvas_item = create_display_canvas_item(display_item, drawing_metrics, self, document_controller.event_loop, True)
                     threaded_canvas_item = CanvasItem.ThreadedCanvasItem(new_display_canvas_item)
                     threaded_canvas_item.on_will_repaint = new_display_canvas_item.update_canvas_items
                     self.__display_composition_canvas_item.add_canvas_item(threaded_canvas_item)
@@ -3407,9 +3409,9 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         return dynamic_live_actions
 
 
-def preview(ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, pixel_shape: Geometry.IntSize) -> DrawingContext.DrawingContext:
+def preview(drawing_metrics: UISettings.DrawingMetrics, display_item: DisplayItem.DisplayItem, pixel_shape: Geometry.IntSize) -> DrawingContext.DrawingContext:
     drawing_context = DrawingContext.DrawingContext()
-    display_canvas_item = create_display_canvas_item(display_item, ui_settings, None, None, draw_background=False)
+    display_canvas_item = create_display_canvas_item(display_item, drawing_metrics, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
             display_info = display_item.display_info

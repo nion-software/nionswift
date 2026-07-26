@@ -29,3 +29,26 @@ class UISettings(typing.Protocol):
 
     @property
     def cursor_tolerance(self) -> float: raise NotImplementedError()
+
+
+@dataclasses.dataclass
+class DrawingMetrics:
+    ui_settings: UISettings  # get_font_metrics, truncate_string_to_width
+    ppi: float | None = None  # None for vector output
+
+    @property
+    def device_pixel(self) -> float:
+        return 96 / self.ppi if self.ppi else 0.0
+
+    @property
+    def scale(self) -> float:
+        return self.ppi / 96 if self.ppi else 1.0
+
+    def scale_font(self, pt: float) -> float:
+        return pt * 4/3 * self.scale
+
+    def scale_length(self, px: float) -> float:
+        return px * self.scale
+
+    def scale_stroke(self, px: float) -> float:
+        return max(px, 2/3, self.device_pixel) * self.scale

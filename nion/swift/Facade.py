@@ -72,6 +72,7 @@ from nion.swift.model import Metadata
 from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Symbolic
+from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Declarative
@@ -1353,7 +1354,8 @@ class DataItem(metaclass=SharedInstance):
     def data_item_to_svg(self) -> str:
         if self.__display_item:
             shape = Geometry.IntSize(height=240, width=320)
-            drawing_context = DisplayPanelModule.preview(DisplayPanelModule.FixedUISettings(), self.__display_item, shape)
+            drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanelModule.FixedUISettings(), ppi=None)
+            drawing_context = DisplayPanelModule.preview(drawing_metrics, self.__display_item, shape)
             view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
             return drawing_context.to_svg(shape, view_box)
         return str()
