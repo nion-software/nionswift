@@ -534,14 +534,13 @@ def create_display_canvas_item(display_item: DisplayItem.DisplayItem, drawing_me
                                delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
                                event_loop: typing.Optional[asyncio.AbstractEventLoop],
                                draw_background: bool = True) -> DisplayCanvasItem.DisplayCanvasItem:
-    ui_settings = drawing_metrics.ui_settings
     display_type = display_item.used_display_type
     if display_type == "line_plot":
-        return LinePlotCanvasItem.LinePlotCanvasItem(ui_settings, delegate)
+        return LinePlotCanvasItem.LinePlotCanvasItem(drawing_metrics, delegate, event_loop)
     elif display_type == "image":
-        return ImageCanvasItem.ImageCanvasItem(ui_settings, delegate, event_loop, draw_background)
+        return ImageCanvasItem.ImageCanvasItem(drawing_metrics, delegate, event_loop, draw_background)
     else:
-        return MissingDisplayCanvasItem(delegate)
+        return MissingDisplayCanvasItem(drawing_metrics, delegate, event_loop)
 
 
 def is_valid_display_type(display_type: str) -> bool:
@@ -1012,8 +1011,10 @@ class MissingCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class MissingDisplayCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """ Canvas item to draw background_color. """
-    def __init__(self, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
-        super().__init__(delegate)
+    def __init__(self, drawing_metrics: UISettings.DrawingMetrics,
+                 delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
+                 event_loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
+        super().__init__(drawing_metrics, delegate, event_loop)
         self.add_canvas_item(MissingCanvasItem())
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:

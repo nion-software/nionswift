@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import copy
 import math
 import operator
@@ -100,8 +101,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     painting = PaintFunction(layout, plot)
     """
 
-    def __init__(self, ui_settings: UISettings.UISettings, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
-        super().__init__(delegate)
+    def __init__(self, drawing_metrics: UISettings.DrawingMetrics,
+                 delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
+                 event_loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
+        super().__init__(drawing_metrics, delegate, event_loop)
+
+        ui_settings = drawing_metrics.ui_settings
 
         self.__ui_settings = ui_settings
 
