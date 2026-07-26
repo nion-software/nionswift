@@ -1433,6 +1433,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__dragging_index = None
         self._drag_start_position = None
         self.__entry_to_insert = None
+        self.__foreign_legend_entry = None
+        self.__foreign_legend_uuid_and_index = None
+        # when we leave the drag area, update the effective entries because we're no longer previewing a shift
         self.__generate_effective_entries()
         self.update()
         return True
