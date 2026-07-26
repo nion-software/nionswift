@@ -1082,7 +1082,7 @@ class DocumentController(Window.Window):
             display_item_snapshot.display_properties = display_properties
             # create the drawing context and shape for the preview
             drawing_metrics = UISettings.DrawingMetrics(ui_settings=ui_settings, ppi=None)
-            drawing_context = DisplayPanel.preview(drawing_metrics, display_item_snapshot, display_shape)
+            drawing_context = DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item_snapshot, display_shape)
             # set up the SVG
             view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
             svg = drawing_context.to_svg(display_shape, view_box)
@@ -1830,7 +1830,7 @@ class DocumentController(Window.Window):
                 display_shape = Geometry.IntSize(height=600, width=800)
 
             drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.FixedUISettings(), ppi=96.0)
-            drawing_context = DisplayPanel.preview(drawing_metrics, display_item, display_shape)
+            drawing_context = DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item, display_shape)
 
             view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
 

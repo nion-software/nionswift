@@ -817,10 +817,10 @@ class LineGraphHorizontalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
 class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the horizontal scale."""
 
-    def __init__(self) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__()
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
-        self.__font_size = 12
+        self.__font_size = display_style.get_font_size("axis-label")
         self.update_sizing(self.sizing.with_fixed_height(self.__font_size + 4))
 
     def set_axes(self, axes: typing.Optional[LinePlotDisplay.LineGraphAxes]) -> None:
@@ -859,10 +859,10 @@ class LineGraphHorizontalAxisLabelCanvasItemComposer(CanvasItem.BaseComposer):
 class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the horizontal label."""
 
-    def __init__(self) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__()
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
-        self.__font_size = 12
+        self.__font_size = display_style.get_font_size("axis-label")
         self.update_sizing(self.sizing.with_fixed_height(self.__font_size + 4))
 
     def size_to_content(self) -> None:
@@ -1037,10 +1037,10 @@ class LineGraphVerticalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
 class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical scale."""
 
-    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__()
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
-        self.__font_size = 12
+        self.__font_size = display_style.get_font_size("axis-label")
         self.__fonts = ("{0:d}px".format(self.__font_size), "{0:d}px".format(int(self.__font_size * 0.8)))
         self.__device_metrics = device_metrics
 
@@ -1107,10 +1107,10 @@ class LineGraphVerticalAxisLabelCanvasItemComposer(CanvasItem.BaseComposer):
 class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical label."""
 
-    def __init__(self) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__()
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
-        self.__font_size = 12
+        self.__font_size = display_style.get_font_size("axis-label")
         self.update_sizing(self.sizing.with_fixed_width(self.__font_size + 4))
 
     def size_to_content(self) -> None:

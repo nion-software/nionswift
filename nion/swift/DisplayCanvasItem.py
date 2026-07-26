@@ -107,10 +107,12 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     bypass_multi_select = False
 
     def __init__(self, drawing_metrics: UISettings.DrawingMetrics,
+                 display_style: UISettings.DisplayStyle,
                  delegate: typing.Optional[DisplayCanvasItemDelegate],
                  event_loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
         super().__init__()
         self.__drawing_metrics = drawing_metrics
+        self.__display_style = display_style
         self.__event_loop = event_loop
         self.delegate = delegate
         self.__display_info = DisplayInfo.DisplayInfo(None, dict(), list(), list(), list(), list(), None)
@@ -120,6 +122,9 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def drawing_metrics(self) -> UISettings.DrawingMetrics:
         return self.__drawing_metrics
 
+    @property
+    def display_style(self) -> UISettings.DisplayStyle:
+        return self.__display_style
 
     @property
     def event_loop(self) -> typing.Optional[asyncio.AbstractEventLoop]:

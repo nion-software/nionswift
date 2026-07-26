@@ -3317,7 +3317,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.DisplayPanelUISettings(document_controller.ui), ppi=96.0)
-            DisplayPanel.preview(drawing_metrics, display_item, Geometry.IntSize(512, 512))
+            DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item, Geometry.IntSize(512, 512))
 
     def test_line_plot_display_handles_invalid_calibration(self):
         with TestContext.create_memory_context() as test_context:
@@ -3328,7 +3328,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.DisplayPanelUISettings(document_controller.ui), ppi=96.0)
-            DisplayPanel.preview(drawing_metrics, display_item, Geometry.IntSize(128, 128))
+            DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item, Geometry.IntSize(128, 128))
 
     def test_preview_produces_expected_data_on_orphan_display_item(self):
         with TestContext.create_memory_context() as test_context:
@@ -3339,7 +3339,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item = document_model.get_display_item_for_data_item(data_item)
             with contextlib.closing(display_item.snapshot()) as display_item_snapshot:
                 drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.DisplayPanelUISettings(document_controller.ui), ppi=96.0)
-                drawing_context = DisplayPanel.preview(drawing_metrics, display_item_snapshot, Geometry.IntSize(256, 256))
+                drawing_context = DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item_snapshot, Geometry.IntSize(256, 256))
                 self.assertIsNotNone(display_item_snapshot.display_data_channels[0].display_values)
 
     def test_adding_fourier_filter_is_undoable(self):

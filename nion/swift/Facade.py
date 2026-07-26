@@ -1355,7 +1355,7 @@ class DataItem(metaclass=SharedInstance):
         if self.__display_item:
             shape = Geometry.IntSize(height=240, width=320)
             drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanelModule.FixedUISettings(), ppi=None)
-            drawing_context = DisplayPanelModule.preview(drawing_metrics, self.__display_item, shape)
+            drawing_context = DisplayPanelModule.preview(drawing_metrics, UISettings.DisplayStyle(), self.__display_item, shape)
             view_box = Geometry.IntRect(Geometry.IntPoint(), shape)
             return drawing_context.to_svg(shape, view_box)
         return str()
