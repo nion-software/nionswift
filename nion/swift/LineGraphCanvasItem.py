@@ -530,15 +530,15 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], regions: typing.Sequence[LinePlotDisplay.RegionInfo], is_focused: bool, ui_settings: UISettings.UISettings) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], regions: typing.Sequence[LinePlotDisplay.RegionInfo], is_focused: bool, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
         self.__axes = axes
         self.__regions = regions
         self.__is_focused = is_focused
-        self.__ui_settings = ui_settings
+        self.__device_metrics = device_metrics
         self.font = "12px"
-        self.font_size_metric = self.__ui_settings.get_font_metrics(self.font, "My")  # If in the future the font_size changes then this should be changed to observe it and update accordingly
+        self.font_size_metric = self.__device_metrics.ui_settings.get_font_metrics(self.font, "My")  # If in the future the font_size changes then this should be changed to observe it and update accordingly
         self.label_text_color = "black"
         self.text_background_color = "#99ffffff"
 
@@ -572,7 +572,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 The text_baseline is the vertical alignment of the text, 'top', 'bottom' otherwise middle
                 Margin is added to the x-axis
                 """
-                metrics = self.__ui_settings.get_font_metrics(self.font, text)
+                metrics = self.__device_metrics.ui_settings.get_font_metrics(self.font, text)
                 width = float(metrics.width) + 2 * margin  # Margin around the text for legibility
                 ascent = float(metrics.ascent)
                 descent = float(metrics.descent)
@@ -688,12 +688,12 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot itself."""
 
-    def __init__(self, ui_settings: UISettings.UISettings) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__()
         self.__regions = tuple[LinePlotDisplay.RegionInfo]()
         self.__axes: LinePlotDisplay.LineGraphAxes | None = None
         self.__is_focused = False
-        self.__ui_settings = ui_settings
+        self.__device_metrics = device_metrics
 
     @property
     def _axes(self) -> LinePlotDisplay.LineGraphAxes | None:  # for testing only
@@ -717,7 +717,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphRegionsCanvasItemComposer(self, self.layout_sizing, composer_cache, self._axes, self.__regions, self.__is_focused, self.__ui_settings)
+        return LineGraphRegionsCanvasItemComposer(self, self.layout_sizing, composer_cache, self._axes, self.__regions, self.__is_focused, self.__device_metrics)
 
 
 class LineGraphFrameCanvasItemComposer(CanvasItem.BaseComposer):
@@ -955,10 +955,10 @@ class Exponenter:
         else:
             return labels[0], ""
 
-    def draw_scientific_notation(self, drawing_context: DrawingContext.DrawingContext, ui_settings: UISettings.UISettings, fonts: typing.Tuple[str, str], label: str, width: int, y: float) -> None:
+    def draw_scientific_notation(self, drawing_context: DrawingContext.DrawingContext, device_metrics: UISettings.DrawingMetrics, fonts: typing.Tuple[str, str], label: str, width: int, y: float) -> None:
         labels = self.used_labels(label)
         if labels[1] is not None:
-            mw = max([ui_settings.get_font_metrics(fonts[1], _labels[1]).width for _labels in self.__labels_list], default=0)
+            mw = max([device_metrics.ui_settings.get_font_metrics(fonts[1], _labels[1]).width for _labels in self.__labels_list], default=0)
             drawing_context.font = fonts[0]
             drawing_context.text_align = "right"
             drawing_context.fill_text(labels[0], width - mw, y)
@@ -976,22 +976,22 @@ def _normalize_label_for_size_calculation(label: str) -> str:
     return _LABEL_SIZE_CALCULATION_NORMALIZE_RE.sub("0", label)
 
 
-def calculate_scientific_notation_drawing_width(ui_settings: UISettings.UISettings, fonts: typing.Tuple[str, str], label: str) -> int:
+def calculate_scientific_notation_drawing_width(device_metrics: UISettings.DrawingMetrics, fonts: typing.Tuple[str, str], label: str) -> int:
     labels = label.lower().split("e")
     if len(labels) == 2:
         labels[0] = labels[0] + " x 10"
         labels[1] = str(int(labels[1]))
-    return sum(ui_settings.get_font_metrics(font, _normalize_label_for_size_calculation(label)).width
+    return sum(device_metrics.ui_settings.get_font_metrics(font, _normalize_label_for_size_calculation(label)).width
                for font, label in zip(fonts, labels))
 
 
 class LineGraphVerticalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], font_size: int, fonts: typing.Tuple[str, str], ui_settings: UISettings.UISettings) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], font_size: int, fonts: typing.Tuple[str, str], device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__axes = axes
         self.__font_size = font_size
         self.__fonts = fonts
-        self.__ui_settings = ui_settings
+        self.__device_metrics = device_metrics
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         # draw the data, if any
@@ -1025,24 +1025,24 @@ class LineGraphVerticalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.begin_path()
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
-                    if (include_minor_ticks or not is_minor) and self.__ui_settings:
+                    if (include_minor_ticks or not is_minor) and label is not None:
                         drawing_context.fill_style = "#000"
-                        e.draw_scientific_notation(drawing_context, self.__ui_settings, self.__fonts, label, width, y)
+                        e.draw_scientific_notation(drawing_context, self.__device_metrics, self.__fonts, label, width, y)
                         at_least_one = True
-                if not at_least_one and y_ticks and y is not None and label is not None and self.__ui_settings:
+                if not at_least_one and y_ticks and y is not None and label is not None:
                     drawing_context.fill_style = "#000"
-                    e.draw_scientific_notation(drawing_context, self.__ui_settings, self.__fonts, label, width, y)
+                    e.draw_scientific_notation(drawing_context, self.__device_metrics, self.__fonts, label, width, y)
 
 
 class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical scale."""
 
-    def __init__(self, ui_settings: UISettings.UISettings) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__()
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
         self.__font_size = 12
         self.__fonts = ("{0:d}px".format(self.__font_size), "{0:d}px".format(int(self.__font_size * 0.8)))
-        self.__ui_settings = ui_settings
+        self.__device_metrics = device_metrics
 
     def size_to_content(self) -> None:
         """ Size the canvas item to the proper width, the maximum of any label. """
@@ -1056,9 +1056,9 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             # calculate the width based on the label lengths
             max_width = 0
             y_range = axes.calibrated_value_max - axes.calibrated_value_min
-            ui_settings = self.__ui_settings
-            max_width = max(max_width, calculate_scientific_notation_drawing_width(ui_settings, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_max + y_range * 5)))
-            max_width = max(max_width, calculate_scientific_notation_drawing_width(ui_settings, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_min - y_range * 5)))
+            device_metrics = self.__device_metrics
+            max_width = max(max_width, calculate_scientific_notation_drawing_width(device_metrics, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_max + y_range * 5)))
+            max_width = max(max_width, calculate_scientific_notation_drawing_width(device_metrics, self.__fonts, axes.y_ticker.value_label(axes.calibrated_value_min - y_range * 5)))
             new_sizing = new_sizing.with_minimum_width(max_width)
             new_sizing = new_sizing.with_maximum_width(max_width)
 
@@ -1071,7 +1071,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphVerticalAxisScaleCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__font_size, self.__fonts, self.__ui_settings)
+        return LineGraphVerticalAxisScaleCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__font_size, self.__fonts, self.__device_metrics)
 
 
 class LineGraphVerticalAxisLabelCanvasItemComposer(CanvasItem.BaseComposer):
@@ -1158,7 +1158,7 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
                  legend_entries: typing.Sequence[LinePlotDisplay.LegendEntry], effective_legend_entries: typing.Sequence[LinePlotDisplay.LegendEntry],
                  foreign_legend_entry: typing.Optional[LinePlotDisplay.LegendEntry], mouse_pressed_for_dragging: bool,
-                 entry_to_insert: typing.Optional[int], font_size: int, ui_settings: UISettings.UISettings) -> None:
+                 entry_to_insert: typing.Optional[int], font_size: int, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__legend_entries = list(legend_entries)
         self.__effective_entries = list(effective_legend_entries)
@@ -1166,7 +1166,7 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
         self.__mouse_pressed_for_dragging = mouse_pressed_for_dragging
         self.__entry_to_insert = entry_to_insert
         self.__font_size = font_size
-        self.__ui_settings = ui_settings
+        self.__device_metrics = device_metrics
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         legend_entries = self.__legend_entries
@@ -1175,7 +1175,7 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
         mouse_pressed_for_dragging = self.__mouse_pressed_for_dragging
         entry_to_insert = self.__entry_to_insert
         font_size = self.__font_size
-        ui_settings = self.__ui_settings
+        ui_settings = self.__device_metrics.ui_settings
 
         # don't display the canvas item if there are less than two items
         if legend_entries is None or len(legend_entries) < 2:
@@ -1241,7 +1241,7 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot legend."""
 
-    def __init__(self, ui_settings: UISettings.UISettings, delegate: LineGraphLegendCanvasItemDelegate) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics, delegate: LineGraphLegendCanvasItemDelegate) -> None:
         super().__init__()
 
         self.__delegate = delegate
@@ -1277,7 +1277,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         # canvas item settings
         self.wants_mouse_events = True
         self.wants_drag_events = True
-        self.__ui_settings = ui_settings
+        self.__device_metrics = device_metrics
         self.__font_size: typing.Final = 12
 
         # caching
@@ -1318,7 +1318,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             font = "{0:d}px".format(self.__font_size)
 
             for index, legend_entry in enumerate(effective_entries):
-                text_width = max(text_width, self.__ui_settings.get_font_metrics(font, legend_entry.label).width)
+                text_width = max(text_width, self.__device_metrics.ui_settings.get_font_metrics(font, legend_entry.label).width)
 
             legend_width = text_width + border * 2 + line_height
 
@@ -1349,7 +1349,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         font = "{0:d}px".format(self.__font_size)
 
         for index, legend_entry in enumerate(legend_entries):
-            legend_width = max(legend_width, self.__ui_settings.get_font_metrics(font, legend_entry.label).width)
+            legend_width = max(legend_width, self.__device_metrics.ui_settings.get_font_metrics(font, legend_entry.label).width)
 
         end_x = legend_width + line_height + border * 2
 
@@ -1511,4 +1511,4 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphLegendCanvasItemComposer(self, self.layout_sizing, composer_cache,
                                                  self.__legend_entries, self.__effective_entries, self.__foreign_legend_entry,
-                                                 self.__mouse_pressed_for_dragging, self.__entry_to_insert, self.__font_size, self.__ui_settings)
+                                                 self.__mouse_pressed_for_dragging, self.__entry_to_insert, self.__font_size, self.__device_metrics)
