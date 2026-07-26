@@ -784,7 +784,7 @@ class PointerMouseHandler(MouseHandler):
                 already_selected = graphic_index in selection_indexes
                 move_only = not already_selected or multiple_items_selected
                 try:
-                    part, specific = graphic.test(widget_mapping, image_canvas_item.device_metrics, start_drag_pos, move_only)
+                    part, specific = graphic.test(widget_mapping, image_canvas_item.device_metrics, image_canvas_item.display_style, start_drag_pos, move_only)
                 except Exception as e:
                     import traceback
                     logging.debug("Graphic Test Error: %s", e)
@@ -829,7 +829,7 @@ class PointerMouseHandler(MouseHandler):
         def get_pointer_tool_shape(mouse_pos: Geometry.FloatPoint) -> str:
             for graphic in graphics:
                 if isinstance(graphic, (Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
-                    part, specific = graphic.test(image_canvas_item.mouse_mapping, image_canvas_item.device_metrics, mouse_pos, False)
+                    part, specific = graphic.test(image_canvas_item.mouse_mapping, image_canvas_item.device_metrics, image_canvas_item.display_style, mouse_pos, False)
                     if part and part.endswith("rotate"):
                         return "cross"
             return "arrow"
