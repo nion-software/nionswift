@@ -536,15 +536,14 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], regions: typing.Sequence[LinePlotDisplay.RegionInfo], is_focused: bool, device_metrics: UISettings.DrawingMetrics) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], regions: typing.Sequence[LinePlotDisplay.RegionInfo], is_focused: bool, device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
         self.__axes = axes
         self.__regions = regions
         self.__is_focused = is_focused
         self.__device_metrics = device_metrics
-        self.font = "12px"
-        self.font_size_metric = self.__device_metrics.ui_settings.get_font_metrics(self.font, "My")  # If in the future the font_size changes then this should be changed to observe it and update accordingly
+        self.__display_style = display_style
         self.label_text_color = "black"
         self.text_background_color = "#99ffffff"
 
@@ -556,6 +555,10 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
 
         axes = self.__axes
         if axes:
+            font_size = self.__display_style.get_font_size("interval-label")
+            font = f"{font_size:d}px"
+            font_size_metric = self.__device_metrics.ui_settings.get_font_metrics(font, "My")
+
             # extract the data we need for drawing y-axis
             data_left = axes.drawn_left_channel
             data_right = axes.drawn_right_channel
@@ -578,7 +581,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 The text_baseline is the vertical alignment of the text, 'top', 'bottom' otherwise middle
                 Margin is added to the x-axis
                 """
-                metrics = self.__device_metrics.ui_settings.get_font_metrics(self.font, text)
+                metrics = self.__device_metrics.ui_settings.get_font_metrics(font, text)
                 width = float(metrics.width) + 2 * margin  # Margin around the text for legibility
                 ascent = float(metrics.ascent)
                 descent = float(metrics.descent)
@@ -665,7 +668,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color)
                     else:
                         draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
-                    drawing_context.font = self.font
+                    drawing_context.font = font
 
                     is_label_visible = True
                     is_middle_label_visible = Graphics.GraphicRenderer.is_label_visible(Graphics.Graphic.resolve_used_property(region.used_text_visibility_map, "width_text"), region_selected)
@@ -680,7 +683,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     right_background_color = Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "right_text") or text_background_color
 
                     if region.middle_text and region.style != "tag" and is_middle_label_visible:
-                        _draw_label_with_background(region.middle_text, mid_x, level - self.font_size_metric.height, "center", "bottom", middle_background_color)
+                        _draw_label_with_background(region.middle_text, mid_x, level - font_size_metric.height, "center", "bottom", middle_background_color)
                     drawing_context.fill_style = region_color
                     if region.left_text and is_left_label_visible:
                         _draw_label_with_background(region.left_text, left - int(self.__device_metrics.scale_length(5)), level, "right", "middle", left_background_color)
@@ -688,19 +691,20 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         _draw_label_with_background(region.right_text, right + int(self.__device_metrics.scale_length(5)), level, "left", "middle", right_background_color)
                     label = region.label
                     if label and is_label_visible:
-                        _draw_label_with_background(label, mid_x, level + self.font_size_metric.height, "center", "top", label_background_color)
+                        _draw_label_with_background(label, mid_x, level + font_size_metric.height, "center", "top", label_background_color)
                     drawing_context.close_path()
 
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot itself."""
 
-    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__()
         self.__regions = tuple[LinePlotDisplay.RegionInfo]()
         self.__axes: LinePlotDisplay.LineGraphAxes | None = None
         self.__is_focused = False
         self.__device_metrics = device_metrics
+        self.__display_style = display_style
 
     @property
     def _axes(self) -> LinePlotDisplay.LineGraphAxes | None:  # for testing only
@@ -724,7 +728,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphRegionsCanvasItemComposer(self, self.layout_sizing, composer_cache, self._axes, self.__regions, self.__is_focused, self.__device_metrics)
+        return LineGraphRegionsCanvasItemComposer(self, self.layout_sizing, composer_cache, self._axes, self.__regions, self.__is_focused, self.__device_metrics, self.__display_style)
 
 
 class LineGraphFrameCanvasItemComposer(CanvasItem.BaseComposer):

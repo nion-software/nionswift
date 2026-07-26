@@ -36,6 +36,7 @@ class DisplayStyle:
     _FONT_SIZES: typing.Mapping[str, int] = {
         "scale-marker": 14,
         "axis-label": 12,
+        "interval-label": 12,
     }
 
     def __init__(self, font_sizes: typing.Mapping[str, int] | None = None) -> None:

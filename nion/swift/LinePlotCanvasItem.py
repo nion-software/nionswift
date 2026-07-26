@@ -119,7 +119,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_layers_canvas_item = LineGraphCanvasItem.LineGraphLayersCanvasItem(self.__device_metrics)
-        self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem(self.__device_metrics)
+        self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem(self.__device_metrics, self.__display_style)
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem(self.__device_metrics)
         self.__line_graph_legend_row = CanvasItem.CanvasItemComposition()
         self.__line_graph_legend_row.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(int(self.drawing_metrics.scale_length(4)), int(self.drawing_metrics.scale_length(8)), int(self.drawing_metrics.scale_length(4)), int(self.drawing_metrics.scale_length(8))))
