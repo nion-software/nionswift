@@ -966,7 +966,7 @@ class Graphic(Persistence.PersistentObject):
     def get_renderer(self) -> GraphicRenderer:
         raise NotImplementedError()
 
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         raise NotImplementedError()
 
     def get_region(self) -> RegionBase:
@@ -1263,7 +1263,7 @@ class RectangleTypeGraphic(Graphic):
         return RectangleMaskItem(self.bounds, self.rotation)
 
     # test point hit
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
@@ -1622,7 +1622,7 @@ class LineTypeGraphic(Graphic):
         return LineMaskItem(self.start, self.end)
 
     # test is required for Graphic interface
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
@@ -1951,7 +1951,7 @@ class PointTypeGraphic(Graphic):
         return PointMaskItem(self.position)
 
     # test is required for Graphic interface
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
@@ -2180,7 +2180,7 @@ class IntervalGraphic(Graphic):
         return IntervalGraphicRenderer(self)
 
     # test is required for Graphic interface
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
@@ -2293,7 +2293,7 @@ class ChannelGraphic(Graphic):
         return ChannelGraphicRenderer(self)
 
     # test is required for Graphic interface
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
@@ -2439,7 +2439,7 @@ class SpotGraphic(Graphic):
         return SpotGraphicRenderer(self)
 
     # test point hit
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
@@ -2646,7 +2646,7 @@ class WedgeGraphic(Graphic):
             self.end_angle = value - 2 * math.pi
 
     # test is required for Graphic interface
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
@@ -2864,7 +2864,7 @@ class RingGraphic(Graphic):
         return "fourier_mask"
 
     # test is required for Graphic interface
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
@@ -3100,7 +3100,7 @@ class LatticeGraphic(Graphic):
         return "fourier_mask"
 
     # test is required for Graphic interface
-    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
+    def test(self, mapping: CoordinateMappingLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, p: Geometry.FloatPoint, move_only: bool) -> typing.Tuple[typing.Optional[str], bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         ui_settings = device_context.ui_settings
