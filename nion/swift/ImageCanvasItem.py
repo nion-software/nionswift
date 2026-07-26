@@ -269,8 +269,8 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
         dimensional_calibration = self.__dimensional_calibration
         info_text = self.__info_text
         screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel
-        scale_marker_width = max(16, min(round(canvas_bounds.width * 0.8), 120))
-        scale_marker_height = 6
+        scale_marker_width = max(int(self.__device_metrics.scale_length(16)), min(round(canvas_bounds.width * 0.8), int(self.__device_metrics.scale_length(120))))
+        scale_marker_height = int(self.__device_metrics.scale_length(6))
         scale_marker_font_size = self.__display_style.get_font_size("scale-marker")
         scale_marker_font = f"normal {scale_marker_font_size:d}px serif"
         get_font_metrics_fn = self.__device_metrics.ui_settings.get_font_metrics
@@ -287,12 +287,12 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
             text2 = info_text
             fm2 = get_font_metrics_fn(scale_marker_font, text2)
             text_width = max(fm1.width, fm2.width)
-            padding = 3
+            padding = int(self.__device_metrics.scale_length(3))
 
             content_width = max(scale_marker_calculated_width, text_width)
             # Set drawing origin
             if self.__scale_marker_position == "bottom-right":
-                origin_x = max(0.0, canvas_bounds.width * 2 - (content_width + padding * 2 + 16))
+                origin_x = max(0.0, canvas_bounds.width * 2 - (content_width + padding * 2 + int(self.__device_metrics.scale_length(16))))
             else:
                 origin_x = 0
 
@@ -329,12 +329,12 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.fill_style = self.__scale_marker_text_color or "white"
                 if self.__scale_marker_position == "bottom-right":
                     drawing_context.text_align = "right"
-                    drawing_context.fill_text(text1, content_width, baseline - scale_marker_height - 4)
-                    drawing_context.fill_text(text2, content_width, baseline - scale_marker_height - 4 - text_height)
+                    drawing_context.fill_text(text1, content_width, baseline - scale_marker_height - int(self.__device_metrics.scale_length(4)))
+                    drawing_context.fill_text(text2, content_width, baseline - scale_marker_height - int(self.__device_metrics.scale_length(4)) - text_height)
                 else:
                     drawing_context.text_align = "left"
-                    drawing_context.fill_text(text1, 0, baseline - scale_marker_height - 4)
-                    drawing_context.fill_text(text2, 0, baseline - scale_marker_height - 4 - text_height)
+                    drawing_context.fill_text(text1, 0, baseline - scale_marker_height - int(self.__device_metrics.scale_length(4)))
+                    drawing_context.fill_text(text2, 0, baseline - scale_marker_height - int(self.__device_metrics.scale_length(4)) - text_height)
 
 
 class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -1083,7 +1083,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__scale_marker_canvas_item = ScaleMarkerCanvasItem(self.__composite_canvas_item.screen_pixel_per_image_pixel_stream, self.__device_metrics, self.__display_style)
         info_overlay_row = CanvasItem.CanvasItemComposition()
         info_overlay_row.layout = CanvasItem.CanvasItemRowLayout()
-        info_overlay_row.add_spacing(12)
+        info_overlay_row.add_spacing(int(self.drawing_metrics.scale_length(12)))
         info_overlay_row.add_canvas_item(self.__scale_marker_canvas_item)
         info_overlay_row.add_stretch()
         self.__timestamp_canvas_item = CanvasItem.TimestampCanvasItem()
@@ -1091,7 +1091,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__overlay_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__overlay_canvas_item.add_stretch()
         self.__overlay_canvas_item.add_canvas_item(info_overlay_row)
-        self.__overlay_canvas_item.add_spacing(8)
+        self.__overlay_canvas_item.add_spacing(int(self.drawing_metrics.scale_length(8)))
         self.__frame_rate_canvas_item = DisplayCanvasItem.FrameRateCanvasItem()
         # canvas items get added back to front
         if draw_background:
