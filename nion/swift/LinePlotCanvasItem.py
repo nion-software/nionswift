@@ -472,7 +472,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     for graphic_index, graphic in enumerate(graphics):
                         if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
                             widget_mapping = self.__get_mouse_mapping()
-                            part, specific = graphic.test(widget_mapping, self.__device_metrics.ui_settings, pos.to_float_point(), False)
+                            part, specific = graphic.test(widget_mapping, self.__device_metrics, pos.to_float_point(), False)
                             if part in {"start", "end"} and not modifiers.control:
                                 self.cursor_shape = "size_horizontal"
                                 break
@@ -635,7 +635,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     multiple_items_selected = len(selection_indexes) > 1
                     move_only = not already_selected or multiple_items_selected
                     widget_mapping = self.__get_mouse_mapping()
-                    part, specific = graphic.test(widget_mapping, self.__device_metrics.ui_settings, self.__graphic_drag_start_pos.to_float_point(), move_only)
+                    part, specific = graphic.test(widget_mapping, self.__device_metrics, self.__graphic_drag_start_pos.to_float_point(), move_only)
                     if part:
                         # select item and prepare for drag
                         self.graphic_drag_item_was_selected = already_selected
@@ -723,7 +723,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 selection_indexes = graphic_selection.indexes
                 for graphic_index, graphic in enumerate(self.__line_plot_display_info.graphics):
                     if graphic == region:
-                        part, specific = graphic.test(widget_mapping, self.__device_metrics.ui_settings, pos.to_float_point(), False)
+                        part, specific = graphic.test(widget_mapping, self.__device_metrics, pos.to_float_point(), False)
                         if part:
                             self.graphic_drag_item_was_selected = False
                             delegate.set_selection(graphic_index)
