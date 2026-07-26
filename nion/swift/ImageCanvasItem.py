@@ -271,8 +271,7 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
         screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel
         scale_marker_width = max(int(self.__device_metrics.scale_length(16)), min(round(canvas_bounds.width * 0.8), int(self.__device_metrics.scale_length(120))))
         scale_marker_height = int(self.__device_metrics.scale_length(6))
-        scale_marker_font_size = self.__display_style.get_font_size("scale-marker")
-        scale_marker_font = f"normal {scale_marker_font_size:d}px serif"
+        scale_marker_font = self.__display_style.get_font("scale-marker", self.__device_metrics)
         get_font_metrics_fn = self.__device_metrics.ui_settings.get_font_metrics
 
         if dimensional_calibration and screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
@@ -346,7 +345,6 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
     """
     scale_marker_width = 120
     scale_marker_height = 6
-    scale_marker_font_template = "normal {0:d}px serif"
 
     def __init__(self, screen_pixel_per_image_pixel_stream: Stream.ValueStream[float], device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__()
@@ -403,8 +401,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         return self.__dimensional_calibration
 
     def __update_sizing(self) -> None:
-        scale_marker_font_size = self.__display_style.get_font_size("scale-marker")
-        scale_marker_font = self.scale_marker_font_template.format(scale_marker_font_size)
+        scale_marker_font = self.__display_style.get_font("scale-marker", self.__device_metrics)
         height = self.scale_marker_height + 4 + 2 * self.__device_metrics.ui_settings.get_font_metrics(scale_marker_font, "MMM").height
         scale_marker_width = 0
         dimensional_calibration = self.__dimensional_calibration
