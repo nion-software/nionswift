@@ -31,6 +31,20 @@ class UISettings(typing.Protocol):
     def cursor_tolerance(self) -> float: raise NotImplementedError()
 
 
+class DisplayStyle:
+
+    _FONT_SIZES: typing.Mapping[str, int] = {
+        "scale-marker": 14,
+        "axis-label": 12,
+    }
+
+    def __init__(self, font_sizes: typing.Mapping[str, int] | None = None) -> None:
+        self.__font_sizes = dict(font_sizes) if font_sizes is not None else dict(self._FONT_SIZES)
+
+    def get_font_size(self, part: str) -> int:
+        return self.__font_sizes.get(part, 12)
+
+
 @dataclasses.dataclass
 class DrawingMetrics:
     ui_settings: UISettings  # get_font_metrics, truncate_string_to_width

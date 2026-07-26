@@ -154,6 +154,7 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
                  layout_sizing: CanvasItem.Sizing,
                  cache: CanvasItem.ComposerCache,
                  device_metrics: UISettings.DrawingMetrics,
+                 display_style: UISettings.DisplayStyle,
                  graphic_renderers: typing.Sequence[Graphics.GraphicRenderer],
                  graphic_selection: DisplayItem.GraphicSelection,
                  displayed_shape: typing.Optional[DataAndMetadata.ShapeType],
@@ -161,6 +162,7 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
                  is_focused: bool) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__device_metrics = device_metrics
+        self.__display_style = display_style
         self.__graphic_renderers = graphic_renderers
         self.__graphic_selection = graphic_selection
         self.__displayed_shape = displayed_shape
@@ -169,6 +171,7 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         device_metrics = self.__device_metrics
+        display_style = self.__display_style
         graphic_renderers = self.__graphic_renderers
         graphic_selection = self.__graphic_selection
         displayed_shape = self.__displayed_shape
@@ -180,7 +183,7 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 for graphic_index, graphic_renderer in enumerate(graphic_renderers):
                     try:
-                        graphic_renderer.draw(drawing_context, device_metrics, widget_mapping, graphic_selection.contains(graphic_index), is_focused)
+                        graphic_renderer.draw(drawing_context, device_metrics, display_style, widget_mapping, graphic_selection.contains(graphic_index), is_focused)
                     except Exception as e:
                         import traceback
                         logging.debug("Graphic Repaint Error: %s", e)
@@ -194,9 +197,10 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     Callers should call update_graphics when the graphics changes.
     """
 
-    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__()
         self.__device_metrics = device_metrics
+        self.__display_style = display_style
         self.__displayed_shape: typing.Optional[DataAndMetadata.ShapeType] = None
         self.__graphic_renderers: typing.Sequence[Graphics.GraphicRenderer] = tuple()
         self.__graphics_for_compare: typing.Sequence[tuple[uuid.UUID, int]] = tuple()
@@ -239,7 +243,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__device_metrics, self.__graphic_renderers, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system, self.__is_focused)
+        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__device_metrics, self.__display_style, self.__graphic_renderers, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system, self.__is_focused)
 
 
 class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
@@ -247,6 +251,7 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
                  cache: CanvasItem.ComposerCache, dimensional_calibration: typing.Optional[Calibration.Calibration],
                  info_text: str, screen_pixel_per_image_pixel: typing.Optional[float],
                  device_metrics: UISettings.DrawingMetrics,
+                 display_style: UISettings.DisplayStyle,
                  scale_marker_position: str | None,
                  scale_marker_text_color: str | None,
                  scale_marker_background_color: str | None) -> None:
@@ -255,6 +260,7 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
         self.__info_text = info_text
         self.__screen_pixel_per_image_pixel = screen_pixel_per_image_pixel
         self.__device_metrics = device_metrics
+        self.__display_style = display_style
         self.__scale_marker_position = scale_marker_position
         self.__scale_marker_text_color = scale_marker_text_color
         self.__scale_marker_background_color = scale_marker_background_color
@@ -265,7 +271,8 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
         screen_pixel_per_image_pixel = self.__screen_pixel_per_image_pixel
         scale_marker_width = max(16, min(round(canvas_bounds.width * 0.8), 120))
         scale_marker_height = 6
-        scale_marker_font = "normal 14px serif"
+        scale_marker_font_size = self.__display_style.get_font_size("scale-marker")
+        scale_marker_font = f"normal {scale_marker_font_size:d}px serif"
         get_font_metrics_fn = self.__device_metrics.ui_settings.get_font_metrics
 
         if dimensional_calibration and screen_pixel_per_image_pixel and screen_pixel_per_image_pixel > 0.0:
@@ -339,11 +346,12 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
     """
     scale_marker_width = 120
     scale_marker_height = 6
-    scale_marker_font = "normal 14px serif"
+    scale_marker_font_template = "normal {0:d}px serif"
 
-    def __init__(self, screen_pixel_per_image_pixel_stream: Stream.ValueStream[float], device_metrics: UISettings.DrawingMetrics) -> None:
+    def __init__(self, screen_pixel_per_image_pixel_stream: Stream.ValueStream[float], device_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
         super().__init__()
         self.__device_metrics = device_metrics
+        self.__display_style = display_style
         self.__dimensional_calibration: typing.Optional[Calibration.Calibration] = None
         self.__info_text = str()
         self.__screen_pixel_per_image_pixel_stream = screen_pixel_per_image_pixel_stream.add_ref()
@@ -395,7 +403,9 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         return self.__dimensional_calibration
 
     def __update_sizing(self) -> None:
-        height = self.scale_marker_height + 4 + 2 * self.__device_metrics.ui_settings.get_font_metrics(self.scale_marker_font, "MMM").height
+        scale_marker_font_size = self.__display_style.get_font_size("scale-marker")
+        scale_marker_font = self.scale_marker_font_template.format(scale_marker_font_size)
+        height = self.scale_marker_height + 4 + 2 * self.__device_metrics.ui_settings.get_font_metrics(scale_marker_font, "MMM").height
         scale_marker_width = 0
         dimensional_calibration = self.__dimensional_calibration
         if dimensional_calibration is not None:  # display scale marker?
@@ -431,6 +441,7 @@ class ScaleMarkerCanvasItem(CanvasItem.AbstractCanvasItem):
         return ScaleMarkerCanvasItemComposer(self, self.sizing, composer_cache, self.__dimensional_calibration,
                                              self.__info_text, self.__screen_pixel_per_image_pixel_stream.value,
                                              self.__device_metrics,
+                                             self.__display_style,
                                              scale_marker_position=self.scale_marker_position,
                                              scale_marker_text_color=self.scale_marker_text_color,
                                              scale_marker_background_color=self.scale_marker_background_color
@@ -1043,11 +1054,13 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     _executor = concurrent.futures.ThreadPoolExecutor()
 
     def __init__(self, drawing_metrics: UISettings.DrawingMetrics,
+                 display_style: UISettings.DisplayStyle,
                  delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
                  event_loop: typing.Optional[asyncio.AbstractEventLoop], draw_background: bool = True) -> None:
-        super().__init__(drawing_metrics, delegate, event_loop)
+        super().__init__(drawing_metrics, display_style, delegate, event_loop)
 
         self.__device_metrics = drawing_metrics
+        self.__display_style = display_style
         self.__event_loop = event_loop
 
         self.wants_mouse_events = True
@@ -1059,7 +1072,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # the background
         # next the zoom-able items
         self.__bitmap_canvas_item = ImageBitmapCanvasItem(draw_background)
-        self.__graphics_canvas_item = GraphicsCanvasItem(self.__device_metrics)
+        self.__graphics_canvas_item = GraphicsCanvasItem(self.__device_metrics, self.__display_style)
         # put the zoom-able items into a composition
         self.__composite_canvas_item = ImageAreaCompositeCanvasItem()
         self.__composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
@@ -1067,7 +1080,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # and put the composition into a scroll area
         self.scroll_area_canvas_item = ImageAreaCanvasItem(self.__composite_canvas_item)
         # info overlay (scale marker, etc.)
-        self.__scale_marker_canvas_item = ScaleMarkerCanvasItem(self.__composite_canvas_item.screen_pixel_per_image_pixel_stream, self.__device_metrics)
+        self.__scale_marker_canvas_item = ScaleMarkerCanvasItem(self.__composite_canvas_item.screen_pixel_per_image_pixel_stream, self.__device_metrics, self.__display_style)
         info_overlay_row = CanvasItem.CanvasItemComposition()
         info_overlay_row.layout = CanvasItem.CanvasItemRowLayout()
         info_overlay_row.add_spacing(12)
