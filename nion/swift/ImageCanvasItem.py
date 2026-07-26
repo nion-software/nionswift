@@ -1042,10 +1042,12 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """
     _executor = concurrent.futures.ThreadPoolExecutor()
 
-    def __init__(self, ui_settings: UISettings.UISettings,
+    def __init__(self, drawing_metrics: UISettings.DrawingMetrics,
                  delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
                  event_loop: typing.Optional[asyncio.AbstractEventLoop], draw_background: bool = True) -> None:
-        super().__init__(delegate)
+        super().__init__(drawing_metrics, delegate, event_loop)
+
+        ui_settings = drawing_metrics.ui_settings
 
         self.__ui_settings = ui_settings
         self.__event_loop = event_loop
