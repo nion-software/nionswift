@@ -321,7 +321,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
             composer_cache = CanvasItem.ComposerCache()
             LineGraphCanvasItem.draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
-            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache, display_panel.display_canvas_item.drawing_metrics)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
@@ -345,7 +345,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
             composer_cache = CanvasItem.ComposerCache()
             LineGraphCanvasItem.draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
-            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache, display_panel.display_canvas_item.drawing_metrics)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
@@ -425,7 +425,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             canvas_bounds = Geometry.IntRect.from_tlbr(0, 0, 480, 640)
             composer_cache = CanvasItem.ComposerCache()
             LineGraphCanvasItem.draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
-            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache)
+            LineGraphCanvasItem.draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache, display_panel.display_canvas_item.drawing_metrics)
             # ensure that the drawing commands are sufficiently populated to have drawn the graph
             self.assertGreater(len(drawing_context.commands), 100)
 
