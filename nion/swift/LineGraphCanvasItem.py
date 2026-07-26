@@ -555,8 +555,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
 
         axes = self.__axes
         if axes:
-            font_size = self.__display_style.get_font_size("interval-label")
-            font = f"{font_size:d}px"
+            font = self.__display_style.get_font("interval-label", self.__device_metrics)
             font_size_metric = self.__device_metrics.ui_settings.get_font_metrics(font, "My")
 
             # extract the data we need for drawing y-axis

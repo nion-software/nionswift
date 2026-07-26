@@ -1005,8 +1005,7 @@ class Graphic(Persistence.PersistentObject):
         ui_settings = device_context.ui_settings
         if self.label:
             padding = device_context.scale_length(4.0)
-            font_size = display_style.get_font_size("graphic-label")
-            font = f"normal {font_size:d}px serif"
+            font = display_style.get_font("graphic-label", device_context)
             font_metrics = ui_settings.get_font_metrics(font, self.label)
             text_pos = self.label_position(mapping, font_metrics, padding)
             if text_pos is not None:
@@ -1066,8 +1065,7 @@ class GraphicRenderer:
         label = self.label
         if label and self.is_label_visible(Graphic.resolve_used_property(self.used_text_visibility_map, "label_text"), is_selected):
             padding = device_context.scale_length(4.0)
-            font_size = display_style.get_font_size("graphic-label")
-            font = f"normal {font_size:d}px serif"
+            font = display_style.get_font("graphic-label", device_context)
             font_metrics = device_context.ui_settings.get_font_metrics(font, label)
             text_pos = self.label_position(mapping, font_metrics, padding)
             if text_pos:
