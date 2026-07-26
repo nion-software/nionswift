@@ -102,11 +102,13 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """
 
     def __init__(self, drawing_metrics: UISettings.DrawingMetrics,
+                 display_style: UISettings.DisplayStyle,
                  delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
                  event_loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
-        super().__init__(drawing_metrics, delegate, event_loop)
+        super().__init__(drawing_metrics, display_style, delegate, event_loop)
 
         self.__device_metrics = drawing_metrics
+        self.__display_style = display_style
 
         self.wants_mouse_events = True
 
@@ -146,8 +148,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_legend_column)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_frame_canvas_item)
 
-        self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
-        self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem(self.__device_metrics)
+        self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem(self.__device_metrics, self.__display_style)
+        self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem(self.__device_metrics, self.__display_style)
         self.__line_graph_vertical_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisTicksCanvasItem()
         self.__line_graph_vertical_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
         self.__line_graph_vertical_axis_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
@@ -155,8 +157,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_scale_canvas_item)
         self.__line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_ticks_canvas_item)
 
-        self.__line_graph_horizontal_axis_label_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisLabelCanvasItem()
-        self.__line_graph_horizontal_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisScaleCanvasItem()
+        self.__line_graph_horizontal_axis_label_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisLabelCanvasItem(self.__device_metrics, self.__display_style)
+        self.__line_graph_horizontal_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisScaleCanvasItem(self.__device_metrics, self.__display_style)
         self.__line_graph_horizontal_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisTicksCanvasItem()
         self.line_graph_horizontal_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
         self.line_graph_horizontal_axis_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=4)
