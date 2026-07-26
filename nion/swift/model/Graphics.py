@@ -718,7 +718,6 @@ class Graphic(Persistence.PersistentObject):
         self.define_property("is_rotation_locked", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed, validate=to_bool, hidden=True)
         self.define_property("role", None, changed=self._property_changed, validate=to_str, hidden=True)
-        self.label_padding = 4
         self.label_font = "normal 11px serif"
         self.__source_reference = self.create_item_reference()
         self._default_stroke_color = "#F80"
@@ -1006,7 +1005,7 @@ class Graphic(Persistence.PersistentObject):
     def test_label(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, test_point: Geometry.FloatPoint) -> bool:
         ui_settings = device_context.ui_settings
         if self.label:
-            padding = self.label_padding
+            padding = device_context.scale_length(4.0)
             font = self.label_font
             font_metrics = ui_settings.get_font_metrics(font, self.label)
             text_pos = self.label_position(mapping, font_metrics, padding)
@@ -1039,7 +1038,6 @@ class GraphicRenderer:
         self.used_stroke_width = graphic.used_stroke_width
         self.used_fill_style = graphic.used_fill_style
         self.label = graphic.label
-        self.label_padding = graphic.label_padding
         self.label_font = graphic.label_font
         self.is_position_locked = graphic.is_position_locked
         self.is_shape_locked = graphic.is_shape_locked
@@ -1068,7 +1066,7 @@ class GraphicRenderer:
     def draw_label(self, ctx: DrawingContextLike, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, is_selected: bool) -> None:
         label = self.label
         if label and self.is_label_visible(Graphic.resolve_used_property(self.used_text_visibility_map, "label_text"), is_selected):
-            padding = self.label_padding
+            padding = device_context.scale_length(4.0)
             font = self.label_font
             font_metrics = device_context.ui_settings.get_font_metrics(font, label)
             text_pos = self.label_position(mapping, font_metrics, padding)
