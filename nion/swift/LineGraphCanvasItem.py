@@ -53,24 +53,24 @@ def draw_background(drawing_context: DrawingContext.DrawingContext, plot_rect: G
         drawing_context.fill()
 
 
-def draw_horizontal_grid_lines(drawing_context: DrawingContext.DrawingContext, plot_width: float, plot_origin_x: float, y_ticks: typing.Sequence[typing.Tuple[float, str, bool]]) -> None:
+def draw_horizontal_grid_lines(drawing_context: DrawingContext.DrawingContext, plot_width: float, plot_origin_x: float, y_ticks: typing.Sequence[typing.Tuple[float, str, bool]], device_metrics: UISettings.DrawingMetrics) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
         for y, _, _ in y_ticks:
             drawing_context.move_to(plot_origin_x, y)
             drawing_context.line_to(plot_origin_x + plot_width, y)
-        drawing_context.line_width = 0.5
+        drawing_context.line_width = device_metrics.scale_stroke(0.5)
         drawing_context.stroke_style = '#DDD'
         drawing_context.stroke()
 
 
-def draw_vertical_grid_lines(drawing_context: DrawingContext.DrawingContext, plot_height: float, plot_origin_y: float, x_ticks: typing.Sequence[typing.Tuple[float, str]]) -> None:
+def draw_vertical_grid_lines(drawing_context: DrawingContext.DrawingContext, plot_height: float, plot_origin_y: float, x_ticks: typing.Sequence[typing.Tuple[float, str]], device_metrics: UISettings.DrawingMetrics) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
         for x, _ in x_ticks:
             drawing_context.move_to(x, plot_origin_y)
             drawing_context.line_to(x, plot_origin_y + plot_height)
-        drawing_context.line_width = 0.5
+        drawing_context.line_width = device_metrics.scale_stroke(0.5)
         drawing_context.stroke_style = '#DDD'
         drawing_context.stroke()
 
@@ -119,7 +119,7 @@ class LineGraphSegment:
             drawing_context.fill_style = fill_color.color_str
             drawing_context.fill()
 
-    def stroke(self, drawing_context: DrawingContext.DrawingContext, baseline: float, stroke_color: Color.Color, stroke_width: float, draw_sides: bool = False) -> None:
+    def stroke(self, drawing_context: DrawingContext.DrawingContext, baseline: float, stroke_color: Color.Color, scaled_stroke_width: float, draw_sides: bool = False) -> None:
         with drawing_context.saver():
             drawing_context.begin_path()
             # the first action in the 'path' is a line, so be sure to move to the right starting point
@@ -131,7 +131,7 @@ class LineGraphSegment:
             drawing_context.add(self.__path)
             if draw_sides:
                 drawing_context.line_to(self.__last_point.x, baseline)
-            drawing_context.line_width = stroke_width
+            drawing_context.line_width = scaled_stroke_width
             drawing_context.stroke_style = stroke_color.color_str
             drawing_context.stroke()
 
@@ -247,11 +247,11 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
     return list(), 0
 
 
-def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int) -> None:
+def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int, device_metrics: UISettings.DrawingMetrics) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
         drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
-        drawing_context.line_width = 1
+        drawing_context.line_width = device_metrics.scale_stroke(1)
         drawing_context.stroke_style = '#888'
         drawing_context.stroke()
 
@@ -274,11 +274,12 @@ def draw_marker(drawing_context: DrawingContext.DrawingContext, p: Geometry.Floa
 
 
 class LineGraphBackgroundCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], draw_grid: bool, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], draw_grid: bool, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]], device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__axes = axes
         self.__draw_grid = draw_grid
         self.__background_color = background_color
+        self.__device_metrics = device_metrics
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         # draw the data, if any
@@ -297,21 +298,22 @@ class LineGraphBackgroundCanvasItemComposer(CanvasItem.BaseComposer):
 
             # draw the horizontal grid lines
             if self.__draw_grid:
-                draw_horizontal_grid_lines(drawing_context, plot_width, plot_origin_x, y_ticks)
-                draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks)
+                draw_horizontal_grid_lines(drawing_context, plot_width, plot_origin_x, y_ticks, self.__device_metrics)
+                draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks, self.__device_metrics)
 
 
 class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot background and grid lines."""
 
-    def __init__(self) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__()
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
         self.draw_grid = True
         self.background_color = "#FFF"
+        self.__device_metrics = device_metrics
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphBackgroundCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.draw_grid, self.background_color)
+        return LineGraphBackgroundCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.draw_grid, self.background_color, self.__device_metrics)
 
     def set_axes(self, axes: typing.Optional[LinePlotDisplay.LineGraphAxes]) -> None:
         if self.__axes != axes:
@@ -387,7 +389,7 @@ def draw_fills(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context
     return tuple()
 
 
-def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
+def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache, device_metrics: UISettings.DrawingMetrics) -> typing.Tuple[CanvasItem.CacheValue, ...]:
     if line_graph_layer.stroke_color:
         scaled_data_and_metadata_cache_item = MappedCalibratedDataAndMetadataCacheItem(line_graph_layer.xdata, line_graph_layer.axes)
         scaled_xdata_cache_value = composer_cache.get_cache_value(scaled_data_and_metadata_cache_item)
@@ -396,17 +398,19 @@ def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_conte
         segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
         segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
         for segment in segments:
-            segment.stroke(drawing_context, baseline, Color.Color(line_graph_layer.stroke_color), line_graph_layer.stroke_width)
+            scaled_stroke_width = device_metrics.scale_stroke(line_graph_layer.stroke_width)
+            segment.stroke(drawing_context, baseline, Color.Color(line_graph_layer.stroke_color), scaled_stroke_width)
         return scaled_xdata_cache_value, segments_cache_value
     return tuple()
 
 
 class LineGraphLayerCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, line_graph_layer: LinePlotDisplay.LineGraphLayer, is_fill: bool) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, line_graph_layer: LinePlotDisplay.LineGraphLayer, is_fill: bool, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
         self.__line_graph_layer = line_graph_layer
         self.__is_fill = is_fill
+        self.__device_metrics = device_metrics
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
@@ -414,7 +418,7 @@ class LineGraphLayerCanvasItemComposer(CanvasItem.BaseComposer):
         if self.__is_fill:
             cache_values.append(draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache))
         else:
-            cache_values.append(draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache))
+            cache_values.append(draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache, self.__device_metrics))
         self.__cache_values = cache_values
 
 
@@ -424,15 +428,16 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
     Draws the fills followed by the strokes.
     """
 
-    def __init__(self, cache: CanvasItem.ComposerCache) -> None:
+    def __init__(self, cache: CanvasItem.ComposerCache, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(cache)
         self.__line_graph_layer: typing.Optional[LinePlotDisplay.LineGraphLayer] = None
         self.__is_fill = False
+        self.__device_metrics = device_metrics
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         # the line graph can be in a partially updated state, so check if the layer is valid yet.
         if self.__line_graph_layer:
-            return LineGraphLayerCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__line_graph_layer, self.__is_fill)
+            return LineGraphLayerCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__line_graph_layer, self.__is_fill, self.__device_metrics)
         else:
             return CanvasItem.EmptyCanvasItemComposer(self, self.layout_sizing, composer_cache)
 
@@ -480,10 +485,11 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
     Draws the fills followed by the strokes.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__()
         self.__cache = CanvasItem.ComposerCache()
         self.__display_frame_rate_id: typing.Optional[str] = None
+        self.__device_metrics = device_metrics
 
     @property
     def display_frame_rate_id(self) -> typing.Optional[str]:
@@ -500,7 +506,7 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
             # this method is being called as part of 'will_repaint' functionality, which will update the owner thread
             # of the new line graph layer canvas item. see ThreadedCanvasItem.__call_will_repaint. until then, the owner
             # thread of the new canvas item will be the current thread.
-            self.add_canvas_item(LineGraphLayerCanvasItem(self.__cache))
+            self.add_canvas_item(LineGraphLayerCanvasItem(self.__cache, self.__device_metrics))
         while len(self.canvas_items) > len(line_graph_layers) * 2:
             # the line graph layer canvas items will have a mismatched owner thread. explicitly set the owner thread
             # to the current thread to avoid warnings in remove_canvas_item about mismatched threads.
@@ -639,7 +645,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         p = 0.25
                         selection_color = f"#{min(255, int(r * p + 255 * (1 - p))):02x}{min(255, int(g * p + 255 * (1 - p))):02x}{min(255, int(b * p + 255 * (1 - p))):02x}"
 
-                    drawing_context.line_width = 1
+                    drawing_context.line_width = self.__device_metrics.scale_stroke(1)
                     drawing_context.stroke_style = region_color
                     if not region_selected:
                         drawing_context.line_dash = 2
@@ -722,21 +728,23 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphFrameCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, draw_frame: bool) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, draw_frame: bool, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__draw_frame = draw_frame
+        self.__device_metrics = device_metrics
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         if self.__draw_frame:
-            draw_frame(drawing_context, canvas_bounds.height - 1, canvas_bounds.left, canvas_bounds.top, canvas_bounds.width - 1)
+            draw_frame(drawing_context, canvas_bounds.height - 1, canvas_bounds.left, canvas_bounds.top, canvas_bounds.width - 1, self.__device_metrics)
 
 
 class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot frame."""
 
-    def __init__(self) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__()
         self.__draw_frame = True
+        self.__device_metrics = device_metrics
 
     def set_draw_frame(self, draw_frame: bool) -> None:
         if self.__draw_frame != draw_frame:
@@ -744,13 +752,14 @@ class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphFrameCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__draw_frame)
+        return LineGraphFrameCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__draw_frame, self.__device_metrics)
 
 
 class LineGraphHorizontalAxisTicksCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], tick_height: int) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], tick_height: int, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__axes = axes
+        self.__device_metrics = device_metrics
         self.tick_height = tick_height
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
@@ -768,7 +777,7 @@ class LineGraphHorizontalAxisTicksCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.begin_path()
                     drawing_context.move_to(x, 0)
                     drawing_context.line_to(x, self.tick_height)
-                    drawing_context.line_width = 1
+                    drawing_context.line_width = self.__device_metrics.scale_stroke(1)
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
 
@@ -776,10 +785,11 @@ class LineGraphHorizontalAxisTicksCanvasItemComposer(CanvasItem.BaseComposer):
 class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the horizontal tick marks."""
 
-    def __init__(self) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__()
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
         self.__tick_height = 4
+        self.__device_metrics = device_metrics
         self.update_sizing(self.sizing.with_fixed_height(self.__tick_height))
 
     def set_axes(self, axes: typing.Optional[LinePlotDisplay.LineGraphAxes]) -> None:
@@ -788,7 +798,7 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphHorizontalAxisTicksCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__tick_height)
+        return LineGraphHorizontalAxisTicksCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__tick_height, self.__device_metrics)
 
 
 class LineGraphHorizontalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
@@ -889,10 +899,11 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphVerticalAxisTicksCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], tick_width: int) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], tick_width: int, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__axes = axes
         self.__tick_width = tick_width
+        self.__device_metrics = device_metrics
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         # draw the data, if any
@@ -908,7 +919,7 @@ class LineGraphVerticalAxisTicksCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.begin_path()
                     drawing_context.move_to(canvas_size.width, y)
                     drawing_context.line_to(canvas_size.width - self.__tick_width, y)
-                    drawing_context.line_width = 1
+                    drawing_context.line_width = self.__device_metrics.scale_stroke(1)
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
 
@@ -916,10 +927,11 @@ class LineGraphVerticalAxisTicksCanvasItemComposer(CanvasItem.BaseComposer):
 class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the vertical tick marks."""
 
-    def __init__(self) -> None:
+    def __init__(self, device_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__()
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
         self.__tick_width = 4
+        self.__device_metrics = device_metrics
         self.update_sizing(self.sizing.with_fixed_width(self.__tick_width))
 
     def set_axes(self, axes: typing.Optional[LinePlotDisplay.LineGraphAxes]) -> None:
@@ -928,7 +940,7 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphVerticalAxisTicksCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__tick_width)
+        return LineGraphVerticalAxisTicksCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__axes, self.__tick_width, self.__device_metrics)
 
 
 class Exponenter:
@@ -1025,6 +1037,7 @@ class LineGraphVerticalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
                 for y, label, is_minor in y_ticks:
                     drawing_context.begin_path()
                     drawing_context.stroke_style = '#888'
+                    drawing_context.line_width = self.__device_metrics.scale_stroke(1.0)
                     drawing_context.stroke()
                     if (include_minor_ticks or not is_minor) and label is not None:
                         drawing_context.fill_style = "#000"
@@ -1238,6 +1251,7 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
                         drawing_context.fill()
                     if legend_entry.stroke_color:
                         drawing_context.stroke_style = legend_entry.stroke_color
+                        drawing_context.line_width = self.__device_metrics.scale_stroke(1.0)
                         drawing_context.stroke()
 
 
