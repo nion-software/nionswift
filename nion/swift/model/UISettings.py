@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import enum
 import typing
@@ -31,20 +33,29 @@ class UISettings(typing.Protocol):
     def cursor_tolerance(self) -> float: raise NotImplementedError()
 
 
-class DisplayStyle:
+_PT_TO_PX = 4 / 3  # 1pt = 1/72in, 1px = 1/96in
 
-    _FONT_SIZES: typing.Mapping[str, int] = {
-        "scale-marker": 14,
-        "axis-label": 12,
-        "interval-label": 12,
-        "graphic-label": 11,
+
+class DisplayStyle:
+    _FONT_SIZES_PX: typing.Mapping[str, float] = {
+        "scale-marker": 14 / _PT_TO_PX,
+        "axis-label": 12 / _PT_TO_PX,
+        "interval-label": 12 / _PT_TO_PX,
+        "graphic-label": 11 / _PT_TO_PX,
     }
 
-    def __init__(self, font_sizes: typing.Mapping[str, int] | None = None) -> None:
-        self.__font_sizes = dict(font_sizes) if font_sizes is not None else dict(self._FONT_SIZES)
+    def __init__(self, font_sizes_px: typing.Mapping[str, float] | None = None) -> None:
+        self.__font_sizes_px = dict(font_sizes_px) if font_sizes_px is not None else dict(self._FONT_SIZES_PX)
 
-    def get_font_size(self, part: str) -> int:
-        return self.__font_sizes.get(part, 12)
+    def get_font_size(self, part: str) -> float:
+        return self.__font_sizes_px.get(part, 12 / _PT_TO_PX)
+
+    def get_font(self, part: str, device_metrics: DrawingMetrics) -> str:
+        """Get the complete font string for a display style part."""
+        size_px = self.get_font_size(part)
+        scaled_size_px = device_metrics.scale_font(size_px)
+        scaled_size_str = f"{scaled_size_px:.2f}".rstrip("0").rstrip(".")
+        return f"normal {scaled_size_str}px sans-serif"
 
 
 @dataclasses.dataclass
@@ -61,7 +72,7 @@ class DrawingMetrics:
         return self.ppi / 96 if self.ppi else 1.0
 
     def scale_font(self, pt: float) -> float:
-        return pt * 4/3 * self.scale
+        return pt * _PT_TO_PX * self.scale
 
     def scale_length(self, px: float) -> float:
         return px * self.scale
