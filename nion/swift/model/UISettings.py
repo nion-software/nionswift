@@ -37,6 +37,7 @@ class DisplayStyle:
         "scale-marker": 14,
         "axis-label": 12,
         "interval-label": 12,
+        "graphic-label": 11,
     }
 
     def __init__(self, font_sizes: typing.Mapping[str, int] | None = None) -> None:
