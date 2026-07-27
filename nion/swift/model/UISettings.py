@@ -40,6 +40,7 @@ class DisplayStyle:
     _FONT_SIZES_PX: typing.Mapping[str, float] = {
         "scale-marker": 14 / _PT_TO_PX,
         "axis-label": 12 / _PT_TO_PX,
+        "axis-label-superscript": 10 / _PT_TO_PX,
         "interval-label": 12 / _PT_TO_PX,
         "graphic-label": 11 / _PT_TO_PX,
     }
