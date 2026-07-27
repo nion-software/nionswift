@@ -1269,53 +1269,52 @@ class RenameProjectAction(UIWindow.Action):
 
         directory = self.project_reference.path.parent.as_posix()
         NameProjectDialog(application.ui, document_controller, application, directory, project_name=self.project_reference.title,
-                          accept_fn=handle_rename_clicked, dialog_name="Rename Project", choose_directory_visible=False, project_storage_system=project_storage_system)
+                          accept_fn=handle_rename_clicked, dialog_name="Rename Project", choose_directory_visible=False,
+                          check_name_available_fn=project_storage_system.check_project_name_is_available)
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
 class NameProjectViewModel:
     """Represents the NameProjectDialog model."""
-    def __init__(self, filename: str, directory: str, profile: Profile.Profile, project_storage_system: type[FileStorageSystem.ProjectStorageSystem] | FileStorageSystem.ProjectStorageSystem):
+    def __init__(self, filename: str, directory: str, profile: Profile.Profile, check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None):
         self.filename = Model.PropertyModel(filename)
         self.filename_warning = Model.PropertyModel(str())
         self.project_name_status_label = Model.PropertyModel(str())
         self.accept_button_enabled = Model.PropertyModel(False)
         self.directory = Model.PropertyModel(directory)
         self.profile = profile
-        self.project_storage_system = project_storage_system
+        self.check_name_available_fn = check_name_available_fn
 
-    @classmethod
-    def verify_project_name(cls, project_name: str, base_directory: str, profile: Profile.Profile,
-                            project_storage_system: type[FileStorageSystem.ProjectStorageSystem] | FileStorageSystem.ProjectStorageSystem) \
-            -> FileStorageSystem.ProjectNameResult:
-        """Verify that a project name is a valid filename and doesn't already exist.
-
-        Returns a ProjectNameResult with a sequence of error messages if there are any.
-        """
+    @staticmethod
+    def verify_project_name(project_name: str, base_directory: str, profile: Profile.Profile,
+                            check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None = None) \
+            -> tuple[bool, typing.Sequence[str] | None]:
+        """Verify that a project name is a valid filename and doesn't already exist."""
         if project_name == "":
-            return FileStorageSystem.ProjectNameResult(["Project name cannot be empty"], None)
+            return False, ["Project name cannot be empty"]
         is_valid, error_messages = Utility.verify_filename_is_legal(project_name)
         if not is_valid and error_messages:
-            return FileStorageSystem.ProjectNameResult(error_messages, None)
+            return is_valid, error_messages
 
         errors: list[str] = []
-        name_available_result = project_storage_system.check_project_name_is_available(project_name, base_directory)
-        errors.extend(name_available_result.error_messages or [])
-        if name_available_result.success and name_available_result.project_path:
-            # Check for an orphaned project reference exists, it would need to be removed manually
-            project_reference = profile.get_project_reference_by_path(name_available_result.project_path)
-            if project_reference is not None:
-                errors.append(_("Project Reference") + f" \"{project_reference.title}\" " + _("already exists, remove it via Choose Project before proceeding"))
+        if check_name_available_fn:
+            name_available_result = check_name_available_fn(project_name, base_directory)
+            errors.extend(name_available_result.error_messages or [])
+            if name_available_result.success and name_available_result.project_path:
+                # Check for an orphaned project reference exists, it would need to be removed manually
+                project_reference = profile.get_project_reference_by_path(name_available_result.project_path)
+                if project_reference is not None:
+                    errors.append(_("Project Reference") + f" \"{project_reference.title}\" " + _("already exists, remove it via Choose Project before proceeding"))
 
-        return FileStorageSystem.ProjectNameResult(errors, None)
+        return not errors, errors
 
     def update_project_status_label(self, text: str) -> None:
-        project_name_verification_result = self.verify_project_name(text, self.directory.value or str(), self.profile, self.project_storage_system)
-        self.accept_button_enabled.value = project_name_verification_result.success
-        if project_name_verification_result.success:  # The name is valid and doesn't already exist.
+        is_valid, errors = self.verify_project_name(text, self.directory.value or str(), self.profile, self.check_name_available_fn)
+        self.accept_button_enabled.value = is_valid
+        if is_valid:  # The name is valid and doesn't already exist.
             self.project_name_status_label.value = str()
-        else:  # Display the error messages.
-            error_str = "\n".join(project_name_verification_result.error_messages)
+        elif errors:  # Display the error messages.
+            error_str = "\n".join(errors)
             self.project_name_status_label.value = error_str
 
 
@@ -1323,7 +1322,7 @@ class NameProjectDialog(Declarative.Handler):
     def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController,
                  application: Application, directory: str, project_name: str, accept_fn: typing.Callable[[str, str], None],
                  dialog_name: str, choose_directory_visible: bool,
-                 project_storage_system: type[FileStorageSystem.ProjectStorageSystem] | FileStorageSystem.ProjectStorageSystem):
+                 check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult]):
         """Declarative Dialog handler for creating/renaming a project.
 
         accept_fn will receive the name and directory when the confirm button is pressed
@@ -1334,7 +1333,7 @@ class NameProjectDialog(Declarative.Handler):
         super().__init__()
         self.ui = ui
         self.__application = application
-        self.viewmodel = NameProjectViewModel(project_name, directory, self.__application.profile, project_storage_system)
+        self.viewmodel = NameProjectViewModel(project_name, directory, self.__application.profile, check_name_available_fn)
         self._project_name_line_edit: UserInterface.LineEditWidget | None = None
         self.accept_fn = accept_fn
         # build the UI
