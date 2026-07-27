@@ -1434,10 +1434,10 @@ class NameProjectDialog(Declarative.Handler):
         return False
 
     def handle_accept(self, widget: UserInterface.Widget) -> bool:
-        return self.handle_accept_clicked()
+        self.handle_accept_clicked()
+        return True
 
     def handle_cancel(self, widget: UserInterface.Widget) -> bool:
-        print("Cancel")
         self.dialog.request_close()
         return True
 
