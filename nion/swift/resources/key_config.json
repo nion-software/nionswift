@@ -75,10 +75,12 @@
         "raster_display": ["Shift+down_arrow", "Shift+M"]
     },
     "raster_display.nudge_slice_left": {
-        "raster_display": ["Ctrl+left_arrow", "move_to_start_of_line"]
+        "raster_display": ["Ctrl+left_arrow", "move_to_start_of_line"],
+        "line_plot_display": ["Ctrl+left_arrow", "move_to_start_of_line"]
     },
     "raster_display.nudge_slice_right": {
-        "raster_display": ["Ctrl+right_arrow", "move_to_end_of_line"]
+        "raster_display": ["Ctrl+right_arrow", "move_to_end_of_line"],
+        "line_plot_display": ["Ctrl+right_arrow", "move_to_end_of_line"]
     },
     "raster_display.zoom_out": {
         "raster_display": "-"

@@ -1,1 +1,0 @@
-This document has been moved to https://github.com/nion-software/nionswift/wiki/Contributing.

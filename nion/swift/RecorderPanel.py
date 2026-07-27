@@ -174,7 +174,7 @@ class Recorder:
                 self.__recording_last = current_time
                 # first create an empty data item to hold the recorded data if it doesn't already exist
                 if not self.__recording_data_item:
-                    data_item = DataItem.DataItem(large_format=True)
+                    data_item = DataItem.DataItem()
                     display_item = self.__document_controller.document_model.get_best_display_item_for_data_item(self.__data_item)
                     assert display_item
                     data_item.title = display_item.displayed_title + " (" + _("Recording") + ")"

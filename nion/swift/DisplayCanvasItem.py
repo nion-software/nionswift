@@ -143,7 +143,7 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
         if display_info.graphic_selection != graphic_selection:
             graphic_selection = display_info.graphic_selection
 
-        graphic_renderers = tuple(graphic.get_renderer() for graphic in graphics)
+        graphic_renderers = display_info.graphic_renderers
 
         # update the display info. all items will be copied in the DisplayInfo constructor.
         self.__display_info = DisplayInfo.DisplayInfo(display_calibration_info, display_properties, display_data_info_list, display_layers, graphics, graphic_renderers, graphic_selection)

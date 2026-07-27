@@ -878,7 +878,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text=_("Layer:")),
+                u.create_label(text=_("Layer")),
                 u.create_line_edit(text="@binding(_line_plot_display_layer_model.label_model.value)", placeholder_text="@binding(_line_plot_display_layer_model.placeholder_label_model.value)"),
                 u.create_spacing(12),
                 spacing=12
@@ -932,7 +932,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Complex Display Type:"), width=120),
+                u.create_label(text=_("Complex Display"), width=120),
                 u.create_combo_box(items=self._line_plot_display_layer_model.display_type_items,
                                    current_index="@binding(_line_plot_display_layer_model.current_display_type_index_model.value)"),
                 u.create_stretch(),
@@ -1269,21 +1269,22 @@ class ImageDataInspectorHandler(Declarative.Handler):
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Data Range:"), width=120),
+                u.create_label(text=_("Data Range"), width=120),
                 u.create_label(text="@binding(_model.data_range_low_model.value, converter=_float_point_2_converter)", fallback=_("N/A"), width=80),
                 u.create_spacing(8),
                 u.create_label(text="@binding(_model.data_range_high_model.value, converter=_float_point_2_converter)", fallback=_("N/A"), width=80),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Display Limits:"), width=120),
+                u.create_label(text=_("Display Limits"), width=120),
                 u.create_line_edit(text="@binding(_model.display_limits_low_model.value, converter=_float_point_2_none_converter)", placeholder_text=_("Auto"), width=80, name="display_limits_limit_low"),
                 u.create_spacing(8),
                 u.create_line_edit(text="@binding(_model.display_limits_high_model.value, converter=_float_point_2_none_converter)", placeholder_text=_("Auto"), width=80, name="display_limits_limit_high"),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Color Map:"), width=120),
+                u.create_label(text=_("Color Map"), width=120),
+                # note: specify maximum width on color map combo box since it is constructed dynamically and may have long names
                 u.create_combo_box(items=self._model.color_map_items, on_current_index_changed="_change_color_map", current_index="@binding(_model.current_colormap_index.value)", width=120),
                 u.create_stretch()
             ),
@@ -1302,8 +1303,8 @@ class ImageDataInspectorHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
-                u.create_label(text=_("Adjustment:"), width=120),
-                u.create_combo_box(items=self._model.adjustment_options_items, on_current_index_changed="_change_adjustment_option", current_index="@binding(_model.current_adjustment_options_index.value)", width=120),
+                u.create_label(text=_("Adjustment"), width=120),
+                u.create_combo_box(items=self._model.adjustment_options_items, on_current_index_changed="_change_adjustment_option", current_index="@binding(_model.current_adjustment_options_index.value)"),
                 u.create_stretch(),
             ),
             u.create_row(
@@ -1337,8 +1338,9 @@ class ComplexDisplayTypeChooserHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
 
         self.ui_view = u.create_row(
-            u.create_label(text=_("Complex Display Type:"), width=120),
-            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)")
+            u.create_label(text=_("Complex Display"), width=120),
+            u.create_combo_box(items=self._display_type_items, on_current_index_changed="change_display_type", current_index="@binding(_current_index)"),
+            u.create_stretch()
         )
 
     def change_display_type(self, widget: Declarative.UIWidget, current_index: int) -> None:
@@ -2163,7 +2165,7 @@ class LegendPositionChooserHandler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
 
         self.ui_view = u.create_row(
-            u.create_label(text=_("Legend Position:"), width=120),
+            u.create_label(text=_("Legend Position"), width=120),
             u.create_combo_box(items=self._legend_position_items, on_current_index_changed="change_legend_position", current_index="@binding(_current_index)"),
             u.create_stretch()
         )
@@ -2208,14 +2210,14 @@ class LinePlotDisplaySectionHandler(Declarative.Handler):
 
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text=_("Display:"), width=120),
+                u.create_label(text=_("Display"), width=120),
                 u.create_line_edit(text="@binding(_y_min_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="y_min_field"),
                 u.create_spacing(8),
                 u.create_line_edit(text="@binding(_y_max_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="y_max_field"),
                 u.create_stretch()
             ),
             u.create_row(
-                u.create_label(text=_("Channels:"), width=120),
+                u.create_label(text=_("Channels"), width=120),
                 u.create_line_edit(text="@binding(_left_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="left_channel_field"),
                 u.create_spacing(8),
                 u.create_line_edit(text="@binding(_right_channel_model.value, converter=_float_to_string_converter)", width=72, placeholder_text=_("Auto"), name="right_channel_field"),
@@ -4171,6 +4173,7 @@ class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory2):
         return None
 
 
+# Register the default computation variable component factories.
 Registry.register_component(BooleanVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
 Registry.register_component(IntegerVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
 Registry.register_component(RealVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
@@ -4181,13 +4184,21 @@ Registry.register_component(DataStructureVariableHandlerFactory(), {"variable-ha
 Registry.register_component(GraphicListVariableHandlerFactory(), {"variable-handler-fallback-component-factory"})
 
 
-def make_computation_variable_component(computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_value_model: VariableValueModel) -> typing.Optional[Declarative.HandlerLike]:
-    """Make a computation variable component.
+def make_computation_variable_component(computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_value_model: VariableValueModel) -> Declarative.HandlerLike | None:
+    """Make a computation variable component and return the declarative handler.
 
-    Components registered under 'variable-handler-component-factory' should subclass the
-    `VariableHandlerComponentFactory` protocol. The document controller, computation, and variable arguments should be
-    considered read-only. When the component needs to modify the variable value, it should do so by setting
-    'variable_value.value'. This ensures that undo is handled properly.
+    A computation variable component is a Declarative.HandlerLike which represents a ComputationVariable in the UI
+    and allows the user to view and edit the variable's value via a VariableValueModel.
+
+    This function uses the registry to find factories that can create a component for the variable. Factories are
+    registered under the 'variable-handler-component-factory' type for primary handlers and
+    'variable-handler-fallback-component-factory' for fallback handlers. Primary factories are queried first and have
+    higher priority than fallback factories. The first factory to return a component for the variable is used. If no
+    factory returns a component, None is returned and the variable will not be displayed.
+
+    The components returned by the factories should not modify the ComputationVariable, Computation, or DocumentModel
+    directly. Instead, they should use the VariableValueModel to get and set the variable's value. This ensures that
+    undo/redo and other features work correctly.
     """
     document_controller = computation_inspector_context.window
     for component in Registry.get_components_by_type("variable-handler-component-factory"):

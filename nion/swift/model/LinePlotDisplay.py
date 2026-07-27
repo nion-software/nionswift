@@ -33,6 +33,8 @@ class RegionInfo:
     label: typing.Optional[str]
     style: typing.Optional[str]
     color: typing.Optional[str]
+    used_text_visibility_map: dict[str, str]  # Returns the visibility of the passed in text part
+    used_text_background_color_map: dict[str, str]  # Returns the background color of the passed in text part
 
 
 def nice_label(value: float, precision: int) -> str:
@@ -498,7 +500,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         region = RegionInfo((graphic_start, graphic_end),
                                             graphic_selection.contains(graphic_index),
                                             graphic_index, left_text, right_text, middle_text,
-                                            graphic_renderer.label, None, graphic_renderer.used_stroke_style)
+                                            graphic_renderer.label, None, graphic_renderer.used_stroke_style, graphic_renderer.used_text_visibility_map, graphic_renderer.used_text_background_color_map)
                         regions.append(region)
                     elif isinstance(graphic_renderer, Graphics.ChannelGraphicRenderer):
                         graphic_start, graphic_end = graphic_renderer.position, graphic_renderer.position
@@ -511,7 +513,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         region = RegionInfo((graphic_start, graphic_end),
                                             graphic_selection.contains(graphic_index),
                                             graphic_index, left_text, right_text, middle_text,
-                                            graphic_renderer.label, "tag", graphic_renderer.used_stroke_style)
+                                            graphic_renderer.label, "tag", graphic_renderer.used_stroke_style, graphic_renderer.used_text_visibility_map, graphic_renderer.used_text_background_color_map)
                         regions.append(region)
             self.__regions = regions
         return self.__regions or list()

@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import math
+import threading
 import typing
 import unittest
 
@@ -91,6 +92,20 @@ class TestDisplayItemClass(unittest.TestCase):
                 self.assertEqual(1, snapshot_display_item.display_data_channels[0].sequence_index)
                 self.assertEqual((1, 2, 0), snapshot_display_item.display_data_channels[0].collection_index)
 
+    def test_display_item_snapshot_and_preserves_legend(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item1 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8,), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item1)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            self.assertEqual("top-right", display_item.get_display_property("legend_position"))
+            display_item.set_display_property("legend_position", "top-left")
+            with contextlib.closing(display_item.snapshot()) as snapshot_display_item:
+                self.assertEqual("top-left", snapshot_display_item.get_display_property("legend_position"))
+
     def test_appending_display_data_channel_does_nothing_if_display_data_channel_already_exists(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
@@ -134,6 +149,7 @@ class TestDisplayItemClass(unittest.TestCase):
             display_item.append_display_data_channel_for_data_item(data_item2)
             self.assertEqual(2, len(display_item.display_data_channels))
             display_item.remove_display_data_channel(display_item.display_data_channels[-1]).close()
+            display_item.auto_display_legend()
             self.assertEqual(1, len(display_item.display_data_channels))
             self.assertEqual(1, len(display_item.display_layers))
             self.assertEqual(data_item1, display_item.display_data_channel.data_item)
@@ -327,10 +343,12 @@ class TestDisplayItemClass(unittest.TestCase):
             self.assertIsNone(display_item.get_display_property("legend_position"))
             # check that legend is automatically enabled for 2nd layer
             display_item.append_display_data_channel_for_data_item(data_item2)
+            display_item.auto_display_legend()
             self.assertEqual("top-right", display_item.get_display_property("legend_position"))
             # check that legend is not automatically enabled for 3rd layer
             display_item.set_display_property("legend_position", None)
             display_item.append_display_data_channel_for_data_item(data_item3)
+            display_item.auto_display_legend()
             self.assertIsNone(display_item.get_display_property("legend_position"))
 
     def test_closing_display_does_not_trigger_computation_binding(self):
@@ -547,6 +565,30 @@ class TestDisplayItemClass(unittest.TestCase):
                     display_item.graphics[1].label = "label"
 
                 self.assertEqual(2, change_count)
+
+    def test_display_info_stream_direct_updates_after_data_ref_single_pixel_change(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+
+            # update data once to ensure _display_info_stream_direct is up-to-date
+            with data_item.data_ref() as data_ref:
+                data_ref.data[0, 0] = 1
+                data_ref.data_updated()
+
+            stream_updated_event = threading.Event()
+
+            def handle_display_info_stream_change(display_info: DisplayInfo.DisplayInfo | None) -> None:
+                stream_updated_event.set()
+
+            with contextlib.closing(Stream.ValueStreamAction(display_item._display_info_stream_direct, handle_display_info_stream_change)):
+                with data_item.data_ref() as data_ref:
+                    data_ref.data[0, 0] = 1
+                    data_ref.data_updated()
+
+                self.assertTrue(stream_updated_event.wait(timeout=2.0))
 
     def test_displayed_title_is_inherited_from_source(self):
         with create_memory_profile_context() as profile_context:

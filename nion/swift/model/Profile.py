@@ -139,6 +139,7 @@ class ProjectReference(Persistence.PersistentObject):
                 project_storage_system = self.make_storage(profile_context)
                 if project_storage_system:
                     project_storage_system.load_properties()
+                    project_storage_system.normalize_project_data_path()
                 # handle the case where the project storage system is never read; the folder project case.
                 # this will get set again below if the project is read.
                 self.__project_state = "missing"
@@ -167,6 +168,7 @@ class ProjectReference(Persistence.PersistentObject):
             project_storage_system = self.make_storage(profile_context)
             if project_storage_system:
                 project_storage_system.load_properties()
+                project_storage_system.normalize_project_data_path()
                 if not cache_factory:
                     assert cache_dir_path
 
@@ -212,6 +214,7 @@ class ProjectReference(Persistence.PersistentObject):
         project_storage_system = self.make_storage(profile_context)
         if project_storage_system:
             project_storage_system.load_properties()
+            project_storage_system.normalize_project_data_path()
             with contextlib.closing(Project.Project(project_storage_system)) as project:
                 project.prepare_read_project()  # sets up the uuid, used next.
                 return project.uuid
@@ -328,7 +331,6 @@ class FolderProjectReference(ProjectReference):
              "project_data_folders": [str(target_data_path.stem)]})
         target_project_path.write_text(target_project_data_json, "utf-8")
         with contextlib.closing(FileStorageSystem.make_index_project_storage_system(target_project_path)) as new_storage_system:
-            new_storage_system.load_properties()
             FileStorageSystem.migrate_to_latest(
                 typing.cast(FileStorageSystem.MigrationReader, project_storage_system),
                 typing.cast(FileStorageSystem.MigrationWriter, new_storage_system)
@@ -476,8 +478,7 @@ class Profile(Persistence.PersistentObject):
         # ensure a storage system; use a memory based storage as a fallback (for testing).
         self.storage_system = storage_system or FileStorageSystem.make_memory_persistent_storage_system()
         self.storage_system.load_properties()
-
-        self.set_storage_system(self.storage_system)
+        self.storage_system.set_root_item(self)
 
         self.__cache_dir_path = cache_dir_path
         self.__cache_factory = cache_factory
@@ -597,15 +598,15 @@ class Profile(Persistence.PersistentObject):
         return self.storage_system
 
     def read_profile(self) -> None:
-        # read the properties from the storage system. called after open.
-        properties = self.storage_system.get_storage_properties()
-
         # if the properties match the current version, read the properties.
-        if properties is not None and properties.get("version", 0) == FileStorageSystem.PROFILE_VERSION:
+        if self.storage_system.storage_version == FileStorageSystem.PROFILE_VERSION:
             self.begin_reading()
             try:
                 if not self.project_references:  # hack for testing. tests will have already set up profile.
-                    self.read_from_dict(properties)
+                    # read the properties from the storage system. called after open.
+                    properties, errors = self.storage_system.get_combined_properties()
+                    if properties:  # this is implied since storage system is not None, but be defensive.
+                        self.read_from_dict(properties)
             finally:
                 self.finish_reading()
             self.storage_system.set_property(self, "uuid", str(self.uuid))

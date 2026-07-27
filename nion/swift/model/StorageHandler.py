@@ -95,7 +95,6 @@ class StorageHandlerAttributes:
     created_local: datetime.datetime
     session_id: str | None
     n_bytes: int
-    _force_large_format: bool = False
 
 
 class StorageHandlerProvider(typing.Protocol):

@@ -70,8 +70,7 @@ class Project(Persistence.PersistentObject):
         self.__reader_errors: typing.Sequence[Persistence.ReaderError] = list()
 
         self.__storage_system = storage_system
-
-        self.set_storage_system(self.__storage_system)
+        self.__storage_system.set_root_item(self)
 
         self.__cache_factory = cache_factory
         self.__cache = cache_factory.create_cache() if cache_factory else None
@@ -202,16 +201,11 @@ class Project(Persistence.PersistentObject):
 
     @property
     def project_uuid(self) -> typing.Optional[uuid.UUID]:
-        properties = self.__storage_system.get_storage_properties()
-        try:
-            return uuid.UUID(properties.get("uuid", str(uuid.uuid4()))) if properties else None
-        except Exception as e:
-            return None
+        return self.__storage_system.storage_uuid
 
     @property
     def project_state(self) -> str:
-        properties = self.__storage_system.get_storage_properties()
-        if properties is not None and not properties:
+        if self.__storage_system.is_storage_empty:
             return "missing"
         project_uuid = self.project_uuid
         project_version = self.project_version
@@ -224,11 +218,7 @@ class Project(Persistence.PersistentObject):
 
     @property
     def project_version(self) -> typing.Optional[int]:
-        properties = self.__storage_system.get_storage_properties()
-        try:
-            return properties.get("version", None) if properties else None
-        except Exception:
-            return None
+        return self.__storage_system.storage_version
 
     @property
     def project_filter(self) -> ListModel.Filter:
@@ -283,7 +273,7 @@ class Project(Persistence.PersistentObject):
     def prepare_read_project(self) -> None:
         self.__project_load_start_time = time.time()
         logging.getLogger("loader").info(f"Loading project {self.__storage_system.get_identifier()}")
-        self._raw_properties, self.__reader_errors = self.__storage_system.read_project_properties()  # combines library and data item properties
+        self._raw_properties, self.__reader_errors = self.__storage_system.get_combined_properties()  # combines library and data item properties
         self.uuid = uuid.UUID(self._raw_properties.get("uuid", str(uuid.uuid4())))
 
         for reader_error in self.__reader_errors:
@@ -427,8 +417,7 @@ class Project(Persistence.PersistentObject):
         item_d = self.__storage_system.restore_item(data_item_uuid)
         if item_d is not None:
             data_item_uuid = uuid.UUID(item_d.get("uuid"))
-            large_format = item_d.get("__large_format", False)
-            data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
+            data_item = DataItem.DataItem(item_uuid=data_item_uuid)
             data_item.begin_reading()
             data_item.read_from_dict(item_d)
             data_item.finish_reading()
@@ -486,6 +475,7 @@ class Project(Persistence.PersistentObject):
     def migrate_to_latest(self) -> None:
         self.__storage_system.migrate_to_latest()
         self.__storage_system.load_properties()
+        self.__storage_system.normalize_project_data_path()
         self.update_storage_system()  # reload the properties
         self.prepare_read_project()
         self.read_project()
@@ -507,9 +497,7 @@ class Project(Persistence.PersistentObject):
 
 def data_item_factory(lookup_id: typing.Callable[[str], str]) -> DataItem.DataItem:
     data_item_uuid = uuid.UUID(lookup_id("uuid"))
-    # TODO: typing hack for default arg
-    large_format = typing.cast(typing.Callable[..., typing.Any], lookup_id)("__large_format", False)
-    return DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
+    return DataItem.DataItem(item_uuid=data_item_uuid)
 
 
 def display_item_factory(lookup_id: typing.Callable[[str], str]) -> DisplayItem.DisplayItem:

@@ -270,18 +270,25 @@ class PersistentStorageInterface(typing.Protocol):
     def load_properties(self) -> None: ...
 
     @abc.abstractmethod
-    def read_project_properties(self) -> typing.Tuple[PersistentDictType, typing.Sequence[ReaderError]]:
-        """Read from storage."""
-        ...
+    def get_combined_properties(self) -> tuple[PersistentDictType, typing.Sequence[ReaderError]]: ...
 
+    @property
     @abc.abstractmethod
-    def get_storage_properties(self) -> typing.Optional[PersistentDictType]: ...
+    def storage_uuid(self) -> uuid.UUID | None: ...
+
+    @property
+    @abc.abstractmethod
+    def storage_version(self) -> int | None: ...
+
+    @property
+    @abc.abstractmethod
+    def is_storage_empty(self) -> bool: ...
 
     @abc.abstractmethod
     def migrate_to_latest(self) -> None: ...
 
     @abc.abstractmethod
-    def get_properties(self, object: typing.Any) -> typing.Optional[PersistentDictType]: ...
+    def get_item_properties(self, item: PersistentObject) -> PersistentDictType | None: ...
 
     @abc.abstractmethod
     def insert_relationship_item(self, parent: PersistentObject, name: str, before_index: int, item: PersistentObject) -> None: ...
@@ -779,10 +786,6 @@ class PersistentObject(Observable.Observable):
         """Define this item to be the root context."""
         self.__persistent_object_context = PersistentObjectContext()
 
-    def set_storage_system(self, storage_system: PersistentStorageInterface) -> None:
-        """Set the storage system for this item."""
-        storage_system.set_root_item(self)
-
     def update_storage_system(self) -> None:
         """Update the storage system properties by re-reading from storage.
 
@@ -899,11 +902,6 @@ class PersistentObject(Observable.Observable):
         for relationship in self.__relationships.values():
             relationship.close()
         self.__relationships.clear()
-
-    def get_storage_properties(self) -> typing.Optional[PersistentDictType]:
-        """ Return a copy of the properties for the object as a dict. """
-        assert self.persistent_storage
-        return copy.deepcopy(self.persistent_storage.get_properties(self))
 
     @property
     def property_names(self) -> typing.Sequence[str]:
