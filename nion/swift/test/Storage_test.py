@@ -4831,6 +4831,23 @@ class TestStorageClass(unittest.TestCase):
             storage_system.rename_project("new_name")
             self.assertTrue((profile_context.projects_dir / "new_name Data").is_dir())
 
+    def test_file_project_storage_system_renames_data_folder_in_project_file(self) -> None:
+        """Test that the FileProjectStorageSystem rename_project renames the data folder in the project file project_data_folders property."""
+        with create_temp_profile_context() as profile_context:
+            Cache.db_make_directory_if_needed(str(profile_context.projects_dir))
+            pathlib.Path.mkdir(profile_context.projects_dir / "ExistingProject Data")
+            project_path = profile_context.projects_dir / pathlib.Path("ExistingProject").with_suffix(".nsproj")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": ["ExistingProject Data"]})
+            project_path.write_text(project_data_json, "utf-8")
+            storage_system = FileStorageSystem.make_index_project_storage_system(project_path)
+            storage_system.load_properties()  # No actual data is saved so the project storage data path has to be populated by manually calling this
+            storage_system.rename_project("new_name")
+            new_project_path = profile_context.projects_dir / "new_name.nsproj"
+            with new_project_path.open("r") as fp:
+                properties = json.load(fp)
+                self.assertEqual(["new_name Data"], properties["project_data_folders"])
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

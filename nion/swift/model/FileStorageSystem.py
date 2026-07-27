@@ -1163,9 +1163,16 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         If the data folder did exist but failed be renamed then this will attempt to undo the renaming of the project file.
         If undoing the renaming of the project file fails then the project file's name will have changed, but there will still be an error message.
         """
+        self.load_properties()
+        if self.__project_data_path is None:
+            # The project data path may not be up to date and is None even though there is a data folder on disk
+            data_path = self.__project_path.parent / f"{self.project_path.name} Data"  # Default path of the data folder
+            if data_path.exists():  # Only save the data folder when it exists on disk
+                self.__project_data_path = data_path
+
         old_data_path = self.__project_data_path
         old_project_path = self.__project_path
-        new_project_path = old_project_path.with_name(f"{name}.nsproj")
+        new_project_path = old_project_path.parent / f"{name}.nsproj"
         try:
             self.__project_path = old_project_path.rename(new_project_path)
         except Exception as e:
@@ -1174,7 +1181,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
         error_messages = []
         try:
-            if old_data_path is not None:
+            # The directory must be checked to exist because load_properties will set the data path to the default even when the directory does not exist
+            if old_data_path is not None and old_data_path.is_dir():
                 self.__project_data_path = old_data_path.rename(old_data_path.parent / f"{name} Data")
         except Exception as e:
             error_messages.append(_("Exception while renaming the Data Folder"))
@@ -1186,6 +1194,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 error_messages.append(_("WARNING: Project File and Data Folder names have diverged"))
                 logging.exception(_("Failed to undo Data Folder rename. Renaming project file gave exception:\n") + str(e2))
 
+        self._write_properties()  # Trigger the writing of the project_data_folders in the project file
         return ProjectNameResult(error_messages, self.__project_path)
 
     @staticmethod
