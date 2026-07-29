@@ -1212,7 +1212,7 @@ class NameProjectViewModel:
 
     def update_project_status_label(self, project_name: str | None = None, directory: str | None = None) -> None:
         project_name = project_name or self.filename.value or str()
-        directory = directory or self.directory.value
+        directory = directory or self.directory.value or str()
 
         is_valid, errors = self.verify_project_name(project_name, directory, self.profile, self.check_name_available_fn)
 
