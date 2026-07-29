@@ -1,6 +1,5 @@
 # standard libraries
 import contextlib
-import copy
 import typing
 import unittest
 
@@ -10,12 +9,10 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import Facade
-from nion.swift.model import Connection
 from nion.swift.model import DataItem
-from nion.swift.model import DisplayItem
+from nion.swift.model import FileStorageSystem
 from nion.swift.model import Profile
 from nion.swift.test import TestContext
-from nion.ui import TestUI
 
 
 Facade.initialize()
@@ -82,3 +79,18 @@ class TestProjectClass(unittest.TestCase):
                 project_reference.close()
 
     # do not import same project (by uuid) twice
+
+    def test_project_name_viewmodel_is_invalid_with_existing_reference(self) -> None:
+        with TestContext.MemoryProfileContext() as profile_context:
+            profile = profile_context.create_profile()
+            project_reference = profile.project_references[0]
+            reference_path = project_reference.path
+            base_directory = reference_path.parent
+            # In order to get to the test path the check available function just returns a success with a path to the existing reference
+            def check_project_name_is_available(_name: str, _directory: str) -> FileStorageSystem.ProjectNameResult:
+                return FileStorageSystem.ProjectNameResult([], reference_path)  # Return the project path with no errors so it can be checked against the existing references
+
+            viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, check_project_name_is_available)
+            viewmodel.update_project_status_label(project_reference.title)
+            self.assertFalse(viewmodel.accept_button_enabled.value)
+            self.assertEqual(viewmodel.project_name_status_label.value, f"Project Reference \"{reference_path.stem}\" already exists, remove it via Choose Project before proceeding")

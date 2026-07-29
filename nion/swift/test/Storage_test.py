@@ -26,6 +26,7 @@ from nion.swift import DisplayPanel
 from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift import Thumbnails
+from nion.swift.Application import NewProjectAction
 from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
@@ -4601,6 +4602,50 @@ class TestStorageClass(unittest.TestCase):
         gc.collect()
         memory_usage = memory_usage_resource() - memory_start
         self.assertTrue(memory_usage < 0.2)
+
+    def test_file_project_storage_system_check_project_name_is_unavailable_with_existing_project(self) -> None:
+        with open("ExistingProject.nsproj", "w"):
+            current_working_directory = pathlib.Path.cwd()
+            check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(current_working_directory))
+            self.assertEqual(check_name_result.project_path, (current_working_directory / "ExistingProject").with_suffix(".nsproj"))
+            self.assertEqual(check_name_result.error_messages, ["Project Name \"ExistingProject.nsproj\" already exists"])
+        os.remove("ExistingProject.nsproj")
+
+    def test_file_project_storage_system_check_project_name_is_unavailable_with_existing_data_folder(self) -> None:
+        os.mkdir("ExistingProject Data")
+        current_working_directory = pathlib.Path.cwd()
+        check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(current_working_directory))
+        self.assertEqual(check_name_result.project_path, (current_working_directory / "ExistingProject").with_suffix(".nsproj"))
+        self.assertEqual(check_name_result.error_messages, ["Data Folder \"ExistingProject Data\" already exists"])
+        os.rmdir("ExistingProject Data")
+
+    def test_file_project_storage_system_check_project_name_is_unavailable_with_invalid_directory(self) -> None:
+        invalid_directory = pathlib.Path.cwd() / "Not_A_Directory"
+        check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(invalid_directory))
+        self.assertEqual(check_name_result.project_path, (invalid_directory / "ExistingProject").with_suffix(".nsproj"))
+        self.assertEqual(check_name_result.error_messages, [f"Base Directory \"{invalid_directory}\" doesn't exist"])
+
+    def test_get_project_base_name(self) -> None:
+        """Test that the get_project_base_name appends an increment to the end if a file by that name already exists.
+
+        Since the base name uses the date if you got unlucky this test could fail when part ran before midnight and the assertion after but this is unlikely.
+        """
+        with create_temp_profile_context() as profile_context:
+            projects_dir_str = str(profile_context.projects_dir)
+            Cache.db_make_directory_if_needed(projects_dir_str)
+            project_name = NewProjectAction.get_project_base_name(projects_dir_str)
+            # Create a project file at with that name so the next call should increment the name
+            with open(profile_context.projects_dir / pathlib.Path(project_name).with_suffix(".nsproj"), "w"):
+                pass
+
+            project_name_1 = NewProjectAction.get_project_base_name(projects_dir_str)
+            self.assertEqual(project_name_1, f"{project_name} (1)")
+
+            with open(profile_context.projects_dir / pathlib.Path(project_name_1).with_suffix(".nsproj"), "w"):
+                pass
+
+            project_name_2 = NewProjectAction.get_project_base_name(projects_dir_str)
+            self.assertEqual(project_name_2, f"{project_name} (2)")
 
 
 if __name__ == '__main__':
