@@ -81,13 +81,15 @@ class TestProjectClass(unittest.TestCase):
     # do not import same project (by uuid) twice
 
     def test_project_name_viewmodel_is_invalid_with_existing_reference(self) -> None:
+        """Test the NameProjectViewModel to check that if the name is available but there is an existing project reference associated with the path there is an error message."""
         with TestContext.MemoryProfileContext() as profile_context:
             profile = profile_context.create_profile()
             project_reference = profile.project_references[0]
             reference_path = project_reference.path
             base_directory = reference_path.parent
-            # In order to get to the test path the check available function just returns a success with a path to the existing reference
+
             def check_project_name_is_available(_name: str, _directory: str) -> FileStorageSystem.ProjectNameResult:
+                # In order to get to the test path the check available function just returns a success with a path to the existing reference
                 return FileStorageSystem.ProjectNameResult([], reference_path)  # Return the project path with no errors so it can be checked against the existing references
 
             viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, check_project_name_is_available)

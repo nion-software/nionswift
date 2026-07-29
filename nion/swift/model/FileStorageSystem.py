@@ -667,7 +667,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
         Returns a ProjectNameResult.
         ProjectNameResult.project_path is set to the path that would be used for the project if the name is available, otherwise None.
-        ProjectNameResult.error_message contains a sequence of error messages if there are any.
+        ProjectNameResult.error_messages contains a sequence of error messages if there are any.
         """
         return ProjectNameResult([], None)
 
@@ -1179,7 +1179,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         Checks the directory exists then checks that no existing project file or data folder is in that directory with the same name.
         Returns ProjectNameResult with the calculated project_path and error_messages.
         """
-        error_messages = []
+        error_messages: list[str] = []
         directory_path = pathlib.Path(directory)
         new_project_path = pathlib.Path(directory, name).with_suffix(".nsproj")
         if not directory_path.is_dir():
