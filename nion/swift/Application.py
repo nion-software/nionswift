@@ -1039,8 +1039,8 @@ class NewProjectAction(UIWindow.Action):
         project_title = self.get_project_base_name(directory)
 
         def handle_create_clicked(new_name: str, new_directory: str) -> None:
-            self.set_string_property(context, "name", new_name)
-            self.set_string_property(context, "directory", new_directory)
+            self.set_string_property(context,"name", new_name)
+            self.set_string_property(context,"directory", new_directory)
             self.execute(context)
 
         NameProjectDialog(application.ui, document_controller, application, directory, project_name=project_title,
@@ -1091,8 +1091,8 @@ class NameProjectViewModel:
 
     @staticmethod
     def verify_project_name(project_name: str, base_directory: str, profile: Profile.Profile,
-                            check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None = None
-                            ) -> tuple[bool, typing.Sequence[str] | None]:
+                            check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None = None) \
+            -> tuple[bool, typing.Sequence[str] | None]:
         """Verify that a project name is a valid filename and doesn't already exist."""
         if project_name == "":
             return False, ["Project name cannot be empty"]
@@ -1105,7 +1105,7 @@ class NameProjectViewModel:
             name_available_result = check_name_available_fn(project_name, base_directory)
             errors.extend(name_available_result.error_messages or [])
             if name_available_result.success and name_available_result.project_path:
-                # Check if an orphaned project reference exists, it would need to be removed manually by the user as there is no way for to do that automatically
+                # Check for an orphaned project reference exists, it would need to be removed manually
                 project_reference = profile.get_project_reference_by_path(name_available_result.project_path)
                 if project_reference is not None:
                     errors.append(_("Project Reference") + f" \"{project_reference.title}\" " + _("already exists, remove it via Choose Project before proceeding"))
@@ -1114,7 +1114,7 @@ class NameProjectViewModel:
 
     def update_project_status_label(self, project_name: str | None = None, directory: str | None = None) -> None:
         project_name = project_name or self.filename.value or str()
-        directory = directory or self.directory.value or str()
+        directory = directory or self.directory.value
 
         is_valid, errors = self.verify_project_name(project_name, directory, self.profile, self.check_name_available_fn)
 
@@ -1136,8 +1136,7 @@ class NameProjectDialog(Declarative.Handler):
         accept_fn will receive the name and directory when the confirm button is pressed
         choose_directory_visible will show the choose directory button when set to True.
         dialog_name is the text to show on the confirm button and in the dialog title.
-        check_name_available_fn is the ProjectStorageSystem function to check if the project exists.
-        It takes the project name and base directory and returns a ProjectNameResult.
+        project_name_available_fn is the ProjectStorageSystem function to check if the project exists, that takes the project name and base directory and returns a ProjectNameResult. If None, no check for an existing project will be done.
         """
         super().__init__()
         self.ui = ui
@@ -1213,12 +1212,12 @@ class NameProjectDialog(Declarative.Handler):
         self.dialog.add_button(_("Cancel"), lambda: True)
         self._accept_button = self.dialog.add_button(dialog_name, self.handle_accept_clicked)
 
-        def update_accept_button(_: str | bool | None) -> None:
+        def update_accept_button(_: typing.Any) -> None:
             self._accept_button.enabled = self.viewmodel.accept_button_enabled.value or False
             self._accept_button.tool_tip = self.viewmodel.project_name_status_label.value or str()
 
-        self.__accept_button_enabled_action: Stream.ValueStreamAction[str | bool | None] = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.accept_button_enabled, "value"), update_accept_button)
-        self.__accept_button_tool_tip_action: Stream.ValueStreamAction[str | bool | None] = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.project_name_status_label, "value"), update_accept_button)
+        self.__accept_button_enabled_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.accept_button_enabled, "value"), update_accept_button)
+        self.__accept_button_tool_tip_action = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.project_name_status_label, "value"), update_accept_button)
 
         self.viewmodel.update_project_status_label()
         self.dialog.show()
