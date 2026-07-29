@@ -742,6 +742,14 @@ class Application(UIApplication.BaseApplication):
                             profile.remove_project_reference(project_reference_item.project_reference)
 
                         menu.add_menu_item(_(f"Remove Project from List"), functools.partial(remove_project, index))
+
+                        def rename_selected_project(project_reference: Profile.ProjectReference) -> None:
+                            action = RenameProjectAction(project_reference)
+                            document_controller = self.__application.document_controllers[0]
+                            action.invoke(UIWindow.ActionContext(self.__application, document_controller, None))
+
+                        menu.add_menu_item(_("Rename Project"), functools.partial(rename_selected_project, project_reference_item.project_reference))
+
                         menu.popup(gx, gy)
                     return True
 
@@ -1113,6 +1121,61 @@ class ChooseProjectAction(UIWindow.Action):
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
+class RenameProjectAction(UIWindow.Action):
+    """Renames the current project, if it exists. If the current project is not found, this action does nothing.
+
+    The invoke method must be used to call the rename function, calling execute will raise a NotImplementedError.
+    """
+    action_id = "project.rename_current_project"
+    action_name = _("Rename Project")
+    action_parameters = [
+        UIWindow.ActionStringProperty("name")
+    ]
+
+    def __init__(self, project_reference: Profile.ProjectReference | None = None) -> None:
+        super().__init__()
+        self.project_reference = project_reference
+
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        assert self.project_reference is not None
+        project_name = self.get_string_property(context, "name")
+        assert project_name is not None
+        application = typing.cast(Application, context.application)
+        application.rename_project(self.project_reference, project_name)
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
+
+    def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
+        document_controller = typing.cast(DocumentController.DocumentController, context.window)
+        application = typing.cast(Application, context.application)
+
+        if self.project_reference is None:  # If the project reference is not set then use the current project reference
+            last_project_uuid = application.profile.last_project_reference
+            if last_project_uuid is not None:
+                self.project_reference = application.profile.get_project_reference(last_project_uuid)
+
+        if self.project_reference is None:
+            return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
+
+        if self.project_reference.project is None:
+            project_storage_system = self.project_reference.make_storage(application.profile.profile_context)
+        else:
+            project_storage_system = self.project_reference.project.project_storage_system
+
+        if project_storage_system is None:
+            return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
+
+        def handle_rename_clicked(new_name: str, _: str) -> None:
+            self.set_string_property(context,"name", new_name)
+            self.execute(context)
+
+        directory = self.project_reference.path.parent.as_posix()
+        NameProjectDialog(application.ui, document_controller, application, directory, project_name=self.project_reference.title,
+                          accept_fn=handle_rename_clicked, dialog_name="Rename Project", choose_directory_visible=False,
+                          check_name_available_fn=project_storage_system.check_project_name_is_available)
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
+
+
 class NameProjectViewModel:
     """Represents the NameProjectDialog model."""
     def __init__(self, filename: str, directory: str, profile: Profile.Profile, check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None):
@@ -1289,3 +1352,4 @@ class NameProjectDialog(Declarative.Handler):
 UIWindow.register_action(NewProjectAction())
 UIWindow.register_action(OpenProjectAction())
 UIWindow.register_action(ChooseProjectAction())
+UIWindow.register_action(RenameProjectAction())
