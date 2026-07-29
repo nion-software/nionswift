@@ -1002,148 +1002,49 @@ PreferencesDialog.PreferencesManager().register_preference_pane(FeaturesPreferen
 class NewProjectAction(UIWindow.Action):
     action_id = "project.new_project"
     action_name = _("New Project...")
+    check_project_name_is_available = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available  # The FileProjectStorageSystem is used as the default project storage system
+
+    @staticmethod
+    def get_project_base_name(directory: str) -> str:
+        """Get a default project base name using the current datetime.
+
+        If a project already exists with that name in the directory then try appending an index to the name until a unique name is found.
+        """
+        project_base_name = _("Nion Swift Project") + " " + datetime.datetime.now().strftime("%Y%m%d")
+        project_base_index_str = ""
+        for i in range(1, 9999):
+            name_available_result = NewProjectAction.check_project_name_is_available(project_base_name + project_base_index_str, directory)
+            if name_available_result.success:
+                break
+            project_base_index_str = f" ({str(i)})"
+
+        return project_base_name + project_base_index_str
 
     def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
-        raise NotImplementedError()
+        application = typing.cast(Application, context.application)
+        with application.prevent_close():
+            project_name = self.get_string_property(context, "name")
+            directory = self.get_string_property(context, "directory")
+            assert project_name is not None
+            assert directory is not None
+            application.create_project_reference(pathlib.Path(directory), project_name)
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
     def invoke(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
         context = typing.cast(DocumentController.DocumentController.ActionContext, context)
-
-        class NewProjectDialog(Dialog.ActionDialog):
-
-            def __init__(self, ui: UserInterface.UserInterface, app: Application, event_loop: asyncio.AbstractEventLoop, profile: Profile.Profile) -> None:
-                super().__init__(ui, title=_("New Project"), app=app, persistent_id="new_project_dialog")
-
-                self.directory = self.ui.get_persistent_string("project_directory", self.ui.get_document_location())
-
-                project_base_name = _("Nion Swift Project") + " " + datetime.datetime.now().strftime("%Y%m%d")
-                project_base_index = 0
-                project_base_index_str = ""
-                while os.path.exists(os.path.join(self.directory, project_base_name + project_base_index_str)):
-                    project_base_index += 1
-                    project_base_index_str = " " + str(project_base_index)
-
-                self.project_name = project_base_name + project_base_index_str
-
-                def handle_close() -> bool:
-                    self.request_close()
-                    return True
-
-                # this is invoked by the button. the dialog will be closed by returning True. see Dialog.add_button.
-                # it should not explicitly close the dialog.
-                def handle_new() -> bool:
-                    app.create_project_reference(pathlib.Path(self.directory), self.__project_name_field.text or "untitled")
-                    return True
-
-                # this is invoked by pressing return in the project name field. it will create the project and close the dialog.
-                def handle_new_and_close() -> bool:
-                    handle_new()
-                    self.request_close()
-                    return True
-
-                def verify_project_name(text: str) -> None:
-                    is_valid, errors = Utility.verify_filename_is_legal(text)
-                    create_project_button.enabled = is_valid
-                    if errors is None:
-                        create_project_button.tool_tip = None
-                        project_name_status_label.text = None
-                    else:
-                        error_str = "\n".join(errors)
-                        create_project_button.tool_tip = error_str
-                        project_name_status_label.text = error_str
-                        project_name_status_label.text_color = "red"
-                column = self.ui.create_column_widget()
-
-                directory_header_row = self.ui.create_row_widget()
-                directory_header_row.add_spacing(13)
-                directory_header_row.add(self.ui.create_label_widget(_("Projects Folder: "), properties={"font": "bold"}))
-                directory_header_row.add_stretch()
-                directory_header_row.add_spacing(13)
-
-                show_directory_row = self.ui.create_row_widget()
-                show_directory_row.add_spacing(26)
-                directory_label = self.ui.create_label_widget(self.directory)
-                show_directory_row.add(directory_label)
-                show_directory_row.add_stretch()
-                show_directory_row.add_spacing(13)
-
-                choose_directory_row = self.ui.create_row_widget()
-                choose_directory_row.add_spacing(26)
-                choose_directory_button = self.ui.create_push_button_widget(_("Choose..."))
-                choose_directory_row.add(choose_directory_button)
-                choose_directory_row.add_stretch()
-                choose_directory_row.add_spacing(13)
-
-                project_name_header_row = self.ui.create_row_widget()
-                project_name_header_row.add_spacing(13)
-                project_name_header_row.add(self.ui.create_label_widget(_("Project Name: "), properties={"font": "bold"}))
-                project_name_header_row.add_stretch()
-                project_name_header_row.add_spacing(13)
-
-                project_name_row = self.ui.create_row_widget()
-                project_name_row.add_spacing(26)
-                project_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
-                project_name_field.text = self.project_name
-                project_name_field.on_return_pressed = handle_new_and_close
-                project_name_field.on_escape_pressed = handle_close
-                project_name_field.on_text_edited = verify_project_name
-                project_name_row.add(project_name_field)
-                project_name_row.add_stretch()
-                project_name_row.add_spacing(13)
-
-                project_name_status_label = self.ui.create_label_widget()
-                project_name_status_row = self.ui.create_row_widget()
-                project_name_status_row.add_spacing(26)
-                project_name_status_row.add(project_name_status_label)
-                project_name_status_row.add_stretch()
-                project_name_status_row.add_spacing(13)
-
-                column.add_spacing(12)
-                column.add(directory_header_row)
-                column.add_spacing(8)
-                column.add(show_directory_row)
-                column.add_spacing(8)
-                column.add(choose_directory_row)
-                column.add_spacing(16)
-                column.add(project_name_header_row)
-                column.add_spacing(8)
-                column.add(project_name_row)
-                column.add_spacing(4)
-                column.add(project_name_status_row)
-                column.add_stretch()
-                column.add_spacing(16)
-
-                def choose() -> None:
-                    existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Project Directory"), self.directory)
-                    if existing_directory:
-                        self.directory = existing_directory
-                        directory_label.text = self.directory
-                        self.ui.set_persistent_string("project_directory", self.directory)
-
-                choose_directory_button.on_clicked = choose
-
-                self.add_button(_("Cancel"), lambda: True)
-                create_project_button = self.add_button(_("Create Project"), handle_new)
-
-                self.content.add(column)
-
-                self.__project_name_field = project_name_field
-
-            def close(self) -> None:
-                if self.app:
-                    self.app._exit_prevent_close_state()
-                super().close()
-
-            def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
-                super().show(size=size, position=position)
-                self.__project_name_field.focused = True
-                self.__project_name_field.select_all()
-
+        document_controller = typing.cast(DocumentController.DocumentController, context.window)
         application = typing.cast(Application, context.application)
-        profile = application.profile
-        application._enter_prevent_close_state()
-        new_project_dialog = NewProjectDialog(application.ui, application, application.event_loop, profile)
-        new_project_dialog.show()
+        directory = application.ui.get_persistent_string("project_directory", application.ui.get_document_location())
+        project_title = self.get_project_base_name(directory)
+
+        def handle_create_clicked(new_name: str, new_directory: str) -> None:
+            self.set_string_property(context,"name", new_name)
+            self.set_string_property(context,"directory", new_directory)
+            self.execute(context)
+
+        NameProjectDialog(application.ui, document_controller, application, directory, project_name=project_title,
+                          accept_fn=handle_create_clicked, dialog_name="New Project", choose_directory_visible=True,
+                          check_name_available_fn=NewProjectAction.check_project_name_is_available)
 
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
