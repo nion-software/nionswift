@@ -24,7 +24,7 @@ The array metadata contains a creation time, free-form attributes, and structure
 
 The array descriptor contains an ordered list of axis groups and a value type. At least one axis group is required; only the final group may have rank zero.
 
-Each axis group may have coordinate mappings and may reference the coordinate system in which its mapped coordinates are interpreted. One coordinate mapping may be primary.
+Each axis group may have coordinate calibrations and may reference the coordinate system in which its calibrated coordinates are interpreted. One coordinate calibration may be primary.
 
 ### Terms and Definitions
 
@@ -36,7 +36,7 @@ An **array descriptor** contains the intrinsic fields required to interpret an u
 
 An **array header** is a utility value containing an array descriptor, storage data type, and array metadata without an underlying array.
 
-An **intrinsic field** is information whose semantics and invariants are part of the annotated array model, such as axis groups, coordinate mappings, coordinate system references, and intensity calibrations.
+An **intrinsic field** is information whose semantics and invariants are part of the annotated array model, such as axis groups, coordinate calibrations, coordinate system references, and intensity calibrations.
 
 The **storage data type** specifies how values are represented in the underlying array. It is distinct from the value type, which describes the meaning of one logical value.
 
@@ -46,11 +46,9 @@ An **extension record** is versioned, code-interpreted array metadata whose sema
 
 **Free-form metadata** is information that travels with an annotated array without a machine-enforced schema and is not interpreted by the annotated array model.
 
-An **axis group** is an ordered group of axes in an annotated array. The rank of an axis group is the number of axes in the group.
+An **axis group** is an ordered group of axes in an annotated array. The rank of an axis group is the number of axes in the group. Each axis object includes a display label and a positive concrete size.
 
 The **array rank** (called `ndim` in NumPy-oriented code) is the total number of axes in an annotated array, equal to the sum of axis-group ranks.
-
-A **bound axis group** is an axis group in which every axis has a concrete positive size. Its axis sizes determine the shape of the group.
 
 The **signal axis group** is the final axis group in an annotated array. *Note on nomenclature:* "signal" is not a perfect term - axes outside the signal axis group may also carry meaningful signal - but it is the least bad of the candidates considered and a clear improvement over the previous term "datum," which read as surveying jargon and was an awkward singular of "data."
 
@@ -62,23 +60,23 @@ A **coordinate system axis** is a per-dimension component of a coordinate system
 
 A **coordinate system graph** is the set of coordinate system definitions and the current coordinate system transforms. The coordinate system graph is maintained outside annotated arrays, at the instrument level.
 
-A **calibration** is a structure containing `scale`, `offset`, and `units` used to map index values to calibrated values using the formula `x' = x * scale + offset`. A calibration is a linear transform on a single axis. A calibration exists within a coordinate mapping, one per axis. Calibrations support sampled (uniformly spaced) axes.
+A **calibration** is a structure containing `scale`, `offset`, and `units` used to map index values to calibrated values using the formula `x' = x * scale + offset`. A calibration is a linear transform on a single axis. A calibration exists within a coordinate calibration, one per axis. Calibrations support sampled (uniformly spaced) axes.
 
 A **coordinate array** is a structure containing arrays that map index values to coordinate values. Coordinate arrays support non-sampled (non-uniformly spaced) axes.
 
 An **index coordinate space** is the space of index values of an axis group.
 
-A **coordinate mapping** is a mapping from the index coordinate space of an axis group into calibrated coordinates, consisting of one calibration or coordinate array per axis. An axis group may have zero or more coordinate mappings; coordinate mappings are coherent across all axes of the group.
+A **coordinate calibration** is a mapping from the index coordinate space of an axis group into calibrated coordinates, consisting of one calibration or coordinate array per axis. An axis group may have zero or more coordinate calibrations; coordinate calibrations are coherent across all axes of the group.
 
-A **primary coordinate mapping** is the coordinate mapping of an axis group used by default for display and by consumers unaware of multiple coordinate mappings.
+A **primary coordinate calibration** is the coordinate calibration of an axis group used by default for display and by consumers unaware of multiple coordinate calibrations.
 
-A **coordinate system transform** is an invertible affine transform from one coordinate system to another. Coordinate system transforms are relationships in the coordinate system graph and typically compose only with isotropic coordinate mappings.
+A **coordinate system transform** is an invertible affine transform from one coordinate system to another. Coordinate system transforms are relationships in the coordinate system graph and typically compose only with isotropic coordinate calibrations.
 
-An **isotropic coordinate mapping** is a coordinate mapping in which every axis has the same units and the same scale. Offsets may differ between axes; the classification considers units and scale only. Example: a camera image with square pixels calibrated in nm, with the origin at the image center.
+An **isotropic coordinate calibration** is a coordinate calibration in which every axis has the same units and the same scale. Offsets may differ between axes; the classification considers units and scale only. Example: a camera image with square pixels calibrated in nm, with the origin at the image center.
 
-An **anisotropic coordinate mapping** is a coordinate mapping in which every axis has the same units but the scales differ between axes. Example: a camera image with rectangular pixels calibrated in nm.
+An **anisotropic coordinate calibration** is a coordinate calibration in which every axis has the same units but the scales differ between axes. Example: a camera image with rectangular pixels calibrated in nm.
 
-A **mixed coordinate mapping** is a coordinate mapping in which the axes have different units. Example: a coordinate mapping with one axis calibrated in eV (energy) and another in nm (position).
+A **mixed coordinate calibration** is a coordinate calibration in which the axes have different units. Example: a coordinate calibration with one axis calibrated in eV (energy) and another in nm (position).
 
 ### Array Metadata
 
@@ -240,7 +238,7 @@ Calibrations for axis coordinates are stored only in `coordinate_calibrations` a
 
 ### External Coordinate Systems
 
-Coordinate-system definitions and transforms are maintained outside annotated arrays. Annotated arrays participate in coordinate translation through the coordinate-system references and coordinate mappings in their axis groups.
+Coordinate-system definitions and transforms are maintained outside annotated arrays. Annotated arrays participate in coordinate translation through the coordinate-system references and coordinate calibrations in their axis groups.
 
 Point translation, transform composition, resampling boundaries, and display use cases are described in [Coordinate Translation and Display](./coordinate_translation.md).
 
