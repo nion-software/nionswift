@@ -3879,7 +3879,7 @@ class ComputationProcessor:
             return ComputationProcessorValueInput(ComputationProcessorVariableType.REAL, input_name, input_label)
         if "index" in input_name:
             return ComputationProcessorValueInput(ComputationProcessorVariableType.INTEGER, input_name, input_label)
-        if "enabled" in input_name or "flip" in input_name or "show" in input_name or "crop_to_valid":
+        if "enabled" in input_name or "flip" in input_name or "show" in input_name or "crop_to_valid" in input_name:
             return ComputationProcessorValueInput(ComputationProcessorVariableType.BOOLEAN, input_name, input_label)
         if "str" in input_name:
             return ComputationProcessorValueInput(ComputationProcessorVariableType.STRING, input_name, input_label)
