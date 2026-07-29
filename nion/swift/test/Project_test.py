@@ -89,7 +89,11 @@ class TestProjectClass(unittest.TestCase):
             reference_path = project_reference.path
             base_directory = reference_path.parent
 
-            viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, None)
+            # In order to get to the test path the check available function just returns a success with a path to the existing reference
+            def check_project_name_is_available(_name: str, _directory: str) -> FileStorageSystem.ProjectNameResult:
+                return FileStorageSystem.ProjectNameResult([], reference_path)  # Return the project path with no errors so it can be checked against the existing references
+
+            viewmodel = Application.NameProjectViewModel(project_reference.title, str(base_directory), profile, check_project_name_is_available)
             viewmodel.update_project_status_label(project_reference.title)
             self.assertFalse(viewmodel.accept_button_enabled.value)
             self.assertEqual(viewmodel.project_name_status_label.value, f"Project Reference \"{reference_path.stem}\" already exists, remove it via Choose Project before proceeding")
