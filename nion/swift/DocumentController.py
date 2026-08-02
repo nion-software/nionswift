@@ -51,7 +51,6 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Notification
 from nion.swift.model import Observer
 from nion.swift.model import Persistence
-from nion.swift.model import Processing
 from nion.swift.model import Profile
 from nion.swift.model import Project
 from nion.swift.model import Symbolic
@@ -69,7 +68,6 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Observable
 from nion.utils import Process
-from nion.utils import Registry
 from nion.utils import Selection
 from nion.utils import Stream
 
@@ -513,19 +511,6 @@ class DocumentController(Window.Window):
         return self.__project_reference
 
     def _create_menus(self) -> None:
-        # don't use default implementation
-
-        processing_component_menu_items = list()
-
-        processing_components = list()
-        for processing_component in typing.cast(typing.Sequence[Processing.ProcessingBase], Registry.get_components_by_type("processing-component")):
-            if "windows" in processing_component.sections:
-                processing_components.append(processing_component)
-        if processing_components:
-            processing_component_menu_items.append({"type": "separator"})
-            for processing_component in sorted(processing_components, key=operator.attrgetter("title")):
-                processing_component_menu_items.append({"type": "item", "action_id": "processing." + processing_component.processing_id})
-
         menu_descriptions: typing.Sequence[Persistence.PersistentDictType] = list()
         try:
             json_bytes = pkgutil.get_data(__name__, "resources/menu_config.json")
@@ -533,17 +518,6 @@ class DocumentController(Window.Window):
             menu_descriptions = typing.cast(typing.Sequence[Persistence.PersistentDictType], json.loads(json_bytes.decode("utf8")))
         except Exception as e:
             logging.error("Could not read menu configuration.")
-
-        # hack to build the dynamic filter section until nionui supplies a better way to do this
-        for m in menu_descriptions:
-            if m["menu_id"] == "processing":
-                for sm in m["items"]:
-                    if sm.get("menu_id") == "processing_fourier":
-                        for i, mi in enumerate(sm["items"]):
-                            if mi.get("action_id") == "processing.fourier_filter":
-                                for processing_component_menu_item in reversed(processing_component_menu_items):
-                                    sm["items"].insert(i + 1, processing_component_menu_item)
-                                break
 
         self.build_menu(None, menu_descriptions)
 
@@ -5112,6 +5086,32 @@ class LineProfileAction(ProcessingAction):
         return self.invoke_processing(context, context.model.get_line_profile_new)
 
 
+class MappedAverageAction(ProcessingAction):
+    action_id = "processing.mapped_average"
+    action_name = _("Mapped Average")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_mapped_average_new)
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_mapped_average_new)
+
+
+class MappedSumAction(ProcessingAction):
+    action_id = "processing.mapped_sum"
+    action_name = _("Mapped Sum")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_mapped_sum_new)
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_mapped_sum_new)
+
+
 class MaskAction(ProcessingAction):
     action_id = "processing.mask"
     action_name = _("Mask")
@@ -5529,30 +5529,43 @@ class UniformFilterAction(ProcessingAction):
         return self.invoke_processing(context, context.model.get_uniform_filter_new)
 
 
-class ProcessingComponentAction(ProcessingAction):
-    def __init__(self, processing_id: str, title: str) -> None:
-        super().__init__()
-        self.action_id = "processing." + processing_id
-        self.action_name = title
-        self.__processing_id = processing_id
+class WindowGaussianAction(ProcessingAction):
+    action_id = "processing.gaussian_window"
+    action_name = _("Gaussian Window")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        if context.display_item and context.data_item:
-            window._perform_processing(context.display_item, context.data_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
+        return self.execute_processing(context, context.model.get_gaussian_window_new)
 
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        window = typing.cast(DocumentController, context.window)
-        if context.display_item:
-            window._perform_processing_select(context.display_item, None, functools.partial(context.model.get_processing_new, self.__processing_id))
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
+        return self.invoke_processing(context, context.model.get_gaussian_window_new)
 
-    def is_enabled(self, context: Window.ActionContext) -> bool:
+
+class WindowHammingAction(ProcessingAction):
+    action_id = "processing.hamming_window"
+    action_name = _("Hamming Window")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
-        return context.data_item is not None
+        return self.execute_processing(context, context.model.get_hamming_window_new)
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_hamming_window_new)
+
+
+class WindowHannAction(ProcessingAction):
+    action_id = "processing.hann_window"
+    action_name = _("Hann Window")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, context.model.get_hann_window_new)
+
+    def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.invoke_processing(context, context.model.get_hann_window_new)
 
 
 Window.register_action(AddAction())
@@ -5574,6 +5587,8 @@ Window.register_action(HistogramAction())
 Window.register_action(InverseFFTAction())
 Window.register_action(LaplaceFilterAction())
 Window.register_action(LineProfileAction())
+Window.register_action(MappedAverageAction())
+Window.register_action(MappedSumAction())
 Window.register_action(MaskAction())
 Window.register_action(MaskedAction())
 Window.register_action(MedianFilterAction())
@@ -5604,20 +5619,9 @@ Window.register_action(SubtractAction())
 Window.register_action(SubtractAverageAction())
 Window.register_action(TransformAction())
 Window.register_action(UniformFilterAction())
-
-
-def component_changed(component: typing.Any, component_types: typing.Set[str]) -> None:
-    # when a processing component is registered, create a ProcessingComponentAction for the
-    # processing component.
-    if "processing-component" in component_types:
-        processing_component = typing.cast(Processing.ProcessingBase, component)
-        Window.register_action(ProcessingComponentAction(processing_component.processing_id, processing_component.title))
-
-
-component_registered_event_listener = Registry.listen_component_registered_event(component_changed)
-# listening to processing-component is used in two places, so do not use `fire_existing_...`
-for component in Registry.get_components_by_type("processing-component"):
-    component_changed(component, {"processing-component"})
+Window.register_action(WindowGaussianAction())
+Window.register_action(WindowHammingAction())
+Window.register_action(WindowHannAction())
 
 try:
     data = pkgutil.get_data(__name__, "resources/key_config.json")
