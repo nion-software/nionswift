@@ -337,7 +337,7 @@ def calculate_line_segments(plot_height: int, plot_width: int, plot_origin_y: in
 
     for sample_index in range(n_samples):
         # Convert sample index → calibrated value → pixel x
-        cal_value = x_calibration.convert_to_calibrated_value(sample_index + 0.5)  # centre of sample bin
+        cal_value = x_calibration.convert_to_calibrated_value(sample_index)  # centre of sample bin
         px = plot_origin_x + plot_width * (cal_value - calibrated_left_channel) / cal_width
 
         data_value = data[sample_index]

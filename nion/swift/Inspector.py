@@ -2070,6 +2070,45 @@ class DisplayTypeChooserHandler(Declarative.Handler):
             self._document_controller.push_undo_command(command)
 
 
+class GraphStyleChooserHandler(Declarative.Handler):
+    """Chooser for the line plot graph style (graph_style), applied to all display layers."""
+
+    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
+        super().__init__()
+        self._document_controller = document_controller
+        self._display_item = display_item
+        self._graph_style_items = (_("Default (Bar)"), _("Bar"), _("Line"))
+        self._graph_style_flags = (None, "bar", "line")
+        self._graph_style_reverse_map = {None: 0, "bar": 1, "line": 2}
+        self._current_index = self._graph_style_reverse_map.get(self.__current_graph_style, 0)
+
+        u = Declarative.DeclarativeUI()
+
+        self.ui_view = u.create_row(
+            u.create_label(text=_("Graph Style"), text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
+            u.create_combo_box(items=self._graph_style_items, on_current_index_changed="change_graph_style", current_index="@binding(_current_index)"),
+            u.create_stretch(),
+            spacing=8
+        )
+
+    @property
+    def __current_graph_style(self) -> typing.Optional[str]:
+        # use the graph style of the first display layer as the representative value
+        display_layers = self._display_item.display_layers
+        if display_layers:
+            return typing.cast(typing.Optional[str], display_layers[0].graph_style)
+        return None
+
+    def change_graph_style(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        current_graph_style = self._graph_style_flags[current_index]
+        document_model = self._document_controller.document_model
+        for index in range(len(self._display_item.display_layers)):
+            if self._display_item.get_display_layer_property(index, "graph_style") != current_graph_style:
+                command = ChangeDisplayLayerPropertyCommand(document_model, self._display_item, index, "graph_style", current_graph_style)
+                command.perform()
+                self._document_controller.push_undo_command(command)
+
+
 class ContrastStringConverter(Converter.ConverterLike[float, str]):
 
     def convert(self, value: typing.Optional[float]) -> typing.Optional[str]:
@@ -2244,6 +2283,9 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self._display_type_chooser = DisplayTypeChooserHandler(display_item, document_controller)
         display_type_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._display_type_chooser)
 
+        self._graph_style_chooser = GraphStyleChooserHandler(display_item, document_controller)
+        graph_style_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._graph_style_chooser)
+
         self._line_plot_display_section_handler = LinePlotDisplaySectionHandler(document_controller, display_item)
         widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._line_plot_display_section_handler)
 
@@ -2251,6 +2293,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         legend_position_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._legend_position_chooser)
 
         self.add_widget_to_content(display_type_chooser_widget)
+        self.add_widget_to_content(graph_style_chooser_widget)
         self.add_widget_to_content(widget)
         self.add_widget_to_content(legend_position_chooser_widget)
 
