@@ -2096,7 +2096,7 @@ class GraphStyleChooserHandler(Declarative.Handler):
         # use the graph style of the first display layer as the representative value
         display_layers = self._display_item.display_layers
         if display_layers:
-            return typing.cast(typing.Optional[str], display_layers[0].graph_style)
+            return display_layers[0].graph_style
         return None
 
     def change_graph_style(self, widget: Declarative.UIWidget, current_index: int) -> None:

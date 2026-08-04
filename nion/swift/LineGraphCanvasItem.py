@@ -333,7 +333,7 @@ def calculate_line_segments(plot_height: int, plot_width: int, plot_origin_y: in
     segment = LineGraphSegment()
     line_commands = segment.line_commands
     did_draw = False
-    last_py = baseline
+    last_py: float = baseline
 
     for sample_index in range(n_samples):
         # Convert sample index → calibrated value → pixel x
