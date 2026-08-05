@@ -390,18 +390,20 @@ class LineGraphLayer:
                  axes: typing.Optional[LineGraphAxes],
                  fill_color: typing.Optional[Color.Color],
                  stroke_color: typing.Optional[Color.Color],
-                 stroke_width: typing.Optional[float]) -> None:
+                 stroke_width: typing.Optional[float],
+                 graph_style: typing.Optional[str] = None) -> None:
         self.__xdata = xdata
         self.__fill_color = fill_color
         self.__stroke_color = stroke_color
         self.__stroke_width = stroke_width or 0.5
+        self.__graph_style: str = graph_style or "bar"
         self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
         self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__axes = axes
 
     def __repr__(self) -> str:
         data_sum = numpy.sum(self.__xdata) if self.__xdata else 0.0
-        return f"LineGraphLayer {data_sum} {self.__fill_color} {self.__stroke_color} {self.__stroke_width} {self.__axes}"
+        return f"LineGraphLayer {data_sum} {self.__fill_color} {self.__stroke_color} {self.__stroke_width} {self.__graph_style} {self.__axes}"
 
     def __eq__(self, other: typing.Any) -> bool:
         if not isinstance(other, LineGraphLayer):
@@ -410,6 +412,7 @@ class LineGraphLayer:
                 self.__fill_color == other.__fill_color and
                 self.__stroke_color == other.__stroke_color and
                 self.__stroke_width == other.__stroke_width and
+                self.__graph_style == other.__graph_style and
                 self.__axes == other.__axes)
 
     @property
@@ -431,6 +434,11 @@ class LineGraphLayer:
     @property
     def axes(self) -> typing.Optional[LineGraphAxes]:
         return self.__axes
+
+    @property
+    def graph_style(self) -> str:
+        """Graph drawing style: 'bar' (staircase/histogram), 'line' (diagonal), or 'scatter' (markers)."""
+        return self.__graph_style
 
 
 MAX_LAYER_COUNT = 16
@@ -642,6 +650,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                 fill_color_str = display_layer.fill_color
                 stroke_color_str = display_layer.stroke_color
                 stroke_width = display_layer.stroke_width
+                graph_style = display_layer.graph_style
                 data_index = display_layer.data_index or 0
                 data_row = display_layer.data_row or 0
                 if 0 <= data_index < len(xdata_list):
@@ -655,7 +664,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                             intensity_calibration = xdata.intensity_calibration
                             displayed_dimensional_calibration = xdata.dimensional_calibrations[-1]
                             xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width))
+                    line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width, graph_style))
                     self._has_valid_drawn_graph_data = xdata is not None
             self.__line_graph_layers = line_graph_layers
         return self.__line_graph_layers

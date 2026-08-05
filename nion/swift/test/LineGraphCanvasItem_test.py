@@ -173,7 +173,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data[1] = 1
         data[2] = numpy.nan
         data[3:] = range(3,16,1)
-        segments, baseline = LineGraphCanvasItem.calculate_line_graph(
+        segments, baseline = LineGraphCanvasItem.calculate_bar_segments(
             100, 32, 0, 0, DataAndMetadata.new_data_and_metadata(data),
             0, 16, 0, 16, Calibration.Calibration(), None, LinePlotDisplay._get_axis_scale("linear")
         )
