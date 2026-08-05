@@ -451,35 +451,32 @@ ILLEGAL_FILENAME_CHARS_REGEX = r'[<>:/\\|?*"\0-\31]'  # Capture illegal characte
 ILLEGAL_FILENAME_CHARS_AND_POSITION_REGEX = f'^[. ]|{ILLEGAL_FILENAME_CHARS_REGEX}|[. ]$'
 ILLEGAL_FILENAMES = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
                      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9', 'COM¹', 'COM²', 'COM³', 'LPT¹', 'LPT²', 'LPT³']
-# Maps some common control characters to a human-readable name
-CONTROL_CHAR_NAMES = {
-    '\t': r"'\t' (Tab)",
-    '\r': r"'\r' (Carriage Return)",
-    '\n': r"'\n' (New Line)",
-    '\\': r"'\'"  # Backslash repr is '\\' but we want to show it as '\'
-}
 
-
-def get_filename_illegal_chars_error(filename: str) -> str | None:
+def get_filename_illegal_chars_error(filename: str)  -> typing.Sequence[str] | None:
     """Check if a filename contains illegal characters.
 
-    Returns an error message if there are illegal chars or None when it is valid.
-    The case of a \r, \t, and \n are likely when pasting but using those representations are not clear so use the name of the characters instead.
+    Returns a sequence of error messages if there are illegal chars or None when it is valid.
     """
     matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
     illegal_chars = []
+    errors = []
     for match in matches:
-        # If the character cannot be printed then use a human-readable name
-        if not str(match).isprintable() or match == '\\':
-            match = CONTROL_CHAR_NAMES.get(match, f"{repr(match)} (Control Character)")
+        if not str(match).isprintable():
+            if not errors:  # Only add the message once
+                errors.append(_("Contains non-printable character(s)"))
+            continue
+
+        if match == '\\':  # repr() will return '\\' so we special case it to just return '\'
+            match = r"'\'"
         else:
             match = repr(match)
         if match not in illegal_chars:
             illegal_chars.append(match)
 
     if illegal_chars:
-        return _("Contains illegal character(s) {characters}").format(characters=", ".join(illegal_chars))
-    return None
+        errors.append(_("Contains illegal character(s) {characters}").format(characters=", ".join(illegal_chars)))
+
+    return errors
 
 
 def verify_filename_is_legal(filename: str, maximum_length: int = 128) -> tuple[bool, typing.Sequence[str] | None]:
@@ -508,7 +505,7 @@ def verify_filename_is_legal(filename: str, maximum_length: int = 128) -> tuple[
 
     illegal_chars_error = get_filename_illegal_chars_error(filename)
     if illegal_chars_error is not None:
-        errors.append(illegal_chars_error)
+        errors.extend(illegal_chars_error)
 
     return len(errors) == 0, errors or None
 

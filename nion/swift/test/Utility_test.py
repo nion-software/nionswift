@@ -74,14 +74,15 @@ class TestUtilityClass(unittest.TestCase):
                 os.remove(file_path)
 
     def test_verify_filename_has_no_illegal_characters(self):
-        test_filenames = [("5>3>2024", "Contains illegal character(s) '>'"),
-                          ("abc\n\rdef\\", r"Contains illegal character(s) '\n' (New Line), '\r' (Carriage Return), '\'"),
-                          ("\26", r"Contains illegal character(s) '\x16' (Control Character)")]
+        test_filenames = [("5>3>2024", ["Contains illegal character(s) '>'"]),
+                          ("abcdef\\", [r"Contains illegal character(s) '\'"]),
+                          ("abcdef\n", [r"Contains non-printable character(s)"]),
+                          ("\26", [r"Contains non-printable character(s)"])]
 
         for test_input, expected in test_filenames:
             with self.subTest(test_input=test_input):
-                error = Utility.get_filename_illegal_chars_error(test_input)
-                self.assertEqual(error, expected)
+                errors = Utility.get_filename_illegal_chars_error(test_input)
+                self.assertEqual(errors, expected)
 
     def test_verify_filename_is_legal_catches_illegal_names(self) -> None:
         test_filenames = [("", "Cannot be empty"),
