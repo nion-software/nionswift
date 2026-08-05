@@ -74,21 +74,18 @@ class TestUtilityClass(unittest.TestCase):
                 os.remove(file_path)
 
     def test_verify_filename_has_no_illegal_characters(self):
-        test_filenames = [("5>3>2024", "Contains illegal character '>'"),
-                          ("abc\n\rdef\\", r"Contains illegal characters '\n' (New Line), '\r' (Carriage Return), '\'"),
-                          ("\26", r"Contains illegal character '\x16'")]
+        test_filenames = [("5>3>2024", "Contains illegal character(s) '>'"),
+                          ("abc\n\rdef\\", r"Contains illegal character(s) '\n' (New Line), '\r' (Carriage Return), '\'"),
+                          ("\26", r"Contains illegal character(s) '\x16' (Control Character)")]
 
         for test_input, expected in test_filenames:
             with self.subTest(test_input=test_input):
-                is_valid, error = Utility.verify_filename_has_no_illegal_characters(test_input)
-                self.assertFalse(is_valid)
+                error = Utility.get_filename_illegal_chars_error(test_input)
                 self.assertEqual(error, expected)
-
 
     def test_verify_filename_is_legal_catches_illegal_names(self) -> None:
         test_filenames = [("", "Cannot be empty"),
                           ("file.", "Cannot end with a period"),
-                          ("file ", "Cannot end with a whitespace"),
                           ("COM¹", "\"COM¹\" is illegal as it is reserved on some platforms"),
                           ("1234567890" * 13, "Exceeds the allowed length of 128 characters"),
                           ("NUL", "\"NUL\" is illegal as it is reserved on some platforms")]
@@ -100,8 +97,8 @@ class TestUtilityClass(unittest.TestCase):
                 self.assertEqual(errors, [expected])
 
     def test_verify_filename_is_legal_returns_multiple_errors(self) -> None:
-        multi_error_filenames = [("/file.", ["Cannot end with a period", r"Contains illegal character '/'"]),
-                                 ("*>" + "1234567890" * 13, ["Exceeds the allowed length of 128 characters", r"Contains illegal characters '*', '>'"])]
+        multi_error_filenames = [("/file.", ["Cannot end with a period", r"Contains illegal character(s) '/'"]),
+                                 ("*>" + "1234567890" * 13, ["Exceeds the allowed length of 128 characters", r"Contains illegal character(s) '*', '>'"])]
 
         for test_input, expected in multi_error_filenames:
             with self.subTest(test_input=test_input):

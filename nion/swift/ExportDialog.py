@@ -99,8 +99,8 @@ class ExportDialogViewModel:
         non_prefix_options_enabled = include_title or include_date or include_dimensions or include_sequence
         if prefix_enabled and non_prefix_options_enabled:
             # The prefix will only be part of the filename so only check that it is made up of valid characters
-            is_valid, error = Utility.verify_filename_has_no_illegal_characters(prefix_str)
-            if not is_valid and error is not None:
+            error = Utility.get_filename_illegal_chars_error(prefix_str)
+            if error is not None:
                 invalid_reasons.append(_("Prefix ") + error[0].lower() + error[1:])
         elif prefix_enabled and not non_prefix_options_enabled:
             # The prefix is the full filename so check it is allowed using the verify filename utility
