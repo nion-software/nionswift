@@ -455,7 +455,7 @@ def draw_ellipse(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geo
         ctx.fill()
 
 
-def draw_arrow(ctx: DrawingContextLike, p1: Geometry.FloatPoint, p2: Geometry.FloatPoint, arrow_size: int = 8) -> None:
+def draw_arrow(ctx: DrawingContextLike, p1: Geometry.FloatPoint, p2: Geometry.FloatPoint, arrow_size: float) -> None:
     angle = math.atan2(p2.y - p1.y, p2.x - p1.x)
     ctx.move_to(p2.x, p2.y)
     ctx.line_to(p2.x - arrow_size * math.cos(angle - math.pi / 6), p2.y - arrow_size * math.sin(angle - math.pi / 6))
@@ -550,7 +550,24 @@ def draw_rect_marker(ctx: DrawingContextLike, r: Geometry.FloatRect, is_enabled:
     draw_marker(ctx, r.bottom_left, is_enabled, is_shape_locked)
 
 
-def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, size: Geometry.FloatSize, rotation: float, is_selected: bool, is_focused: bool, is_shape_locked: bool, is_position_locked: bool, is_rotation_locked: bool, stroke_style: str, stroke_width: float, fill_style: typing.Optional[str]) -> None:
+def draw_ellipse_graphic(
+    ctx: DrawingContextLike,
+    center: Geometry.FloatPoint,
+    size: Geometry.FloatSize,
+    rotation: float,
+    is_selected: bool,
+    is_focused: bool,
+    is_shape_locked: bool,
+    is_position_locked: bool,
+    is_rotation_locked: bool,
+    stroke_style: str,
+    stroke_width: float,
+    fill_style: typing.Optional[str],
+    orientation_arrow_outer_offset: float,
+    orientation_arrow_inner_offset: float,
+    orientation_arrow_size: float,
+    orientation_stroke_width: float,
+) -> None:
     rect = Geometry.FloatRect.from_center_and_size(center, size)
     origin = rect.origin
     center = rect.center
@@ -561,16 +578,24 @@ def draw_ellipse_graphic(ctx: DrawingContextLike, center: Geometry.FloatPoint, s
             ctx.translate(-center.x, -center.y)
         ctx.line_width = stroke_width
         draw_ellipse(ctx, origin + size / 2, size, stroke_style, fill_style)
-        ctx.begin_path()
-        ctx.move_to(center.x, rect.top + 10 + (.5 * int(stroke_width)))
-        ctx.line_to(center.x, rect.top + 2 + (.5 * int(stroke_width )))
-        draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10 + (.5 * int(stroke_width)), x=center.x), Geometry.FloatPoint(y=rect.top + 2 + (.5 * int(stroke_width)), x=center.x), arrow_size=4)
-        ctx.close_path()
         ctx.line_width = stroke_width
         ctx.stroke_style = stroke_style
         ctx.stroke()
         ctx.fill_style = fill_style
         ctx.fill()
+        # Orientation indicator arrow is a UI affordance: draw it with one-pixel-scaled stroke.
+        ctx.begin_path()
+        ctx.move_to(center.x, rect.top + orientation_arrow_outer_offset + (.5 * int(stroke_width)))
+        ctx.line_to(center.x, rect.top + orientation_arrow_inner_offset + (.5 * int(stroke_width )))
+        draw_arrow(
+            ctx,
+            Geometry.FloatPoint(y=rect.top + orientation_arrow_outer_offset + (.5 * int(stroke_width)), x=center.x),
+            Geometry.FloatPoint(y=rect.top + orientation_arrow_inner_offset + (.5 * int(stroke_width)), x=center.x),
+            orientation_arrow_size,
+        )
+        ctx.line_width = orientation_stroke_width
+        ctx.stroke_style = stroke_style
+        ctx.stroke()
     if is_selected:
         with ctx.saver():
             if rotation:
@@ -1341,6 +1366,10 @@ class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
         rotation = self.rotation
         used_stroke_width = self.used_stroke_width
         scaled_stroke_width = device_context.scale_stroke(used_stroke_width)
+        orientation_stroke_width = device_context.scale_stroke(1.0)
+        orientation_arrow_outer_offset = device_context.scale_length(10.0)
+        orientation_arrow_inner_offset = device_context.scale_length(2.0)
+        orientation_arrow_size = device_context.scale_length(4.0)
         used_stroke_style = self.used_stroke_style
         used_fill_style = self.used_fill_style
         is_shape_locked = self.is_shape_locked
@@ -1362,15 +1391,25 @@ class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
             ctx.line_to(origin[1] + size[1], origin[0] + size[0])
             ctx.line_to(origin[1], origin[0] + size[0])
             ctx.line_to(origin[1], origin[0])
-            ctx.move_to(center.x, rect.top + 10)
-            ctx.line_to(center.x, rect.top + 2)
-            draw_arrow(ctx, Geometry.FloatPoint(y=rect.top + 10, x=center.x), Geometry.FloatPoint(y=rect.top + 2, x=center.x), arrow_size=4)
             ctx.close_path()
             ctx.line_width = scaled_stroke_width
             ctx.stroke_style = used_stroke_style
             ctx.stroke()
             ctx.fill_style = used_fill_style
             ctx.fill()
+            # Orientation indicator arrow is a UI affordance: draw it with one-pixel-scaled stroke.
+            ctx.begin_path()
+            ctx.move_to(center.x, rect.top + orientation_arrow_outer_offset)
+            ctx.line_to(center.x, rect.top + orientation_arrow_inner_offset)
+            draw_arrow(
+                ctx,
+                Geometry.FloatPoint(y=rect.top + orientation_arrow_outer_offset, x=center.x),
+                Geometry.FloatPoint(y=rect.top + orientation_arrow_inner_offset, x=center.x),
+                orientation_arrow_size,
+            )
+            ctx.line_width = orientation_stroke_width
+            ctx.stroke_style = used_stroke_style
+            ctx.stroke()
         if is_selected:
             with ctx.saver():
                 if rotation:
@@ -1432,6 +1471,10 @@ class EllipseGraphicRenderer(RectangleTypeGraphicRenderer):
         rotation = self.rotation
         used_stroke_width = self.used_stroke_width
         scaled_stroke_width = device_context.scale_stroke(used_stroke_width)
+        orientation_stroke_width = device_context.scale_stroke(1.0)
+        orientation_arrow_outer_offset = device_context.scale_length(10.0)
+        orientation_arrow_inner_offset = device_context.scale_length(2.0)
+        orientation_arrow_size = device_context.scale_length(4.0)
         used_stroke_style = self.used_stroke_style
         used_fill_style = self.used_fill_style
         is_shape_locked = self.is_shape_locked
@@ -1440,7 +1483,7 @@ class EllipseGraphicRenderer(RectangleTypeGraphicRenderer):
         # origin is top left
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
-        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width)
         self.draw_label(ctx, device_context, display_style, mapping, is_selected)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -1780,6 +1823,7 @@ class LineGraphicRenderer(LineTypeGraphicRenderer):
         end_arrow_enabled = self.end_arrow_enabled
         used_stroke_width = self.used_stroke_width
         scaled_stroke_width = device_context.scale_stroke(used_stroke_width)
+        arrow_size = device_context.scale_length(8.0)
         used_stroke_style = self.used_stroke_style
         is_shape_locked = self.is_shape_locked
         p1 = mapping.map_point_image_norm_to_widget(start)
@@ -1789,9 +1833,9 @@ class LineGraphicRenderer(LineTypeGraphicRenderer):
             ctx.move_to(p1[1], p1[0])
             ctx.line_to(p2[1], p2[0])
             if start_arrow_enabled:
-                draw_arrow(ctx, p2, p1)
+                draw_arrow(ctx, p2, p1, arrow_size)
             if end_arrow_enabled:
-                draw_arrow(ctx, p1, p2)
+                draw_arrow(ctx, p1, p2, arrow_size)
             ctx.line_width = scaled_stroke_width
             ctx.stroke_style = used_stroke_style
             ctx.stroke()
@@ -1861,6 +1905,7 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
         stroke_color = self.stroke_color
         used_stroke_width = self.used_stroke_width
         scaled_stroke_width = device_context.scale_stroke(used_stroke_width)
+        arrow_size = device_context.scale_length(8.0)
         used_stroke_style = self.used_stroke_style
         is_shape_locked = self.is_shape_locked
         p1 = mapping.map_point_image_norm_to_widget(start)
@@ -1871,9 +1916,9 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
             ctx.move_to(p1[1], p1[0])
             ctx.line_to(p2[1], p2[0])
             if start_arrow_enabled:
-                draw_arrow(ctx, p2, p1)
+                draw_arrow(ctx, p2, p1, arrow_size)
             if end_arrow_enabled:
-                draw_arrow(ctx, p1, p2)
+                draw_arrow(ctx, p1, p2, arrow_size)
             ctx.line_width = scaled_stroke_width
             ctx.stroke_style = used_stroke_style
             ctx.stroke()
@@ -2544,6 +2589,10 @@ class SpotGraphicRenderer(GraphicRenderer):
         used_stroke_style = self.used_stroke_style
         used_stroke_width = self.used_stroke_width
         scaled_stroke_width = device_context.scale_stroke(used_stroke_width)
+        orientation_stroke_width = device_context.scale_stroke(1.0)
+        orientation_arrow_outer_offset = device_context.scale_length(10.0)
+        orientation_arrow_inner_offset = device_context.scale_length(2.0)
+        orientation_arrow_size = device_context.scale_length(4.0)
         used_fill_style = self.used_fill_style
         is_shape_locked = self.is_shape_locked
         is_position_locked = self.is_position_locked
@@ -2552,12 +2601,12 @@ class SpotGraphicRenderer(GraphicRenderer):
         origin = mapping.calibrated_origin_widget
         center = origin + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
-        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width)
         with ctx.saver():
             ctx.translate(origin.x, origin.y)
             ctx.rotate(math.pi)
             ctx.translate(-origin.x, -origin.y)
-            draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style)
+            draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width)
         self.draw_label(ctx, device_context, display_style, mapping, is_selected)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -3302,6 +3351,7 @@ class LatticeGraphicRenderer(GraphicRenderer):
         radius = self.radius
         used_stroke_width = self.used_stroke_width
         scaled_stroke_width = device_context.scale_stroke(used_stroke_width)
+        arrow_size = device_context.scale_length(8.0)
         used_stroke_style = self.used_stroke_style
         used_fill_style = self.used_fill_style
         is_position_locked = self.is_position_locked
@@ -3318,7 +3368,7 @@ class LatticeGraphicRenderer(GraphicRenderer):
             ctx.begin_path()
             ctx.move_to(start_widget[1], start_widget[0])
             ctx.line_to(u_pos_widget[1], u_pos_widget[0])
-            draw_arrow(ctx, start_widget, u_pos_widget)
+            draw_arrow(ctx, start_widget, u_pos_widget, arrow_size)
             ctx.line_width = scaled_stroke_width
             ctx.stroke_style = used_stroke_style
             ctx.stroke()
@@ -3328,7 +3378,7 @@ class LatticeGraphicRenderer(GraphicRenderer):
             ctx.begin_path()
             ctx.move_to(start_widget[1], start_widget[0])
             ctx.line_to(v_pos_widget[1], v_pos_widget[0])
-            draw_arrow(ctx, start_widget, v_pos_widget)
+            draw_arrow(ctx, start_widget, v_pos_widget, arrow_size)
             ctx.line_width = scaled_stroke_width
             ctx.stroke_style = used_stroke_style
             ctx.stroke()
