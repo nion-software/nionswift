@@ -41,6 +41,7 @@ class DisplayStyle:
         "scale-marker": 14 / _PT_TO_PX,
         "axis-label": 12 / _PT_TO_PX,
         "axis-label-superscript": 10 / _PT_TO_PX,
+        "legend": 12 / _PT_TO_PX,
         "interval-label": 12 / _PT_TO_PX,
         "graphic-label": 11 / _PT_TO_PX,
     }
