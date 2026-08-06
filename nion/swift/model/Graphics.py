@@ -1936,13 +1936,13 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
                     ctx.line_to(p1[1] - dy * half_width, p1[0] + dx * half_width)
                     ctx.close_path()
                     ctx.line_width = scaled_stroke_width
-                    ctx.line_dash = 2
+                    ctx.line_dash = int(device_context.scale_length(2.0))
                     ctx.stroke_style = used_stroke_style
                     ctx.stroke()
             for interval_descriptor in interval_descriptors:
                 interval = interval_descriptor.get("interval")
                 color = interval_descriptor.get("color", stroke_color)
-                interval_marker_half_width = 4
+                interval_marker_half_width = device_context.scale_length(4)
                 if interval:
                     with ctx.saver():
                         pa = p1.x + length * interval[0] * dx, p1.y + length * interval[0] * dy
@@ -2086,7 +2086,7 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
 
     def draw(self, ctx: DrawingContextLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         position = self.position
-        cross_hair_size = self.cross_hair_size
+        scaled_cross_hair_size = device_context.scale_stroke(self.cross_hair_size)
         used_stroke_width = self.used_stroke_width
         scaled_stroke_width = device_context.scale_stroke(used_stroke_width)
         used_stroke_style = self.used_stroke_style
@@ -2094,24 +2094,24 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
         with ctx.saver():
             ctx.begin_path()
             inner_size = device_context.scale_stroke(4)
-            ctx.move_to(p.x - cross_hair_size, p.y)
+            ctx.move_to(p.x - scaled_cross_hair_size, p.y)
             ctx.line_to(p.x - inner_size, p.y)
             ctx.move_to(p.x + inner_size, p.y)
-            ctx.line_to(p.x + cross_hair_size, p.y)
-            ctx.move_to(p.x, p.y - cross_hair_size)
+            ctx.line_to(p.x + scaled_cross_hair_size, p.y)
+            ctx.move_to(p.x, p.y - scaled_cross_hair_size)
             ctx.line_to(p.x, p.y - inner_size)
             ctx.move_to(p.x, p.y + inner_size)
-            ctx.line_to(p.x, p.y + cross_hair_size)
+            ctx.line_to(p.x, p.y + scaled_cross_hair_size)
             ctx.line_width = scaled_stroke_width
             ctx.stroke_style = used_stroke_style
             ctx.stroke_style = self.used_stroke_style
             ctx.stroke()
             self.draw_label(ctx, device_context, display_style, mapping, is_selected)
         if is_selected:
-            draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size), is_focused, False)
-            draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size), is_focused, False)
-            draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, cross_hair_size), is_focused, False)
-            draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, -cross_hair_size), is_focused, False)
+            draw_marker(ctx, p + Geometry.FloatPoint(scaled_cross_hair_size, scaled_cross_hair_size), is_focused, False)
+            draw_marker(ctx, p + Geometry.FloatPoint(scaled_cross_hair_size, -scaled_cross_hair_size), is_focused, False)
+            draw_marker(ctx, p + Geometry.FloatPoint(-scaled_cross_hair_size, scaled_cross_hair_size), is_focused, False)
+            draw_marker(ctx, p + Geometry.FloatPoint(-scaled_cross_hair_size, -scaled_cross_hair_size), is_focused, False)
 
     def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
