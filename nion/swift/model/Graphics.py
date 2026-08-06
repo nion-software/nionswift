@@ -1020,8 +1020,8 @@ class Graphic(Persistence.PersistentObject):
     def nudge(self, mapping: CoordinateMappingLike, delta: Geometry.FloatSize) -> None:
         pass
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
-        return self.get_renderer().label_position(mapping, font_metrics, padding)
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
+        return self.get_renderer().label_position(device_context, mapping, scaled_text_size, scaled_padding)
 
     def reset_position(self) -> None:
         pass
@@ -1029,12 +1029,13 @@ class Graphic(Persistence.PersistentObject):
     def test_label(self, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, test_point: Geometry.FloatPoint) -> bool:
         ui_settings = device_context.ui_settings
         if self.label:
-            padding = device_context.scale_length(4.0)
+            scaled_padding = device_context.scale_length(4.0)
             font = display_style.get_font("graphic-label", device_context)
             font_metrics = ui_settings.get_font_metrics(font, self.label)
-            text_pos = self.label_position(mapping, font_metrics, padding)
+            scaled_text_size = Geometry.FloatSize(height=font_metrics.height, width=font_metrics.width)
+            text_pos = self.label_position(device_context, mapping, scaled_text_size, scaled_padding)
             if text_pos is not None:
-                bounds = Geometry.FloatRect.from_center_and_size(text_pos, Geometry.FloatSize(width=font_metrics.width + padding * 2, height=font_metrics.height + padding * 2))
+                bounds = Geometry.FloatRect.from_center_and_size(text_pos, Geometry.FloatSize(width=scaled_text_size.width + scaled_padding * 2, height=scaled_text_size.height + scaled_padding * 2))
                 return test_inside_bounds(bounds, test_point, ui_settings.cursor_tolerance)
         return False
 
@@ -1071,7 +1072,7 @@ class GraphicRenderer:
     def draw(self, ctx: DrawingContextLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
         raise NotImplementedError()
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         return None
 
     @staticmethod
@@ -1089,21 +1090,22 @@ class GraphicRenderer:
     def draw_label(self, ctx: DrawingContextLike, device_context: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool) -> None:
         label = self.label
         if label and self.is_label_visible(Graphic.resolve_used_property(self.used_text_visibility_map, "label_text"), is_selected):
-            padding = device_context.scale_length(4.0)
+            scaled_padding = device_context.scale_length(4.0)
             font = display_style.get_font("graphic-label", device_context)
             font_metrics = device_context.ui_settings.get_font_metrics(font, label)
-            text_pos = self.label_position(mapping, font_metrics, padding)
+            scaled_text_size = Geometry.FloatSize(height=font_metrics.height, width=font_metrics.width)
+            text_pos = self.label_position(device_context, mapping, scaled_text_size, scaled_padding)
             if text_pos:
                 with ctx.saver():
                     ctx.begin_path()
-                    ctx.move_to(text_pos.x - font_metrics.width * 0.5 - padding,
-                                text_pos.y - font_metrics.height * 0.5 - padding)
-                    ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
-                                text_pos.y - font_metrics.height * 0.5 - padding)
-                    ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
-                                text_pos.y + font_metrics.height * 0.5 + padding)
-                    ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding,
-                                text_pos.y + font_metrics.height * 0.5 + padding)
+                    ctx.move_to(text_pos.x - scaled_text_size.width * 0.5 - scaled_padding,
+                                text_pos.y - scaled_text_size.height * 0.5 - scaled_padding)
+                    ctx.line_to(text_pos.x + scaled_text_size.width * 0.5 + scaled_padding,
+                                text_pos.y - scaled_text_size.height * 0.5 - scaled_padding)
+                    ctx.line_to(text_pos.x + scaled_text_size.width * 0.5 + scaled_padding,
+                                text_pos.y + scaled_text_size.height * 0.5 + scaled_padding)
+                    ctx.line_to(text_pos.x - scaled_text_size.width * 0.5 - scaled_padding,
+                                text_pos.y + scaled_text_size.height * 0.5 + scaled_padding)
                     ctx.close_path()
                     ctx.fill_style = Graphic.resolve_used_property(self.used_text_background_color_map, "label_text")
                     ctx.fill()
@@ -1430,10 +1432,10 @@ class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
                 draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked)
         self.draw_label(ctx, device_context, display_style, mapping, is_selected)
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         bounds = Geometry.FloatRect.make(self.bounds)
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(bounds.top_left))
-        return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, font_metrics.width * 0.5)
+        return p + Geometry.FloatPoint(-scaled_text_size.height * 0.5 - scaled_padding * 2, scaled_text_size.width * 0.5)
 
 
 class EllipseGraphic(RectangleTypeGraphic):
@@ -1487,10 +1489,10 @@ class EllipseGraphicRenderer(RectangleTypeGraphicRenderer):
         draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width)
         self.draw_label(ctx, device_context, display_style, mapping, is_selected)
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         bounds = self.bounds
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(bounds.top, bounds.center.x)))
-        return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, 0.0)
+        return p + Geometry.FloatPoint(-scaled_text_size.height * 0.5 - scaled_padding * 2, 0.0)
 
 
 class LineTypeGraphic(Graphic):
@@ -1794,7 +1796,7 @@ class LineTypeGraphicRenderer(GraphicRenderer):
         self.start_arrow_enabled = graphic.start_arrow_enabled
         self.end_arrow_enabled = graphic.end_arrow_enabled
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         return Geometry.FloatPoint(y=(p1.y + p2.y) * 0.5, x=(p1.x + p2.x) * 0.5)
@@ -2113,9 +2115,10 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
             draw_marker(ctx, p + Geometry.FloatPoint(-scaled_cross_hair_size, scaled_cross_hair_size), is_focused, False)
             draw_marker(ctx, p + Geometry.FloatPoint(-scaled_cross_hair_size, -scaled_cross_hair_size), is_focused, False)
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
-        return p + Geometry.FloatPoint(-self.cross_hair_size - font_metrics.height * 0.5 - padding * 2, 0.0)
+        scaled_cross_hair_size = device_context.scale_length(self.cross_hair_size)
+        return p + Geometry.FloatPoint(-scaled_cross_hair_size - scaled_text_size.height * 0.5 - scaled_padding * 2, 0.0)
 
 
 class IntervalGraphic(Graphic):
@@ -2610,13 +2613,13 @@ class SpotGraphicRenderer(GraphicRenderer):
             draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width)
         self.draw_label(ctx, device_context, display_style, mapping, is_selected)
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         center_widget = mapping.calibrated_origin_widget
         relative_rect_widget = Geometry.FloatRect.from_center_and_size(
             mapping.map_size_image_norm_to_widget(self.center.as_size()).as_point(), mapping.map_size_image_norm_to_widget(self.size))
         rect_widget = center_widget + relative_rect_widget
         p = Geometry.FloatPoint(rect_widget.top, rect_widget.center.x)
-        return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, 0.0)
+        return p + Geometry.FloatPoint(-scaled_text_size.height * 0.5 - scaled_padding * 2, 0.0)
 
 
 class WedgeGraphic(Graphic):
@@ -2853,7 +2856,7 @@ class WedgeGraphicRenderer(GraphicRenderer):
             draw_marker(ctx, center, is_focused, is_shape_locked)
         self.draw_label(ctx, device_context, display_style, mapping, is_selected)
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
@@ -3094,7 +3097,7 @@ class RingGraphicRenderer(GraphicRenderer):
                 ctx.fill()
         self.draw_label(ctx, device_context, display_style, mapping, is_selected)
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
@@ -3415,7 +3418,7 @@ class LatticeGraphicRenderer(GraphicRenderer):
             draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget), is_focused, is_shape_locked)
         self.draw_label(ctx, device_context, display_style, mapping, is_selected)
 
-    def label_position(self, mapping: CoordinateMappingLike, font_metrics: UISettings.FontMetrics, padding: float) -> typing.Optional[Geometry.FloatPoint]:
+    def label_position(self, device_context: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p1 = mapping.calibrated_origin_widget
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
