@@ -661,16 +661,6 @@ class ProjectStorageSystem(PersistentStorageSystem):
     @abc.abstractmethod
     def normalize_project_data_path(self) -> None: ...
 
-    @staticmethod
-    def check_project_name_is_available(name: str, directory: str) -> ProjectNameResult:
-        """Check if the provided project name is available for use.
-
-        Returns a ProjectNameResult.
-        ProjectNameResult.project_path is set to the path that would be used for the project if the name is available, otherwise None.
-        ProjectNameResult.error_messages contains a sequence of error messages if there are any.
-        """
-        return ProjectNameResult([], None)
-
     @property
     def _data_properties_map(self) -> typing.Dict[uuid.UUID, DataItemStorageAdapter]:
         return self.__storage_adapter_map
@@ -1172,29 +1162,29 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                         raise
         return storage_handlers
 
-    @staticmethod
-    def check_project_name_is_available(name: str, directory: str) -> ProjectNameResult:
-        """Check if the provided project name is available for use.
 
-        Checks the directory exists then checks that no existing project file or data folder is in that directory with the same name.
-        Returns ProjectNameResult with the calculated project_path and error_messages.
-        """
-        error_messages: list[str] = []
-        directory_path = pathlib.Path(directory)
-        new_project_path = pathlib.Path(directory, name).with_suffix(".nsproj")
-        if not directory_path.is_dir():
-            error_messages.append(_("Base Directory") + f" \"{directory_path}\" " + _("doesn't exist"))
-            return ProjectNameResult(error_messages, new_project_path)
+def check_file_project_name_is_available(name: str, directory: str) -> ProjectNameResult:
+    """Check if the provided project name is available for use.
 
-        new_data_path = new_project_path.parent / f"{name} Data"
-        new_project_path_exists = new_project_path.exists()
-        data_path_exists = new_data_path.is_dir()
-        if new_project_path_exists:
-            error_messages.append(_("Project Name") + f" \"{new_project_path.name}\" " + _("already exists"))
-        if data_path_exists:
-            error_messages.append(_("Data Folder") + f" \"{new_data_path.stem}\" " + _("already exists"))
-
+    Checks the directory exists then checks that no existing project file or data folder is in that directory with the same name.
+    Returns ProjectNameResult with the calculated project_path and error_messages.
+    """
+    error_messages: list[str] = []
+    directory_path = pathlib.Path(directory)
+    new_project_path = pathlib.Path(directory, name).with_suffix(".nsproj")
+    if not directory_path.is_dir():
+        error_messages.append(_("Base Directory") + f" \"{directory_path}\" " + _("doesn't exist"))
         return ProjectNameResult(error_messages, new_project_path)
+
+    new_data_path = new_project_path.parent / f"{name} Data"
+    new_project_path_exists = new_project_path.exists()
+    data_path_exists = new_data_path.is_dir()
+    if new_project_path_exists:
+        error_messages.append(_("Project Name") + f" \"{new_project_path.name}\" " + _("already exists"))
+    if data_path_exists:
+        error_messages.append(_("Data Folder") + f" \"{new_data_path.stem}\" " + _("already exists"))
+
+    return ProjectNameResult(error_messages, new_project_path)
 
 
 class MemoryStorageHandler(StorageHandler.StorageHandler):

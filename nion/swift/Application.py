@@ -1002,7 +1002,7 @@ PreferencesDialog.PreferencesManager().register_preference_pane(FeaturesPreferen
 class NewProjectAction(UIWindow.Action):
     action_id = "project.new_project"
     action_name = _("New Project...")
-    check_project_name_is_available = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available  # The FileProjectStorageSystem is used as the default project storage system
+    check_project_name_is_available = FileStorageSystem.check_file_project_name_is_available  # The FileProjectStorageSystem is used as the default project storage system
 
     @staticmethod
     def get_project_base_name(directory: str) -> str:

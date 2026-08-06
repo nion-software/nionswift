@@ -4602,29 +4602,29 @@ class TestStorageClass(unittest.TestCase):
         memory_usage = memory_usage_resource() - memory_start
         self.assertTrue(memory_usage < 0.2)
 
-    def test_file_project_storage_system_check_project_name_is_unavailable_with_existing_project(self) -> None:
+    def test_check_file_project_name_is_unavailable_with_existing_project(self) -> None:
         try:
             with open("ExistingProject.nsproj", "w"):
                 current_working_directory = pathlib.Path.cwd()
-                check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(current_working_directory))
+                check_name_result = FileStorageSystem.check_file_project_name_is_available("ExistingProject", str(current_working_directory))
                 self.assertEqual(check_name_result.project_path, (current_working_directory / "ExistingProject").with_suffix(".nsproj"))
                 self.assertEqual(check_name_result.error_messages, ["Project Name \"ExistingProject.nsproj\" already exists"])
         finally:
             os.remove("ExistingProject.nsproj")
 
-    def test_file_project_storage_system_check_project_name_is_unavailable_with_existing_data_folder(self) -> None:
+    def test_check_file_project_name_is_unavailable_with_existing_data_folder(self) -> None:
         try:
             os.mkdir("ExistingProject Data")
             current_working_directory = pathlib.Path.cwd()
-            check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(current_working_directory))
+            check_name_result = FileStorageSystem.check_file_project_name_is_available("ExistingProject", str(current_working_directory))
             self.assertEqual(check_name_result.project_path, (current_working_directory / "ExistingProject").with_suffix(".nsproj"))
             self.assertEqual(check_name_result.error_messages, ["Data Folder \"ExistingProject Data\" already exists"])
         finally:
             os.rmdir("ExistingProject Data")
 
-    def test_file_project_storage_system_check_project_name_is_unavailable_with_invalid_directory(self) -> None:
+    def test_check_file_project_name_is_unavailable_with_invalid_directory(self) -> None:
         invalid_directory = pathlib.Path.cwd() / "Not_A_Directory"
-        check_name_result = FileStorageSystem.FileProjectStorageSystem.check_project_name_is_available("ExistingProject", str(invalid_directory))
+        check_name_result = FileStorageSystem.check_file_project_name_is_available("ExistingProject", str(invalid_directory))
         self.assertEqual(check_name_result.project_path, (invalid_directory / "ExistingProject").with_suffix(".nsproj"))
         self.assertEqual(check_name_result.error_messages, [f"Base Directory \"{invalid_directory}\" doesn't exist"])
 
