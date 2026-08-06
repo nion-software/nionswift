@@ -1107,7 +1107,8 @@ class GraphicRenderer:
                     ctx.close_path()
                     ctx.fill_style = Graphic.resolve_used_property(self.used_text_background_color_map, "label_text")
                     ctx.fill()
-                    ctx.line_width = device_context.scale_stroke(self.used_stroke_width)
+                    # Label border is a UI affordance and should not track graphic stroke width.
+                    ctx.line_width = device_context.scale_stroke(1.0)
                     ctx.stroke_style = self.used_stroke_style
                     ctx.stroke()
                     ctx.font = font
