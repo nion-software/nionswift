@@ -557,7 +557,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
         axes = self.__axes
         if axes:
             font = self.__display_style.get_font("interval-label", self.__device_metrics)
-            font_size_metric = self.__device_metrics.ui_settings.get_font_metrics(font, "My")
+            font_metrics = self.__device_metrics.ui_settings.get_font_metrics(font, "Mg")
 
             # extract the data we need for drawing y-axis
             data_left = axes.drawn_left_channel
@@ -652,7 +652,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.line_width = self.__device_metrics.scale_stroke(1)
                     drawing_context.stroke_style = region_color
                     if not region_selected:
-                        drawing_context.line_dash = 2
+                        drawing_context.line_dash = self.__device_metrics.scale_length(2)
                     drawing_context.stroke()
 
                     mid_x = (left + right) / 2
@@ -684,7 +684,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     right_background_color = Graphics.Graphic.resolve_used_property(region.used_text_background_color_map, "right_text") or text_background_color
 
                     if region.middle_text and region.style != "tag" and is_middle_label_visible:
-                        _draw_label_with_background(region.middle_text, mid_x, level - font_size_metric.height, "center", "bottom", middle_background_color)
+                        _draw_label_with_background(region.middle_text, mid_x, level - font_metrics.height, "center", "bottom", middle_background_color)
                     drawing_context.fill_style = region_color
                     if region.left_text and is_left_label_visible:
                         _draw_label_with_background(region.left_text, left - int(self.__device_metrics.scale_length(5)), level, "right", "middle", left_background_color)
@@ -692,7 +692,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         _draw_label_with_background(region.right_text, right + int(self.__device_metrics.scale_length(5)), level, "left", "middle", right_background_color)
                     label = region.label
                     if label and is_label_visible:
-                        _draw_label_with_background(label, mid_x, level + font_size_metric.height, "center", "top", label_background_color)
+                        _draw_label_with_background(label, mid_x, level + font_metrics.height, "center", "top", label_background_color)
                     drawing_context.close_path()
 
 
@@ -839,7 +839,9 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
         self.__device_metrics = device_metrics
         self.__display_style = display_style
-        self.update_sizing(self.sizing.with_fixed_height(display_style.get_font_size("axis-label") + int(device_metrics.scale_length(4))))
+        axis_label_font = self.__display_style.get_font("axis-label", self.__device_metrics)
+        axis_label_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(axis_label_font, "Mg")
+        self.update_sizing(self.sizing.with_fixed_height(int(axis_label_font_metrics.height + device_metrics.scale_length(4))))
 
     def set_axes(self, axes: typing.Optional[LinePlotDisplay.LineGraphAxes]) -> None:
         if self.__axes != axes:
@@ -883,7 +885,9 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
         self.__device_metrics = device_metrics
         self.__display_style = display_style
-        self.update_sizing(self.sizing.with_fixed_height(display_style.get_font_size("axis-label") + int(device_metrics.scale_length(4))))
+        axis_label_font = self.__display_style.get_font("axis-label", self.__device_metrics)
+        axis_label_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(axis_label_font, "Mg")
+        self.update_sizing(self.sizing.with_fixed_height(int(axis_label_font_metrics.height + device_metrics.scale_length(4))))
 
     def size_to_content(self) -> None:
         """ Size the canvas item to the proper height. """
@@ -893,10 +897,11 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         axes = self.__axes
         if axes:
             if axes.x_calibration and axes.x_calibration.units:
-                font_size = self.__display_style.get_font_size("axis-label")
-                axis_padding = int(self.__device_metrics.scale_length(4))
-                new_sizing = new_sizing.with_minimum_height(font_size + axis_padding)
-                new_sizing = new_sizing.with_maximum_height(font_size + axis_padding)
+                axis_label_font = self.__display_style.get_font("axis-label", self.__device_metrics)
+                axis_label_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(axis_label_font, "Mg")
+                axis_padding = self.__device_metrics.scale_length(4)
+                new_sizing = new_sizing.with_minimum_height(int(axis_label_font_metrics.height + axis_padding))
+                new_sizing = new_sizing.with_maximum_height(int(axis_label_font_metrics.height + axis_padding))
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LinePlotDisplay.LineGraphAxes]) -> None:
@@ -1032,12 +1037,12 @@ class LineGraphVerticalAxisScaleCanvasItemComposer(CanvasItem.BaseComposer):
 
             # extract the data we need for drawing y-axis
             y_ticks = axes.calculate_y_ticks(plot_height, flag_minor=True)
-            font_size = self.__display_style.get_font_size("axis-label")
-            include_minor_ticks = plot_height / font_size > 2.5 * axes.y_ticker.ticks
-            at_least_one = False
-
             axis_label_font = self.__display_style.get_font("axis-label", self.__device_metrics)
             axis_label_superscript_font = self.__display_style.get_font("axis-label-superscript", self.__device_metrics)
+            axis_label_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(axis_label_font, "Mg")
+            include_minor_ticks = plot_height / axis_label_font_metrics.height > 2.5 * axes.y_ticker.ticks
+            at_least_one = False
+
 
             e = Exponenter()
             for y, label, is_minor in y_ticks:
@@ -1120,10 +1125,10 @@ class LineGraphVerticalAxisLabelCanvasItemComposer(CanvasItem.BaseComposer):
         canvas_size = canvas_bounds.size
         if axes:
             if axes.y_calibration and axes.y_calibration.units:
-                font = self.__display_style.get_font("axis-label", self.__device_metrics)
+                axis_label_font = self.__display_style.get_font("axis-label", self.__device_metrics)
                 with drawing_context.saver():
                     drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
-                    drawing_context.font = font
+                    drawing_context.font = axis_label_font
                     drawing_context.text_align = "center"
                     drawing_context.text_baseline = "middle"
                     drawing_context.fill_style = "#000"
@@ -1146,7 +1151,9 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__axes: typing.Optional[LinePlotDisplay.LineGraphAxes] = None
         self.__device_metrics = device_metrics
         self.__display_style = display_style
-        self.update_sizing(self.sizing.with_fixed_width(display_style.get_font_size("axis-label") + int(device_metrics.scale_length(4))))
+        axis_label_font = self.__display_style.get_font("axis-label", self.__device_metrics)
+        axis_label_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(axis_label_font, "Mg")
+        self.update_sizing(self.sizing.with_fixed_width(int(axis_label_font_metrics.height + device_metrics.scale_length(4))))
 
     def size_to_content(self) -> None:
         """ Size the canvas item to the proper width. """
@@ -1156,10 +1163,11 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         axes = self.__axes
         if axes:
             if axes.y_calibration and axes.y_calibration.units:
-                font_size = self.__display_style.get_font_size("axis-label")
-                axis_padding = int(self.__device_metrics.scale_length(4))
-                new_sizing = new_sizing.with_minimum_width(font_size + axis_padding)
-                new_sizing = new_sizing.with_maximum_width(font_size + axis_padding)
+                axis_label_font = self.__display_style.get_font("axis-label", self.__device_metrics)
+                axis_label_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(axis_label_font, "Mg")
+                axis_padding = self.__device_metrics.scale_length(4)
+                new_sizing = new_sizing.with_minimum_width(int(axis_label_font_metrics.height + axis_padding))
+                new_sizing = new_sizing.with_maximum_width(int(axis_label_font_metrics.height + axis_padding))
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes: typing.Optional[LinePlotDisplay.LineGraphAxes]) -> None:
@@ -1211,26 +1219,23 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
         foreign_legend_entry = self.__foreign_legend_entry
         mouse_pressed_for_dragging = self.__mouse_pressed_for_dragging
         entry_to_insert = self.__entry_to_insert
-        font_size = self.__display_style.get_font_size("axis-label")
-        font = self.__display_style.get_font("axis-label", self.__device_metrics)
-        ui_settings = self.__device_metrics.ui_settings
+        legend_font = self.__display_style.get_font("legend", self.__device_metrics)
+        legend_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(legend_font, "Mg")
 
         # don't display the canvas item if there are less than two items
         if legend_entries is None or len(legend_entries) < 2:
             return
 
-        legend_width = 0
-        for index, legend_entry in enumerate(effective_entries):
-            legend_width = max(legend_width, ui_settings.get_font_metrics(font, legend_entry.label).width)
+        legend_width = canvas_bounds.width
+        legend_height = canvas_bounds.height
 
-        line_height = font_size + int(self.__device_metrics.scale_length(4))
-        border = int(self.__device_metrics.scale_length(4))
+        legend_font_height = legend_font_metrics.height
+        legend_line_height = legend_font_metrics.height * 1.2
+        border = legend_font_height * 0.33
 
         effective_entries_and_foreign = list(effective_entries)
         if foreign_legend_entry is not None and entry_to_insert is not None:
             effective_entries_and_foreign.insert(entry_to_insert, foreign_legend_entry)
-
-        legend_height = len(effective_entries_and_foreign) * line_height
 
         with drawing_context.saver():
             drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
@@ -1239,8 +1244,8 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.begin_path()
                 drawing_context.rect(0,
                                      0,
-                                     legend_width + border * 2 + line_height,
-                                     legend_height + border * 2)
+                                     legend_width,
+                                     legend_height)
                 drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                 drawing_context.fill()
 
@@ -1249,24 +1254,24 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.begin_path()
                     entry_to_insert = entry_to_insert or 0  # for type checking
                     drawing_context.rect(0,
-                                         entry_to_insert * line_height + border,
-                                         legend_width + border * 2 + line_height,
-                                         line_height)
+                                         entry_to_insert * legend_line_height + border,
+                                         legend_width,
+                                         legend_line_height)
                     drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                     drawing_context.fill()
 
             for index, legend_entry in enumerate(effective_entries_and_foreign):
                 with drawing_context.saver():
-                    drawing_context.font = font
-                    drawing_context.text_align = "right"
-                    drawing_context.text_baseline = "bottom"
+                    drawing_context.font = legend_font
+                    drawing_context.text_align = "left"
+                    drawing_context.text_baseline = "middle"
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(legend_entry.label, legend_width + border, line_height * (index + 1) - int(self.__device_metrics.scale_length(4)) + border)
+                    middle_line_y = legend_line_height * index + border + legend_line_height / 2
+                    drawing_context.fill_text(legend_entry.label, border, middle_line_y)
 
                     drawing_context.begin_path()
-                    margin_offset = int(self.__device_metrics.scale_length(3))
-                    size_offset = int(self.__device_metrics.scale_length(6))
-                    drawing_context.rect(legend_width + border + margin_offset, line_height * index + margin_offset + border, line_height - size_offset, line_height - size_offset)
+                    icon_size = legend_font_metrics.height * 0.7
+                    drawing_context.rect(legend_width - border - icon_size, middle_line_y - legend_font_metrics.descent / 2 - icon_size / 2, icon_size, icon_size)
                     if legend_entry.fill_color:
                         drawing_context.fill_style = legend_entry.fill_color
                         drawing_context.fill()
@@ -1342,23 +1347,27 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def size_to_content(self) -> None:
         if self.__needs_size_to_content:
-            line_height = self.__display_style.get_font_size("axis-label") + int(self.__device_metrics.scale_length(4))
-            border = int(self.__device_metrics.scale_length(4))
+            legend_font = self.__display_style.get_font("legend", self.__device_metrics)
+            legend_font_height = self.__device_metrics.ui_settings.get_font_metrics(legend_font, "Mg").height
+            legend_line_height = legend_font_height * 1.2
+            spacing = self.__device_metrics.scale_length(6)
+            border = legend_font_height * 0.33
 
             effective_entries = self.effective_entries
 
-            legend_height = len(effective_entries) * line_height + border * 2
+            legend_height = len(effective_entries) * legend_line_height + border * 2
 
             if len(effective_entries) == 0:
                 legend_height = 0
 
             text_width = 0
-            font = self.__display_style.get_font("axis-label", self.__device_metrics)
 
             for index, legend_entry in enumerate(effective_entries):
-                text_width = max(text_width, self.__device_metrics.ui_settings.get_font_metrics(font, legend_entry.label).width)
+                text_width = max(text_width, self.__device_metrics.ui_settings.get_font_metrics(legend_font, legend_entry.label).width)
 
-            legend_width = text_width + border * 2 + line_height
+            icon_size = legend_font_height * 0.7
+
+            legend_width = text_width + border * 2 + spacing + icon_size
 
             new_sizing = self.copy_sizing().with_fixed_width(legend_width).with_fixed_height(legend_height)
             self.update_sizing(new_sizing)
@@ -1381,17 +1390,18 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
 
         legend_entries = self.__legend_entries
 
-        legend_width = 0
-        line_height = int(self.__display_style.get_font_size("axis-label") + self.__device_metrics.scale_length(4))
-        border = int(self.__device_metrics.scale_length(4))
-        font = self.__display_style.get_font("axis-label", self.__device_metrics)
+        legend_width = 0.0
+        legend_font = self.__display_style.get_font("legend", self.__device_metrics)
+        legend_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(legend_font, "Mg")
+        legend_font_height = legend_font_metrics.height
+        border = legend_font_height * 0.33
 
         for index, legend_entry in enumerate(legend_entries):
-            legend_width = max(legend_width, self.__device_metrics.ui_settings.get_font_metrics(font, legend_entry.label).width)
+            legend_width = max(legend_width, self.__device_metrics.ui_settings.get_font_metrics(legend_font, legend_entry.label).width)
 
-        end_x = legend_width + line_height + border * 2
+        end_x = legend_width + legend_font_height + border * 2
 
-        index = int(y // line_height)
+        index = int(y // legend_font_height)
 
         # if ignore_y is not on, we return the index if in bounds and -1 otherwise
         if not ignore_y:
@@ -1405,9 +1415,9 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             return max(min(index, end_index), 0)
 
     def __get_icon_for_layer(self, fill: typing.Optional[str]) -> _NDArray:
-        border = int(self.__device_metrics.scale_length(1))
+        border = self.__device_metrics.scale_length(1)
         drawing_context = DrawingContext.DrawingContext()
-        icon_size = int(self.__device_metrics.scale_length(16))
+        icon_size = self.__device_metrics.scale_length(16)
         with drawing_context.saver():
             drawing_context.begin_path()
             drawing_context.rect(0, 0, icon_size, icon_size)
@@ -1420,7 +1430,7 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill_style = fill
             drawing_context.fill()
 
-        return self.__delegate.create_rgba_image(drawing_context, icon_size, icon_size)
+        return self.__delegate.create_rgba_image(drawing_context, int(icon_size), int(icon_size))
 
     def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         # if the mouse is pressed and the distance it greater than the distance to start dragging, start the drag using
