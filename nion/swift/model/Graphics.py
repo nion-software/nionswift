@@ -2093,7 +2093,7 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
         p = mapping.map_point_image_norm_to_widget(position)
         with ctx.saver():
             ctx.begin_path()
-            inner_size = 4
+            inner_size = device_context.scale_stroke(4)
             ctx.move_to(p.x - cross_hair_size, p.y)
             ctx.line_to(p.x - inner_size, p.y)
             ctx.move_to(p.x + inner_size, p.y)
