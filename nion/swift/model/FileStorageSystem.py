@@ -3,7 +3,9 @@ from __future__ import annotations
 import abc
 import contextlib
 import copy
+import dataclasses
 import datetime
+import gettext
 import json
 import logging
 import traceback
@@ -28,6 +30,7 @@ from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Event
 
+_ = gettext.gettext
 
 # define the versions that get stored in the JSON files
 PROFILE_VERSION = 2
@@ -41,6 +44,22 @@ _CreateStorageHandlerFn = typing.Type[StorageHandler.StorageHandler]
 
 
 _g_large_format_size = 16 * 1024 * 1024
+
+
+@dataclasses.dataclass(frozen=True)
+class ProjectNameResult:
+    """Result of checking a project name is available.
+
+    project_path will be None when the project path does not change otherwise it will be the new project path.
+    error_messages will be empty when there are no errors, otherwise it is a sequence of error messages.
+    The success property is True when there are no errors and False when there are errors.
+    """
+    error_messages: typing.Sequence[str]
+    project_path: pathlib.Path | None
+
+    @property
+    def success(self) -> bool:
+        return not self.error_messages
 
 
 class ReaderInfo:
@@ -642,8 +661,6 @@ class ProjectStorageSystem(PersistentStorageSystem):
     @abc.abstractmethod
     def normalize_project_data_path(self) -> None: ...
 
-    #
-
     @property
     def _data_properties_map(self) -> typing.Dict[uuid.UUID, DataItemStorageAdapter]:
         return self.__storage_adapter_map
@@ -1145,6 +1162,30 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                         logging.error(str(e))
                         raise
         return storage_handlers
+
+
+def check_file_project_name_is_available(name: str, directory: str) -> ProjectNameResult:
+    """Check if the provided project name is available for use.
+
+    Checks the directory exists then checks that no existing project file or data folder is in that directory with the same name.
+    Returns ProjectNameResult with the calculated project_path and error_messages.
+    """
+    error_messages: list[str] = []
+    directory_path = pathlib.Path(directory)
+    new_project_path = pathlib.Path(directory, name).with_suffix(".nsproj")
+    if not directory_path.is_dir():
+        error_messages.append(_("Base Directory") + f" \"{directory_path}\" " + _("doesn't exist"))
+        return ProjectNameResult(error_messages, new_project_path)
+
+    new_data_path = new_project_path.parent / f"{name} Data"
+    new_project_path_exists = new_project_path.exists()
+    data_path_exists = new_data_path.is_dir()
+    if new_project_path_exists:
+        error_messages.append(_("Project Name") + f" \"{new_project_path.name}\" " + _("already exists"))
+    if data_path_exists:
+        error_messages.append(_("Data Folder") + f" \"{new_data_path.stem}\" " + _("already exists"))
+
+    return ProjectNameResult(error_messages, new_project_path)
 
 
 class MemoryStorageHandler(StorageHandler.StorageHandler):
