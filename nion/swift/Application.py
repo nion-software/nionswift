@@ -680,15 +680,6 @@ class Application(UIApplication.BaseApplication):
                                           button_row, spacing=8, min_width=360)
             window = u.create_window(main_column, title=_("Choose Project"), margin=12, window_style="tool")
 
-            def open_project_reference(project_reference: Profile.ProjectReference) -> None:
-                self.open_project_reference(project_reference)
-
-            def show_open_project_dialog() -> None:
-                self.show_open_project_dialog()
-
-            def show_new_project_dialog() -> None:
-                NewProjectAction().invoke(UIWindow.ActionContext(self, None, None))
-
             class ChooseProjectHandler(Declarative.WindowHandler):
                 def __init__(self, application: Application):
                     super().__init__()
@@ -708,20 +699,19 @@ class Application(UIApplication.BaseApplication):
                         with self.__application.prevent_close():
                             self.close_window()
                             project_reference_item = project_reference_items_model.project_reference_items[current_index]
-                            open_project_reference(project_reference_item.project_reference)
+                            self.__application.open_project_reference(project_reference_item.project_reference)
 
                 def new_project(self, widget: Declarative.UIWidget) -> None:
                     # to ensure the application does not close upon closing the last window, force it
                     # to stay open while the window is closed and another reopened.
                     with self.__application.prevent_close():
-                        show_new_project_dialog()
-                        self.close_window()
+                        NewProjectAction(accept_fn=self.close_window).invoke(UIWindow.ActionContext(self.__application, self.window, None))
 
                 def open_project(self, widget: Declarative.UIWidget) -> None:
                     # to ensure the application does not close upon closing the last window, force it
                     # to stay open while the window is closed and another reopened.
                     with self.__application.prevent_close():
-                        show_open_project_dialog()
+                        self.__application.show_open_project_dialog()
                         self.close_window()
 
                 def open_recent(self, widget: Declarative.UIWidget) -> None:
@@ -1000,6 +990,16 @@ PreferencesDialog.PreferencesManager().register_preference_pane(FeaturesPreferen
 
 
 class NewProjectAction(UIWindow.Action):
+    """Action for creating a new project.
+
+    Calling invoke will cause a UI window to appear prompting the name of the new project which calls execute with the name provided.
+    Calling execute uses the stored name to get the application to create a new project.
+    The accept_fn if provided is called before execute when the new project button is clicked in the UI window.
+    """
+    def __init__(self, accept_fn: typing.Callable[[], None] | None = None) -> None:
+        super().__init__()
+        self.accept_fn = accept_fn
+
     action_id = "project.new_project"
     action_name = _("New Project...")
     check_project_name_is_available = FileStorageSystem.check_file_project_name_is_available  # The FileProjectStorageSystem is used as the default project storage system
@@ -1033,19 +1033,20 @@ class NewProjectAction(UIWindow.Action):
 
     def invoke(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
         context = typing.cast(DocumentController.DocumentController.ActionContext, context)
-        document_controller = typing.cast(DocumentController.DocumentController, context.window)
         application = typing.cast(Application, context.application)
         directory = application.ui.get_persistent_string("project_directory", application.ui.get_document_location())
         project_title = self.get_project_base_name(directory)
 
         def handle_create_clicked(new_name: str, new_directory: str) -> None:
+            if callable(self.accept_fn):
+                self.accept_fn()
             self.set_string_property(context, "name", new_name)
             self.set_string_property(context, "directory", new_directory)
             self.execute(context)
 
-        NameProjectDialog(application.ui, document_controller, application, directory, project_name=project_title,
+        NameProjectDialog(application.ui, application, directory, project_name=project_title,
                           accept_fn=handle_create_clicked, dialog_name="New Project", choose_directory_visible=True,
-                          check_name_available_fn=NewProjectAction.check_project_name_is_available)
+                          check_name_available_fn=NewProjectAction.check_project_name_is_available, parent_window=context.window)
 
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
@@ -1082,7 +1083,6 @@ class NameProjectViewModel:
     """Represents the NameProjectDialog model."""
     def __init__(self, filename: str, directory: str, profile: Profile.Profile, check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult] | None):
         self.filename = Model.PropertyModel(filename)
-        self.filename_warning = Model.PropertyModel(str())
         self.project_name_status_label = Model.PropertyModel(str())
         self.accept_button_enabled = Model.PropertyModel(False)
         self.directory = Model.PropertyModel(directory)
@@ -1105,7 +1105,7 @@ class NameProjectViewModel:
             name_available_result = check_name_available_fn(project_name, base_directory)
             errors.extend(name_available_result.error_messages or [])
             if name_available_result.success and name_available_result.project_path:
-                # Check if an orphaned project reference exists, it would need to be removed manually by the user as there is no way for to do that automatically
+                # Check if an orphaned project reference exists, it would need to be removed manually by the user as there is no way to do that automatically
                 project_reference = profile.get_project_reference_by_path(name_available_result.project_path)
                 if project_reference is not None:
                     errors.append(_("Project Reference") + f" \"{project_reference.title}\" " + _("already exists, remove it via Choose Project before proceeding"))
@@ -1126,11 +1126,11 @@ class NameProjectViewModel:
             self.project_name_status_label.value = error_str
 
 
-class NameProjectDialog(Declarative.Handler):
-    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController,
-                 application: Application, directory: str, project_name: str, accept_fn: typing.Callable[[str, str], None],
-                 dialog_name: str, choose_directory_visible: bool,
-                 check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult]):
+class NameProjectDialog(Declarative.WindowHandler):
+    def __init__(self, ui: UserInterface.UserInterface, application: Application, directory: str, project_name: str,
+                 accept_fn: typing.Callable[[str, str], None], dialog_name: str, choose_directory_visible: bool,
+                 check_name_available_fn: typing.Callable[[str, str], FileStorageSystem.ProjectNameResult],
+                 parent_window: UIWindow.Window | None):
         """Declarative Dialog handler for creating/renaming a project.
 
         accept_fn will receive the name and directory when the confirm button is pressed
@@ -1144,11 +1144,30 @@ class NameProjectDialog(Declarative.Handler):
         self.__application = application
         self.viewmodel = NameProjectViewModel(project_name, directory, self.__application.profile, check_name_available_fn)
         self._project_name_line_edit: UserInterface.LineEditWidget | None = None
+        self._accept_button: UserInterface.PushButtonWidget | None = None
         self.accept_fn = accept_fn
         # build the UI
         u = Declarative.DeclarativeUI()
+        self.__build_ui(u, choose_directory_visible, dialog_name)
 
-        title = dialog_name
+        self.run(self.ui_view, app=self.__application, parent_window=parent_window)
+
+        def update_accept_button(_: str | bool | None) -> None:
+            assert self._accept_button is not None
+            self._accept_button.enabled = self.viewmodel.accept_button_enabled.value or False
+            self._accept_button.tool_tip = self.viewmodel.project_name_status_label.value or str()
+
+        self.__accept_button_enabled_action: Stream.ValueStreamAction[str | bool | None] = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.accept_button_enabled, "value"), update_accept_button)
+        self.__accept_button_tool_tip_action: Stream.ValueStreamAction[str | bool | None] = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.project_name_status_label, "value"), update_accept_button)
+
+        self.viewmodel.update_project_status_label()
+
+        assert self._project_name_line_edit is not None
+        self._project_name_line_edit.focused = True
+        self._project_name_line_edit.select_all()
+
+    def __build_ui(self, u: Declarative.DeclarativeUI, choose_directory_visible: bool, dialog_name: str) -> None:
+        """Build the UI and store it in self.ui_view. This is called from __init__."""
         directory_header = u.create_row(
             u.create_spacing(13),
             u.create_label(text=_("Projects Folder: ")),
@@ -1165,7 +1184,7 @@ class NameProjectDialog(Declarative.Handler):
 
         choose_directory_row = u.create_row(
             u.create_spacing(26),
-            u.create_push_button(text=_("Choose..."), on_clicked="choose_directory"),
+            u.create_push_button(text=_("Choose..."), on_clicked="handle_choose_directory"),
             u.create_stretch(),
             u.create_spacing(13), visible=choose_directory_visible
         )
@@ -1191,6 +1210,10 @@ class NameProjectDialog(Declarative.Handler):
             u.create_stretch(),
             u.create_spacing(13)
         )
+        button_row = u.create_row(u.create_stretch(),
+                                  u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"),
+                                  u.create_push_button(name="_accept_button", text=dialog_name, on_clicked="handle_accept"),
+                                  spacing=12)
 
         column = u.create_column(
             u.create_spacing(12),
@@ -1206,50 +1229,38 @@ class NameProjectDialog(Declarative.Handler):
             u.create_spacing(4),
             project_name_status_row,
             u.create_stretch(),
-            u.create_spacing(16)
+            u.create_spacing(16),
+            button_row
         )
-
-        self.dialog = typing.cast(Dialog.ActionDialog, Declarative.construct(document_controller.ui, document_controller, u.create_modeless_dialog(column, title=title), self))
-        self.dialog.add_button(_("Cancel"), lambda: True)
-        self._accept_button = self.dialog.add_button(dialog_name, self.handle_accept_clicked)
-
-        def update_accept_button(_: str | bool | None) -> None:
-            self._accept_button.enabled = self.viewmodel.accept_button_enabled.value or False
-            self._accept_button.tool_tip = self.viewmodel.project_name_status_label.value or str()
-
-        self.__accept_button_enabled_action: Stream.ValueStreamAction[str | bool | None] = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.accept_button_enabled, "value"), update_accept_button)
-        self.__accept_button_tool_tip_action: Stream.ValueStreamAction[str | bool | None] = Stream.ValueStreamAction(Stream.PropertyChangedEventStream(self.viewmodel.project_name_status_label, "value"), update_accept_button)
-
-        self.viewmodel.update_project_status_label()
-        self.dialog.show()
-        assert self._project_name_line_edit is not None
-        self._project_name_line_edit.focused = True
-        self._project_name_line_edit.select_all()
+        self.ui_view = u.create_window(column, title=dialog_name, margin=12, window_style="tool")
 
     def handle_project_name_changed(self, _widget: UserInterface.LineEditWidget, text: str) -> None:
         self.viewmodel.update_project_status_label(text)
 
-    def choose_directory(self, _widget: UserInterface.PushButtonWidget) -> None:
+    def handle_choose_directory(self, _widget: UserInterface.PushButtonWidget) -> None:
         existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Project Directory"), self.viewmodel.directory.value or str())
         if existing_directory:
             self.viewmodel.directory.value = existing_directory
             self.ui.set_persistent_string("project_directory", existing_directory)
         self.viewmodel.update_project_status_label()
 
-    def handle_accept_clicked(self) -> bool:
-        self.viewmodel.update_project_status_label()
-        if self._accept_button.enabled:
-            self.dialog.request_close()
-            self.accept_fn(self.viewmodel.filename.value or "Untitled", self.viewmodel.directory.value or str())
-        return False
-
     def handle_accept(self, widget: UserInterface.Widget) -> bool:
-        self.handle_accept_clicked()
+        self.viewmodel.update_project_status_label()
+        if self._accept_button and self._accept_button.enabled:
+            self.window.request_close()
+            self.accept_fn(self.viewmodel.filename.value or "Untitled", self.viewmodel.directory.value or str())
         return True
 
     def handle_cancel(self, widget: UserInterface.Widget) -> bool:
-        self.dialog.request_close()
+        self.window.request_close()
         return True
+
+    def close(self) -> None:
+        self.__accept_button_enabled_action.close()
+        self.__accept_button_enabled_action = typing.cast(typing.Any, None)
+        self.__accept_button_tool_tip_action.close()
+        self.__accept_button_tool_tip_action = typing.cast(typing.Any, None)
+        super().close()
 
 
 UIWindow.register_action(NewProjectAction())
