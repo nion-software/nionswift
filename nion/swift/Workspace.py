@@ -86,23 +86,17 @@ class CreateWorkspaceCommand(Undo.UndoableCommand):
 class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
     """Create a workspace, then split the panels and insert the selected display items."""
     def __init__(self, workspace_controller: Workspace, name: str,
-                 selection: list[DisplayItem.DisplayItem], layout_shape: tuple[int, int]) -> None:
+                 selection: list[DisplayItem.DisplayItem]) -> None:
         super().__init__(workspace_controller, name)
         self.__selection = selection
-        self.__layout_shape = layout_shape
         self.__workspace_controller = workspace_controller
 
     def _perform(self) -> None:
         super()._perform()
-        horizontal, vertical = self.__layout_shape
         # The newly created workspace will have one display panel which is the selected one
         selected_display_panel = self.__workspace_controller.document_controller.selected_display_panel
         assert selected_display_panel
-        # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion
-        display_panels = [selected_display_panel]
-        display_panels = self.__workspace_controller.apply_layouts(selected_display_panel, display_panels, horizontal, vertical)
-        for display_item, display_panel in zip(self.__selection, display_panels):  # Populate the display panels with the items
-            display_panel.set_display_item(display_item)
+        self.__workspace_controller.split_panel_and_insert_display_items(selected_display_panel, self.__selection)
 
 
 class RemoveWorkspaceCommand(Undo.UndoableCommand):
@@ -767,6 +761,8 @@ class Workspace:
             return "copy"
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             return "copy"
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
+            return "copy"
         return "ignore"
 
     def handle_drag_leave(self, display_panel: DisplayPanel.DisplayPanel) -> str:
@@ -779,10 +775,12 @@ class Workspace:
             return "copy"
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             return "copy"
+        if mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
+            return "copy"
         return "ignore"
 
     def should_handle_drag_for_mime_data(self, mime_data: UserInterface.MimeData) -> bool:
-        return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE)
+        return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE) or mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE)
 
     def handle_drop(self, destination_display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, region: str, x: int, y: int) -> str:
         """Handle dropping a display panel, display item, or external file on a region of a display panel.
@@ -793,42 +791,43 @@ class Workspace:
         The replaced_display_panel_content is set on the "move" which will clear the source panel after the drop.
         Returns "move" on success when dragging a display panel, or "copy" on success when dragging a display item or an external file, or "ignore" if the drop was not handled.
         """
-        document_model = self.document_model
-        if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):  # Dragging a display panel
-            source_display_item, source_panel_details = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
-            if source_display_item and destination_display_panel.handle_drop_display_item(region, source_display_item):  # See if the display panel handles dragging onto a layer
-                pass  # handle_drop_display_item already successfully handled the drop
-            elif region == "right" or region == "left" or region == "top" or region == "bottom":
-                command = self.insert_display_panel(destination_display_panel, region, None, source_panel_details)
-                self.document_controller.push_undo_command(command)
-            else:
-                command = self.__replace_displayed_display_item(destination_display_panel, None, source_panel_details)
-                self.document_controller.push_undo_command(command)
-            return "move"
-        source_display_item = MimeTypes.mime_data_get_display_item(mime_data, document_model)
-        if source_display_item:  # Dragging a display item
-            if destination_display_panel.handle_drop_display_item(region, source_display_item):
-                pass  # already handled
-            elif region == "right" or region == "left" or region == "top" or region == "bottom":
-                command = self.insert_display_panel(destination_display_panel, region, source_display_item)
-                self.document_controller.push_undo_command(command)
-            else:
-                command = self.__replace_displayed_display_item(destination_display_panel, source_display_item)
-                self.document_controller.push_undo_command(command)
-            return "copy"
-        if mime_data.has_format("text/uri-list"):
-            index = len(document_model.data_items)
-            display_items = self.document_controller.receive_files(mime_data.file_paths, None, index)
-            display_item = display_items[0] if len(display_items) > 0 else None
-            if display_item:
-                if region == "right" or region == "left" or region == "top" or region == "bottom":
-                    command = self.insert_display_panel(destination_display_panel, region, display_item)
-                    self.document_controller.push_undo_command(command)
-                else:
-                    command = self.__replace_displayed_display_item(destination_display_panel, display_item)
-                    self.document_controller.push_undo_command(command)
-            return "copy"
-        return "ignore"
+        source_details: dict[str, typing.Any] | None = None
+        source_display_item: DisplayItem.DisplayItem | None = None
+        source_display_items: list[DisplayItem.DisplayItem] = list()
+        return_type = "ignore"
+        if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
+            source_display_item, source_details = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
+            return_type = "move"
+        elif mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
+            source_display_items = MimeTypes.mime_data_get_display_items(mime_data, self.document_model)
+            return_type = "copy"
+        elif mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
+            source_display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
+            return_type = "copy"
+        elif mime_data.has_format("text/uri-list"):
+            index = len(self.document_model.data_items)
+            display_items = self.document_controller.receive_files(list(reversed(mime_data.file_paths)), None, index)
+            if len(display_items) == 1:
+                source_display_item = display_items[0]
+                return_type = "copy"
+            elif len(display_items) > 1:
+                source_display_items = list(display_items)
+                return_type = "copy"
+
+        if source_display_items:
+            command: Undo.UndoableCommand = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
+            self.split_panel_and_insert_display_items(destination_display_panel, source_display_items)
+            self.document_controller.push_undo_command(command)
+        elif source_display_item and destination_display_panel.handle_drop_display_item(region, source_display_item):
+            pass  # If handle_drop_display_item returns true then the drop was handled by the function
+        elif region == "right" or region == "left" or region == "top" or region == "bottom":
+            display_item = source_display_item if not source_details else None  # Prefer using the details over the display_item in the case of a panel drop
+            command = self.insert_display_panel(destination_display_panel, region, display_item, source_details)
+            self.document_controller.push_undo_command(command)
+        else:
+            command = self.__replace_displayed_display_item(destination_display_panel, source_display_item)
+            self.document_controller.push_undo_command(command)
+        return return_type
 
     def _replace_displayed_display_item(self, display_panel: DisplayPanel.DisplayPanel,
                                         display_item: typing.Optional[DisplayItem.DisplayItem],
@@ -1051,7 +1050,7 @@ class Workspace:
         Depending on if the division of columns have ceil and floor applied first will affect the final split.
         Both are calculated and the one that will have the least unused panels is returned.
         """
-        if selection_count == 0:
+        if selection_count <= 1:
             return 1, 1
 
         ratio = 0.6
@@ -1070,6 +1069,14 @@ class Workspace:
             return columns_floor, rows_floor
 
         return columns_ceil, rows_ceil
+
+    def split_panel_and_insert_display_items(self, display_panel: DisplayPanel.DisplayPanel, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
+        """Split the display panel into a grid that fits the display items, then populate the new panels with the display items."""
+        horizontal, vertical = self.get_split_for_selection(len(display_items))
+        # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion
+        display_panels = self.apply_layouts(display_panel, [display_panel], horizontal, vertical)
+        for display_item, display_panel in zip(display_items, display_panels):  # Populate the display panels with the items
+            display_panel.set_display_item(display_item)
 
 
 class WorkspaceManager(metaclass=Utility.Singleton):

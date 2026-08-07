@@ -30,6 +30,7 @@ from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift import Undo
+from nion.swift import Workspace
 from nion.swift.model import Changes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayInfo
@@ -148,7 +149,8 @@ class DisplayPanelOverlayCanvasItemComposer(CanvasItem.BaseComposer):
                  selected_style: str,
                  line_dash: typing.Optional[int],
                  selection_number: typing.Optional[int],
-                 get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
+                 get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics],
+                 drag_items_split: tuple[int, int] | None = None) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__drop_regions_map = drop_regions_map
         self.__drop_region = drop_region
@@ -159,6 +161,7 @@ class DisplayPanelOverlayCanvasItemComposer(CanvasItem.BaseComposer):
         self.__line_dash = line_dash
         self.__selection_number = selection_number
         self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__drag_items_split = drag_items_split
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         drop_regions_map = self.__drop_regions_map
@@ -197,6 +200,16 @@ class DisplayPanelOverlayCanvasItemComposer(CanvasItem.BaseComposer):
                         drawing_context.rect(0, 0, canvas_bounds.width, int(canvas_bounds.height * 0.10))
                     elif drop_region == "bottom":
                         drawing_context.rect(0, int(canvas_bounds.height * 0.90), canvas_bounds.width, int(canvas_bounds.height - canvas_bounds.height * 0.90))
+                    elif self.__drag_items_split and self.__drag_items_split != (1, 1):
+                        # Draw a grid of panels to preview what the split will look like
+                        gap = 4  # Each panel is separated by a gap of 4px
+                        horizontal, vertical = self.__drag_items_split
+                        # The panel width and height can be calculated as: n + 1 gaps + n panel widths equals the total canvas size which is rearranged to get the panel width/height
+                        panel_width = (canvas_bounds.width - (gap * (1 + horizontal))) / horizontal
+                        panel_height = (canvas_bounds.height - (gap * (1 + vertical))) / vertical
+                        for h in range(0, horizontal):
+                            for v in range(0, vertical):
+                                drawing_context.rect(gap + h * (gap + panel_width), gap + v * (gap + panel_height), panel_width, panel_height)
                     else:
                         drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
                     drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
@@ -244,6 +257,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__line_dash: typing.Optional[int] = None
         self.__selection_number: typing.Optional[int] = None
         self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__drag_items_split: tuple[int, int] | None = None
 
     @property
     def drop_regions_map(self) -> _DropRegionsMapType:
@@ -326,13 +340,23 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__selection_number = value
             self.update()
 
+    @property
+    def drag_items_split(self) -> tuple[int, int] | None:
+        return self.__drag_items_split
+
+    @drag_items_split.setter
+    def drag_items_split(self, value: tuple[int, int] | None) -> None:
+        if self.__drag_items_split != value:
+            self.__drag_items_split = value
+            self.update()
+
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
         return DisplayPanelOverlayCanvasItemComposer(self, self.layout_sizing, composer_cache,
                                                      self.__drop_regions_map, self.__drop_region,
                                                      self.__is_focused, self.__is_selected,
                                                      self.__focused_style, self.__selected_style,
                                                      self.__line_dash, self.__selection_number,
-                                                     self.__get_font_metrics_fn)
+                                                     self.__get_font_metrics_fn, self.__drag_items_split)
 
 
 class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition):
@@ -443,6 +467,15 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
 
     def _set_drop_region(self, drop_region: str) -> None:
         self.__set_drop_region(drop_region)
+
+    @property
+    def drag_items_split(self) -> tuple[int, int] | None:
+        return self.__display_panel_overlay_canvas_item.drag_items_split
+
+    @drag_items_split.setter
+    def drag_items_split(self, value: tuple[int, int] | None) -> None:
+        if self.__display_panel_overlay_canvas_item.drag_items_split != value:
+            self.__display_panel_overlay_canvas_item.drag_items_split = value
 
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if super().mouse_clicked(x, y, modifiers):
@@ -1986,6 +2019,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             else:
                 self.__content_canvas_item.drop_regions_map = dict()
             if workspace_controller:
+                self.__content_canvas_item.drag_items_split = workspace_controller.get_split_for_selection(MimeTypes.mime_get_number_of_items(mime_data))
                 return workspace_controller.handle_drag_enter(self, mime_data)
             return "ignore"
 
@@ -2122,6 +2156,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 display_panel = self.__display_panel_ref()
                 if mime_data and display_panel:
                     display_panel.content_canvas_item.drag(mime_data, thumbnail_data)
+                    display_panel.content_canvas_item.drag_items_split = Workspace.Workspace.get_split_for_selection(MimeTypes.mime_get_number_of_items(mime_data))
                     return True
                 return False
 
