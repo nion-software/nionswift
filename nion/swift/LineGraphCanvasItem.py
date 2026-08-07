@@ -204,8 +204,6 @@ def _prepare_visible_data(plot_height: int, plot_width: int, plot_origin_y: int,
     if scaled_data_range == 0.0 or uncalibrated_visible_width <= 0.0:
         return None
 
-    # NOTE: axis_scale not available here; baseline calculated by caller using axis_scale
-    # Return placeholder 0.0 for baseline – caller must fill in
     calibrated_data = visible_scaled_xdata._data_ex
     binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_visible_width)
     if binned_length <= 0:
@@ -337,7 +335,7 @@ def calculate_line_segments(plot_height: int, plot_width: int, plot_origin_y: in
 
     for sample_index in range(n_samples):
         # Convert sample index → calibrated value → pixel x
-        cal_value = x_calibration.convert_to_calibrated_value(sample_index)  # centre of sample bin
+        cal_value = x_calibration.convert_to_calibrated_value(sample_index)
         px = plot_origin_x + plot_width * (cal_value - calibrated_left_channel) / cal_width
 
         data_value = data[sample_index]

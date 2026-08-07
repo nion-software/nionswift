@@ -1623,7 +1623,7 @@ class DisplayLayer(Schema.Entity):
     stroke_color = Schema.EntityAttribute[typing.Optional[str]]()
     fill_color = Schema.EntityAttribute[typing.Optional[str]]()
     stroke_width = Schema.EntityAttribute[typing.Optional[int]]()
-    graph_style = Schema.EntityAttribute[typing.Optional[str]]()  # "bar" | "line" | "scatter"
+    graph_style = Schema.EntityAttribute[typing.Optional[str]]()  # "bar" | "line"
     display_data_channel = Schema.EntityAttribute[typing.Optional[DisplayDataChannel]]()
 
     def __init__(self, display_layer_properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
@@ -1685,7 +1685,7 @@ class DisplayLayerInfo:
     stroke_color: str | None
     fill_color: str | None
     stroke_width: int | None
-    graph_style: str | None = None  # line-plot style: "bar" | "line" | "scatter" (None = default "bar")
+    graph_style: str | None = None  # line-plot style: "bar" | "line" (None = default "bar")
 
 
 @dataclasses.dataclass

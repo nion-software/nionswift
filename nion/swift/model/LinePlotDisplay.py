@@ -437,7 +437,7 @@ class LineGraphLayer:
 
     @property
     def graph_style(self) -> str:
-        """Graph drawing style: 'bar' (staircase/histogram), 'line' (diagonal), or 'scatter' (markers)."""
+        """Graph drawing style: 'bar' (staircase/histogram) or 'line' (diagonal)"""
         return self.__graph_style
 
 
