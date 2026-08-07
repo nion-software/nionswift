@@ -459,7 +459,7 @@ def get_filename_illegal_chars_error(filename: str)  -> typing.Sequence[str] | N
     """
     matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
     illegal_chars = []
-    errors = []
+    errors: list[str] = []
     for match in matches:
         if not str(match).isprintable():
             if not errors:  # Only add the message once
