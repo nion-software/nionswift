@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import asyncio
 import types
 import typing
 
@@ -10,6 +11,7 @@ from nion.swift.model import DisplayInfo
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Persistence
+from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -104,11 +106,29 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     """
     bypass_multi_select = False
 
-    def __init__(self, delegate: typing.Optional[DisplayCanvasItemDelegate]) -> None:
+    def __init__(self, drawing_metrics: UISettings.DrawingMetrics,
+                 display_style: UISettings.DisplayStyle,
+                 delegate: typing.Optional[DisplayCanvasItemDelegate],
+                 event_loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
         super().__init__()
+        self.__drawing_metrics = drawing_metrics
+        self.__display_style = display_style
+        self.__event_loop = event_loop
         self.delegate = delegate
         self.__display_info = DisplayInfo.DisplayInfo(None, dict(), list(), list(), list(), list(), None)
         self.__last_display_info = self.__display_info
+
+    @property
+    def drawing_metrics(self) -> UISettings.DrawingMetrics:
+        return self.__drawing_metrics
+
+    @property
+    def display_style(self) -> UISettings.DisplayStyle:
+        return self.__display_style
+
+    @property
+    def event_loop(self) -> typing.Optional[asyncio.AbstractEventLoop]:
+        return self.__event_loop
 
     @property
     def display_info(self) -> DisplayInfo.DisplayInfo:

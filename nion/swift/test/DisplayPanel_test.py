@@ -24,6 +24,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import UISettings
 from nion.swift.test import TestContext
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -3315,7 +3316,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8,8)), dimensional_calibrations=[Calibration.Calibration(0.0, -math.inf, "x"), Calibration.Calibration(0.0, -math.inf, "x")]))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, Geometry.IntSize(512, 512))
+            drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.DisplayPanelUISettings(document_controller.ui), ppi=96.0)
+            DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item, Geometry.IntSize(512, 512))
 
     def test_line_plot_display_handles_invalid_calibration(self):
         with TestContext.create_memory_context() as test_context:
@@ -3325,7 +3327,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8,)), dimensional_calibrations=[Calibration.Calibration(0.0, -math.inf, "x")]))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item, Geometry.IntSize(128, 128))
+            drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.DisplayPanelUISettings(document_controller.ui), ppi=96.0)
+            DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item, Geometry.IntSize(128, 128))
 
     def test_preview_produces_expected_data_on_orphan_display_item(self):
         with TestContext.create_memory_context() as test_context:
@@ -3335,7 +3338,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             with contextlib.closing(display_item.snapshot()) as display_item_snapshot:
-                drawing_context = DisplayPanel.preview(DisplayPanel.DisplayPanelUISettings(document_controller.ui), display_item_snapshot, Geometry.IntSize(256, 256))
+                drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.DisplayPanelUISettings(document_controller.ui), ppi=96.0)
+                drawing_context = DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item_snapshot, Geometry.IntSize(256, 256))
                 self.assertIsNotNone(display_item_snapshot.display_data_channels[0].display_values)
 
     def test_adding_fourier_filter_is_undoable(self):

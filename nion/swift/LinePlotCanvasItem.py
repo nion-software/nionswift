@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import copy
 import math
 import operator
@@ -100,10 +101,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     painting = PaintFunction(layout, plot)
     """
 
-    def __init__(self, ui_settings: UISettings.UISettings, delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate]) -> None:
-        super().__init__(delegate)
+    def __init__(self, drawing_metrics: UISettings.DrawingMetrics,
+                 display_style: UISettings.DisplayStyle,
+                 delegate: typing.Optional[DisplayCanvasItem.DisplayCanvasItemDelegate],
+                 event_loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
+        super().__init__(drawing_metrics, display_style, delegate, event_loop)
 
-        self.__ui_settings = ui_settings
+        self.__device_metrics = drawing_metrics
+        self.__display_style = display_style
 
         self.wants_mouse_events = True
 
@@ -113,12 +118,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__last_line_plot_display_info = self.__line_plot_display_info
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
-        self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
-        self.__line_graph_layers_canvas_item = LineGraphCanvasItem.LineGraphLayersCanvasItem()
-        self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem(ui_settings)
+        self.__line_graph_layers_canvas_item = LineGraphCanvasItem.LineGraphLayersCanvasItem(self.__device_metrics)
+        self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem(self.__device_metrics, self.__display_style)
+        self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem(self.__device_metrics)
         self.__line_graph_legend_row = CanvasItem.CanvasItemComposition()
-        self.__line_graph_legend_row.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(4, 8, 4, 8))
-        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
+        self.__line_graph_legend_row.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(int(self.drawing_metrics.scale_length(4)), int(self.drawing_metrics.scale_length(8)), int(self.drawing_metrics.scale_length(4)), int(self.drawing_metrics.scale_length(8))))
+        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(self.__device_metrics, self.__display_style, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
         self.__line_graph_legend_row.add_stretch()
         self.__line_graph_legend_row.add_canvas_item(self.__line_graph_legend_canvas_item)
         self.__line_graph_legend_row.add_stretch()
@@ -127,43 +132,43 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_legend_column.add_canvas_item(self.__line_graph_legend_row)
         self.__line_graph_legend_column.add_stretch()
         self.__line_graph_outer_left_column = CanvasItem.CanvasItemComposition()
-        self.__line_graph_outer_left_column.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(16, 16, 0, 0))
-        self.__line_graph_outer_left_legend = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
+        self.__line_graph_outer_left_column.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(int(self.drawing_metrics.scale_length(16)), int(self.drawing_metrics.scale_length(16)), 0, 0))
+        self.__line_graph_outer_left_legend = LineGraphCanvasItem.LineGraphLegendCanvasItem(self.__device_metrics, self.__display_style, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
         self.__line_graph_outer_left_column.add_canvas_item(self.__line_graph_outer_left_legend)
         self.__line_graph_outer_left_column.add_stretch()
         self.__line_graph_outer_right_column = CanvasItem.CanvasItemComposition()
-        self.__line_graph_outer_right_column.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(16, 0, 0, 16))
-        self.__line_graph_outer_right_legend = LineGraphCanvasItem.LineGraphLegendCanvasItem(ui_settings, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
+        self.__line_graph_outer_right_column.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(int(self.drawing_metrics.scale_length(16)), 0, 0, int(self.drawing_metrics.scale_length(16))))
+        self.__line_graph_outer_right_legend = LineGraphCanvasItem.LineGraphLegendCanvasItem(self.__device_metrics, self.__display_style, typing.cast(LineGraphCanvasItem.LineGraphLegendCanvasItemDelegate, delegate))
         self.__line_graph_outer_right_column.add_canvas_item(self.__line_graph_outer_right_legend)
         self.__line_graph_outer_right_column.add_stretch()
-        self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
+        self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem(self.__device_metrics)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_layers_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_regions_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_legend_column)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_frame_canvas_item)
 
-        self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
-        self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem(self.__ui_settings)
-        self.__line_graph_vertical_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisTicksCanvasItem()
+        self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem(self.__device_metrics, self.__display_style)
+        self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem(self.__device_metrics, self.__display_style)
+        self.__line_graph_vertical_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisTicksCanvasItem(self.__device_metrics)
         self.__line_graph_vertical_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
-        self.__line_graph_vertical_axis_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
+        self.__line_graph_vertical_axis_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=int(self.drawing_metrics.scale_length(4)))
         self.__line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_label_canvas_item)
         self.__line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_scale_canvas_item)
         self.__line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_ticks_canvas_item)
 
-        self.__line_graph_horizontal_axis_label_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisLabelCanvasItem()
-        self.__line_graph_horizontal_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisScaleCanvasItem()
-        self.__line_graph_horizontal_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisTicksCanvasItem()
+        self.__line_graph_horizontal_axis_label_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisLabelCanvasItem(self.__device_metrics, self.__display_style)
+        self.__line_graph_horizontal_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisScaleCanvasItem(self.__device_metrics, self.__display_style)
+        self.__line_graph_horizontal_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisTicksCanvasItem(self.__device_metrics)
         self.line_graph_horizontal_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
-        self.line_graph_horizontal_axis_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=4)
+        self.line_graph_horizontal_axis_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=int(self.drawing_metrics.scale_length(4)))
         self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.__line_graph_horizontal_axis_ticks_canvas_item)
         self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.__line_graph_horizontal_axis_scale_canvas_item)
         self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.__line_graph_horizontal_axis_label_canvas_item)
 
         # create the grid item holding the line graph and each axes label
         line_graph_group_canvas_item = CanvasItem.CanvasItemComposition()
-        margins = Geometry.Margins(left=6, right=12, top=font_size + 4, bottom=6)
+        margins = Geometry.Margins(left=int(self.drawing_metrics.scale_length(6)), right=int(self.drawing_metrics.scale_length(12)), top=font_size + int(self.drawing_metrics.scale_length(4)), bottom=int(self.drawing_metrics.scale_length(6)))
         line_graph_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), margins=margins)
         line_graph_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_group_canvas_item, Geometry.IntPoint(x=0, y=0))
         line_graph_group_canvas_item.add_canvas_item(self.__line_graph_area_stack, Geometry.IntPoint(x=1, y=0))
@@ -469,7 +474,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     for graphic_index, graphic in enumerate(graphics):
                         if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
                             widget_mapping = self.__get_mouse_mapping()
-                            part, specific = graphic.test(widget_mapping, self.__ui_settings, pos.to_float_point(), False)
+                            part, specific = graphic.test(widget_mapping, self.__device_metrics, self.display_style, pos.to_float_point(), False)
                             if part in {"start", "end"} and not modifiers.control:
                                 self.cursor_shape = "size_horizontal"
                                 break
@@ -632,7 +637,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     multiple_items_selected = len(selection_indexes) > 1
                     move_only = not already_selected or multiple_items_selected
                     widget_mapping = self.__get_mouse_mapping()
-                    part, specific = graphic.test(widget_mapping, self.__ui_settings, self.__graphic_drag_start_pos.to_float_point(), move_only)
+                    part, specific = graphic.test(widget_mapping, self.__device_metrics, self.display_style, self.__graphic_drag_start_pos.to_float_point(), move_only)
                     if part:
                         # select item and prepare for drag
                         self.graphic_drag_item_was_selected = already_selected
@@ -710,7 +715,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                     region.end = x
                     self.__pending_interval = region
                     region = None
-                elif abs(widget_mapping.map_point_channel_norm_to_widget(self.__pending_interval.start) - pos.x) > self.__ui_settings.cursor_tolerance:
+                elif abs(widget_mapping.map_point_channel_norm_to_widget(self.__pending_interval.start) - pos.x) > self.__device_metrics.ui_settings.cursor_tolerance:
                     region = self.__pending_interval
                     self.__pending_interval = None
                     region.end = widget_mapping.map_point_widget_to_channel_norm(pos.to_float_point())
@@ -720,7 +725,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 selection_indexes = graphic_selection.indexes
                 for graphic_index, graphic in enumerate(self.__line_plot_display_info.graphics):
                     if graphic == region:
-                        part, specific = graphic.test(widget_mapping, self.__ui_settings, pos.to_float_point(), False)
+                        part, specific = graphic.test(widget_mapping, self.__device_metrics, self.display_style, pos.to_float_point(), False)
                         if part:
                             self.graphic_drag_item_was_selected = False
                             delegate.set_selection(graphic_index)
