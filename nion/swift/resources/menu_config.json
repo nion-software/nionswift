@@ -24,7 +24,7 @@
             },
             {
                 "type": "item",
-                "action_id": "project.rename_current_project"
+                "action_id": "project.rename_project"
             },
             {
                 "type": "separator"
