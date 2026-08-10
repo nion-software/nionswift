@@ -56,7 +56,7 @@ class DisplayStyle:
         """Get the complete font string for a display style part."""
         size_px = self.get_font_size(part)
         scaled_size_px = int(device_metrics.scale_font(size_px))
-        return f"normal {scaled_size_px}px serif"
+        return f"normal {scaled_size_px}px sans-serif"
 
 
 @dataclasses.dataclass
