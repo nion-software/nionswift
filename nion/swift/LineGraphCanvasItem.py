@@ -301,7 +301,8 @@ def calculate_line_segments(plot_height: int, plot_width: int, plot_origin_y: in
 
     Unlike the bar style which draws a staircase, the line style maps each data sample to its
     exact x pixel position and draws straight lines between them.  NaN values break the line
-    into separate segments.
+    into separate segments. The iteration is clipped to the visible sample range so it stays
+    bounded when zoomed into a small window rather than scanning the entire data array.
 
     Note: line_graph_x_calibration may not match the calibration of scaled_xdata since the x_calibration
     represents the calibration of the graph itself, which may include multiple data items with different
@@ -326,14 +327,31 @@ def calculate_line_segments(plot_height: int, plot_width: int, plot_origin_y: in
 
     data = scaled_xdata._data_ex
     n_samples = data.shape[-1]
+    if n_samples <= 0:
+        return list(), 0
+
+    # Clip the iteration to the visible sample range so this is bounded by the number of samples actually
+    # on screen rather than the full (possibly huge) data array. This preserves the true line-graph look —
+    # exact sample positions connected by diagonals — while avoiding an unbounded O(n) per-frame loop when
+    # zoomed into a small window. A one-sample margin is included on each side so the line still connects
+    # to points just off-screen and reaches the plot edges.
+    edge_a = x_calibration.convert_from_calibrated_value(calibrated_left_channel)
+    edge_b = x_calibration.convert_from_calibrated_value(calibrated_right_channel)
+    first_sample = int(math.floor(min(edge_a, edge_b))) - 1
+    last_sample = int(math.ceil(max(edge_a, edge_b))) + 1
+    first_sample = max(0, first_sample)
+    last_sample = min(n_samples - 1, last_sample)
+    if first_sample > last_sample:
+        return list(), 0
 
     segments: typing.List[LineGraphSegment] = list()
     segment = LineGraphSegment()
     line_commands = segment.line_commands
     did_draw = False
+    last_px: float = plot_origin_x
     last_py: float = baseline
 
-    for sample_index in range(n_samples):
+    for sample_index in range(first_sample, last_sample + 1):
         # Convert sample index → calibrated value → pixel x
         cal_value = x_calibration.convert_to_calibrated_value(sample_index)
         px = plot_origin_x + plot_width * (cal_value - calibrated_left_channel) / cal_width
@@ -342,7 +360,7 @@ def calculate_line_segments(plot_height: int, plot_width: int, plot_origin_y: in
         if numpy.isnan(data_value):
             if did_draw:
                 did_draw = False
-                segment.final_line_to(px, last_py)
+                segment.final_line_to(last_px, last_py)
                 segments.append(segment)
                 segment = LineGraphSegment()
                 line_commands = segment.line_commands
@@ -356,10 +374,11 @@ def calculate_line_segments(plot_height: int, plot_width: int, plot_origin_y: in
         else:
             did_draw = True
             segment.first_line_to(px, py)
+        last_px = px
         last_py = py
 
     if did_draw:
-        segment.final_line_to(plot_origin_x + plot_width, last_py)
+        segment.final_line_to(last_px, last_py)
         segments.append(segment)
     return segments, baseline
 
