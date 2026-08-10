@@ -734,7 +734,7 @@ class Application(UIApplication.BaseApplication):
                         menu.add_menu_item(_(f"Remove Project from List"), functools.partial(remove_project, index))
 
                         def rename_selected_project(project_reference: Profile.ProjectReference) -> None:
-                            action = RenameProjectAction(project_reference)
+                            action = RenameProjectAction(project_reference, accept_fn=self.close_window)
                             document_controller = self.__application.document_controllers[0]
                             action.invoke(UIWindow.ActionContext(self.__application, document_controller, None))
 
@@ -1102,19 +1102,24 @@ class ChooseProjectAction(UIWindow.Action):
 
 
 class RenameProjectAction(UIWindow.Action):
-    """Renames the current project, if it exists. If the current project is not found, this action does nothing.
+    """Rename a project.
 
-    The invoke method must be used to call the rename function, calling execute will raise a NotImplementedError.
+    If initialized with a project_reference then that will be used instead of using the current project.
+    Calling invoke will cause a UI window to appear prompting to rename the project which calls execute with the name provided.
+    Calling execute uses the stored name to get the application to rename the project.
+    The accept_fn if provided is called before execute when the new project button is clicked in the UI window.
     """
-    action_id = "project.rename_current_project"
+    def __init__(self, project_reference: Profile.ProjectReference | None = None, accept_fn: typing.Callable[[], None] | None = None) -> None:
+        super().__init__()
+        self.accept_fn = accept_fn
+        self.project_reference = project_reference
+
+    action_id = "project.rename_project"
     action_name = _("Rename Project")
     action_parameters = [
         UIWindow.ActionStringProperty("name")
     ]
-
-    def __init__(self, project_reference: Profile.ProjectReference | None = None) -> None:
-        super().__init__()
-        self.project_reference = project_reference
+    check_project_name_is_available = FileStorageSystem.check_file_project_name_is_available  # The FileProjectStorageSystem is used as the default project storage system
 
     def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
         assert self.project_reference is not None
@@ -1122,11 +1127,12 @@ class RenameProjectAction(UIWindow.Action):
         assert project_name is not None
         application = typing.cast(Application, context.application)
         application.rename_project(self.project_reference, project_name)
+        self.project_reference = None  # The same action is reused by the action so clear it no that it is invalid
+        self.accept_fn = None
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
     def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
         context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
-        document_controller = typing.cast(DocumentController.DocumentController, context.window)
         application = typing.cast(Application, context.application)
 
         if self.project_reference is None:  # If the project reference is not set then use the current project reference
@@ -1135,6 +1141,7 @@ class RenameProjectAction(UIWindow.Action):
                 self.project_reference = application.profile.get_project_reference(last_project_uuid)
 
         if self.project_reference is None:
+            application.show_ok_dialog(_("Rename Project Error"), message="Unable to rename project. No project reference could be found.")
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
 
         if self.project_reference.project is None:
@@ -1143,16 +1150,23 @@ class RenameProjectAction(UIWindow.Action):
             project_storage_system = self.project_reference.project.project_storage_system
 
         if project_storage_system is None:
+            application.show_ok_dialog(_("Rename Project Error"), message="Unable to rename project. Project storage system could not be found.")
+            return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
+
+        directory = self.project_reference.path.parent.as_posix()
+        check_project_result = RenameProjectAction.check_project_name_is_available(self.project_reference.title, directory)
+
+        if check_project_result.success:
+            application.show_ok_dialog(_("Rename Project Error"), message="Unable to rename project. Project reference does not have any project file available.")
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
 
         def handle_rename_clicked(new_name: str, _: str) -> None:
             self.set_string_property(context,"name", new_name)
             self.execute(context)
 
-        directory = self.project_reference.path.parent.as_posix()
-        NameProjectDialog(application.ui, document_controller, application, directory, project_name=self.project_reference.title,
+        NameProjectDialog(application.ui, application, directory, project_name=self.project_reference.title,
                           accept_fn=handle_rename_clicked, dialog_name="Rename Project", choose_directory_visible=False,
-                          check_name_available_fn=project_storage_system.check_project_name_is_available)
+                          check_name_available_fn=RenameProjectAction.check_project_name_is_available, parent_window=context.window)
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
