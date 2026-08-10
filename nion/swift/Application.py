@@ -937,7 +937,7 @@ class Application(UIApplication.BaseApplication):
                 # Catch and log any exceptions during the rename process
                 error_message = _("Exception during renaming project")
                 logging.exception(e)
-                new_project_reference = project_reference
+                new_project_reference = project_reference if self.profile.get_project_reference(project_reference.uuid) else None
             finally:
                 # Reopen the project only when renaming the current project and when the project reference is returned
                 if renaming_current_project and new_project_reference is not None:
@@ -1127,7 +1127,7 @@ class RenameProjectAction(UIWindow.Action):
         assert project_name is not None
         application = typing.cast(Application, context.application)
         application.rename_project(self.project_reference, project_name)
-        self.project_reference = None  # The same action is reused by the action so clear it no that it is invalid
+        self.project_reference = None  # Clear the now invalid project_reference so if it is invoked again it get the current project reference again
         self.accept_fn = None
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
@@ -1144,15 +1144,6 @@ class RenameProjectAction(UIWindow.Action):
             application.show_ok_dialog(_("Rename Project Error"), message="Unable to rename project. No project reference could be found.")
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
 
-        if self.project_reference.project is None:
-            project_storage_system = self.project_reference.make_storage(application.profile.profile_context)
-        else:
-            project_storage_system = self.project_reference.project.project_storage_system
-
-        if project_storage_system is None:
-            application.show_ok_dialog(_("Rename Project Error"), message="Unable to rename project. Project storage system could not be found.")
-            return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
-
         directory = self.project_reference.path.parent.as_posix()
         check_project_result = RenameProjectAction.check_project_name_is_available(self.project_reference.title, directory)
 
@@ -1161,7 +1152,9 @@ class RenameProjectAction(UIWindow.Action):
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
 
         def handle_rename_clicked(new_name: str, _: str) -> None:
-            self.set_string_property(context,"name", new_name)
+            if callable(self.accept_fn):
+                self.accept_fn()
+            self.set_string_property(context, "name", new_name)
             self.execute(context)
 
         NameProjectDialog(application.ui, application, directory, project_name=self.project_reference.title,

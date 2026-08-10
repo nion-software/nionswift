@@ -4693,12 +4693,13 @@ class TestStorageClass(unittest.TestCase):
             document_controller = app.open_project_window(project_reference)
             app._set_document_model(document_controller.document_model)
             app.initialize(load_plug_ins=False)
+            original_snapshot: DataItem.DataItem | None = None
             try:
                 document_model = app.document_model
                 data_item = DataItem.DataItem(numpy.zeros((6, 6)), large_format=False)
                 document_model.append_data_item(data_item)
                 original_snapshot = data_item.snapshot()
-
+                assert original_snapshot is not None
                 app.rename_project(project_reference, "new_name")
                 document_controller = app.document_controllers[0]
 
@@ -4709,7 +4710,8 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(original_snapshot.timezone, document_controller.document_model.data_items[0].timezone)
                 self.assertEqual(original_snapshot.timezone_offset, document_controller.document_model.data_items[0].timezone_offset)
             finally:
-                original_snapshot.close()
+                if original_snapshot:
+                    original_snapshot.close()
                 app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()

@@ -664,12 +664,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
     def rename_project(self, name: str) -> ProjectNameResult:
         """Rename the project.
 
-        Returns a ProjectRenameResult.
-        ProjectRenameResult.project_path will be the new project path or the original if the project path did not change.
-        ProjectRenameResult.error_message will be empty when there are no errors, otherwise it will be an error message.
+        Returns a ProjectNameResult.
+        ProjectNameResult.project_path will be the new project path or the original if the project path did not change.
+        ProjectNameResult.error_message will be empty when there are no errors, otherwise it will be an error message.
         The project path changing names does not indicate success, only the ProjectNameResult.success should be used to check success.
         """
-        return ProjectNameResult(["Project renaming is not supported for this storage system."], None)
+        return ProjectNameResult([_("Project renaming is not supported for this storage system.")], None)
 
     @property
     def _data_properties_map(self) -> typing.Dict[uuid.UUID, DataItemStorageAdapter]:
