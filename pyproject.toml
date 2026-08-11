@@ -42,6 +42,8 @@ include = [
     "nion",
     "nion.swift",
     "nion.swift.model",
+    "nion.swift.model.computation_api",
+    "nion.swift.model.computation_api.v1",
     "nion.swift.test",
     "nionui_app.nionswift",
     "nionswift_plugin.none",
