@@ -2306,6 +2306,46 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(iteration_plan_t[1], iteration_plan.iteration_shape_list)
             self.assertEqual(iteration_plan_t[2], iteration_plan.axis_index_selector_list_map)
 
+    def test_iterated_processing_accumulator_aggregates_scalar_outputs(self):
+        accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
+        accumulator.add_processed_data_map((0,), ["out"], {"out": DataAndMetadata.ScalarAndMetadata.from_value(1.5)})
+        accumulator.add_processed_data_map((1,), ["out"], {"out": DataAndMetadata.ScalarAndMetadata.from_value(2.5)})
+
+        annotated_array_out = accumulator.annotated_array_map["out"]
+        self.assertIsInstance(annotated_array_out, annotated_array.AnnotatedArray)
+        self.assertEqual((2,), annotated_array_out.data.shape)
+        numpy.testing.assert_allclose(numpy.asarray([1.5, 2.5]), annotated_array_out.data)
+
+    def test_iterated_processing_accumulator_aggregates_raw_scalar_outputs(self):
+        accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
+        accumulator.add_processed_data_map((0,), ["out"], {"out": 1.5})
+        accumulator.add_processed_data_map((1,), ["out"], {"out": 2.5})
+
+        annotated_array_out = accumulator.annotated_array_map["out"]
+        self.assertIsInstance(annotated_array_out, annotated_array.AnnotatedArray)
+        self.assertEqual((2,), annotated_array_out.data.shape)
+        numpy.testing.assert_allclose(numpy.asarray([1.5, 2.5]), annotated_array_out.data)
+
+    def test_iterated_processing_accumulator_aggregates_array_outputs(self):
+        accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
+        accumulator.add_processed_data_map((0,), ["out"], {"out": DataAndMetadata.new_data_and_metadata(numpy.asarray([1, 2], dtype=numpy.int32))})
+        accumulator.add_processed_data_map((1,), ["out"], {"out": DataAndMetadata.new_data_and_metadata(numpy.asarray([3, 4], dtype=numpy.int32))})
+
+        annotated_array_out = accumulator.annotated_array_map["out"]
+        self.assertIsInstance(annotated_array_out, annotated_array.AnnotatedArray)
+        self.assertEqual((2, 2), annotated_array_out.data.shape)
+        numpy.testing.assert_array_equal(numpy.asarray([[1, 2], [3, 4]], dtype=numpy.int32), annotated_array_out.data)
+
+    def test_iterated_processing_accumulator_aggregates_raw_ndarray_outputs(self):
+        accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
+        accumulator.add_processed_data_map((0,), ["out"], {"out": numpy.asarray([1, 2], dtype=numpy.int32)})
+        accumulator.add_processed_data_map((1,), ["out"], {"out": numpy.asarray([3, 4], dtype=numpy.int32)})
+
+        annotated_array_out = accumulator.annotated_array_map["out"]
+        self.assertIsInstance(annotated_array_out, annotated_array.AnnotatedArray)
+        self.assertEqual((2, 2), annotated_array_out.data.shape)
+        numpy.testing.assert_array_equal(numpy.asarray([[1, 2], [3, 4]], dtype=numpy.int32), annotated_array_out.data)
+
     def test_compute_on_iterable_item_with_no_selected_axis(self):
         p = Symbolic.ComputationProcessor(
             expression="output = numpy.sum(input)",
@@ -2341,6 +2381,42 @@ class TestSymbolicClass(unittest.TestCase):
                 self.assertEqual((5,), new_data_item.data_shape)
         finally:
             Symbolic.ComputationProcessor.unregister("_test")
+
+    def test_parameters_typed_extraction(self) -> None:
+        region = Graphics.EmptyRegion()
+        scalar_and_metadata = DataAndMetadata.ScalarAndMetadata.from_value(4.5, Calibration.Calibration(units="e"))
+        parameters = Symbolic.ComputationParameters({
+            "int_value": Symbolic.ComputationParameter(3),
+            "region_value": Symbolic.ComputationParameter(region),
+            "list_value": Symbolic.ComputationParameter([1, "x"]),
+            "map_value": Symbolic.ComputationParameter({"k": True}),
+            "scalar_value": Symbolic.ComputationParameter(numpy.float32(2.5)),
+            "scalar_metadata_value": Symbolic.ComputationParameter(scalar_and_metadata),
+        })
+
+        self.assertEqual(3.0, parameters.get_float("int_value"))
+        self.assertEqual(region, parameters.get_region("region_value"))
+        self.assertEqual([1, "x"], list(parameters.get_list("list_value")))
+        self.assertEqual({"k": True}, dict(parameters.get_map("map_value")))
+
+        promoted_scalar = parameters.get_scalar_and_metadata("scalar_value")
+        self.assertIsInstance(promoted_scalar, DataAndMetadata.ScalarAndMetadata)
+        self.assertEqual(2.5, promoted_scalar.value)
+
+        preserved_scalar = parameters.get_scalar_and_metadata("scalar_metadata_value")
+        self.assertIs(preserved_scalar, scalar_and_metadata)
+        self.assertEqual("e", preserved_scalar.calibration.units)
+
+        normalized_parameters = parameters.normalized_parameters()
+        normalized_scalar = normalized_parameters.get_scalar_and_metadata("scalar_metadata_value")
+        self.assertIsInstance(normalized_scalar, DataAndMetadata.ScalarAndMetadata)
+        self.assertEqual(4.5, normalized_scalar.value)
+        self.assertEqual("e", normalized_scalar.calibration.units)
+
+        with self.assertRaises(TypeError):
+            parameters.get_str("region_value")
+        with self.assertRaises(TypeError):
+            parameters.get_scalar_and_metadata("region_value")
 
     # TODO: test broadcasting, including using display data
 

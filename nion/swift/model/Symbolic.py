@@ -11,6 +11,7 @@ from __future__ import annotations
 # standard libraries
 import ast
 import asyncio
+import collections.abc
 import concurrent.futures
 import contextlib
 import copy
@@ -3254,6 +3255,89 @@ class ComputationParameter:
     def input_operation(self) -> ComputationInputOperation:
         return self.__input_operation
 
+    def normalized_value(self) -> typing.Any:
+        value = self.__value
+        if isinstance(value, DataAndMetadata.DataAndMetadata):
+            return annotated_array.from_data_and_metadata(value, collapse_scalar_axis_groups=True)
+        if isinstance(value, DataAndMetadata.ScalarAndMetadata):
+            return value
+        if numpy.isscalar(value):
+            return value.item() if hasattr(value, "item") else value
+        return value
+
+    def get_bool(self) -> bool:
+        value = self.__value
+        if isinstance(value, bool):
+            return value
+        raise TypeError(f"Expected bool, got {type(value)}")
+
+    def get_int(self) -> int:
+        value = self.__value
+        if isinstance(value, bool):
+            raise TypeError("Expected int, got bool")
+        if isinstance(value, int):
+            return value
+        raise TypeError(f"Expected int, got {type(value)}")
+
+    def get_float(self) -> float:
+        value = self.__value
+        if isinstance(value, bool):
+            raise TypeError("Expected float-compatible value, got bool")
+        if isinstance(value, (int, float)):
+            return float(value)
+        raise TypeError(f"Expected float-compatible value, got {type(value)}")
+
+    def get_str(self) -> str:
+        value = self.__value
+        if isinstance(value, str):
+            return value
+        raise TypeError(f"Expected str, got {type(value)}")
+
+    def get_complex(self) -> complex:
+        value = self.__value
+        if isinstance(value, bool):
+            raise TypeError("Expected complex-compatible value, got bool")
+        if isinstance(value, (int, float, complex)):
+            return complex(value)
+        raise TypeError(f"Expected complex-compatible value, got {type(value)}")
+
+    def get_scalar_and_metadata(self) -> DataAndMetadata.ScalarAndMetadata:
+        value = self.__value
+        if isinstance(value, DataAndMetadata.ScalarAndMetadata):
+            return value
+        if numpy.isscalar(value):
+            scalar_value = value.item() if hasattr(value, "item") else value
+            return DataAndMetadata.ScalarAndMetadata.from_value(typing.cast(DataAndMetadata._ScalarDataType, scalar_value))
+        raise TypeError(f"Expected ScalarAndMetadata or scalar-compatible value, got {type(value)}")
+
+    def get_annotated_array(self) -> annotated_array.AnnotatedArray:
+        value = self.__value
+        if isinstance(value, annotated_array.AnnotatedArray):
+            return value
+        if isinstance(value, DataAndMetadata.DataAndMetadata):
+            return annotated_array.from_data_and_metadata(value)
+        raise TypeError(f"Expected AnnotatedArray, got {type(value)}")
+
+    def get_region(self) -> Graphics.RegionBase:
+        value = self.__value
+        if isinstance(value, Graphics.RegionBase):
+            return value
+        raise TypeError(f"Expected RegionBase, got {type(value)}")
+
+    def get_list(self) -> typing.Sequence[typing.Any]:
+        value = self.__value
+        if isinstance(value, collections.abc.Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return value
+        raise TypeError(f"Expected list, got {type(value)}")
+
+    def get_map(self) -> typing.Mapping[str, typing.Any]:
+        value = self.__value
+        if isinstance(value, collections.abc.Mapping):
+            if not all(isinstance(k, str) for k in value.keys()):
+                raise TypeError("Expected string-key mapping")
+            return value
+        raise TypeError(f"Expected map, got {type(value)}")
+
 
 class ComputationParameters:
     """Provide access to typed computation parameters.
@@ -3261,8 +3345,8 @@ class ComputationParameters:
     The computation parameters should be considered to be a snapshot of the parameters at the time of execution.
     Changes to the underlying computation parameters during execution may not be reflected in this object.
 
-    The get_value method can be used to access parameters with type checking. The get_bool_value, get_int_value,
-    get_float_value, and get_str_value methods are convenience methods for accessing parameters of those types.
+    Typed getters raise KeyError if the key is absent and no default was provided, and TypeError if the value is
+    present but not compatible with the requested type.
     """
     def __init__(self, parameter_map: typing.Mapping[str, ComputationParameter]) -> None:
         self.__parameter_map = parameter_map
@@ -3275,33 +3359,84 @@ class ComputationParameters:
     def parameter_value_map(self) -> typing.Mapping[str, typing.Any]:
         return {k: v.value for k, v in self.__parameter_map.items()}
 
-    def get_bool_value(self, key: str, default: bool) -> bool:
-        computation_parameter = self.__parameter_map.get(key, None)
-        value = computation_parameter.value if computation_parameter else default
-        if isinstance(value, bool):
-            return value
-        raise TypeError(f"Key '{key}' expected a boolean value, got {type(value)} with value '{value}'")
+    def get_bool(self, key: str, default: bool | None = None) -> bool:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_bool()
 
-    def get_int_value(self, key: str, default: int) -> int:
-        computation_parameter = self.__parameter_map.get(key, None)
-        value = computation_parameter.value if computation_parameter else default
-        if isinstance(value, int):
-            return value
-        raise TypeError(f"Key '{key}' expected an integer value, got {type(value)} with value '{value}'")
+    def get_int(self, key: str, default: int | None = None) -> int:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_int()
 
-    def get_float_value(self, key: str, default: float) -> float:
-        computation_parameter = self.__parameter_map.get(key, None)
-        value = computation_parameter.value if computation_parameter else default
-        if isinstance(value, float):
-            return value
-        raise TypeError(f"Key '{key}' expected a float value, got {type(value)} with value '{value}'")
+    def get_float(self, key: str, default: float | None = None) -> float:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_float()
 
-    def get_str_value(self, key: str, default: str) -> str:
-        computation_parameter = self.__parameter_map.get(key, None)
-        value = computation_parameter.value if computation_parameter else default
-        if isinstance(value, str):
-            return value
-        raise TypeError(f"Key '{key}' expected a string value, got {type(value)} with value '{value}'")
+    def get_str(self, key: str, default: str | None = None) -> str:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_str()
+
+    def get_complex(self, key: str, default: complex | None = None) -> complex:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_complex()
+
+    def get_scalar_and_metadata(self, key: str, default: typing.Any = None) -> DataAndMetadata.ScalarAndMetadata:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return ComputationParameter(default).get_scalar_and_metadata()
+            else:
+                raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_scalar_and_metadata()
+
+    def get_annotated_array(self, key: str) -> annotated_array.AnnotatedArray:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_annotated_array()
+
+    def get_region(self, key: str) -> Graphics.RegionBase:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_region()
+
+    def get_list(self, key: str) -> typing.Sequence[typing.Any]:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_list()
+
+    def get_map(self, key: str) -> typing.Mapping[str, typing.Any]:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_map()
+
+    def get_parameter(self, key: str) -> ComputationParameter:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter
 
     def get_data_source(self, key: str) -> Facade.DataSource | None:
         computation_parameter = self.__parameter_map.get(key, None)
@@ -3310,6 +3445,15 @@ class ComputationParameters:
     def get_input_operation(self, key: str) -> ComputationInputOperation:
         computation_parameter = self.__parameter_map.get(key, None)
         return computation_parameter.input_operation if computation_parameter else ComputationInputOperation()
+
+    def normalized_parameters(self) -> ComputationParameters:
+        packed_parameter_map = dict[str, ComputationParameter]()
+        for key, computation_parameter in self.__parameter_map.items():
+            packed_parameter_map[key] = ComputationParameter(
+                computation_parameter.normalized_value(),
+                computation_parameter.input_operation,
+            )
+        return ComputationParameters(packed_parameter_map)
 
 
 class ComputationExecutorContext:
@@ -4280,15 +4424,220 @@ def compute_iteration_plan(computation_processor: ComputationProcessor, paramete
     return IterationPlanResult(None, tuple(axis_group_list), axis_index_selector_list_map)
 
 
+_ProcessedScalarType = bool | int | float | complex | str
+_ProcessedDataType = DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | DataAndMetadata._ImageDataType | annotated_array.AnnotatedArray | _ProcessedScalarType | None
+_ProcessedDataMapType = typing.Mapping[str, _ProcessedDataType]
+
+
+def _build_component_parameters_for_iteration_index(computation_processor: ComputationProcessor,
+                                                    parameters: ComputationParameters,
+                                                    iteration_plan: IterationPlanResult,
+                                                    index: tuple[int, ...],
+                                                    filter_xdata_map: dict[str, DataAndMetadata.DataAndMetadata | None]) -> ComputationParameters:
+    """Build computation parameters for one iteration index by slicing iterable sources and keeping other inputs unchanged."""
+    component_parameter_d = dict[str, ComputationParameter]()
+    assert iteration_plan.axis_index_selector_list_map is not None
+    for source in computation_processor.sources:
+        data_source = parameters.get_data_source(source.name)
+        assert data_source is not None
+        axis_index_selector_list = iteration_plan.axis_index_selector_list_map.get(source.name)
+        if axis_index_selector_list:
+            axis_set_data_metadata_list = get_axis_set_data_metadata_list(data_source.xdata.data_metadata) if data_source.xdata else dict()
+            assert len(axis_index_selector_list) == len(axis_set_data_metadata_list)
+            source_slice_list = list[slice | int]()
+            indexes_index = 0
+            for axis_index_selector, (_axis_set_key, axis_set_data_metadata) in zip(axis_index_selector_list, axis_set_data_metadata_list.items()):
+                axis_set_rank = len(axis_set_data_metadata.data_shape)
+                if axis_index_selector:
+                    source_slice_list.extend(index[indexes_index:indexes_index + axis_set_rank])
+                    indexes_index += axis_set_rank
+                else:
+                    source_slice_list.extend([slice(None)] * axis_set_rank)
+            source_index = tuple(source_slice_list)
+            source_xdata = data_source.xdata[source_index] if data_source.xdata else None
+        elif not parameters.parameter_map[source.name].input_operation.is_display_operation:
+            source_xdata = data_source.xdata
+        else:
+            source_xdata = data_source.element_xdata
+        if source_xdata:
+            if source.data_type == "xdata":
+                if source.is_croppable:
+                    source_xdata = data_source._data_source._crop_xdata(source_xdata)
+            elif source.data_type == "filtered_xdata":
+                filter_xdata = filter_xdata_map.get(source.name)
+                if filter_xdata is None:
+                    filter_xdata = data_source.filter_xdata
+                    filter_xdata_map[source.name] = filter_xdata
+                if filter_xdata:
+                    if source_xdata.is_data_complex_type:
+                        source_xdata = Core.function_fourier_mask(source_xdata, filter_xdata)
+                    else:
+                        source_xdata = filter_xdata * source_xdata
+            else:
+                raise ValueError(f"Unsupported source data type: {source.data_type}")
+        if source_xdata:
+            component_parameter_d[source.name] = ComputationParameter(source_xdata, ComputationInputOperation.from_operation_id("axes:datum"))
+    for k, v in parameters.parameter_map.items():
+        if k not in component_parameter_d:
+            component_parameter_d[k] = v
+    return ComputationParameters(component_parameter_d)
+
+
+class _IteratedProcessingAccumulator:
+    """Accumulate per-iteration outputs into final annotated arrays.
+
+    Create once for an iteration plan, call `add_processed_data_map` for each iteration index
+    in loop order, then read `annotated_array_map` after the loop completes.
+    """
+    def __init__(self, iteration_shape_list: tuple[tuple[int, ...], ...], iteration_shape: tuple[int, ...],
+                 iteration_calibrations: tuple[Calibration.Calibration, ...]) -> None:
+        self.__iteration_shape_list = iteration_shape_list
+        self.__iteration_shape = iteration_shape
+        self.__iteration_calibrations = iteration_calibrations
+        self.__data_map = dict[str, DataAndMetadata._ImageDataType]()
+        self.__annotated_array_map = dict[str, annotated_array.AnnotatedArray]()
+
+    @property
+    def annotated_array_map(self) -> dict[str, annotated_array.AnnotatedArray]:
+        return self.__annotated_array_map
+
+    @staticmethod
+    def __to_affine_calibration(calibration: Calibration.Calibration | annotated_array.Calibration) -> annotated_array.AffineCalibration:
+        if isinstance(calibration, annotated_array.AffineCalibration):
+            return calibration
+        if isinstance(calibration, Calibration.Calibration):
+            return annotated_array.AffineCalibration(calibration.scale, calibration.offset, calibration.units)
+        raise ValueError("Only affine calibrations are supported for iterated processing accumulation.")
+
+    def __make_axis_group(self, shape: tuple[int, ...], calibrations: typing.Sequence[Calibration.Calibration]) -> annotated_array.AxisGroup:
+        axes = tuple(annotated_array.Axis(str(i), size) for i, size in enumerate(shape))
+        if calibrations:
+            coordinate_calibration = annotated_array.CoordinateCalibration(tuple(self.__to_affine_calibration(calibration) for calibration in calibrations))
+            return annotated_array.AxisGroup(
+                axes=axes,
+                coordinate_calibrations={"calibrated": coordinate_calibration},
+                primary_calibration_key="calibrated"
+            )
+        return annotated_array.AxisGroup(axes=axes)
+
+    def __make_iteration_axis_groups(self) -> tuple[annotated_array.AxisGroup, ...]:
+        axis_groups = list[annotated_array.AxisGroup]()
+        calibration_index = 0
+        for shape in self.__iteration_shape_list:
+            count = len(shape)
+            axis_groups.append(self.__make_axis_group(shape, self.__iteration_calibrations[calibration_index:calibration_index + count]))
+            calibration_index += count
+        return tuple(axis_groups)
+
+    def __make_result_metadata(self) -> annotated_array.ArrayMetadata:
+        return annotated_array.ArrayMetadata(created=DateTime.utcnow().replace(tzinfo=datetime.timezone.utc))
+
+    def __clone_datum_axis_group(self, array_data: annotated_array.AnnotatedArray) -> annotated_array.AxisGroup:
+        datum_axis_group = array_data.descriptor.axis_groups[-1]
+        if datum_axis_group.primary_calibration_key:
+            coordinate_calibration = annotated_array.CoordinateCalibration(tuple(
+                self.__to_affine_calibration(datum_axis_group.get_calibration(axis_index))
+                for axis_index in range(datum_axis_group.rank)
+            ))
+            return annotated_array.AxisGroup(
+                axes=datum_axis_group.axes,
+                coordinate_system_id=datum_axis_group.coordinate_system_id,
+                coordinate_calibrations={"calibrated": coordinate_calibration},
+                primary_calibration_key="calibrated"
+            )
+        return annotated_array.AxisGroup(
+            axes=datum_axis_group.axes,
+            coordinate_system_id=datum_axis_group.coordinate_system_id,
+        )
+
+    def __make_intensity_calibrations(self, calibration: Calibration.Calibration | annotated_array.Calibration) -> annotated_array.CalibrationSet:
+        return annotated_array.CalibrationSet.from_calibration(self.__to_affine_calibration(calibration), "calibrated")
+
+    def __add_scalar_data(self, key: str, index: tuple[int, ...], scalar_data: DataAndMetadata.ScalarAndMetadata) -> None:
+        """Add scalar data to the accumulator."""
+        value = scalar_data.value
+        if key not in self.__annotated_array_map:
+            self.__data_map[key] = numpy.empty(self.__iteration_shape, dtype=numpy.asarray(value).dtype)
+            axis_groups = self.__make_iteration_axis_groups() or (annotated_array.AxisGroup(),)
+            descriptor = annotated_array.ArrayDescriptor(
+                axis_groups=axis_groups,
+                intensity_calibrations=self.__make_intensity_calibrations(scalar_data.calibration),
+                value_type=annotated_array.infer_value_type(self.__data_map[key].dtype),
+            )
+            self.__annotated_array_map[key] = annotated_array.AnnotatedArray(self.__data_map[key], descriptor, self.__make_result_metadata())
+        self.__data_map[key][index] = value
+
+    def __add_array_data(self, key: str, index: tuple[int, ...], array_data: annotated_array.AnnotatedArray) -> None:
+        """Add array data to the accumulator."""
+        data = array_data.data
+        data_dtype = data.dtype
+        datum_axis_group = self.__clone_datum_axis_group(array_data)
+        datum_dimension_shape = datum_axis_group.shape
+        if key not in self.__annotated_array_map:
+            self.__data_map[key] = numpy.empty(self.__iteration_shape + datum_dimension_shape, dtype=data_dtype)
+            descriptor = annotated_array.ArrayDescriptor(
+                axis_groups=self.__make_iteration_axis_groups() + (datum_axis_group,),
+                intensity_calibrations=self.__make_intensity_calibrations(array_data.get_intensity_calibration()),
+                value_type=array_data.descriptor.value_type,
+            )
+            self.__annotated_array_map[key] = annotated_array.AnnotatedArray(self.__data_map[key], descriptor, self.__make_result_metadata())
+        self.__data_map[key][index] = data
+
+    def add_processed_data_map(self, index: tuple[int, ...], output_keys: typing.Sequence[str], processed_data_map: _ProcessedDataMapType) -> None:
+        for key, processed_data in processed_data_map.items():
+            assert key in output_keys
+            # Promote to AnnotatedArray for array data, keep as ScalarAndMetadata for scalars
+            if isinstance(processed_data, annotated_array.AnnotatedArray):
+                self.__add_array_data(key, index, processed_data)
+            elif isinstance(processed_data, DataAndMetadata.DataAndMetadata):
+                converted_annotated_array = annotated_array.from_data_and_metadata(processed_data)
+                self.__add_array_data(key, index, converted_annotated_array)
+            elif isinstance(processed_data, DataAndMetadata.ScalarAndMetadata):
+                self.__add_scalar_data(key, index, processed_data)
+            elif numpy.isscalar(processed_data):
+                scalar_data = DataAndMetadata.ScalarAndMetadata.from_value(typing.cast(DataAndMetadata._ScalarDataType, processed_data))
+                self.__add_scalar_data(key, index, scalar_data)
+            elif hasattr(processed_data, "__array__"):
+                array_data = annotated_array.from_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.asarray(processed_data)))
+                self.__add_array_data(key, index, array_data)
+            # else: skip unsupported types
+
+
+def _run_iterated_processing(computation_processor: ComputationProcessor,
+                             parameters: ComputationParameters,
+                             execution_context: ComputationExecutorContext,
+                             process_fn: typing.Callable[[ComputationParameters], _ProcessedDataMapType],
+                             filter_xdata_map: dict[str, DataAndMetadata.DataAndMetadata | None]) -> dict[str, annotated_array.AnnotatedArray]:
+    """Run iterated processing across the computed iteration shape and return accumulated outputs."""
+    iteration_plan = compute_iteration_plan(computation_processor, parameters)
+    if iteration_plan.error_message:
+        raise ValueError(iteration_plan.error_message)
+    output_keys = [output.name for output in computation_processor.outputs]
+    iteration_shape_list = iteration_plan.iteration_shape_list
+    iteration_shape = iteration_plan.iteration_shape
+    iteration_calibrations = iteration_plan.iteration_calibrations
+    accumulator = _IteratedProcessingAccumulator(iteration_shape_list, iteration_shape, iteration_calibrations)
+    indexes = numpy.ndindex(iteration_shape)
+    for i, index in enumerate(indexes):
+        execution_context.sync_execution()
+        component_parameters = _build_component_parameters_for_iteration_index(computation_processor, parameters, iteration_plan, index, filter_xdata_map)
+        processed_data_map = process_fn(component_parameters)
+        accumulator.add_processed_data_map(index, output_keys, processed_data_map)
+        execution_context.progress = (i + 1) / numpy.prod(iteration_shape, dtype=numpy.int64)
+        # don't starve other threads. 10us average sleep.
+        if i % 100 == 0:
+            time.sleep(0.001)
+    return accumulator.annotated_array_map
+
+
 class ComputationProcessorExecutor:
     def __init__(self, computation: Facade.Computation, computation_processor: ComputationProcessor) -> None:
         self.__computation = computation
         self.__computation_processor = computation_processor
-        self.__data_map = dict[str, DataAndMetadata._ImageDataType]()
-        self.__xdata_map = dict[str, DataAndMetadata.DataAndMetadata]()
+        self.__annotated_array_map = dict[str, annotated_array.AnnotatedArray]()
         self.__filter_xdata_map = dict[str, DataAndMetadata.DataAndMetadata | None]()
 
-    def __process(self, parameters: ComputationParameters) -> typing.Mapping[str, DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | None]:
+    def __process(self, parameters: ComputationParameters) -> _ProcessedDataMapType:
         code_lines = [
             "import numpy",
             "import uuid",
@@ -4305,7 +4654,7 @@ class ComputationProcessorExecutor:
         # as with other parts of this application, this can be used to execute arbitrary code. we make the assumption
         # that the user is trusted.
         exec(compiled, exec_globals, exec_locals)
-        result = dict[str, DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | None]()
+        result = dict[str, _ProcessedDataType]()
         for output in self.__computation_processor.outputs:
             output_name = output.name
             if output_name in exec_locals:
@@ -4313,154 +4662,21 @@ class ComputationProcessorExecutor:
         return result
 
     def execute_task(self, execution_context: ComputationExecutorContext) -> None:
-        # do the processing and store results in the xdata map.
-        parameters = execution_context.parameters
-        iteration_plan = compute_iteration_plan(self.__computation_processor, parameters)
-        if iteration_plan.error_message:
-            raise ValueError(iteration_plan.error_message)
-        output_keys = [output.name for output in self.__computation_processor.outputs]
-        iteration_shape_list = iteration_plan.iteration_shape_list
-        iteration_shape = iteration_plan.iteration_shape
-        iteration_calibrations = iteration_plan.iteration_calibrations
-        assert iteration_plan.axis_index_selector_list_map is not None
-        indexes = numpy.ndindex(iteration_shape)
-        for i, index in enumerate(indexes):
-            # synchronize with other executors. may raise ComputationCanceledException if canceled.
-            execution_context.sync_execution()
-            # construct the component_parameter_d, which are the parameters with the data sources replaced by data
-            # and metadata for the current index. this allows the processing component to be written more simply.
-            component_parameter_d = dict[str, ComputationParameter]()
-            for source in self.__computation_processor.sources:
-                data_source = parameters.get_data_source(source.name)
-                assert data_source is not None
-                axis_index_selector_list = iteration_plan.axis_index_selector_list_map.get(source.name)
-                if axis_index_selector_list:
-                    # use data[index]
-                    axis_set_data_metadata_list = get_axis_set_data_metadata_list(data_source.xdata.data_metadata) if data_source.xdata else dict()
-                    assert len(axis_index_selector_list) == len(axis_set_data_metadata_list)
-                    source_slice_list = list[slice | int]()
-                    indexes_index = 0
-                    for axis_index_selector, (axis_set_key, axis_set_data_metadata) in zip(axis_index_selector_list, axis_set_data_metadata_list.items()):
-                        axis_set_rank = len(axis_set_data_metadata.data_shape)
-                        if axis_index_selector:
-                            source_slice_list.extend(index[indexes_index:indexes_index + axis_set_rank])
-                            indexes_index += axis_set_rank
-                        else:
-                            source_slice_list.extend([slice(None)] * axis_set_rank)
-                    source_index = tuple(source_slice_list)
-                    source_xdata = data_source.xdata[source_index] if data_source.xdata else None
-                elif not parameters.parameter_map[source.name].input_operation.is_display_operation:
-                    # use xdata
-                    source_xdata = data_source.xdata
-                else:
-                    # use element
-                    source_xdata = data_source.element_xdata
-                if source_xdata:
-                    if source.data_type == "xdata":
-                        if source.is_croppable:
-                            source_xdata = data_source._data_source._crop_xdata(source_xdata)
-                    elif source.data_type == "filtered_xdata":
-                        filter_xdata = self.__filter_xdata_map.get(source.name)
-                        if filter_xdata is None:
-                            filter_xdata = data_source.filter_xdata
-                            self.__filter_xdata_map[source.name] = filter_xdata
-                        if filter_xdata:
-                            if source_xdata.is_data_complex_type:
-                                source_xdata = Core.function_fourier_mask(source_xdata, filter_xdata)
-                            else:
-                                source_xdata = filter_xdata * source_xdata
-                    else:
-                        raise ValueError(f"Unsupported source data type: {source.data_type}")
-                if source_xdata:
-                    component_parameter_d[source.name] = ComputationParameter(source_xdata, ComputationInputOperation.from_operation_id("axes:datum"))
-            for k, v in list(parameters.parameter_map.items()):
-                if k not in component_parameter_d:
-                    component_parameter_d[k] = v
-            processed_data_map = self.__process(ComputationParameters(component_parameter_d))
-            for key, processed_data in processed_data_map.items():
-                assert key in output_keys
-                if not isinstance(processed_data, (DataAndMetadata.DataAndMetadata, DataAndMetadata.ScalarAndMetadata)) and hasattr(processed_data, "__array__") and not numpy.isscalar(processed_data):
-                    processed_data = DataAndMetadata.new_data_and_metadata(numpy.asarray(processed_data))
-                if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
-                    # handle array data
-                    index_xdata = processed_data
-                    data_descriptor = DataAndMetadata.DataDescriptor(False, 0, index_xdata.datum_dimension_count)
-                    match len(iteration_shape_list):
-                        case 0:
-                            pass
-                        case 1:
-                            collection_dimension_count = len(iteration_shape_list[-1])
-                            assert collection_dimension_count in (1, 2), "Collection dimension count must be 1 or 2."
-                            data_descriptor = DataAndMetadata.DataDescriptor(False, collection_dimension_count, index_xdata.datum_dimension_count)
-                        case 2:
-                            collection_dimension_count = len(iteration_shape_list[-1])
-                            sequence_dimension_count = len(iteration_shape_list[-2])
-                            assert collection_dimension_count in (1, 2), "Collection dimension count must be 1 or 2."
-                            assert sequence_dimension_count == 1, "Sequence dimension count must be 1."
-                            data_descriptor = DataAndMetadata.DataDescriptor(True, collection_dimension_count, index_xdata.datum_dimension_count)
-                        case _:
-                            raise ValueError("Iteration shape with more than 2 dimensions is not supported.")
-                    if key not in self.__xdata_map:
-                        self.__data_map[key] = numpy.empty(iteration_shape + index_xdata.datum_dimension_shape, dtype=index_xdata.data_dtype)
-                        self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(
-                            self.__data_map[key],
-                            index_xdata.intensity_calibration,
-                            iteration_calibrations + tuple(index_xdata.datum_dimensional_calibrations),
-                            None,
-                            None,
-                            data_descriptor
-                        )
-                    self.__data_map[key][index] = index_xdata.data
-                elif isinstance(processed_data, DataAndMetadata.ScalarAndMetadata) or numpy.isscalar(processed_data):
-                    # handle scalar data
-                    if numpy.isscalar(processed_data):
-                        index_scalar = DataAndMetadata.ScalarAndMetadata.from_value(typing.cast(DataAndMetadata._ScalarDataType, processed_data))
-                    elif isinstance(processed_data, DataAndMetadata.ScalarAndMetadata):
-                        index_scalar = processed_data
-                    else:
-                        raise ValueError("Unsupported processed data type.")
-                    data_descriptor = DataAndMetadata.DataDescriptor(False, 0, 0)
-                    match len(iteration_shape_list):
-                        case 1:
-                            datum_dimension_count = len(iteration_shape_list[-1])
-                            assert datum_dimension_count in (1, 2), "Datum dimension count must be 1 or 2."
-                            data_descriptor = DataAndMetadata.DataDescriptor(False, 0, datum_dimension_count)
-                        case 2:
-                            datum_dimension_count = len(iteration_shape_list[-1])
-                            collection_dimension_count = len(iteration_shape_list[-2])
-                            assert datum_dimension_count in (1, 2), "Datum dimension count must be 1 or 2."
-                            assert collection_dimension_count in (1, 2), "Collection dimension count must be 1 or 2."
-                            data_descriptor = DataAndMetadata.DataDescriptor(False, collection_dimension_count, datum_dimension_count)
-                        case 3:
-                            datum_dimension_count = len(iteration_shape_list[-1])
-                            collection_dimension_count = len(iteration_shape_list[-2])
-                            sequence_dimension_count = len(iteration_shape_list[-3])
-                            assert datum_dimension_count in (1, 2), "Datum dimension count must be 1 or 2."
-                            assert collection_dimension_count in (1, 2), "Collection dimension count must be 1 or 2."
-                            assert sequence_dimension_count == 1, "Sequence dimension count must be 1."
-                            data_descriptor = DataAndMetadata.DataDescriptor(True, collection_dimension_count, datum_dimension_count)
-                        case _:
-                            raise ValueError("Iteration shape with more than 2 dimensions is not supported.")
-                    if key not in self.__xdata_map:
-                        self.__data_map[key] = numpy.empty(iteration_shape, dtype=type(index_scalar.value))
-                        self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(
-                            self.__data_map[key],
-                            index_scalar.calibration,
-                            iteration_calibrations,
-                            None,
-                            None,
-                            data_descriptor
-                        )
-                    self.__data_map[key][index] = index_scalar.value
-            # update progress in the executor context
-            execution_context.progress = (i + 1) / numpy.prod(iteration_shape, dtype=numpy.int64)
+        self.__annotated_array_map = _run_iterated_processing(
+            self.__computation_processor,
+            execution_context.parameters,
+            execution_context,
+            self.__process,
+            self.__filter_xdata_map
+        )
 
     def commit(self) -> None:
         # this is guaranteed to run on the main thread.
         for output in self.__computation_processor.outputs:
             key = output.name
-            xdata = self.__xdata_map.get(key, None)
-            if xdata:
+            output_annotated_array = self.__annotated_array_map.get(key, None)
+            if output_annotated_array:
+                xdata = annotated_array.to_data_and_metadata(output_annotated_array)
                 self.__computation.set_referenced_xdata(key, xdata)
 
 
