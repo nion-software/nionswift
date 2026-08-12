@@ -3,192 +3,331 @@
 .. include:: defs.rst
 .. _installation:
 
-Nion Swift Installation
+|AppName| Installation
 =======================
-The quickest and easiest way to get |AppName| running is to download a pre-built version that includes everything needed to run the basic application with key plug-ins.
+For the fastest setup, download a pre-built version that includes everything needed to run the
+basic application with key plug-ins.
 
 * `Download for macOS, Linux, or Windows <https://nion.com/swift/downloads>`_.
 
-Installation from Source Code
------------------------------
-To install |AppName| from Python source code, you will need to install a Python environment and then install Python packages required for |AppName|.
+Installing from PyPI
+--------------------
+|AppName| is available on `PyPI <https://pypi.org/project/nionswift/>`_ and installs
+into an isolated Python virtual environment using common Python tools.
 
-Nion Swift is written in the Python programming language. To use Nion Swift, you will need to install a Python environment.
-
-As an open source project, there are many possible installation scenarios such as for offline use, for use on a Nion electron microscope, or for open source development. In addition, Python installation itself is highly flexible. Some Python installations will be used with other software, and others specifically with Nion Swift.
-
-This guide mainly covers the offline use case with a Python environment dedicated to Nion Swift usage.
+Each approach below creates a self-contained environment so |AppName| does not interfere with
+other Python software on your machine.
 
 Requirements
-------------
-Nion Swift for Windows requires Windows 10 or later.
+~~~~~~~~~~~~
+* Python 3.14 or later
+* macOS 12 or later
+* Windows 10 or later
+* Linux — a recent distribution (Ubuntu 20.04+, Fedora 36+, or equivalent)
 
-Nion Swift for macOS requires macOS 10.11 or later. We recommend using the latest version of macOS.
+.. _install-pip-venv:
 
-Nion Swift for Linux requires a distribution with Qt 5.5 or later (qt5-default) and Python 3.8 or later.
+Using pip and venv
+~~~~~~~~~~~~~~~~~~
+``pip`` and ``venv`` are built into Python and work on every platform.
+Install Python 3.14 or later first, then create a virtual environment and install |AppName|.
 
-Nion Swift has been tested with Ubuntu 16.04, 18.04, 20.04, Debian 9, Fedora 26. It is expected to work with newer distributions of Linux.
+**Step 1 — Install Python 3.14+**
 
-Python Environment
-------------------
-There are several Python environments that are capable of running Nion Swift.
+.. tab-set::
 
-Anaconda and Miniconda are Python distributions by Continuum Analytics and both allow easy installation of 3rd party libraries that are optimized for your computer. Nion Swift has been tested extensively with both Anaconda and Miniconda distributions.
+   .. tab-item:: macOS
 
-Anaconda is a full featured environment which distributes a large number of useful libraries, but it is a large download. The Miniconda environment is a minimal environment which can be downloaded more quickly and can later be updated to include any desired libraries that would otherwise be contained in the larger Anaconda distribution.
+      Download from `python.org <https://www.python.org/downloads/>`_ or install via Homebrew:
 
-You have two options:
+      .. code-block:: console
 
-    * Install Anaconda (more disk space, slower download, but easier to install)
-    * Install Miniconda (less disk space, faster download, but requires more technical knowledge)
+         $ brew install python@3.14
 
-While it is possible to share a Python environment with other applications, or to use the built-in Python on your machine, we recommend against this. We recommend having a dedicated Python installation that is only used for Nion Swift.
+   .. tab-item:: Windows
 
-Installing Python
------------------
-You will first need to install Python for your specific platform. Visit one of the websites below, download the 64-bit installer, and follow the 'Instructions' link.
+      Download from `python.org <https://www.python.org/downloads/>`_ or install via ``winget``:
 
-    * `Anaconda <https://docs.anaconda.com/anaconda/install/>`_
-    * `Miniconda <https://conda.io/miniconda.html>`_
+      .. code-block:: console
 
-The installer may give you an option to add Python to your command line PATH. We recommend against this since it may interfere with other Python installations.
+         > winget install Python.Python.3.14
 
-The installer may also give you an option to make this the default Python for your system. Again, we recommend against this since it may interfere with other Python installations.
+   .. tab-item:: Linux
 
-You can usually use the default location for the installation; however, make a note of wherever you choose to install it so that that location can be used in the steps below.
+      Install via your distribution's package manager. For example on Debian/Ubuntu:
 
-Nion Swift can also be installed from the command line using PyPI and standard Python or from the ``conda-forge`` channel of either Anaconda or Miniconda. See the `Installing Nion Swift from PyPI or Conda Forge`_ section below.
+      .. code-block:: console
 
-Windows
--------
+         $ sudo apt install python3.14 python3.14-venv
 
-Activating Python
-+++++++++++++++++
-If you have installed Anaconda, you will find an *Anaconda Prompt* in your Start menu. Launch the *Anaconda Prompt*.
+**Step 2 — Create a virtual environment and install**
 
-If you have installed Miniconda, you will use the *Command Prompt* to finish the installation. Launch a Command Prompt by clicking in the Start menu and looking in the Windows System folder for Command Prompt. You can also just click in the Start menu and type "command" and it will usually find the Command Prompt application.
+.. tab-set::
 
-For an Anaconda installation, launching the *Anaconda Prompt* will activate Anaconda Python automatically.
+   .. tab-item:: macOS / Linux
 
-For a Miniconda installation you will need to explicitly activate Miniconda Python from the Command Prompt. ::
+      .. code-block:: console
 
-    $ C:\PATH_TO_MINCONDA\Scripts\Activate.bat
+         $ python3.14 -m venv nionswift-env
+         $ source nionswift-env/bin/activate
+         $ python -m pip install nionswift nionswift-tool
 
-Installing Nion Swift
-+++++++++++++++++++++
-Once you have activated Python, you can install Nion Swift within the Anaconda or Miniconda environment. ::
+   .. tab-item:: Windows
 
-    $ conda create -n nionswift -c nion nionswift nionswift-tool
-    $ conda activate nionswift
+      .. code-block:: console
 
-Running Nion Swift
-++++++++++++++++++
-Once you have activated Python and installed Nion Swift, you can run Nion Swift from the command line. ::
+         > py -3.14 -m venv nionswift-env
+         > nionswift-env\Scripts\activate
+         > python -m pip install nionswift nionswift-tool
 
-    $ conda activate nionswift
-    $ nionswift
+**Step 3 — Run** |AppName|
 
-For easier launching, you can create a Shortcut to Nion Swift on your Desktop using the command::
+.. code-block:: console
 
-    $ conda activate nionswift
-    $ conda install pywin32
-    $ nionswift --alias
+   $ nionswift
 
-Double clicking this Shortcut will launch Nion Swift in the Python environment from which the command above was run.
+To run |AppName| in future sessions, activate the environment first:
 
-If you have a custom Python environment and the technique above does not work, you might consider another shortcut tool such as `Shortcutter <https://github.com/kiwi0fruit/shortcutter>`_.
+.. tab-set::
 
-Updating Nion Swift
-+++++++++++++++++++
-Periodically you may want to update Nion Swift to get the latest features and bug fixes. First activate Python (see above), then run the following command. ::
+   .. tab-item:: macOS / Linux
 
-    $ conda activate nionswift
-    $ conda update -c nion --all
+      .. code-block:: console
 
-Troubleshooting Windows Installation
-++++++++++++++++++++++++++++++++++++
-Nion Swift running with `nionswift-tool` requires a PATH environment variable that does not include directories containing Qt libraries. As a workaround or if you cannot remove the other Qt installation from your PATH environment variable, you can uninstall `nionswift-tool` and install PyQt5 using `conda install pyqt5` and try running Nion Swift again.
+         $ source nionswift-env/bin/activate
+         $ nionswift
 
-MacOS
------
-Nion Swift for macOS requires macOS 10.11 or later. We recommend using the latest version of macOS.
+   .. tab-item:: Windows
 
-If you have just installed conda or wish to create a new Nion Swift specific environment::
+      .. code-block:: console
 
-    $ source /path/to/python/bin/activate root
-    $ conda create -n nionswift -c nion nionswift nionswift-tool
-    $ conda activate nionswift
+         > nionswift-env\Scripts\activate
+         > nionswift
 
-If you already have a conda environment, install Nion Swift using the command::
+.. _install-uv:
 
-    $ conda install -c nion nionswift nionswift-tool
+Using uv
+~~~~~~~~
+`uv <https://docs.astral.sh/uv/>`_ is a fast, modern Python environment and package manager.
+It can install Python for you, so no separate Python installation step is required.
 
-Launch Nion Swift from your conda command line environment using::
+**Step 1 — Install uv**
 
-    $ nionswift
+.. tab-set::
 
-Linux
------
-Nion Swift for Linux requires Qt 5.5 or later (qt5-default), Python 3.8 or later.
+   .. tab-item:: macOS
 
-Swift has been tested with Ubuntu 16.04, 18.04, 20.04, Debian 9, Fedora 26.
+      Install via `Homebrew <https://brew.sh>`_:
 
-If you have just installed conda or wish to create a new Nion Swift specific environment::
+      .. code-block:: console
 
-    $ source /path/to/python/Scripts/activate root
-    $ conda create -n nionswift -c nion nionswift nionswift-tool
-    $ conda activate nionswift
+         $ brew install uv
 
-If you already have a conda environment, install Nion Swift using the command::
+   .. tab-item:: Windows
 
-    $ conda install -c nion nionswift
+      Install via ``winget``:
 
-Launch Nion Swift from your Terminal conda environment using::
+      .. code-block:: console
 
-    $ nionswift
+         > winget install astral-sh.uv
 
-Troubleshooting Linux Installation
-++++++++++++++++++++++++++++++++++
-Nion Swift running with `nionswift-tool` requires a PATH environment variable that does not include directories containing Qt libraries. As a workaround or if you cannot remove the other Qt installation from your PATH environment variable, you can uninstall `nionswift-tool` and install PyQt5 using `conda install pyqt5` and try running Nion Swift again.
+   .. tab-item:: Linux
 
-Installing Nion Swift from PyPI or Conda Forge
-----------------------------------------------
-If you have an active Python environment that is not based on the Conda distribution, you can install Nion Swift from PyPI using these commands.::
+      Install via your distribution's package manager. For example on Debian/Ubuntu:
 
-    $ python -m pip install nionswift nionswift-tool
+      .. code-block:: console
 
-You can also install Python using the ``conda-forge`` channel in the Conda distribution using these commands.::
+         $ sudo apt install uv
 
-    $ source /path/to/python/Scripts/activate root
-    $ conda create -n nionswift-conda-forge -c conda-forge nionswift nionswift-tool
-    $ conda activate nionswift-conda-forge
+      Or on Fedora:
 
-Installing Nion Swift Extensions
---------------------------------
-Extensions for Nion Swift can be installed in your Python environment using the ``conda`` (preferred) or ``pip`` installation tools.
+      .. code-block:: console
 
-For example, you can install the Nion STEM microscope simulator using the either of the following commands::
+         $ sudo dnf install uv
 
-    $ conda install -c nion nionswift-usim
+      If ``uv`` is not available in your distribution's repositories, see the
+      `uv installation docs <https://docs.astral.sh/uv/getting-started/installation/>`_.
 
-or ::
+**Step 2 — Create a virtual environment and install**
 
-    $ pip install nionswift-usim
+``uv`` will download Python 3.14 automatically if it is not already present on your system.
 
-After restarting Nion Swift, the microscope simulator would be available within Nion Swift.
+.. tab-set::
 
-You can search for additional Nion Swift extensions using the command::
+   .. tab-item:: macOS / Linux
 
-    $ pip search nionswift
+      .. code-block:: console
 
-Here are several extensions that may prove useful:
+         $ uv venv --python 3.14 nionswift-env
+         $ source nionswift-env/bin/activate
+         $ uv pip install nionswift nionswift-tool
 
-=======================  =====  ===  =================================================================
-Project Name             Conda  Pip  Description
-=======================  =====  ===  =================================================================
-nionswift-usim           Yes    Yes  A STEM microscope simulator for development
-nionswift-eels-analysis  Yes    Yes  Tools for EELS analysis
-nionswift-video-capture  Yes    No   Capture video from your computer's camera or a web stream.
-                                     Requires conda opencv.
-nionswift-experimental   Yes    Yes  Experimental tools (see project home page for details).
-=======================  =====  ===  =================================================================
+   .. tab-item:: Windows
+
+      .. code-block:: console
+
+         > uv venv --python 3.14 nionswift-env
+         > nionswift-env\Scripts\activate
+         > uv pip install nionswift nionswift-tool
+
+**Step 3 — Run** |AppName|
+
+.. code-block:: console
+
+   $ nionswift
+
+To run |AppName| in future sessions, activate the environment first:
+
+.. tab-set::
+
+   .. tab-item:: macOS / Linux
+
+      .. code-block:: console
+
+         $ source nionswift-env/bin/activate
+         $ nionswift
+
+   .. tab-item:: Windows
+
+      .. code-block:: console
+
+         > nionswift-env\Scripts\activate
+         > nionswift
+
+.. _install-conda:
+
+Using conda with pip
+~~~~~~~~~~~~~~~~~~~~~
+If you use the `Conda <https://conda.io>`_ package manager (via
+`Miniforge <https://github.com/conda-forge/miniforge>`_, Miniconda, or Anaconda),
+create a dedicated environment and install |AppName| from PyPI using ``pip``.
+
+Install Miniforge (recommended) from the
+`Miniforge releases page <https://github.com/conda-forge/miniforge/releases>`_.
+
+**Create a dedicated environment and install**
+
+.. code-block:: console
+
+   $ conda create -n nionswift python=3.14
+   $ conda activate nionswift
+   $ python -m pip install nionswift nionswift-tool
+
+**Run** |AppName|
+
+.. code-block:: console
+
+   $ nionswift
+
+To run |AppName| in future sessions:
+
+.. code-block:: console
+
+   $ conda activate nionswift
+   $ nionswift
+
+Installing Extensions
+---------------------
+Extensions add capabilities to |AppName| and are installed into the same virtual environment.
+Restart |AppName| after installing an extension to load it.
+
+.. tab-set::
+
+   .. tab-item:: pip / venv
+
+      .. code-block:: console
+
+         $ python -m pip install nionswift-usim
+
+   .. tab-item:: uv
+
+      .. code-block:: console
+
+         $ uv pip install nionswift-usim
+
+   .. tab-item:: conda
+
+      .. code-block:: console
+
+         $ python -m pip install nionswift-usim
+
+Browse all available extensions at `pypi.org <https://pypi.org/search/?q=nionswift>`_.
+
+These extensions are commonly used:
+
+=======================  =================================================================
+Extension                Description
+=======================  =================================================================
+nionswift-usim           A STEM microscope simulator for development and offline use
+nionswift-eels-analysis  Tools for EELS analysis
+nionswift-video-capture  Capture video from your computer's camera or a web stream
+nionswift-experimental   Experimental tools (see project home page for details)
+=======================  =================================================================
+
+Updating |AppName|
+-------------------
+Activate your environment and run the appropriate pip upgrade command.
+
+.. tab-set::
+
+   .. tab-item:: pip / venv
+
+      .. code-block:: console
+
+         $ python -m pip install --upgrade nionswift nionswift-tool
+
+   .. tab-item:: uv
+
+      .. code-block:: console
+
+         $ uv pip install --upgrade nionswift nionswift-tool
+
+   .. tab-item:: conda
+
+      After activating your conda environment, use ``python -m pip`` to upgrade:
+
+      .. code-block:: console
+
+         $ python -m pip install --upgrade nionswift nionswift-tool
+
+Uninstalling |AppName|
+-----------------------
+Remove |AppName| and its environment using the method that matches your installation.
+
+.. tab-set::
+
+   .. tab-item:: pip / venv
+
+      To remove the environment and all installed packages:
+
+      .. code-block:: console
+
+         $ rm -rf nionswift-env
+
+      On Windows:
+
+      .. code-block:: console
+
+         > rmdir /s /q nionswift-env
+
+   .. tab-item:: uv
+
+      To remove the environment and all installed packages:
+
+      .. code-block:: console
+
+         $ rm -rf nionswift-env
+
+      On Windows:
+
+      .. code-block:: console
+
+         > rmdir /s /q nionswift-env
+
+   .. tab-item:: conda
+
+      To remove the conda environment:
+
+      .. code-block:: console
+
+         $ conda remove -n nionswift --all

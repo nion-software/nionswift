@@ -7,3 +7,4 @@ nionui
 niondata
 nionutils
 sphinx-copybutton
+sphinx-design
