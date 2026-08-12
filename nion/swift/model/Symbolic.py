@@ -47,6 +47,8 @@ from nion.swift.model import Notification
 from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Schema
+from nion.swift.model.computation_api import v1 as computation_api_v1
+from nion.swift.model.computation_api.v1 import protocols as computation_api_v1_protocols
 from nion.utils import Converter
 from nion.utils import DateTime
 from nion.utils import Event
@@ -4680,6 +4682,33 @@ class ComputationProcessorExecutor:
                 self.__computation.set_referenced_xdata(key, xdata)
 
 
+class _ComputationAPIV1ExecutorHandler:
+    def __init__(self, computation: Facade.Computation, executor: computation_api_v1_protocols.Executor, computation_processor: ComputationProcessor) -> None:
+        self.__computation = computation
+        self.__executor = executor
+        self.__computation_processor = computation_processor
+        self.__annotated_array_map = dict[str, annotated_array.AnnotatedArray]()
+        self.__filter_xdata_map = dict[str, DataAndMetadata.DataAndMetadata | None]()
+
+    def __execute_component(self, component_parameters: ComputationParameters) -> _ProcessedDataMapType:
+        packed = component_parameters.normalized_parameters()
+        return self.__executor.execute(packed)
+
+    def execute_task(self, context: ComputationExecutorContext) -> None:
+        self.__annotated_array_map = _run_iterated_processing(
+            self.__computation_processor,
+            context.parameters,
+            context,
+            self.__execute_component,
+            self.__filter_xdata_map
+        )
+
+    def commit(self) -> None:
+        for key, output_annotated_array in self.__annotated_array_map.items():
+            xdata = annotated_array.to_data_and_metadata(output_annotated_array)
+            self.__computation.set_referenced_xdata(key, xdata)
+
+
 class RegisteredComputationExecutor(ComputationExecutor):
     def __init__(self, computation: Computation, api: typing.Any) -> None:
         super().__init__(computation)
@@ -4687,9 +4716,15 @@ class RegisteredComputationExecutor(ComputationExecutor):
         api_computation = api._new_api_object(computation)
         api_computation.api = api
         computation_processor = computation.computation_processor
-        if computation_processor and computation_processor.expression:
-            self.__computation_handler = typing.cast(ComputationHandlerLike | ComputationTaskHandler | None,
-                                                     ComputationProcessorExecutor(api_computation, computation_processor))
+        computation_api_v1_executor = _computation_api_v1_executors.get(processing_id, None) if processing_id else None
+        self.__computation_handler: _ComputationAPIV1ExecutorHandler | ComputationProcessorExecutor | ComputationHandlerLike | ComputationTaskHandler | None = None
+        if computation_api_v1_executor:
+            if computation_processor:
+                self.__computation_handler = _ComputationAPIV1ExecutorHandler(api_computation, computation_api_v1_executor, computation_processor)
+            else:
+                self.error_text = "Missing computation processor for computation_api.v1 executor (" + (processing_id or "unknown") + ")."
+        elif computation_processor and computation_processor.expression:
+            self.__computation_handler = ComputationProcessorExecutor(api_computation, computation_processor)
         else:
             compute_class = _computation_types.get(processing_id) if processing_id else None
             self.__computation_handler = compute_class(api_computation) if compute_class else None
@@ -4747,6 +4782,17 @@ class ComputationTaskHandler(typing.Protocol):
 
 # registered computation types
 _computation_types: typing.Dict[str, typing.Callable[[_APIComputation], ComputationHandlerLike | ComputationTaskHandler]] = dict()
+_computation_api_v1_executors: typing.Dict[str, computation_api_v1_protocols.Executor] = dict()
+
+
+def register_computation_api_v1_executor(operation_id: str, executor: computation_api_v1_protocols.Executor) -> None:
+    if not operation_id:
+        raise ValueError("operation_id must not be empty")
+    _computation_api_v1_executors[operation_id] = executor
+
+
+def configure_computation_api_v1() -> None:
+    computation_api_v1.configure(register_computation_api_v1_executor)
 
 def register_computation_type(computation_type_id: str, compute_class: typing.Callable[[_APIComputation], ComputationHandlerLike | ComputationTaskHandler]) -> None:
     """Register a computation task handler.
@@ -4757,6 +4803,9 @@ def register_computation_type(computation_type_id: str, compute_class: typing.Ca
     ComputationHandlerLike (old style, deprecated) or ComputationTaskHandler (new style, recommended) instance.
     """
     _computation_types[computation_type_id] = compute_class
+
+
+configure_computation_api_v1()
 
 
 # for testing
