@@ -33,31 +33,27 @@ class UISettings(typing.Protocol):
     def cursor_tolerance(self) -> float: raise NotImplementedError()
 
 
-_PT_TO_PX = 4 / 3  # 1pt = 1/72in, 1px = 1/96in
-
-
 class DisplayStyle:
-    _FONT_SIZES_PX: typing.Mapping[str, float] = {
-        "scale-marker": 14 / _PT_TO_PX,
-        "axis-label": 12 / _PT_TO_PX,
-        "axis-label-superscript": 10 / _PT_TO_PX,
-        "legend": 12 / _PT_TO_PX,
-        "interval-label": 12 / _PT_TO_PX,
-        "graphic-label": 11 / _PT_TO_PX,
+    _FONT_SIZES_PT: typing.Mapping[str, float] = {
+        "scale-marker": 14,
+        "axis-label": 12,
+        "axis-label-superscript": 10,
+        "legend": 12,
+        "interval-label": 12,
+        "graphic-label": 12,
     }
 
-    def __init__(self, font_sizes_px: typing.Mapping[str, float] | None = None) -> None:
-        self.__font_sizes_px = dict(font_sizes_px) if font_sizes_px is not None else dict(self._FONT_SIZES_PX)
+    def __init__(self) -> None:
+        self.__font_sizes_pt = dict(self._FONT_SIZES_PT)
 
     def get_font_size(self, part: str) -> float:
-        return self.__font_sizes_px.get(part, 12 / _PT_TO_PX)
+        return self.__font_sizes_pt.get(part, 12)
 
     def get_font(self, part: str, device_metrics: DrawingMetrics) -> str:
         """Get the complete font string for a display style part."""
-        size_px = self.get_font_size(part)
-        scaled_size_px = device_metrics.scale_font(size_px)
-        scaled_size_str = f"{scaled_size_px:.2f}".rstrip("0").rstrip(".")
-        return f"normal {scaled_size_str}px sans-serif"
+        size_pt = self.get_font_size(part) * device_metrics.scale
+        scaled_size_str = f"{size_pt:.2f}".rstrip("0").rstrip(".")
+        return f"normal {scaled_size_str}pt Helvetica, Arial, sans-serif"
 
 
 @dataclasses.dataclass
@@ -72,9 +68,6 @@ class DrawingMetrics:
     @property
     def scale(self) -> float:
         return self.ppi / 96 if self.ppi else 1.0
-
-    def scale_font(self, pt: float) -> float:
-        return pt * _PT_TO_PX * self.scale
 
     def scale_length(self, px: float) -> float:
         return px * self.scale

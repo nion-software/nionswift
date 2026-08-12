@@ -1230,6 +1230,7 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
         legend_height = canvas_bounds.height
 
         legend_font_height = legend_font_metrics.height
+        legend_line_height = legend_font_metrics.height * 1.2
         border = legend_font_height * 0.33
 
         effective_entries_and_foreign = list(effective_entries)
@@ -1253,9 +1254,9 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.begin_path()
                     entry_to_insert = entry_to_insert or 0  # for type checking
                     drawing_context.rect(0,
-                                         entry_to_insert * legend_font_height + border,
+                                         entry_to_insert * legend_line_height + border,
                                          legend_width,
-                                         legend_font_height)
+                                         legend_line_height)
                     drawing_context.fill_style = "rgba(192, 192, 192, 0.5)"
                     drawing_context.fill()
 
@@ -1265,7 +1266,7 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.text_align = "left"
                     drawing_context.text_baseline = "middle"
                     drawing_context.fill_style = "#000"
-                    middle_line_y = legend_font_height * index + border + legend_font_height / 2
+                    middle_line_y = legend_line_height * index + border + legend_line_height / 2
                     drawing_context.fill_text(legend_entry.label, border, middle_line_y)
 
                     drawing_context.begin_path()
@@ -1347,25 +1348,24 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def size_to_content(self) -> None:
         if self.__needs_size_to_content:
             legend_font = self.__display_style.get_font("legend", self.__device_metrics)
-            legend_font_metrics = self.__device_metrics.ui_settings.get_font_metrics(legend_font, "Mg")
-            legend_font_height = legend_font_metrics.height
+            legend_font_height = self.__device_metrics.ui_settings.get_font_metrics(legend_font, "Mg").height
+            legend_line_height = legend_font_height * 1.2
             spacing = self.__device_metrics.scale_length(6)
             border = legend_font_height * 0.33
 
             effective_entries = self.effective_entries
 
-            legend_height = len(effective_entries) * legend_font_height + border * 2
+            legend_height = len(effective_entries) * legend_line_height + border * 2
 
             if len(effective_entries) == 0:
                 legend_height = 0
 
             text_width = 0
-            legend_font = self.__display_style.get_font("legend", self.__device_metrics)
 
             for index, legend_entry in enumerate(effective_entries):
                 text_width = max(text_width, self.__device_metrics.ui_settings.get_font_metrics(legend_font, legend_entry.label).width)
 
-            icon_size = legend_font_metrics.height * 0.7
+            icon_size = legend_font_height * 0.7
 
             legend_width = text_width + border * 2 + spacing + icon_size
 
