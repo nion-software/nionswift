@@ -1081,7 +1081,8 @@ class DocumentController(Window.Window):
             display_properties["image_canvas_mode"] = "fit"
             display_item_snapshot.display_properties = display_properties
             # create the drawing context and shape for the preview
-            drawing_metrics = UISettings.DrawingMetrics(ui_settings=ui_settings, ppi=None)
+            drawing_metrics = UISettings.DrawingMetrics(ui_settings=ui_settings, ppi=96.0, device_dpi=96.0)
+            font = UISettings.DisplayStyle().get_font('legend', drawing_metrics)
             drawing_context = DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item_snapshot, display_shape)
             # set up the SVG
             view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
