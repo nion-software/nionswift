@@ -49,8 +49,8 @@ from nion.ui import Window
 from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import ListModel
 from nion.utils import Model
+from nion.utils import Platform
 from nion.utils import Process
 from nion.utils import ReferenceCounting
 from nion.utils import Selection
@@ -2594,7 +2594,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     # update the display type so we can know when it changes.
                     self.__display_type = display_item.used_display_type
                     ui_settings = DisplayPanelUISettings(self.ui)
-                    drawing_metrics = UISettings.DrawingMetrics(ui_settings=ui_settings, ppi=96.0)
+                    device_dpi = 72.0 if Platform.is_macos() else 96.0
+                    drawing_metrics = UISettings.DrawingMetrics(ui_settings=ui_settings, ppi=96.0, device_dpi=device_dpi)
                     display_style = UISettings.DisplayStyle()
                     self.__display_about_to_be_removed_event_listener = display_item.about_to_be_removed_event.listen(clear_display)
                     self.__display_property_changed_event_listener = display_item.property_changed_event.listen(display_item_property_changed)
