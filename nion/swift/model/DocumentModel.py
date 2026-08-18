@@ -2462,9 +2462,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                                                                {"type": "bool", "operator": "and",
                                                                 "operands": [requirement_is_sequence, requirement_4d]}]}
 
-            # new style built-ins
-            vs["fft"] = {"title": _("FFT"), "expression": "target = xd.fft(src)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "xdata", "requirements": [requirement_standard]}], "outputs": [{"name": "target", "label": "Result", "rank": "input", "domain": "spectral"}], "old_built_in": False}
-
             # old style built-ins
             # vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "cropped_display_xdata"}]}
             vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src}.xdata)",
@@ -3086,6 +3083,11 @@ def load_computation_resource(resource_path: str) -> None:
 
 load_computation_resource("resources/computations/scalar_functions.json")
 load_computation_resource("resources/computations/window_functions.json")
+load_computation_resource("resources/computations/fft.json")
+
+from nion.swift.model import builtin_computations
+
+builtin_computations.register_builtin_computations()
 
 
 def evaluate_data(computation: Symbolic.Computation) -> DataAndMetadata.DataAndMetadata:

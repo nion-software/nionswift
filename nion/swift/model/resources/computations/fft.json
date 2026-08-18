@@ -1,0 +1,31 @@
+[
+  {
+    "type": "computation_processor",
+    "processor_id": "fft",
+    "title": "FFT",
+    "inputs": [
+      {
+        "type": "data",
+        "name": "src",
+        "label": "Source",
+        "data_type": "xdata",
+        "croppable": true,
+        "requirements": [
+          {
+            "type": "dimensionality",
+            "min": 1,
+            "max": 2
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "target",
+        "label": "Result",
+        "rank": "input",
+        "domain": "spectral"
+      }
+    ]
+  }
+]

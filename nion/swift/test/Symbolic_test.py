@@ -2306,6 +2306,73 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(iteration_plan_t[1], iteration_plan.iteration_shape_list)
             self.assertEqual(iteration_plan_t[2], iteration_plan.axis_index_selector_list_map)
 
+    def test_compute_iteration_on_single_data_items_fft(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            l = [
+                # 1d/2d unspecified cases (must be non-iterable)
+                ({}, (20,), (False, 0, 1), False, (None, (), {})),
+                ({}, (10, 11), (False, 0, 2), False, (None, (), {})),
+                # 1d display cases
+                # TODO: is there a display case missing or wrong for SI? i.e. False, 2, 1 -> image?
+                ("display", (20,), (False, 0, 1), False, (None, (), {})),
+                ("display", (5, 20), (False, 1, 1), True, (None, (), {})),
+                ("display", (5, 4, 20), (False, 2, 1), True, (None, (), {})),
+                ("display", (2, 20), (True, 0, 1), True, (None, (), {})),
+                ("display", (2, 5, 20), (True, 1, 1), True, (None, (), {})),
+                ("display", (2, 5, 5, 20), (True, 2, 1), True, (None, (), {})),
+                # 2d display cases
+                ("display", (10, 11), (False, 0, 2), False, (None, (), {})),
+                ("display", (5, 10, 11), (False, 1, 2), True, (None, (), {})),
+                ("display", (5, 4, 10, 11), (False, 2, 2), True, (None, (), {})),
+                ("display", (2, 10, 11), (True, 0, 2), True, (None, (), {})),
+                ("display", (2, 5, 10, 11), (True, 1, 2), True, (None, (), {})),
+                ("display", (2, 5, 5, 10, 11), (True, 2, 2), True, (None, (), {})),
+                # 1d iterable cases
+                ("axes:datum", (5, 20), (False, 1, 1), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:collection", (5, 20), (False, 1, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (5, 4, 20), (False, 2, 1), True, (None, ((5, 4),), {"input": [True, False]})),
+                ("axes:collection", (5, 4, 20), (False, 2, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (5, 20), (True, 0, 1), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:sequence", (5, 20), (True, 0, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (2, 5, 20), (True, 1, 1), True, (None, ((2,), (5,),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 20), (True, 1, 1), True, (None, ((2,), (20,),), {"input": [True, False, True]})),
+                ("axes:sequence", (2, 5, 20), (True, 1, 1), True, (None, ((5,), (20,),), {"input": [False, True, True]})),
+                ("axes:datum", (2, 5, 4, 20), (True, 2, 1), True, (None, ((2,), (5, 4),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 4, 20), (True, 2, 1), True, (None, ((2,), (20,),), {"input": [True, False, True]})),
+                # this is not supported - since the sequence becomes the signal group, the resulting data is not
+                # supported under the current DataAndMetadata.
+                # ("axes:sequence", (2, 5, 4, 20), (True, 2, 1), True, (None, ((5, 4), (20,),), {"input": [False, True, True]})),
+                # 2d iterable cases
+                ("axes:datum", (5, 10, 11), (False, 1, 2), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:collection", (5, 10, 11), (False, 1, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (5, 4, 10, 11), (False, 2, 2), True, (None, ((5, 4),), {"input": [True, False]})),
+                ("axes:collection", (5, 4, 10, 11), (False, 2, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (5, 10, 11), (True, 0, 2), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:sequence", (5, 10, 11), (True, 0, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (2, 5, 10, 11), (True, 1, 2), True, (None, ((2,), (5,),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 10, 11), (True, 1, 2), True, (None, ((2,), (10, 11),), {"input": [True, False, True]})),
+                ("axes:sequence", (2, 5, 10, 11), (True, 1, 2), True, (None, ((5,), (10, 11),), {"input": [False, True, True]})),
+                ("axes:datum", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((2,), (5, 4),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((2,), (10, 11),), {"input": [True, False, True]})),
+                # this is not supported - since the sequence becomes the signal group, the resulting data is not
+                # supported under the current DataAndMetadata.
+                # ("axes:sequence", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((5, 4), (10, 11),), {"input": [False, True, True]})),
+            ]
+            for operation_id, data_shape, data_descriptor_t, is_iterable, iteration_plan_t in l:
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros(data_shape), data_descriptor=DataAndMetadata.DataDescriptor(*data_descriptor_t)))
+                data_metadata = data_item.data_metadata
+                assert data_metadata is not None
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_fft_new(display_item, display_item.data_item)
+                if is_iterable:
+                    computation = document_model.computations[-1]
+                    computation._get_variable("src").input_operation = Symbolic.ComputationInputOperation.from_operation_id(operation_id)
+                    document_model.recompute_all()
+                    self.assertIsNone(computation.error_text)
+
     def test_iterated_processing_accumulator_aggregates_scalar_outputs(self):
         accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
         accumulator.add_processed_data_map((0,), ["out"], {"out": DataAndMetadata.ScalarAndMetadata.from_value(1.5)})
