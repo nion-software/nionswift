@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nionswift"
 version = "16.18.1"
+# requires niondata 15.11 (annotated array)
 authors = [
     { name = "Nion Software", email = "swift@nion.com" }
 ]
