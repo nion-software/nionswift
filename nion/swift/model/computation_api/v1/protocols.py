@@ -6,8 +6,8 @@ import typing
 from nion.data import annotated_array
 import nion.swift.model.Graphics
 
-AnnotatedArray = annotated_array.AnnotatedArray
-RegionBase = nion.swift.model.Graphics.RegionBase
+AnnotatedArray: typing.TypeAlias = annotated_array.AnnotatedArray
+RegionBase: typing.TypeAlias = nion.swift.model.Graphics.RegionBase
 
 ScalarValue = typing.Union[float, int, bool, complex, str, None]
 ComputationLeafValue = typing.Union[AnnotatedArray, RegionBase, ScalarValue]
