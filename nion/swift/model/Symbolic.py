@@ -4426,9 +4426,9 @@ def compute_iteration_plan(computation_processor: ComputationProcessor, paramete
     return IterationPlanResult(None, tuple(axis_group_list), axis_index_selector_list_map)
 
 
-_ProcessedScalarType = bool | int | float | complex | str
-_ProcessedDataType = DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | DataAndMetadata._ImageDataType | annotated_array.AnnotatedArray | _ProcessedScalarType | None
-_ProcessedDataMapType = typing.Mapping[str, _ProcessedDataType]
+_ProcessedScalarType: typing.TypeAlias = bool | int | float | complex | str
+_ProcessedDataType: typing.TypeAlias = DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | DataAndMetadata._ImageDataType | annotated_array.AnnotatedArray | _ProcessedScalarType | None
+_ProcessedDataMapType: typing.TypeAlias = typing.Mapping[str, _ProcessedDataType]
 
 
 def _build_component_parameters_for_iteration_index(computation_processor: ComputationProcessor,
