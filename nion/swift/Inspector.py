@@ -3654,7 +3654,14 @@ class DataSourceVariableHandler(Declarative.Handler):
             "crop_enabled": "@binding(crop_enabled)",
             "on_crop_enabled_clicked": "handle_toggle_crop_enabled"
         }
-        self.ui_view = u.create_column(label, data_source_chooser, spacing=8)
+        axis_set_chooser = u.create_column(
+            u.create_label(text=_("Input Operation")),
+            u.create_combo_box(items_ref="input_operation_items", current_index="@binding(input_operation_index)"),
+            u.create_stretch(),
+            # Show input operation choices only when this source can iterate across axis sets.
+            visible = "@binding(variable.is_iterable)"
+        )
+        self.ui_view = u.create_column(label, data_source_chooser, axis_set_chooser, spacing=8)
         self.__property_changed_listener = variable.property_changed_event.listen(self.__property_changed)
 
     def close(self) -> None:
@@ -3753,18 +3760,25 @@ class DataSourceVariableHandler(Declarative.Handler):
             document_controller.push_undo_command(command)
 
     @property
-    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
-        document_model = self.document_controller.document_model
+    def data_item(self) -> typing.Optional[DataItem.DataItem]:
         computation = self.computation
         variable = self.variable
         base_items = computation.get_variable_input_items(variable.name)
-        display_item = None
+        data_item = None
         for base_item in base_items:
             if isinstance(base_item, DataItem.DataItem):
-                if display_item:  # check if there are more than one
+                if data_item:  # check if there are more than one
                     return None
-                display_item = document_model.get_display_item_for_data_item(base_item)
-        return display_item
+                data_item = base_item
+        return data_item
+
+    @property
+    def display_item(self) -> typing.Optional[DisplayItem.DisplayItem]:
+        data_item = self.data_item
+        if data_item:
+            document_model = self.document_controller.document_model
+            return document_model.get_display_item_for_data_item(data_item)
+        return None
 
     @display_item.setter
     def display_item(self, value: DisplayItem.DisplayItem) -> None:
@@ -3777,6 +3791,70 @@ class DataSourceVariableHandler(Declarative.Handler):
     @crop_enabled.setter
     def crop_enabled(self, value: bool) -> None:
         pass
+
+    @property
+    def input_operation_items_state(self) -> tuple[typing.Sequence[tuple[Symbolic.ComputationInputOperation, str]], int | None]:
+        """Build selectable input operation choices and current selection for iterable data-source inputs."""
+        display_item = self.display_item
+        choices = list[tuple[Symbolic.ComputationInputOperation, str]]()
+        computation_processor = self.computation.computation_processor
+        processor_data_input = computation_processor.get_source(self.variable.name) if computation_processor else None
+        display_info = display_item.display_info_stream.value if display_item else None
+        display_data_info = display_info.display_data_info if display_info else None
+        data_metadata = display_data_info.data_metadata if display_data_info else None
+        element_data_and_metadata = display_data_info.element_data_and_metadata if display_data_info else None
+        element_data_metadata = element_data_and_metadata.data_metadata if element_data_and_metadata else None
+        # for each type of input, check whether it meets the requirements of the processor data input
+        if element_data_metadata and processor_data_input:
+            if Symbolic._check_requirements(element_data_metadata, processor_data_input.requirements):
+                operation_name = _("Displayed Data")
+                choices.append((Symbolic.ComputationInputOperation.create_display_operation(), f"{operation_name} {element_data_metadata.data_shape}"))
+        if data_metadata and processor_data_input:
+            axis_set_data_metadata_list = Symbolic.get_axis_set_data_metadata_list(data_metadata)
+            if "datum" in axis_set_data_metadata_list and Symbolic._check_requirements(axis_set_data_metadata_list["datum"], processor_data_input.requirements):
+                operation_name = _("Datum Axes")
+                axis_set_data_metadata = axis_set_data_metadata_list["datum"]
+                choices.append((Symbolic.ComputationInputOperation.create_axis_set_operation("datum"), f"{operation_name} {axis_set_data_metadata.data_shape}"))
+            if "collection" in axis_set_data_metadata_list and Symbolic._check_requirements(axis_set_data_metadata_list["collection"], processor_data_input.requirements):
+                operation_name = _("Collection Axes")
+                axis_set_data_metadata = axis_set_data_metadata_list["collection"]
+                choices.append((Symbolic.ComputationInputOperation.create_axis_set_operation("collection"), f"{operation_name} {axis_set_data_metadata.data_shape}"))
+            if "sequence" in axis_set_data_metadata_list and Symbolic._check_requirements(axis_set_data_metadata_list["sequence"], processor_data_input.requirements):
+                operation_name = _("Sequence Axes")
+                axis_set_data_metadata = axis_set_data_metadata_list["sequence"]
+                choices.append((Symbolic.ComputationInputOperation.create_axis_set_operation("sequence"), f"{operation_name} {axis_set_data_metadata.data_shape}"))
+            if Symbolic._check_requirements(data_metadata, processor_data_input.requirements):
+                operation_name = _("None")
+                choices.append((Symbolic.ComputationInputOperation(), f"{operation_name} {data_metadata.data_shape}"))
+        selection: int | None = None
+        input_operation = self.variable.input_operation
+        for index, choice in enumerate(choices):
+            if choice[0].operation_id == input_operation.operation_id:
+                selection = index
+                break
+        return tuple(choices), selection
+
+    @property
+    def input_operation_items(self) -> typing.Sequence[str]:
+        choices, _ = self.input_operation_items_state
+        return [choice[1] for choice in choices]
+
+    @property
+    def input_operation_index(self) -> int | None:
+        _, selection = self.input_operation_items_state
+        return selection
+
+    @input_operation_index.setter
+    def input_operation_index(self, value: int | None) -> None:
+        choices, _selected_index = self.input_operation_items_state
+        if value is not None and 0 <= value < len(choices):
+            input_operation = choices[value][0]
+            document_controller = self.document_controller
+            computation = self.computation
+            variable = self.variable
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Change Input Operation"), input_operation=input_operation)
+            command.perform()
+            document_controller.push_undo_command(command)
 
     def drop_mime_data(self, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
         # return drop_mime_data(self.document_controller, self.computation, self.variable, mime_data, x, y)

@@ -21,6 +21,7 @@ import numpy
 import numpy.typing
 
 # local libraries
+from nion.data import annotated_array
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
@@ -1464,6 +1465,14 @@ def new_data_item(data_and_metadata_in: typing.Optional[DataAndMetadata._DataAnd
     data_item = DataItem()
     data_item.set_xdata(data_and_metadata)
     return data_item
+
+
+def new_data_item_from_annotated_array(annotated_array_value: annotated_array.AnnotatedArray) -> DataItem:
+    data_and_metadata = annotated_array.to_data_and_metadata(annotated_array_value)
+    data_item = DataItem()
+    data_item.set_xdata(data_and_metadata, data_and_metadata.timestamp)
+    return data_item
+
 
 """
 Architectural Decision Records.

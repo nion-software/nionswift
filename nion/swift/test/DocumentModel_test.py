@@ -2449,10 +2449,10 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 processed_data_item = document_model.get_hamming_window_new(display_item, data_item)
-                document_model.computations[-1].variables[1].value = "mapped"
+                document_model.computations[-1].variables[0].input_operation = Symbolic.ComputationInputOperation.create_axis_set_operation("datum")
                 document_model.recompute_all()
                 self.assertEqual((4, 4, 4, 4), processed_data_item.data_shape)
-                document_model.computations[-1].variables[1].value = "none"
+                document_model.computations[-1].variables[0].input_operation = Symbolic.ComputationInputOperation.create_display_operation()
                 document_model.recompute_all()
                 self.assertEqual((4, 4), processed_data_item.data_shape)
 

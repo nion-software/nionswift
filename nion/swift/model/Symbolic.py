@@ -11,9 +11,11 @@ from __future__ import annotations
 # standard libraries
 import ast
 import asyncio
+import collections.abc
 import concurrent.futures
 import contextlib
 import copy
+import dataclasses
 import datetime
 import difflib
 import enum
@@ -30,6 +32,7 @@ import uuid
 import numpy
 
 # local libraries
+from nion.data import annotated_array
 from nion.data import Core
 from nion.data import Calibration
 from nion.data import DataAndMetadata
@@ -44,6 +47,8 @@ from nion.swift.model import Notification
 from nion.swift.model import Persistence
 from nion.swift.model import PlugInManager
 from nion.swift.model import Schema
+from nion.swift.model.computation_api import v1 as computation_api_v1
+from nion.swift.model.computation_api.v1 import protocols as computation_api_v1_protocols
 from nion.utils import Converter
 from nion.utils import DateTime
 from nion.utils import Event
@@ -525,6 +530,112 @@ _data_source_types = (
 )
 
 
+class ComputationInputOperation:
+    """Describe an input operation that selects/reduces data (for example 'axes:datum', 'display', or default) for iteration compatibility."""
+    def __init__(self, operation_id: str | None = None) -> None:
+        self.operation_id = operation_id
+
+    def __eq__(self, other: typing.Any) -> bool:
+        if isinstance(other, ComputationInputOperation):
+            return self.operation_id == other.operation_id
+        return False
+
+    @staticmethod
+    def from_operation_id(operation_id: str | None) -> ComputationInputOperation:
+        if (operation_id and operation_id.startswith("axes:")) or (operation_id in ("display",)):
+            return ComputationInputOperation(operation_id=operation_id)
+        return ComputationInputOperation()
+
+    @staticmethod
+    def create_axis_set_operation(axis_set_id: str) -> ComputationInputOperation:
+        """Create an input operation that selects a specific axis set (sequence, collection, or datum)."""
+        return ComputationInputOperation(operation_id=f"axes:{axis_set_id}")
+
+    @staticmethod
+    def create_display_operation() -> ComputationInputOperation:
+        """Create an input operation that uses display-derived data semantics for this input."""
+        return ComputationInputOperation(operation_id="display")
+
+    def __repr__(self) -> str:
+        return f"ComputationInputOperation(operation_id={self.operation_id})"
+
+    @property
+    def axis_set_id(self) -> str | None:
+        """Return the axis-set id for 'axes:<id>' operations, otherwise None."""
+        if self.operation_id and self.operation_id.startswith("axes:"):
+            return self.operation_id[len("axes:"):]
+        return None
+
+    @property
+    def is_display_operation(self) -> bool:
+        return self.operation_id == "display"
+
+
+def get_axis_set_data_metadata_list(data_metadata: DataAndMetadata.DataMetadata) -> typing.Mapping[str, DataAndMetadata.DataMetadata]:
+    """Return axis-set metadata in iteration order: sequence, collection, then datum when present."""
+    datum_data_metadata = DataAndMetadata.DataMetadata(
+        data_shape=data_metadata.datum_dimension_shape,
+        data_dtype=data_metadata.data_dtype,
+        intensity_calibration=data_metadata.intensity_calibration,
+        dimensional_calibrations=data_metadata.datum_dimensional_calibrations,
+        metadata=data_metadata.metadata,
+        timestamp=data_metadata.timestamp,
+        data_descriptor=DataAndMetadata.DataDescriptor(False, 0, data_metadata.datum_dimension_count),
+        timezone=data_metadata.timezone,
+        timezone_offset=data_metadata.timezone_offset
+    )
+    collection_data_metadata = DataAndMetadata.DataMetadata(
+        data_shape=data_metadata.collection_dimension_shape,
+        data_dtype=data_metadata.data_dtype,
+        intensity_calibration=data_metadata.intensity_calibration,
+        dimensional_calibrations=data_metadata.collection_dimensional_calibrations,
+        metadata=data_metadata.metadata,
+        timestamp=data_metadata.timestamp,
+        data_descriptor=DataAndMetadata.DataDescriptor(False, 0, data_metadata.collection_dimension_count),
+        timezone=data_metadata.timezone,
+        timezone_offset=data_metadata.timezone_offset
+    ) if data_metadata.collection_dimension_count else None
+    sequence_data_metadata = DataAndMetadata.DataMetadata(
+        data_shape=data_metadata.sequence_dimension_shape,
+        data_dtype=data_metadata.data_dtype,
+        intensity_calibration=data_metadata.intensity_calibration,
+        dimensional_calibrations=data_metadata.sequence_dimensional_calibrations,
+        metadata=data_metadata.metadata,
+        timestamp=data_metadata.timestamp,
+        data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 1),
+        timezone=data_metadata.timezone,
+        timezone_offset=data_metadata.timezone_offset
+    ) if data_metadata.is_sequence else None
+    m = dict[str, DataAndMetadata.DataMetadata]()
+    if sequence_data_metadata:
+        m["sequence"] = sequence_data_metadata
+    if collection_data_metadata:
+        m["collection"] = collection_data_metadata
+    m["datum"] = datum_data_metadata
+    return m
+
+
+def is_iterable(data_input: ComputationProcessorDataInput, data_metadata: DataAndMetadata.DataMetadata) -> bool:
+    """Determine if the data described by the data metadata is iterable according to the requirements of the computation processor data input."""
+
+    axis_set_data_metadata_list = get_axis_set_data_metadata_list(data_metadata)
+
+    # if there are fewer than 2 axis sets, then it can't be iterable according to the requirements of the computation
+    # processor data input, which requires at least a collection or sequence axis set in addition to the datum axis set.
+    if len(axis_set_data_metadata_list) < 2:
+        return False
+
+    # check if any of the requirements of the computation processor data input are satisfied by the data metadata for
+    # any of the axis sets. if so, then it is iterable according to the requirements of the computation processor data input.
+    for requirement in data_input.requirements:
+        if any(requirement.is_data_metadata_valid(data_metadata) for data_metadata in axis_set_data_metadata_list.values()):
+            return True
+
+    # none of the requirements of the computation processor data input are satisfied by the data metadata for any of
+    # the axis sets, so it can't be iterable according to the requirements of the computation processor data input.
+    return False
+
+
 class VariableSpecifierLike(typing.Protocol):
     def get_bound_item(self, container: Persistence.PersistentObject, secondary_specifier: typing.Optional[Specifier] = None, property_name: typing.Optional[str] = None) -> typing.Optional[BoundItemBase]:
         ...
@@ -561,12 +672,20 @@ class ComputationVariable(Persistence.PersistentObject):
     changed_event.  This object can be used to watch for changes to the object portion of this object.
     """
 
-    def __init__(self, name: typing.Optional[str] = None, *, property_name: typing.Optional[str] = None,
-                 value_type: typing.Optional[ComputationVariableType] = None, value: typing.Any = None, value_default: typing.Any = None,
-                 value_min: typing.Any = None, value_max: typing.Any = None, control_type: typing.Optional[str] = None,
-                 specifier: typing.Optional[Specifier] = None, label: typing.Optional[str] = None,
-                 secondary_specifier: typing.Optional[Specifier] = None,
-                 items: typing.Optional[typing.List[ComputationItem]] = None) -> None:  # defaults are None for factory
+    def __init__(self,
+                 name: str | None = None, *,
+                 label: str | None = None,
+                 property_name: str | None = None,
+                 value_type: ComputationVariableType | None = None,
+                 value: typing.Any = None,
+                 value_default: typing.Any = None,
+                 value_min: typing.Any = None,
+                 value_max: typing.Any = None,
+                 control_type: str | None = None,
+                 specifier: Specifier | None = None,
+                 secondary_specifier: Specifier | None = None,
+                 input_operation: ComputationInputOperation | None = None,
+                 items: typing.Sequence[ComputationItem] | None = None) -> None:
         super().__init__()
         self.define_type("variable")
         # setup
@@ -582,6 +701,7 @@ class ComputationVariable(Persistence.PersistentObject):
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer, hidden=True)
         self.define_property("property_name", property_name, changed=self.__property_changed, hidden=True)
         self.define_property("control_type", control_type, changed=self.__property_changed, hidden=True)
+        self.define_property("input_operation", input_operation.operation_id if input_operation else None, changed=self.__property_changed, hidden=True)
         self.define_item("specifier", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), changed=self.__specifier_changed, hidden=True)
         self.define_item("secondary_specifier", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), changed=self.__specifier_changed, hidden=True)
         self.define_relationship("object_specifiers", typing.cast(Persistence._PersistentObjectFactoryFn, specifier_factory), insert=self.__specifier_inserted, remove=self.__specifier_removed, hidden=True)
@@ -598,6 +718,8 @@ class ComputationVariable(Persistence.PersistentObject):
             self.secondary_specifier = secondary_specifier
         if items is not None:  # form a list even if it is empty
             self.object_specifiers = [get_object_specifier(item.item, item.type) if item and item.item else EmptySpecifier() for item in items] if items is not None else None
+        self.__computation_processing_id: str | None = None
+        self.__computation_processor: ComputationProcessor | None = None
 
     def close(self) -> None:
         self.unbind()
@@ -621,6 +743,22 @@ class ComputationVariable(Persistence.PersistentObject):
     def persistent_object_context_changed(self) -> None:
         if self.container:
             self.bind()
+
+    def set_computation_processor(self, computation_processor: ComputationProcessor | None, computation_processing_id: str | None = None) -> None:
+        self.__computation_processor = computation_processor
+        self.__computation_processing_id = computation_processing_id
+
+    @property
+    def is_iterable(self) -> bool:
+        bound_item = self.bound_item
+        if bound_item and self.__computation_processor:
+            data_input = self.__computation_processor.get_source(self.name)
+            if isinstance(bound_item, BoundDataSource):
+                data_source = bound_item.value
+                data_metadata = data_source.data_metadata if data_source else None
+                if data_input and data_metadata:
+                    return is_iterable(data_input, data_metadata)
+        return False
 
     @property
     def name(self) -> str:
@@ -653,6 +791,14 @@ class ComputationVariable(Persistence.PersistentObject):
     @control_type.setter
     def control_type(self, value: typing.Optional[str]) -> None:
         self._set_persistent_property_value("control_type", value)
+
+    @property
+    def input_operation(self) -> ComputationInputOperation:
+        return ComputationInputOperation.from_operation_id(typing.cast(str | None, self._get_persistent_property_value("input_operation")))
+
+    @input_operation.setter
+    def input_operation(self, value: ComputationInputOperation | None) -> None:
+        self._set_persistent_property_value("input_operation", value.operation_id if value else None)
 
     @property
     def property_name(self) -> typing.Optional[str]:
@@ -895,6 +1041,7 @@ class ComputationVariable(Persistence.PersistentObject):
             for index, base_item in enumerate(self.__bound_item.base_items):
                 self.notify_insert_item("base_items", base_item, index)
         self.notify_property_changed("bound_item")
+        self.notify_property_changed("is_iterable")
 
     @property
     def is_resolved(self) -> bool:
@@ -1058,21 +1205,18 @@ class ComputationVariable(Persistence.PersistentObject):
             - using the label property if it exists
             - using the name property if it exists
         """
-        container = self.container
-        computation = container if isinstance(container, Computation) else None
         name = self.name
         label: str | None
-        if isinstance(computation, Computation):
-            computation_processor = computation.computation_processor
-            if computation_processor and name:
-                if label := computation_processor.get_input_label(name):
-                    return label
-            processing_id = computation.processing_id
-            compute_class = _computation_types.get(processing_id) if processing_id else None
-            if compute_class:
-                label = typing.cast(typing.Optional[str], getattr(compute_class, "inputs", dict()).get(name, dict()).get("label", str()))
-                if label:
-                    return label
+        computation_processor = self.__computation_processor
+        if computation_processor and name:
+            if label := computation_processor.get_input_label(name):
+                return label
+        processing_id = self.__computation_processing_id
+        compute_class = _computation_types.get(processing_id) if processing_id else None
+        if compute_class:
+            label = typing.cast(typing.Optional[str], getattr(compute_class, "inputs", dict()).get(name, dict()).get("label", str()))
+            if label:
+                return label
         # not a registered computation, fall back to label or name.
         return self.label or name or str()
 
@@ -1152,6 +1296,10 @@ class DataSource:
     @property
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__xdata
+
+    @property
+    def data_metadata(self) -> typing.Optional[DataAndMetadata.DataMetadata]:
+        return self.__xdata.data_metadata if self.__xdata else None
 
     @property
     def element_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -2408,8 +2556,13 @@ class Computation(Persistence.PersistentObject):
         assert name == "variables"
 
         def needs_update(variable: ComputationVariable, event_type: BoundDataEventType) -> None:
-            if not self.computation_processor or (self.computation_processor.needs_update_for_event(variable.name, event_type) and self.is_resolved and not self.is_deleted):
+            # When a variable has input_operation.is_display_operation set, DISPLAY_DATA events should trigger an update.
+            if variable.input_operation.is_display_operation and event_type == BoundDataEventType.DISPLAY_DATA:
+                if self.is_resolved and not self.is_deleted:
+                    self.needs_update = True
+            elif not self.computation_processor or (self.computation_processor.needs_update_for_event(variable.name, event_type) and self.is_resolved and not self.is_deleted):
                 self.needs_update = True
+
             self.computation_mutated_event.fire()
 
         self.__variable_changed_event_listeners.insert(before_index, variable.data_event.listen(functools.partial(needs_update, variable)))
@@ -2429,6 +2582,7 @@ class Computation(Persistence.PersistentObject):
         self.__variable_base_item_inserted_event_listeners.insert(before_index, variable.item_inserted_event.listen(functools.partial(handle_variable_item_inserted, variable)))
         self.__variable_base_item_removed_event_listeners.insert(before_index, variable.item_removed_event.listen(functools.partial(handle_variable_item_removed, variable)))
 
+        variable.set_computation_processor(self.computation_processor, self.processing_id)
         variable.bind()
 
         if not self._is_reading:
@@ -2445,6 +2599,7 @@ class Computation(Persistence.PersistentObject):
         self.__variable_base_item_inserted_event_listeners.pop(index).close()
         self.__variable_base_item_removed_event_listeners.pop(index).close()
         variable.unbind()
+        variable.set_computation_processor(None, None)
         self.computation_mutated_event.fire()
         self.needs_update = True
         self.notify_remove_item("variables", variable, index)
@@ -2474,18 +2629,19 @@ class Computation(Persistence.PersistentObject):
         return variable
 
     def create_input_item(self, name: str, input_item: ComputationItem, *, property_name: typing.Optional[str] = None,
-                          label: typing.Optional[str] = None, _item_specifier: typing.Optional[Specifier] = None) -> ComputationVariable:
+                          label: typing.Optional[str] = None, _item_specifier: typing.Optional[Specifier] = None,
+                          input_operation: ComputationInputOperation | None = None) -> ComputationVariable:
         if input_item.secondary_item:
             assert isinstance(input_item.secondary_item, Graphics.Graphic)
         # Note: _item_specifier is only for testing
         if input_item.items is not None:
-            variable = ComputationVariable(name, items=input_item.items, label=label)
+            variable = ComputationVariable(name, items=input_item.items, label=label, input_operation=input_operation)
             self.add_variable(variable)
             return variable
         else:
             specifier = _item_specifier or get_object_specifier(input_item.item, input_item.type)
             secondary_specifier = get_object_specifier(input_item.secondary_item) if input_item.secondary_item else None
-            variable = ComputationVariable(name, specifier=specifier, secondary_specifier=secondary_specifier, property_name=property_name, label=label)
+            variable = ComputationVariable(name, specifier=specifier, secondary_specifier=secondary_specifier, property_name=property_name, label=label, input_operation=input_operation)
             self.add_variable(variable)
             return variable
 
@@ -2571,8 +2727,8 @@ class Computation(Persistence.PersistentObject):
             pass
         return names
 
-    def __resolve_inputs(self, api: typing.Any) -> typing.Tuple[typing.Dict[str, typing.Any], bool]:
-        kwargs: typing.Dict[str, typing.Any] = dict()
+    def __resolve_inputs(self, api: typing.Any) -> typing.Tuple[ComputationParameters, bool]:
+        computation_parameter_dict = dict[str, ComputationParameter]()
         is_resolved = True
         for variable in self.variables:
             bound_object = variable.bound_item
@@ -2582,13 +2738,14 @@ class Computation(Persistence.PersistentObject):
                 # able to modify the input objects; reality, though, dictates that performance is
                 # more important than this protection. so use the resolved object directly.
                 api_object = api._new_api_object(resolved_object) if resolved_object else None
-                kwargs[variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
+                computation_parameter_value = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
+                computation_parameter_dict[variable.name] = ComputationParameter(computation_parameter_value, variable.input_operation)
                 is_resolved = resolved_object is not None
             else:
                 is_resolved = False
         for result in self.results:
             is_resolved = is_resolved and result.is_resolved
-        return kwargs, is_resolved
+        return ComputationParameters(computation_parameter_dict), is_resolved
 
     async def async_evaluate(self, event_loop: asyncio.AbstractEventLoop, thread_pool_executor: concurrent.futures.ThreadPoolExecutor) -> typing.Optional[ComputationExecutor]:
         # this function is always run on the main thread.
@@ -2599,12 +2756,12 @@ class Computation(Persistence.PersistentObject):
         self.needs_update = False
         if needs_update:
             api = PlugInManager.api_broker_fn("~1.0", None)
-            use_registered_executor = not self.expression or (self.computation_processor is not None and not self.computation_processor.old_built_in)
-            if use_registered_executor:
-                executor = RegisteredComputationExecutor(self, api)
-            else:
+            has_new_registered_processor = self.computation_processor is not None and not self.computation_processor.old_built_in
+            if self.expression and not has_new_registered_processor:
                 executor = ScriptExpressionComputationExecutor(self, api)
-            kwargs, is_resolved = self.__resolve_inputs(api)
+            else:
+                executor = RegisteredComputationExecutor(self, api)
+            computation_parameters, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
                 def execute(context: ComputationExecutorContext, kwargs: dict[str, typing.Any]) -> None:
                     # execute is not allowed to raise exceptions.
@@ -2612,9 +2769,9 @@ class Computation(Persistence.PersistentObject):
                     self._set_progress(None)
 
                 self._set_progress(0.0)
-                context = ComputationExecutorContext(self, kwargs)
+                context = ComputationExecutorContext(self, computation_parameters)
 
-                await event_loop.run_in_executor(thread_pool_executor, execute, context, kwargs)
+                await event_loop.run_in_executor(thread_pool_executor, execute, context, dict(computation_parameters.parameter_value_map))
             else:
                 executor.error_text = _("Missing parameters.")
             self._evaluation_count_for_test += 1
@@ -2626,14 +2783,14 @@ class Computation(Persistence.PersistentObject):
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
-            use_registered_executor = not self.expression or (self.computation_processor is not None and not self.computation_processor.old_built_in)
-            if use_registered_executor:
-                executor = RegisteredComputationExecutor(self, api)
-            else:
+            has_new_registered_processor = self.computation_processor is not None and not self.computation_processor.old_built_in
+            if self.expression and not has_new_registered_processor:
                 executor = ScriptExpressionComputationExecutor(self, api)
-            kwargs, is_resolved = self.__resolve_inputs(api)
+            else:
+                executor = RegisteredComputationExecutor(self, api)
+            computation_parameters, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
-                executor.execute(ComputationExecutorContext(self, kwargs))
+                executor.execute(ComputationExecutorContext(self, computation_parameters))
             else:
                 executor.error_text = _("Missing parameters.")
             self._evaluation_count_for_test += 1
@@ -3083,65 +3240,222 @@ class ComputationCanceledException(Exception):
         super().__init__("Computation Canceled Exception")
 
 
+class ComputationParameter:
+    """Wrap one computation input value together with its input operation metadata."""
+    def __init__(self, value: typing.Any, input_operation: ComputationInputOperation | None = None) -> None:
+        self.__value = value
+        self.__input_operation = input_operation or ComputationInputOperation()
+
+    def __repr__(self) -> str:
+        return f"ComputationParameter(value={self.__value}, input_operation={self.__input_operation})"
+
+    @property
+    def value(self) -> typing.Any:
+        return self.__value
+
+    @property
+    def input_operation(self) -> ComputationInputOperation:
+        return self.__input_operation
+
+    def normalized_value(self) -> typing.Any:
+        value = self.__value
+        if isinstance(value, DataAndMetadata.DataAndMetadata):
+            return annotated_array.from_data_and_metadata(value, collapse_scalar_axis_groups=True)
+        if isinstance(value, DataAndMetadata.ScalarAndMetadata):
+            return value
+        if numpy.isscalar(value):
+            return value.item() if hasattr(value, "item") else value
+        return value
+
+    def get_bool(self) -> bool:
+        value = self.__value
+        if isinstance(value, bool):
+            return value
+        raise TypeError(f"Expected bool, got {type(value)}")
+
+    def get_int(self) -> int:
+        value = self.__value
+        if isinstance(value, bool):
+            raise TypeError("Expected int, got bool")
+        if isinstance(value, int):
+            return value
+        raise TypeError(f"Expected int, got {type(value)}")
+
+    def get_float(self) -> float:
+        value = self.__value
+        if isinstance(value, bool):
+            raise TypeError("Expected float-compatible value, got bool")
+        if isinstance(value, (int, float)):
+            return float(value)
+        raise TypeError(f"Expected float-compatible value, got {type(value)}")
+
+    def get_str(self) -> str:
+        value = self.__value
+        if isinstance(value, str):
+            return value
+        raise TypeError(f"Expected str, got {type(value)}")
+
+    def get_complex(self) -> complex:
+        value = self.__value
+        if isinstance(value, bool):
+            raise TypeError("Expected complex-compatible value, got bool")
+        if isinstance(value, (int, float, complex)):
+            return complex(value)
+        raise TypeError(f"Expected complex-compatible value, got {type(value)}")
+
+    def get_scalar_and_metadata(self) -> DataAndMetadata.ScalarAndMetadata:
+        value = self.__value
+        if isinstance(value, DataAndMetadata.ScalarAndMetadata):
+            return value
+        if numpy.isscalar(value):
+            scalar_value = value.item() if hasattr(value, "item") else value
+            return DataAndMetadata.ScalarAndMetadata.from_value(typing.cast(DataAndMetadata._ScalarDataType, scalar_value))
+        raise TypeError(f"Expected ScalarAndMetadata or scalar-compatible value, got {type(value)}")
+
+    def get_annotated_array(self) -> annotated_array.AnnotatedArray:
+        value = self.__value
+        if isinstance(value, annotated_array.AnnotatedArray):
+            return value
+        if isinstance(value, DataAndMetadata.DataAndMetadata):
+            return annotated_array.from_data_and_metadata(value)
+        raise TypeError(f"Expected AnnotatedArray, got {type(value)}")
+
+    def get_region(self) -> Graphics.RegionBase:
+        value = self.__value
+        if isinstance(value, Graphics.RegionBase):
+            return value
+        raise TypeError(f"Expected RegionBase, got {type(value)}")
+
+    def get_list(self) -> typing.Sequence[typing.Any]:
+        value = self.__value
+        if isinstance(value, collections.abc.Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return value
+        raise TypeError(f"Expected list, got {type(value)}")
+
+    def get_map(self) -> typing.Mapping[str, typing.Any]:
+        value = self.__value
+        if isinstance(value, collections.abc.Mapping):
+            if not all(isinstance(k, str) for k in value.keys()):
+                raise TypeError("Expected string-key mapping")
+            return value
+        raise TypeError(f"Expected map, got {type(value)}")
+
+
 class ComputationParameters:
     """Provide access to typed computation parameters.
 
     The computation parameters should be considered to be a snapshot of the parameters at the time of execution.
     Changes to the underlying computation parameters during execution may not be reflected in this object.
 
-    The get_value method can be used to access parameters with type checking. The get_bool_value, get_int_value,
-    get_float_value, and get_str_value methods are convenience methods for accessing parameters of those types.
+    Typed getters raise KeyError if the key is absent and no default was provided, and TypeError if the value is
+    present but not compatible with the requested type.
     """
-    def __init__(self, parameter_map: typing.Mapping[str, typing.Any]) -> None:
+    def __init__(self, parameter_map: typing.Mapping[str, ComputationParameter]) -> None:
         self.__parameter_map = parameter_map
 
     @property
-    def parameter_map(self) -> typing.Mapping[str, typing.Any]:
+    def parameter_map(self) -> typing.Mapping[str, ComputationParameter]:
         return self.__parameter_map
 
-    def get_value[T](self, key: str, expected_type: type[T], default: T) -> T:
-        if key not in self.__parameter_map:
-            return default
+    @property
+    def parameter_value_map(self) -> typing.Mapping[str, typing.Any]:
+        return {k: v.value for k, v in self.__parameter_map.items()}
 
-        value = self.__parameter_map[key]
+    def get_bool(self, key: str, default: bool | None = None) -> bool:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_bool()
 
-        if not isinstance(value, expected_type):
-            raise TypeError(f"Key '{key}' expected {expected_type}, got {type(value)}")
+    def get_int(self, key: str, default: int | None = None) -> int:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_int()
 
-        return value
+    def get_float(self, key: str, default: float | None = None) -> float:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_float()
 
-    def get_bool_value(self, key: str, default: bool) -> bool:
-        value = self.__parameter_map.get(key, default)
-        if isinstance(value, bool):
-            return value
-        raise TypeError(f"Key '{key}' expected a boolean value, got {type(value)} with value '{value}'")
+    def get_str(self, key: str, default: str | None = None) -> str:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_str()
 
-    def get_int_value(self, key: str, default: int) -> int:
-        value = self.__parameter_map.get(key, default)
-        if isinstance(value, int):
-            return value
-        raise TypeError(f"Key '{key}' expected an integer value, got {type(value)} with value '{value}'")
+    def get_complex(self, key: str, default: complex | None = None) -> complex:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return default
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_complex()
 
-    def get_float_value(self, key: str, default: float) -> float:
-        value = self.__parameter_map.get(key, default)
-        if isinstance(value, float):
-            return value
-        raise TypeError(f"Key '{key}' expected a float value, got {type(value)} with value '{value}'")
+    def get_scalar_and_metadata(self, key: str, default: typing.Any = None) -> DataAndMetadata.ScalarAndMetadata:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            if default is not None:
+                return ComputationParameter(default).get_scalar_and_metadata()
+            else:
+                raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_scalar_and_metadata()
 
-    def get_str_value(self, key: str, default: str) -> str:
-        value = self.__parameter_map.get(key, default)
-        if isinstance(value, str):
-            return value
-        raise TypeError(f"Key '{key}' expected a string value, got {type(value)} with value '{value}'")
+    def get_annotated_array(self, key: str) -> annotated_array.AnnotatedArray:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_annotated_array()
 
-    def get_data_and_metadata(self, key: str) -> DataAndMetadata.DataAndMetadata:
-        value = self.__parameter_map.get(key, None)
-        if isinstance(value, DataAndMetadata.DataAndMetadata):
-            return value
-        raise TypeError(f"Key '{key}' expected a DataAndMetadata object, got {type(value)} with value '{value}'")
+    def get_region(self, key: str) -> Graphics.RegionBase:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_region()
+
+    def get_list(self, key: str) -> typing.Sequence[typing.Any]:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_list()
+
+    def get_map(self, key: str) -> typing.Mapping[str, typing.Any]:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter.get_map()
+
+    def get_parameter(self, key: str) -> ComputationParameter:
+        computation_parameter = self.__parameter_map.get(key)
+        if computation_parameter is None:
+            raise KeyError(f"Parameter '{key}' not found")
+        return computation_parameter
 
     def get_data_source(self, key: str) -> Facade.DataSource | None:
-        return typing.cast("Facade.DataSource | None", self.__parameter_map.get(key, None))
+        computation_parameter = self.__parameter_map.get(key, None)
+        return typing.cast("Facade.DataSource | None", computation_parameter.value) if computation_parameter else None
+
+    def get_input_operation(self, key: str) -> ComputationInputOperation:
+        computation_parameter = self.__parameter_map.get(key, None)
+        return computation_parameter.input_operation if computation_parameter else ComputationInputOperation()
+
+    def normalized_parameters(self) -> ComputationParameters:
+        packed_parameter_map = dict[str, ComputationParameter]()
+        for key, computation_parameter in self.__parameter_map.items():
+            packed_parameter_map[key] = ComputationParameter(
+                computation_parameter.normalized_value(),
+                computation_parameter.input_operation,
+            )
+        return ComputationParameters(packed_parameter_map)
 
 
 class ComputationExecutorContext:
@@ -3157,9 +3471,9 @@ class ComputationExecutorContext:
     The progress property should be called continuously to update progress of the computation if the computation
     takes more than a few seconds.
     """
-    def __init__(self, computation: Computation, parameter_map: typing.Mapping[str, typing.Any]) -> None:
+    def __init__(self, computation: Computation, computation_parameters: ComputationParameters) -> None:
         self.__computation = computation
-        self.__parameters = ComputationParameters(parameter_map)
+        self.__parameters = computation_parameters
         self.__is_canceled = False
         self.__computation_will_close_listener = self.__computation.about_to_close_event.listen(ReferenceCounting.weak_partial(ComputationExecutorContext.__handle_computation_will_close, self))
         self.__computation_stop_listener = self.__computation._stop_computation_event.listen(ReferenceCounting.weak_partial(ComputationExecutorContext.__handle_stop, self))
@@ -3353,7 +3667,7 @@ class ScriptExpressionComputationExecutor(ComputationExecutor):
         assert self.__data_item_target is not None
         if self.__expression:
             code_lines = []
-            exec_globals = dict(context.parameters.parameter_map)
+            exec_globals = dict(context.parameters.parameter_value_map)
             exec_globals["api"] = self.__api
             exec_globals["target"] = self.__data_item_target
             exec_locals = dict[str, typing.Any]()
@@ -3403,12 +3717,12 @@ class ComputationProcessorRequirement(typing.Protocol):
     def to_dict(self) -> dict[str, typing.Any]: ...
 
 
-class ComputationProcessorRequirementDataRank(ComputationProcessorRequirement):
+class ComputationProcessorRequirementDatumRank(ComputationProcessorRequirement):
     def __init__(self, values: typing.Sequence[int]) -> None:
         self.values = list(values)
 
     @classmethod
-    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRequirementDataRank:
+    def from_dict(cls, d: PersistentDictType) -> ComputationProcessorRequirementDatumRank:
         return cls(d["values"])
 
     def to_dict(self) -> dict[str, typing.Any]:
@@ -3418,7 +3732,7 @@ class ComputationProcessorRequirementDataRank(ComputationProcessorRequirement):
         }
 
     def is_data_metadata_valid(self, data_metadata: DataAndMetadata.DataMetadata) -> bool:
-        return data_metadata.datum_dimension_count in self.values
+        return data_metadata.datum_dimension_count in self.values and data_metadata.collection_dimension_count == 0 and not data_metadata.is_sequence
 
 
 class ComputationProcessorRequirementDatumCalibrations(ComputationProcessorRequirement):
@@ -3546,7 +3860,7 @@ class ComputationProcessorRequirementBoolean(ComputationProcessorRequirement):
 def create_computation_processor_requirement(d: PersistentDictType) -> ComputationProcessorRequirement:
     requirement_type = d.get("type", None)
     if requirement_type == "datum_rank":
-        return ComputationProcessorRequirementDataRank.from_dict(d)
+        return ComputationProcessorRequirementDatumRank.from_dict(d)
     if requirement_type == "datum_calibrations":
         return ComputationProcessorRequirementDatumCalibrations.from_dict(d)
     if requirement_type == "dimensionality":
@@ -3968,100 +4282,370 @@ class ComputationProcessor:
         return None
 
 
+@dataclasses.dataclass
+class IterationPlanResult:
+    error_message: str | None
+    axis_group_list: tuple[annotated_array.AxisGroup, ...] | None = None
+    axis_index_selector_list_map: typing.Mapping[str, typing.Sequence[bool] | None] | None = None
+
+    @property
+    def iteration_shape_list(self) -> tuple[tuple[int, ...], ...]:
+        """Return the iteration shape list, or an empty tuple if no axis groups are set."""
+        if self.axis_group_list is None:
+            return tuple()
+        return tuple(axis_group.shape for axis_group in self.axis_group_list)
+
+    @property
+    def iteration_shape(self) -> tuple[int, ...]:
+        """Return the flattened iteration shape, or an empty tuple if no axis groups are set."""
+        if self.axis_group_list is None:
+            return tuple()
+        return tuple(axis.size for axis_group in self.axis_group_list for axis in axis_group.axes)
+
+    @property
+    def iteration_calibrations(self) -> tuple[Calibration.Calibration, ...]:
+        """Return the flattened iteration calibrations, or an empty tuple if no axis groups are set."""
+        if self.axis_group_list is None:
+            return tuple()
+        calibrations = list[Calibration.Calibration]()
+        for axis_group in self.axis_group_list:
+            for axis_index, _axis in enumerate(axis_group.axes):
+                affine_calibration = axis_group.get_calibration(axis_index)
+                calibration = Calibration.Calibration(affine_calibration.scale, affine_calibration.offset, affine_calibration.unit) if isinstance(affine_calibration, annotated_array.AffineCalibration) else Calibration.Calibration()
+                calibrations.append(calibration)
+        return tuple(calibrations)
+
+
+def _axis_group_from_data_metadata(axis_set_data_metadata: DataAndMetadata.DataMetadata) -> annotated_array.AxisGroup:
+    axes = list[annotated_array.Axis]()
+    coordinate_calibrations = list[annotated_array.Calibration]()
+    for i, size in enumerate(axis_set_data_metadata.data_shape):
+        calibration = axis_set_data_metadata.dimensional_calibrations[i]
+        affine_calibration = annotated_array.AffineCalibration(calibration.scale, calibration.offset, calibration.units)
+        axes.append(annotated_array.Axis(str(i), size))
+        coordinate_calibrations.append(affine_calibration)
+    return annotated_array.AxisGroup(
+        axes=tuple(axes),
+        coordinate_calibrations={"calibrated": annotated_array.CoordinateCalibration(calibrations=tuple(coordinate_calibrations))},
+        primary_calibration_key="calibrated",
+    )
+
+
+def _check_requirements(data_metadata: DataAndMetadata.DataMetadata, requirements: typing.Sequence[ComputationProcessorRequirement]) -> bool:
+    for requirement in requirements:
+        if not requirement.is_data_metadata_valid(data_metadata):
+            return False
+    return True
+
+
+def _axis_selection_info(data_metadata: DataAndMetadata.DataMetadata, input_operation: ComputationInputOperation, requirements: typing.Sequence[ComputationProcessorRequirement]) -> tuple[typing.Sequence[annotated_array.AxisGroup], typing.Sequence[bool]] | None:
+    axis_set_data_metadata_list = get_axis_set_data_metadata_list(data_metadata)
+    data_source_axis_group_list = list[annotated_array.AxisGroup]()
+    axis_index_selector_list = list()
+    for axis_set_key, axis_set_data_metadata in axis_set_data_metadata_list.items():
+        is_selected_axis_set = input_operation.axis_set_id == axis_set_key
+        if not is_selected_axis_set:
+            data_source_axis_group_list.append(_axis_group_from_data_metadata(axis_set_data_metadata))
+        else:
+            if not _check_requirements(axis_set_data_metadata, requirements):
+                return None
+        axis_index_selector_list.append(not is_selected_axis_set)
+    return data_source_axis_group_list, axis_index_selector_list
+
+
+def compute_iteration_plan(computation_processor: ComputationProcessor, parameters: ComputationParameters) -> IterationPlanResult:
+    """Build a common iteration plan by applying each input operation and validating compatible reduced shapes."""
+
+    # determine the overall iteration shape by getting the iteration shape for each source and ensuring that they
+    # are compatible. if not, raise an error. the iteration shape is the shape excluding the axis set selection.
+    # to support broadcasting, an iteration shape of a source is compatible with the overall iteration shape if
+    # it matches the last dimensions of the overall iteration shape.
+
+    axis_group_list = list[annotated_array.AxisGroup]()
+    axis_index_selector_list_map = dict[str, typing.Sequence[bool] | None]()
+
+    for source in computation_processor.sources:
+        source_axis_group_list = list[annotated_array.AxisGroup]()
+        data_source = parameters.get_data_source(source.name)
+        input_operation = parameters.get_input_operation(source.name)
+        if input_operation.is_display_operation:
+            # handle the case of display axis set selection. the element xdata must meet requirements.
+            element_xdata = data_source.element_xdata if data_source else None
+            element_data_metadata = element_xdata.data_metadata if element_xdata else None
+            if not element_data_metadata:
+                return IterationPlanResult("Could not determine data shape for display axis set selection.")
+            if not _check_requirements(element_data_metadata, source.requirements):
+                return IterationPlanResult("Data does not meet computation requirements.")
+        elif input_operation.axis_set_id:
+            # handle the case of an explicit axis set selection with iteration of remaining axes.
+            xdata = data_source.xdata if data_source else None
+            data_metadata = xdata.data_metadata if xdata else None
+            if not data_metadata:
+                return IterationPlanResult("Could not determine data metadata for display axis set selection.")
+            axis_selection_info = _axis_selection_info(data_metadata, input_operation, source.requirements)
+            if axis_selection_info is None:
+                return IterationPlanResult("Data does not meet computation requirements.")
+            data_source_axis_group_list, axis_index_selector_list = axis_selection_info
+            source_axis_group_list.extend(data_source_axis_group_list)
+            axis_index_selector_list_map[source.name] = axis_index_selector_list
+        else:
+            # handle the case where the selected axis set is not specified.
+            xdata = data_source.xdata if data_source else None
+            data_metadata = xdata.data_metadata if xdata else None
+            if not data_metadata:
+                return IterationPlanResult("Could not determine data metadata for display axis set selection.")
+            accepted = False
+            # first check if entire data meets requirements.
+            if _check_requirements(data_metadata, source.requirements):
+                accepted = True
+            # next check if iterable and if using the datum axis set works.
+            if is_iterable(source, data_metadata):
+                datum_input_operation = ComputationInputOperation.from_operation_id("axes:datum")
+                axis_selection_info = _axis_selection_info(data_metadata, datum_input_operation, source.requirements)
+                if axis_selection_info is not None:
+                    data_source_axis_group_list, axis_index_selector_list = axis_selection_info
+                    source_axis_group_list.extend(data_source_axis_group_list)
+                    axis_index_selector_list_map[source.name] = axis_index_selector_list
+                    accepted = True
+            # fail
+            if not accepted:
+                return IterationPlanResult("Data does not meet computation requirements.")
+        # if no iteration shape is established, establish it first.
+        if not axis_group_list:
+            axis_group_list.extend(source_axis_group_list)
+        # if the source is longer, but otherwise matches, it becomes the new iteration shape
+        if len(source_axis_group_list) > len(axis_group_list) and source_axis_group_list[-len(axis_group_list):] == axis_group_list:
+            axis_group_list = source_axis_group_list
+        # if the source is shorter, but otherwise matches, it is compatible, and we keep the existing iteration shape
+        elif len(axis_group_list) >= len(source_axis_group_list) and axis_group_list[-len(source_axis_group_list):] == source_axis_group_list:
+            pass
+        # otherwise, raise an exception as the iteration shapes are incompatible.
+        else:
+            return IterationPlanResult("Mismatched iteration shapes between sources.")
+
+    return IterationPlanResult(None, tuple(axis_group_list), axis_index_selector_list_map)
+
+
+_ProcessedScalarType: typing.TypeAlias = bool | int | float | complex | str
+_ProcessedDataType: typing.TypeAlias = DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | DataAndMetadata._ImageDataType | annotated_array.AnnotatedArray | _ProcessedScalarType | None
+_ProcessedDataMapType: typing.TypeAlias = typing.Mapping[str, _ProcessedDataType]
+
+
+def _build_component_parameters_for_iteration_index(computation_processor: ComputationProcessor,
+                                                    parameters: ComputationParameters,
+                                                    iteration_plan: IterationPlanResult,
+                                                    index: tuple[int, ...],
+                                                    filter_xdata_map: dict[str, DataAndMetadata.DataAndMetadata | None]) -> ComputationParameters:
+    """Build computation parameters for one iteration index by slicing iterable sources and keeping other inputs unchanged."""
+    component_parameter_d = dict[str, ComputationParameter]()
+    assert iteration_plan.axis_index_selector_list_map is not None
+    for source in computation_processor.sources:
+        data_source = parameters.get_data_source(source.name)
+        assert data_source is not None
+        axis_index_selector_list = iteration_plan.axis_index_selector_list_map.get(source.name)
+        if axis_index_selector_list:
+            axis_set_data_metadata_list = get_axis_set_data_metadata_list(data_source.xdata.data_metadata) if data_source.xdata else dict()
+            assert len(axis_index_selector_list) == len(axis_set_data_metadata_list)
+            source_slice_list = list[slice | int]()
+            indexes_index = 0
+            for axis_index_selector, (_axis_set_key, axis_set_data_metadata) in zip(axis_index_selector_list, axis_set_data_metadata_list.items()):
+                axis_set_rank = len(axis_set_data_metadata.data_shape)
+                if axis_index_selector:
+                    source_slice_list.extend(index[indexes_index:indexes_index + axis_set_rank])
+                    indexes_index += axis_set_rank
+                else:
+                    source_slice_list.extend([slice(None)] * axis_set_rank)
+            source_index = tuple(source_slice_list)
+            source_xdata = data_source.xdata[source_index] if data_source.xdata else None
+        elif not parameters.parameter_map[source.name].input_operation.is_display_operation:
+            source_xdata = data_source.xdata
+        else:
+            source_xdata = data_source.element_xdata
+        if source_xdata:
+            if source.data_type == "xdata":
+                if source.is_croppable:
+                    source_xdata = data_source._data_source._crop_xdata(source_xdata)
+            elif source.data_type == "filtered_xdata":
+                filter_xdata = filter_xdata_map.get(source.name)
+                if filter_xdata is None:
+                    filter_xdata = data_source.filter_xdata
+                    filter_xdata_map[source.name] = filter_xdata
+                if filter_xdata:
+                    if source_xdata.is_data_complex_type:
+                        source_xdata = Core.function_fourier_mask(source_xdata, filter_xdata)
+                    else:
+                        source_xdata = filter_xdata * source_xdata
+            else:
+                raise ValueError(f"Unsupported source data type: {source.data_type}")
+        if source_xdata:
+            component_parameter_d[source.name] = ComputationParameter(source_xdata, ComputationInputOperation.from_operation_id("axes:datum"))
+    for k, v in parameters.parameter_map.items():
+        if k not in component_parameter_d:
+            component_parameter_d[k] = v
+    return ComputationParameters(component_parameter_d)
+
+
+class _IteratedProcessingAccumulator:
+    """Accumulate per-iteration outputs into final annotated arrays.
+
+    Create once for an iteration plan, call `add_processed_data_map` for each iteration index
+    in loop order, then read `annotated_array_map` after the loop completes.
+    """
+    def __init__(self, iteration_shape_list: tuple[tuple[int, ...], ...], iteration_shape: tuple[int, ...],
+                 iteration_calibrations: tuple[Calibration.Calibration, ...]) -> None:
+        self.__iteration_shape_list = iteration_shape_list
+        self.__iteration_shape = iteration_shape
+        self.__iteration_calibrations = iteration_calibrations
+        self.__data_map = dict[str, DataAndMetadata._ImageDataType]()
+        self.__annotated_array_map = dict[str, annotated_array.AnnotatedArray]()
+
+    @property
+    def annotated_array_map(self) -> dict[str, annotated_array.AnnotatedArray]:
+        return self.__annotated_array_map
+
+    @staticmethod
+    def __to_affine_calibration(calibration: Calibration.Calibration | annotated_array.Calibration) -> annotated_array.AffineCalibration:
+        if isinstance(calibration, annotated_array.AffineCalibration):
+            return calibration
+        if isinstance(calibration, Calibration.Calibration):
+            return annotated_array.AffineCalibration(calibration.scale, calibration.offset, calibration.units)
+        raise ValueError("Only affine calibrations are supported for iterated processing accumulation.")
+
+    def __make_axis_group(self, shape: tuple[int, ...], calibrations: typing.Sequence[Calibration.Calibration]) -> annotated_array.AxisGroup:
+        axes = tuple(annotated_array.Axis(str(i), size) for i, size in enumerate(shape))
+        if calibrations:
+            coordinate_calibration = annotated_array.CoordinateCalibration(tuple(self.__to_affine_calibration(calibration) for calibration in calibrations))
+            return annotated_array.AxisGroup(
+                axes=axes,
+                coordinate_calibrations={"calibrated": coordinate_calibration},
+                primary_calibration_key="calibrated"
+            )
+        return annotated_array.AxisGroup(axes=axes)
+
+    def __make_iteration_axis_groups(self) -> tuple[annotated_array.AxisGroup, ...]:
+        axis_groups = list[annotated_array.AxisGroup]()
+        calibration_index = 0
+        for shape in self.__iteration_shape_list:
+            count = len(shape)
+            axis_groups.append(self.__make_axis_group(shape, self.__iteration_calibrations[calibration_index:calibration_index + count]))
+            calibration_index += count
+        return tuple(axis_groups)
+
+    def __make_result_metadata(self) -> annotated_array.ArrayMetadata:
+        return annotated_array.ArrayMetadata(created=DateTime.utcnow().replace(tzinfo=datetime.timezone.utc))
+
+    def __clone_datum_axis_group(self, array_data: annotated_array.AnnotatedArray) -> annotated_array.AxisGroup:
+        datum_axis_group = array_data.descriptor.axis_groups[-1]
+        if datum_axis_group.primary_calibration_key:
+            coordinate_calibration = annotated_array.CoordinateCalibration(tuple(
+                self.__to_affine_calibration(datum_axis_group.get_calibration(axis_index))
+                for axis_index in range(datum_axis_group.rank)
+            ))
+            return annotated_array.AxisGroup(
+                axes=datum_axis_group.axes,
+                coordinate_system_id=datum_axis_group.coordinate_system_id,
+                coordinate_calibrations={"calibrated": coordinate_calibration},
+                primary_calibration_key="calibrated"
+            )
+        return annotated_array.AxisGroup(
+            axes=datum_axis_group.axes,
+            coordinate_system_id=datum_axis_group.coordinate_system_id,
+        )
+
+    def __make_intensity_calibrations(self, calibration: Calibration.Calibration | annotated_array.Calibration) -> annotated_array.CalibrationSet:
+        return annotated_array.CalibrationSet.from_calibration(self.__to_affine_calibration(calibration), "calibrated")
+
+    def __add_scalar_data(self, key: str, index: tuple[int, ...], scalar_data: DataAndMetadata.ScalarAndMetadata) -> None:
+        """Add scalar data to the accumulator."""
+        value = scalar_data.value
+        if key not in self.__annotated_array_map:
+            self.__data_map[key] = numpy.empty(self.__iteration_shape, dtype=numpy.asarray(value).dtype)
+            axis_groups = self.__make_iteration_axis_groups() or (annotated_array.AxisGroup(),)
+            descriptor = annotated_array.ArrayDescriptor(
+                axis_groups=axis_groups,
+                intensity_calibrations=self.__make_intensity_calibrations(scalar_data.calibration),
+                value_type=annotated_array.infer_value_type(self.__data_map[key].dtype),
+            )
+            self.__annotated_array_map[key] = annotated_array.AnnotatedArray(self.__data_map[key], descriptor, self.__make_result_metadata())
+        self.__data_map[key][index] = value
+
+    def __add_array_data(self, key: str, index: tuple[int, ...], array_data: annotated_array.AnnotatedArray) -> None:
+        """Add array data to the accumulator."""
+        data = array_data.data
+        data_dtype = data.dtype
+        datum_axis_group = self.__clone_datum_axis_group(array_data)
+        datum_dimension_shape = datum_axis_group.shape
+        if key not in self.__annotated_array_map:
+            self.__data_map[key] = numpy.empty(self.__iteration_shape + datum_dimension_shape, dtype=data_dtype)
+            descriptor = annotated_array.ArrayDescriptor(
+                axis_groups=self.__make_iteration_axis_groups() + (datum_axis_group,),
+                intensity_calibrations=self.__make_intensity_calibrations(array_data.get_intensity_calibration()),
+                value_type=array_data.descriptor.value_type,
+            )
+            self.__annotated_array_map[key] = annotated_array.AnnotatedArray(self.__data_map[key], descriptor, self.__make_result_metadata())
+        self.__data_map[key][index] = data
+
+    def add_processed_data_map(self, index: tuple[int, ...], output_keys: typing.Sequence[str], processed_data_map: _ProcessedDataMapType) -> None:
+        for key, processed_data in processed_data_map.items():
+            assert key in output_keys
+            # Promote to AnnotatedArray for array data, keep as ScalarAndMetadata for scalars
+            if isinstance(processed_data, annotated_array.AnnotatedArray):
+                self.__add_array_data(key, index, processed_data)
+            elif isinstance(processed_data, DataAndMetadata.DataAndMetadata):
+                converted_annotated_array = annotated_array.from_data_and_metadata(processed_data)
+                self.__add_array_data(key, index, converted_annotated_array)
+            elif isinstance(processed_data, DataAndMetadata.ScalarAndMetadata):
+                self.__add_scalar_data(key, index, processed_data)
+            elif numpy.isscalar(processed_data):
+                scalar_data = DataAndMetadata.ScalarAndMetadata.from_value(typing.cast(DataAndMetadata._ScalarDataType, processed_data))
+                self.__add_scalar_data(key, index, scalar_data)
+            elif hasattr(processed_data, "__array__"):
+                array_data = annotated_array.from_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.asarray(processed_data)))
+                self.__add_array_data(key, index, array_data)
+            # else: skip unsupported types
+
+
+def _run_iterated_processing(computation_processor: ComputationProcessor,
+                             parameters: ComputationParameters,
+                             execution_context: ComputationExecutorContext,
+                             process_fn: typing.Callable[[ComputationParameters], _ProcessedDataMapType],
+                             filter_xdata_map: dict[str, DataAndMetadata.DataAndMetadata | None]) -> dict[str, annotated_array.AnnotatedArray]:
+    """Run iterated processing across the computed iteration shape and return accumulated outputs."""
+    iteration_plan = compute_iteration_plan(computation_processor, parameters)
+    if iteration_plan.error_message:
+        raise ValueError(iteration_plan.error_message)
+    output_keys = [output.name for output in computation_processor.outputs]
+    iteration_shape_list = iteration_plan.iteration_shape_list
+    iteration_shape = iteration_plan.iteration_shape
+    iteration_calibrations = iteration_plan.iteration_calibrations
+    accumulator = _IteratedProcessingAccumulator(iteration_shape_list, iteration_shape, iteration_calibrations)
+    indexes = numpy.ndindex(iteration_shape)
+    for i, index in enumerate(indexes):
+        execution_context.sync_execution()
+        component_parameters = _build_component_parameters_for_iteration_index(computation_processor, parameters, iteration_plan, index, filter_xdata_map)
+        processed_data_map = process_fn(component_parameters)
+        accumulator.add_processed_data_map(index, output_keys, processed_data_map)
+        execution_context.progress = (i + 1) / numpy.prod(iteration_shape, dtype=numpy.int64)
+        # don't starve other threads. 10us average sleep.
+        if i % 100 == 0:
+            time.sleep(0.001)
+    return accumulator.annotated_array_map
+
+
 class ComputationProcessorExecutor:
     def __init__(self, computation: Facade.Computation, computation_processor: ComputationProcessor) -> None:
         self.__computation = computation
         self.__computation_processor = computation_processor
-        self.__data_map = dict[str, DataAndMetadata._ImageDataType]()
-        self.__xdata_map = dict[str, DataAndMetadata.DataAndMetadata]()
+        self.__annotated_array_map = dict[str, annotated_array.AnnotatedArray]()
         self.__filter_xdata_map = dict[str, DataAndMetadata.DataAndMetadata | None]()
 
-    def __get_input_navigation_dimension_shape(self, parameters: ComputationParameters) -> DataAndMetadata.ShapeType | None:
-        # return the common navigation dimension shape for all sources, ensuring that they are compatible.
-        # if not input exists, or if inputs are mismatched in navigation dimension shape, datum dimension shape,
-        # or the calibrations of either, raise an error.
-        navigation_dimension_shape: DataAndMetadata.ShapeType | None = None
-        navigation_calibrations: DataAndMetadata.CalibrationListType | None = None
-        datum_dimension_shape: DataAndMetadata.ShapeType | None = None
-        datum_calibrations: DataAndMetadata.CalibrationListType | None = None
-        for source in self.__computation_processor.sources:
-            data_source = parameters.get_data_source(source.name)
-            xdata = data_source.xdata if data_source else None
-            if xdata:
-                if navigation_dimension_shape is None:
-                    navigation_dimension_shape = xdata.navigation_dimension_shape
-                if datum_dimension_shape is None:
-                    datum_dimension_shape = xdata.datum_dimension_shape
-                if navigation_calibrations is None:
-                    navigation_calibrations = xdata.navigation_dimensional_calibrations
-                if datum_calibrations is None:
-                    datum_calibrations = xdata.datum_dimensional_calibrations
-                # check whether all items have the same navigation dimension shapes
-                if navigation_dimension_shape != xdata.navigation_dimension_shape:
-                    raise ValueError("Mismatched navigation dimension shapes between sources.")
-                # check whether all items have the same datum dimension shapes
-                if datum_dimension_shape != xdata.datum_dimension_shape:
-                    raise ValueError("Mismatched datum dimension shapes between sources.")
-                # check whether all items have the same navigation dimension calibrations
-                for i, cal in enumerate(xdata.navigation_dimensional_calibrations):
-                    if navigation_calibrations[i] != cal:
-                        raise ValueError("Mismatched navigation dimension calibrations between sources.")
-                # check whether all items have the same datum dimension calibrations
-                for i, cal in enumerate(xdata.datum_dimensional_calibrations):
-                    if datum_calibrations[i] != cal:
-                        raise ValueError("Mismatched datum dimension calibrations between sources.")
-        if navigation_dimension_shape is None or datum_dimension_shape is None or navigation_calibrations is None or datum_calibrations is None:
-            raise ValueError("Could not determine navigation and datum dimension shapes and calibrations from sources.")
-        return navigation_dimension_shape
-
-    def __get_source_data(self, index: tuple[slice | int | numpy.int32 | numpy.int64, ...] | None, parameters: ComputationParameters) -> typing.Mapping[str, DataAndMetadata.DataAndMetadata]:
-        # return a map of source name to xdata for the given index. if index is None, return the full xdata for each source.
-        data_map = dict[str, DataAndMetadata.DataAndMetadata]()
-        for source in self.__computation_processor.sources:
-            data_source = parameters.get_data_source(source.name)
-            if data_source:
-                xdata: DataAndMetadata.DataAndMetadata | None = None
-                if index is not None:
-                    xdata = data_source.xdata[index] if data_source.xdata and data_source.xdata.is_navigable else None
-                # if the index is None, xdata will be None here. in that case, we use the element xdata from the data
-                # source, which will be based on the UI collection index and slices.
-                if xdata is None:
-                    xdata = data_source.element_xdata
-                if xdata:
-                    if source.data_type == "xdata":
-                        if source.is_croppable:
-                            xdata = data_source._data_source._crop_xdata(xdata)
-                    elif source.data_type == "filtered_xdata":
-                        filter_xdata = self.__filter_xdata_map.get(source.name)
-                        if filter_xdata is None:
-                            filter_xdata = data_source.filter_xdata
-                            self.__filter_xdata_map[source.name] = filter_xdata
-                        if filter_xdata:
-                            if xdata.is_data_complex_type:
-                                xdata = Core.function_fourier_mask(xdata, filter_xdata)
-                            else:
-                                xdata = filter_xdata * xdata
-                    else:
-                        raise ValueError(f"Unsupported source data type: {source.data_type}")
-                    if xdata:
-                        data_map[source.name] = xdata
-        return data_map
-
-    @property
-    def __is_scalar(self) -> bool:
-        # data_type can be bool, int, float, xdata.
-        for output in self.__computation_processor.outputs:
-            if output.data_type == "xdata":
-                return False
-        return True
-
-    def __process(self, parameters: ComputationParameters) -> typing.Mapping[str, DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | None]:
+    def __process(self, parameters: ComputationParameters) -> _ProcessedDataMapType:
         code_lines = [
             "import numpy",
             "import uuid",
             "from nion.data import xdata_1_0 as xd"
         ]
-        exec_globals = dict(parameters.parameter_map)
+        exec_globals = dict(parameters.parameter_value_map)
         exec_locals = dict[str, typing.Any]()
         expression = self.__computation_processor.expression
         assert expression
@@ -4072,7 +4656,7 @@ class ComputationProcessorExecutor:
         # as with other parts of this application, this can be used to execute arbitrary code. we make the assumption
         # that the user is trusted.
         exec(compiled, exec_globals, exec_locals)
-        result = dict[str, DataAndMetadata.DataAndMetadata | DataAndMetadata.ScalarAndMetadata | None]()
+        result = dict[str, _ProcessedDataType]()
         for output in self.__computation_processor.outputs:
             output_name = output.name
             if output_name in exec_locals:
@@ -4080,80 +4664,49 @@ class ComputationProcessorExecutor:
         return result
 
     def execute_task(self, execution_context: ComputationExecutorContext) -> None:
-        # do the processing and store results in the xdata map.
-        parameters = execution_context.parameters
-        is_scalar = self.__is_scalar
-        is_mapped = is_scalar or parameters.get_str_value("mapping", "none") != "none"
-        output_keys = [output.name for output in self.__computation_processor.outputs]
-        navigation_dimension_shape = self.__get_input_navigation_dimension_shape(parameters) if is_mapped else None
-        if navigation_dimension_shape is not None:
-            # if there is a navigation shape, it is mapped. this branch works with both scalar and xdata outputs and
-            # iterates over the navigation dimensions.
-            src_name = self.__computation_processor.sources[0].name
-            data_source = parameters.get_data_source(src_name)
-            assert data_source
-            xdata = data_source.xdata
-            assert xdata
-            indexes = numpy.ndindex(xdata.navigation_dimension_shape)
-            for i, index in enumerate(indexes):
-                # synchronize with other executors. may raise ComputationCanceledException if canceled.
-                execution_context.sync_execution()
-                # construct the component_parameter_d, which are the parameters with the data sources replaced by data
-                # and metadata for the current index. this allows the processing component to be written more simply.
-                component_parameter_d = dict(self.__get_source_data(index, parameters))
-                for k, v in list(parameters.parameter_map.items()):
-                    if k not in component_parameter_d:
-                        component_parameter_d[k] = v
-                processed_data_map = self.__process(ComputationParameters(component_parameter_d))
-                for key, processed_data in processed_data_map.items():
-                    assert key in output_keys
-                    if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
-                        # handle array data
-                        index_xdata = processed_data
-                        if key not in self.__xdata_map:
-                            self.__data_map[key] = numpy.empty(xdata.navigation_dimension_shape + index_xdata.datum_dimension_shape, dtype=index_xdata.data_dtype)
-                            self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(
-                                self.__data_map[key], index_xdata.intensity_calibration,
-                                tuple(xdata.navigation_dimensional_calibrations) + tuple(index_xdata.datum_dimensional_calibrations),
-                                None, None, DataAndMetadata.DataDescriptor(xdata.is_sequence, xdata.collection_dimension_count, index_xdata.datum_dimension_count))
-                        self.__data_map[key][index] = index_xdata.data
-                    elif isinstance(processed_data, DataAndMetadata.ScalarAndMetadata):
-                        # handle scalar data
-                        index_scalar = processed_data
-                        if key not in self.__xdata_map:
-                            self.__data_map[key] = numpy.empty(xdata.navigation_dimension_shape, dtype=type(index_scalar.value))
-                            is_sequence = xdata.is_sequence and xdata.collection_dimension_count == 2
-                            datum_dimension_count = min(2, xdata.navigation_dimension_count)
-                            self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(
-                                self.__data_map[key], index_scalar.calibration,
-                                tuple(xdata.navigation_dimensional_calibrations),
-                                None, None, DataAndMetadata.DataDescriptor(is_sequence, 0, datum_dimension_count))
-                        self.__data_map[key][index] = index_scalar.value
-                # update progress in the executor context
-                execution_context.progress = (i + 1) / numpy.prod(navigation_dimension_shape, dtype=numpy.int64)
-        elif not is_scalar:
-            # not mapped, so a scalar output is not valid as there is no scalar data item to which to store it.
-            # construct the component_parameter_d, which are the parameters with the data sources replaced by data
-            # and metadata for the current index. this allows the processing component to be written more simply.
-            component_parameter_d = dict(self.__get_source_data(None, parameters))
-            for k, v in list(parameters.parameter_map.items()):
-                if k not in component_parameter_d:
-                    component_parameter_d[k] = v
-            processed_data_map = self.__process(ComputationParameters(component_parameter_d))
-            for key, processed_data in processed_data_map.items():
-                assert key in output_keys
-                if isinstance(processed_data, DataAndMetadata.DataAndMetadata):
-                    self.__xdata_map[key] = processed_data
-                elif hasattr(processed_data, "__array__"):
-                    self.__xdata_map[key] = DataAndMetadata.new_data_and_metadata(numpy.asarray(processed_data))
+        self.__annotated_array_map = _run_iterated_processing(
+            self.__computation_processor,
+            execution_context.parameters,
+            execution_context,
+            self.__process,
+            self.__filter_xdata_map
+        )
 
     def commit(self) -> None:
         # this is guaranteed to run on the main thread.
         for output in self.__computation_processor.outputs:
             key = output.name
-            xdata = self.__xdata_map.get(key, None)
-            if xdata:
+            output_annotated_array = self.__annotated_array_map.get(key, None)
+            if output_annotated_array:
+                xdata = annotated_array.to_data_and_metadata(output_annotated_array)
                 self.__computation.set_referenced_xdata(key, xdata)
+
+
+class _ComputationAPIV1ExecutorHandler:
+    def __init__(self, computation: Facade.Computation, executor: computation_api_v1_protocols.Executor, computation_processor: ComputationProcessor) -> None:
+        self.__computation = computation
+        self.__executor = executor
+        self.__computation_processor = computation_processor
+        self.__annotated_array_map = dict[str, annotated_array.AnnotatedArray]()
+        self.__filter_xdata_map = dict[str, DataAndMetadata.DataAndMetadata | None]()
+
+    def __execute_component(self, component_parameters: ComputationParameters) -> _ProcessedDataMapType:
+        packed = component_parameters.normalized_parameters()
+        return self.__executor.execute(packed)
+
+    def execute_task(self, context: ComputationExecutorContext) -> None:
+        self.__annotated_array_map = _run_iterated_processing(
+            self.__computation_processor,
+            context.parameters,
+            context,
+            self.__execute_component,
+            self.__filter_xdata_map
+        )
+
+    def commit(self) -> None:
+        for key, output_annotated_array in self.__annotated_array_map.items():
+            xdata = annotated_array.to_data_and_metadata(output_annotated_array)
+            self.__computation.set_referenced_xdata(key, xdata)
 
 
 class RegisteredComputationExecutor(ComputationExecutor):
@@ -4163,9 +4716,15 @@ class RegisteredComputationExecutor(ComputationExecutor):
         api_computation = api._new_api_object(computation)
         api_computation.api = api
         computation_processor = computation.computation_processor
-        if computation_processor and computation_processor.expression:
-            self.__computation_handler = typing.cast(ComputationHandlerLike | ComputationTaskHandler | None,
-                                                     ComputationProcessorExecutor(api_computation, computation_processor))
+        computation_api_v1_executor = _computation_api_v1_executors.get(processing_id, None) if processing_id else None
+        self.__computation_handler: _ComputationAPIV1ExecutorHandler | ComputationProcessorExecutor | ComputationHandlerLike | ComputationTaskHandler | None = None
+        if computation_api_v1_executor:
+            if computation_processor:
+                self.__computation_handler = _ComputationAPIV1ExecutorHandler(api_computation, computation_api_v1_executor, computation_processor)
+            else:
+                self.error_text = "Missing computation processor for computation_api.v1 executor (" + (processing_id or "unknown") + ")."
+        elif computation_processor and computation_processor.expression:
+            self.__computation_handler = ComputationProcessorExecutor(api_computation, computation_processor)
         else:
             compute_class = _computation_types.get(processing_id) if processing_id else None
             self.__computation_handler = compute_class(api_computation) if compute_class else None
@@ -4179,7 +4738,7 @@ class RegisteredComputationExecutor(ComputationExecutor):
             if execute_task_method:
                 execute_task_method(context)
             elif execute_method:
-                execute_method(**context.parameters.parameter_map)
+                execute_method(**context.parameters.parameter_value_map)
 
     def _commit(self) -> None:
         if self.__computation_handler:
@@ -4223,6 +4782,17 @@ class ComputationTaskHandler(typing.Protocol):
 
 # registered computation types
 _computation_types: typing.Dict[str, typing.Callable[[_APIComputation], ComputationHandlerLike | ComputationTaskHandler]] = dict()
+_computation_api_v1_executors: typing.Dict[str, computation_api_v1_protocols.Executor] = dict()
+
+
+def register_computation_api_v1_executor(operation_id: str, executor: computation_api_v1_protocols.Executor) -> None:
+    if not operation_id:
+        raise ValueError("operation_id must not be empty")
+    _computation_api_v1_executors[operation_id] = executor
+
+
+def configure_computation_api_v1() -> None:
+    computation_api_v1.configure(register_computation_api_v1_executor)
 
 def register_computation_type(computation_type_id: str, compute_class: typing.Callable[[_APIComputation], ComputationHandlerLike | ComputationTaskHandler]) -> None:
     """Register a computation task handler.
@@ -4233,6 +4803,9 @@ def register_computation_type(computation_type_id: str, compute_class: typing.Ca
     ComputationHandlerLike (old style, deprecated) or ComputationTaskHandler (new style, recommended) instance.
     """
     _computation_types[computation_type_id] = compute_class
+
+
+configure_computation_api_v1()
 
 
 # for testing

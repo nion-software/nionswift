@@ -1,0 +1,96 @@
+[
+  {
+    "type": "computation_processor",
+    "processor_id": "gaussian-window",
+    "expression": "target = src * xd.gaussian_window(src.data_shape, sigma * int(numpy.amin(src.data_shape)))",
+    "title": "Gaussian Window",
+    "inputs": [
+      {
+        "type": "data",
+        "name": "src",
+        "label": "Source",
+        "data_type": "xdata",
+        "croppable": true,
+        "requirements": [
+          {
+            "type": "datum_rank",
+            "values": [1, 2]
+          }
+        ]
+      },
+      {
+        "type": "value",
+        "value_type": "real",
+        "name": "sigma",
+        "value": 0.3,
+        "label": "Relative Sigma",
+        "value_default": 0.3,
+        "value_min": 0.0,
+        "value_max": 1.0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "target",
+        "data_type": "xdata",
+        "label": "Result"
+      }
+    ]
+  },
+  {
+    "type": "computation_processor",
+    "processor_id": "hamming-window",
+    "expression": "target = src * xd.hamming_window(src.data_shape)",
+    "title": "Hamming Window",
+    "inputs": [
+      {
+        "type": "data",
+        "name": "src",
+        "label": "Source",
+        "data_type": "xdata",
+        "croppable": true,
+        "requirements": [
+          {
+            "type": "datum_rank",
+            "values": [1, 2]
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "target",
+        "data_type": "xdata",
+        "label": "Result"
+      }
+    ]
+  },
+  {
+    "type": "computation_processor",
+    "processor_id": "hann-window",
+    "expression": "target = src * xd.hann_window(src.data_shape)",
+    "title": "Hann Window",
+    "inputs": [
+      {
+        "type": "data",
+        "name": "src",
+        "label": "Source",
+        "data_type": "xdata",
+        "croppable": true,
+        "requirements": [
+          {
+            "type": "datum_rank",
+            "values": [1, 2]
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "target",
+        "data_type": "xdata",
+        "label": "Result"
+      }
+    ]
+  }
+]

@@ -1877,9 +1877,9 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(len(document_model.data_items), 2)
                 computation = document_model.get_data_item_computation(document_model.data_items[1])
                 self.assertEqual(computation.processing_id, "fft")
-                self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.fft(src.cropped_display_xdata)"))
                 self.assertEqual(len(computation.variables), 1)
                 self.assertEqual(computation.get_input_data_item("src"), document_model.data_items[0])
+                self.assertEqual("display", computation._get_variable("src").input_operation.operation_id)
                 self.assertEqual(computation.get_output("target"), document_model.data_items[1])
                 data = numpy.arange(64).reshape((8, 8))
                 document_model.data_items[0].set_data(data)
@@ -4556,6 +4556,66 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.computations))
                 # make sure the remaining computation is still valid
                 self.assertEqual(document_model.data_items[1], document_model.computations[0].output_items[0])
+
+    def test_migrate_window_functions(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((16, 16)))
+                document_model.append_data_item(data_item)
+                document_model.get_hamming_window_new(document_model.get_display_item_for_data_item(data_item), data_item)
+                document_model.get_hamming_window_new(document_model.get_display_item_for_data_item(data_item), data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item._set_persistent_property_value("title", "ABC")
+            # read it back
+            computation_d = profile_context.project_properties["computations"][0]
+            computation_d["processing_id"] = "hamming_window"
+            computation_d["variables"].append({"type": "variable", "uuid": "b4629983-e972-42cd-9fb7-1d0b455fbc2c", "name": "mapping", "value_type": "string", "value": "mapped"})
+            computation_d = profile_context.project_properties["computations"][1]
+            computation_d["processing_id"] = "hamming_window"
+            computation_d["variables"].append({"type": "variable", "uuid": "b4629983-e972-42cd-9fb7-1d0b455fbc2c", "name": "mapping", "value_type": "string", "value": "none"})
+            profile_context.project_properties = None  # ensure the project properties are reloaded from project reference
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertEqual("hamming-window", document_model.computations[0].processing_id)
+                self.assertEqual(1, len(document_model.computations[0].variables))
+                self.assertEqual(1, len(document_model.computations[1].variables))
+                self.assertEqual(Symbolic.ComputationInputOperation.create_axis_set_operation("datum"), document_model.computations[0].variables[0].input_operation)
+                self.assertEqual(Symbolic.ComputationInputOperation.create_display_operation(), document_model.computations[1].variables[0].input_operation)
+            computation_d = profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"][0]
+            self.assertEqual(2, len(computation_d["variables"]))
+            self.assertEqual("mapping", computation_d["variables"][1]["name"])
+            self.assertEqual("mapped", computation_d["variables"][1]["value"])
+            computation_d = profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"][1]
+            self.assertEqual(2, len(computation_d["variables"]))
+            self.assertEqual("mapping", computation_d["variables"][1]["name"])
+            self.assertEqual("none", computation_d["variables"][1]["value"])
+
+    def test_migrate_scalar_functions(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_and_metadata = DataAndMetadata.new_data_and_metadata(data=numpy.ones((4,4,16,16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+                data_item = DataItem.new_data_item(data_and_metadata)
+                document_model.append_data_item(data_item)
+                document_model.get_mapped_sum_new(document_model.get_display_item_for_data_item(data_item), data_item)
+                document_model.get_mapped_sum_new(document_model.get_display_item_for_data_item(data_item), data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_item._set_persistent_property_value("title", "ABC")
+            # read it back
+            computation_d = profile_context.project_properties["computations"][0]
+            computation_d["processing_id"] = "mapped_sum"
+            computation_d["variables"].append({"type": "variable", "uuid": "b4629983-e972-42cd-9fb7-1d0b455fbc2c", "name": "mapping", "value_type": "string", "value": "mapped"})
+            profile_context.project_properties = None  # ensure the project properties are reloaded from project reference
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertEqual("mapped-sum", document_model.computations[0].processing_id)
+                self.assertEqual(1, len(document_model.computations[0].variables))
+                self.assertEqual(Symbolic.ComputationInputOperation.create_axis_set_operation("datum"), document_model.computations[0].variables[0].input_operation)
+            computation_d = profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"][0]
+            self.assertEqual(2, len(computation_d["variables"]))
+            self.assertEqual("mapping", computation_d["variables"][1]["name"])
+            self.assertEqual("mapped", computation_d["variables"][1]["value"])
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()

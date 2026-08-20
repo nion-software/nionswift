@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nionswift"
 version = "16.18.1"
+# requires niondata 15.11 (annotated array)
 authors = [
     { name = "Nion Software", email = "swift@nion.com" }
 ]
@@ -42,6 +43,8 @@ include = [
     "nion",
     "nion.swift",
     "nion.swift.model",
+    "nion.swift.model.computation_api",
+    "nion.swift.model.computation_api.v1",
     "nion.swift.test",
     "nionui_app.nionswift",
     "nionswift_plugin.none",
@@ -52,7 +55,7 @@ include = [
 
 [tool.setuptools.package-data]
 "nion.swift" = ["resources/*", "py.typed"]
-"nion.swift.model" = ["resources/color_maps/*"]
+"nion.swift.model" = ["resources/color_maps/*", "resources/computations/*"]
 
 [tool.pytest.ini_options]
 testpaths = [

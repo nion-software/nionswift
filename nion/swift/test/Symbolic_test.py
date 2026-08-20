@@ -16,9 +16,11 @@ import scipy
 import scipy.fft
 
 # local libraries
+from nion.data import annotated_array
 from nion.data import Calibration
 from nion.data import Core
 from nion.data import Image
+from nion.data import DataAndMetadata
 from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -827,6 +829,26 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, data_item.data))
+
+    def test_changing_computation_sequence_index_updates_computation_if_using_display_data(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            annotated_array_data = annotated_array.zeros_annotated_array([annotated_array.AxisGroup.from_1d_size(4), annotated_array.AxisGroup.from_2d_size((10, 10))])
+            data_item = DataItem.new_data_item_from_annotated_array(annotated_array_data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            display_item.add_graphic(crop_region)
+            fft_data_item = document_model.get_fft_new(display_item, display_item.data_item, crop_region)
+            document_model.recompute_all()
+            fft_data_modified = fft_data_item.data_modified
+            crop_region.center = (0.4, 0.4)
+            document_model.recompute_all()
+            self.assertGreater(fft_data_item.data_modified, fft_data_modified)
+            fft_data_modified = fft_data_item.data_modified
+            display_item.display_data_channel.collection_index = (2,)
+            document_model.recompute_all()
+            self.assertGreater(fft_data_item.data_modified, fft_data_modified)
 
     def test_resample_produces_correct_data(self):
         with TestContext.create_memory_context() as test_context:
@@ -1976,6 +1998,39 @@ class TestSymbolicClass(unittest.TestCase):
             # check that computation was deleted
             self.assertNotIn(computation, document_model.computations)
 
+    def test_unmapped_computation_on_higher_order_data(self):
+        p = Symbolic.ComputationProcessor(
+            expression="output = numpy.sum(input, axis=(2,3))",
+            title="Test",
+            inputs=[
+                Symbolic.ComputationProcessorDataInput("input", "Input", "xdata", [Symbolic.ComputationProcessorRequirementDimensionality(4, 4)], list(), False)
+            ],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("output", None, "xdata")]
+        )
+        Symbolic.ComputationProcessor.register("_test_computation", p)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data = numpy.random.randn(2, 2, 4, 4)
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(data, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                new_data_item = DataItem.new_data_item()
+                document_model.append_data_item(new_data_item)
+                computation = document_model.create_computation()
+                computation.processing_id = "_test_computation"
+                computation.create_input_item("input", Symbolic.make_item(display_item.display_data_channel))
+                computation.create_output_item("output", Symbolic.make_item(new_data_item))
+                document_model.append_computation(computation)
+                document_model.recompute_all()
+                self.assertIsNone(computation.error_text)
+                self.assertTrue(numpy.array_equal(new_data_item.data, numpy.sum(data, axis=(2,3))))
+        finally:
+            Symbolic.ComputationProcessor.unregister("_test_computation")
+
     def test_passing_region_to_computation(self):
         p = Symbolic.ComputationProcessor(
             expression="target = numpy.full((2, 2), point_region.position.y)",
@@ -2052,6 +2107,387 @@ class TestSymbolicClass(unittest.TestCase):
                 self.assertTrue(numpy.array_equal(new_data_item.data, numpy.full((2, 2), 3)))
         finally:
             Symbolic.ComputationProcessor.unregister("_test_regions_input")
+
+    def test_compute_iteration_plan_on_single_data_items(self):
+        p = Symbolic.ComputationProcessor(
+            expression="output = numpy.sum(input)",
+            title="Test",
+            inputs=[
+                Symbolic.ComputationProcessorDataInput("input", "Input", "xdata", [Symbolic.ComputationProcessorRequirementDatumRank((1,2))], list(), False)
+            ],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("output", None, "xdata")]
+        )
+
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            l = [
+                # 1d/2d unspecified cases (must be non-iterable)
+                ({}, (20,), (False, 0, 1), False, (None, (), {})),
+                ({}, (10, 11), (False, 0, 2), False, (None, (), {})),
+                # 1d display cases
+                # TODO: is there a display case missing or wrong for SI? i.e. False, 2, 1 -> image?
+                ("display", (20,), (False, 0, 1), False, (None, (), {})),
+                ("display", (5, 20), (False, 1, 1), True, (None, (), {})),
+                ("display", (5, 4, 20), (False, 2, 1), True, (None, (), {})),
+                ("display", (2, 20), (True, 0, 1), True, (None, (), {})),
+                ("display", (2, 5, 20), (True, 1, 1), True, (None, (), {})),
+                ("display", (2, 5, 5, 20), (True, 2, 1), True, (None, (), {})),
+                # 2d display cases
+                ("display", (10, 11), (False, 0, 2), False, (None, (), {})),
+                ("display", (5, 10, 11), (False, 1, 2), True, (None, (), {})),
+                ("display", (5, 4, 10, 11), (False, 2, 2), True, (None, (), {})),
+                ("display", (2, 10, 11), (True, 0, 2), True, (None, (), {})),
+                ("display", (2, 5, 10, 11), (True, 1, 2), True, (None, (), {})),
+                ("display", (2, 5, 5, 10, 11), (True, 2, 2), True, (None, (), {})),
+                # 1d iterable cases
+                ("axes:datum", (5, 20), (False, 1, 1), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:collection", (5, 20), (False, 1, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (5, 4, 20), (False, 2, 1), True, (None, ((5, 4),), {"input": [True, False]})),
+                ("axes:collection", (5, 4, 20), (False, 2, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (5, 20), (True, 0, 1), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:sequence", (5, 20), (True, 0, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (2, 5, 20), (True, 1, 1), True, (None, ((2,), (5,),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 20), (True, 1, 1), True, (None, ((2,), (20,),), {"input": [True, False, True]})),
+                ("axes:sequence", (2, 5, 20), (True, 1, 1), True, (None, ((5,), (20,),), {"input": [False, True, True]})),
+                ("axes:datum", (2, 5, 4, 20), (True, 2, 1), True, (None, ((2,), (5, 4),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 4, 20), (True, 2, 1), True, (None, ((2,), (20,),), {"input": [True, False, True]})),
+                ("axes:sequence", (2, 5, 4, 20), (True, 2, 1), True, (None, ((5, 4), (20,),), {"input": [False, True, True]})),
+                # 2d iterable cases
+                ("axes:datum", (5, 10, 11), (False, 1, 2), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:collection", (5, 10, 11), (False, 1, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (5, 4, 10, 11), (False, 2, 2), True, (None, ((5, 4),), {"input": [True, False]})),
+                ("axes:collection", (5, 4, 10, 11), (False, 2, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (5, 10, 11), (True, 0, 2), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:sequence", (5, 10, 11), (True, 0, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (2, 5, 10, 11), (True, 1, 2), True, (None, ((2,), (5,),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 10, 11), (True, 1, 2), True, (None, ((2,), (10, 11),), {"input": [True, False, True]})),
+                ("axes:sequence", (2, 5, 10, 11), (True, 1, 2), True, (None, ((5,), (10, 11),), {"input": [False, True, True]})),
+                ("axes:datum", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((2,), (5, 4),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((2,), (10, 11),), {"input": [True, False, True]})),
+                ("axes:sequence", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((5, 4), (10, 11),), {"input": [False, True, True]})),
+            ]
+            for operation_id, data_shape, data_descriptor_t, is_iterable, iteration_plan_t in l:
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros(data_shape), data_descriptor=DataAndMetadata.DataDescriptor(*data_descriptor_t)))
+                data_metadata = data_item.data_metadata
+                assert data_metadata is not None
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_data_channel = display_item.display_data_channel
+                self.assertEqual(is_iterable, Symbolic.is_iterable(p.inputs[0], data_metadata))
+                if is_iterable:
+                    parameters = Symbolic.ComputationParameters({
+                        "input": Symbolic.ComputationParameter(Facade.DataSource(Symbolic.DataSource(None, display_data_channel, None)),
+                                                               Symbolic.ComputationInputOperation.from_operation_id(operation_id))
+                    })
+                    iteration_plan = Symbolic.compute_iteration_plan(p, parameters)
+                    self.assertEqual(iteration_plan_t[0], iteration_plan.error_message)
+                    self.assertEqual(iteration_plan_t[1], iteration_plan.iteration_shape_list)
+                    self.assertEqual(iteration_plan_t[2], iteration_plan.axis_index_selector_list_map)
+                    assert iteration_plan.iteration_shape_list is not None
+                    for k, v in iteration_plan.axis_index_selector_list_map.items():
+                        # the length of the iteration shape list should match the number of True values in the input axis set selection for that input
+                        self.assertEqual(len(iteration_plan.iteration_shape_list), v.count(True) if v else None)
+                        # there should be exactly one False value in the input axis set selection for that input
+                        self.assertEqual(1, v.count(False) if v else None)
+
+    def test_compute_iteration_plan_on_multiple_data_items(self):
+        p = Symbolic.ComputationProcessor(
+            expression="output = numpy.sum(input)",
+            title="Test",
+            inputs=[
+                Symbolic.ComputationProcessorDataInput("input1", "Input", "xdata", [Symbolic.ComputationProcessorRequirementDatumRank((1,2))], list(), False),
+                Symbolic.ComputationProcessorDataInput("input2", "Input", "xdata", [Symbolic.ComputationProcessorRequirementDatumRank((1,2))], list(), False)
+            ],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("output", None, "xdata")]
+        )
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+
+            array1 = annotated_array.zeros_annotated_array([
+                annotated_array.AxisGroup.from_2d_size((5, 4)),
+                annotated_array.AxisGroup.from_2d_size((10, 11)),
+            ])
+
+            array2 = annotated_array.zeros_annotated_array([
+                annotated_array.AxisGroup.from_2d_size((10, 11)),
+                annotated_array.AxisGroup.from_2d_size((5, 4)),
+            ])
+
+            axis_selection1 = Symbolic.ComputationInputOperation.create_axis_set_operation("datum")
+            axis_selection2 = Symbolic.ComputationInputOperation.create_axis_set_operation("collection")
+            axis_selection3 = Symbolic.ComputationInputOperation.create_axis_set_operation("datum")
+
+            iteration_plan_t = (None, ((5, 4),), {"input1": [True, False], "input2": [False, True]})
+
+            data_item1 = DataItem.new_data_item_from_annotated_array(array1)
+            data_metadata1 = data_item1.data_metadata
+            assert data_metadata1 is not None
+            document_model.append_data_item(data_item1)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_data_channel1 = display_item1.display_data_channel
+            data_source1 = Facade.DataSource(Symbolic.DataSource(None, display_data_channel1, None))
+
+            data_item2 = DataItem.new_data_item_from_annotated_array(array2)
+            data_metadata2 = data_item2.data_metadata
+            assert data_metadata2 is not None
+            document_model.append_data_item(data_item2)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_data_channel2 = display_item2.display_data_channel
+            data_source2 = Facade.DataSource(Symbolic.DataSource(None, display_data_channel2, None))
+
+            # try matched (sizes) axes. calibrations are ignored for now.
+
+            parameters = Symbolic.ComputationParameters({
+                "input1": Symbolic.ComputationParameter(data_source1, axis_selection1),
+                "input2": Symbolic.ComputationParameter(data_source2, axis_selection2)
+            })
+
+            iteration_plan = Symbolic.compute_iteration_plan(p, parameters)
+            self.assertEqual(iteration_plan_t[0], iteration_plan.error_message)
+            self.assertEqual(iteration_plan_t[1], iteration_plan.iteration_shape_list)
+            self.assertEqual(iteration_plan_t[2], iteration_plan.axis_index_selector_list_map)
+            assert iteration_plan.iteration_shape_list is not None
+            for k, v in iteration_plan.axis_index_selector_list_map.items():
+                # the length of the iteration shape list should match the number of True values in the input axis set selection for that input
+                self.assertEqual(len(iteration_plan.iteration_shape_list), sum(v) if v else None)
+
+            # try mismatched (sizes) axes. calibrations are ignored for now.
+
+            parameters = Symbolic.ComputationParameters({
+                "input1": Symbolic.ComputationParameter(data_source1, axis_selection1),
+                "input2": Symbolic.ComputationParameter(data_source2, axis_selection3)  # selection 3
+            })
+
+            iteration_plan = Symbolic.compute_iteration_plan(p, parameters)
+            self.assertTrue(iteration_plan.error_message)
+
+    def test_compute_iteration_plan_on_no_iteration_data_items(self):
+        p = Symbolic.ComputationProcessor(
+            expression="output = numpy.sum(input)",
+            title="Test",
+            inputs=[
+                Symbolic.ComputationProcessorDataInput("input", "Input", "xdata", [], list(), False),
+            ],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("output", None, "scalar")]
+        )
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+
+            array = annotated_array.zeros_annotated_array([
+                annotated_array.AxisGroup.from_2d_size((5, 4)),
+                annotated_array.AxisGroup.from_1d_size(20),
+            ])
+
+            iteration_plan_t = (None, (), {})
+
+            data_item = DataItem.new_data_item_from_annotated_array(array)
+            data_metadata = data_item.data_metadata
+            assert data_metadata is not None
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_data_channel = display_item.display_data_channel
+            data_source = Facade.DataSource(Symbolic.DataSource(None, display_data_channel, None))
+
+            parameters = Symbolic.ComputationParameters({
+                "input": Symbolic.ComputationParameter(data_source)
+            })
+
+            iteration_plan = Symbolic.compute_iteration_plan(p, parameters)
+            self.assertEqual(iteration_plan_t[0], iteration_plan.error_message)
+            self.assertEqual(iteration_plan_t[1], iteration_plan.iteration_shape_list)
+            self.assertEqual(iteration_plan_t[2], iteration_plan.axis_index_selector_list_map)
+
+    def test_compute_iteration_on_single_data_items_fft(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            l = [
+                # 1d/2d unspecified cases (must be non-iterable)
+                ({}, (20,), (False, 0, 1), False, (None, (), {})),
+                ({}, (10, 11), (False, 0, 2), False, (None, (), {})),
+                # 1d display cases
+                # TODO: is there a display case missing or wrong for SI? i.e. False, 2, 1 -> image?
+                ("display", (20,), (False, 0, 1), False, (None, (), {})),
+                ("display", (5, 20), (False, 1, 1), True, (None, (), {})),
+                ("display", (5, 4, 20), (False, 2, 1), True, (None, (), {})),
+                ("display", (2, 20), (True, 0, 1), True, (None, (), {})),
+                ("display", (2, 5, 20), (True, 1, 1), True, (None, (), {})),
+                ("display", (2, 5, 5, 20), (True, 2, 1), True, (None, (), {})),
+                # 2d display cases
+                ("display", (10, 11), (False, 0, 2), False, (None, (), {})),
+                ("display", (5, 10, 11), (False, 1, 2), True, (None, (), {})),
+                ("display", (5, 4, 10, 11), (False, 2, 2), True, (None, (), {})),
+                ("display", (2, 10, 11), (True, 0, 2), True, (None, (), {})),
+                ("display", (2, 5, 10, 11), (True, 1, 2), True, (None, (), {})),
+                ("display", (2, 5, 5, 10, 11), (True, 2, 2), True, (None, (), {})),
+                # 1d iterable cases
+                ("axes:datum", (5, 20), (False, 1, 1), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:collection", (5, 20), (False, 1, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (5, 4, 20), (False, 2, 1), True, (None, ((5, 4),), {"input": [True, False]})),
+                ("axes:collection", (5, 4, 20), (False, 2, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (5, 20), (True, 0, 1), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:sequence", (5, 20), (True, 0, 1), True, (None, ((20,),), {"input": [False, True]})),
+                ("axes:datum", (2, 5, 20), (True, 1, 1), True, (None, ((2,), (5,),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 20), (True, 1, 1), True, (None, ((2,), (20,),), {"input": [True, False, True]})),
+                ("axes:sequence", (2, 5, 20), (True, 1, 1), True, (None, ((5,), (20,),), {"input": [False, True, True]})),
+                ("axes:datum", (2, 5, 4, 20), (True, 2, 1), True, (None, ((2,), (5, 4),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 4, 20), (True, 2, 1), True, (None, ((2,), (20,),), {"input": [True, False, True]})),
+                # this is not supported - since the sequence becomes the signal group, the resulting data is not
+                # supported under the current DataAndMetadata.
+                # ("axes:sequence", (2, 5, 4, 20), (True, 2, 1), True, (None, ((5, 4), (20,),), {"input": [False, True, True]})),
+                # 2d iterable cases
+                ("axes:datum", (5, 10, 11), (False, 1, 2), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:collection", (5, 10, 11), (False, 1, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (5, 4, 10, 11), (False, 2, 2), True, (None, ((5, 4),), {"input": [True, False]})),
+                ("axes:collection", (5, 4, 10, 11), (False, 2, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (5, 10, 11), (True, 0, 2), True, (None, ((5,),), {"input": [True, False]})),
+                ("axes:sequence", (5, 10, 11), (True, 0, 2), True, (None, ((10, 11),), {"input": [False, True]})),
+                ("axes:datum", (2, 5, 10, 11), (True, 1, 2), True, (None, ((2,), (5,),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 10, 11), (True, 1, 2), True, (None, ((2,), (10, 11),), {"input": [True, False, True]})),
+                ("axes:sequence", (2, 5, 10, 11), (True, 1, 2), True, (None, ((5,), (10, 11),), {"input": [False, True, True]})),
+                ("axes:datum", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((2,), (5, 4),), {"input": [True, True, False]})),
+                ("axes:collection", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((2,), (10, 11),), {"input": [True, False, True]})),
+                # this is not supported - since the sequence becomes the signal group, the resulting data is not
+                # supported under the current DataAndMetadata.
+                # ("axes:sequence", (2, 5, 4, 10, 11), (True, 2, 2), True, (None, ((5, 4), (10, 11),), {"input": [False, True, True]})),
+            ]
+            for operation_id, data_shape, data_descriptor_t, is_iterable, iteration_plan_t in l:
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros(data_shape), data_descriptor=DataAndMetadata.DataDescriptor(*data_descriptor_t)))
+                data_metadata = data_item.data_metadata
+                assert data_metadata is not None
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_fft_new(display_item, display_item.data_item)
+                if is_iterable:
+                    computation = document_model.computations[-1]
+                    computation._get_variable("src").input_operation = Symbolic.ComputationInputOperation.from_operation_id(operation_id)
+                    document_model.recompute_all()
+                    self.assertIsNone(computation.error_text)
+
+    def test_iterated_processing_accumulator_aggregates_scalar_outputs(self):
+        accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
+        accumulator.add_processed_data_map((0,), ["out"], {"out": DataAndMetadata.ScalarAndMetadata.from_value(1.5)})
+        accumulator.add_processed_data_map((1,), ["out"], {"out": DataAndMetadata.ScalarAndMetadata.from_value(2.5)})
+
+        annotated_array_out = accumulator.annotated_array_map["out"]
+        self.assertIsInstance(annotated_array_out, annotated_array.AnnotatedArray)
+        self.assertEqual((2,), annotated_array_out.data.shape)
+        numpy.testing.assert_allclose(numpy.asarray([1.5, 2.5]), annotated_array_out.data)
+
+    def test_iterated_processing_accumulator_aggregates_raw_scalar_outputs(self):
+        accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
+        accumulator.add_processed_data_map((0,), ["out"], {"out": 1.5})
+        accumulator.add_processed_data_map((1,), ["out"], {"out": 2.5})
+
+        annotated_array_out = accumulator.annotated_array_map["out"]
+        self.assertIsInstance(annotated_array_out, annotated_array.AnnotatedArray)
+        self.assertEqual((2,), annotated_array_out.data.shape)
+        numpy.testing.assert_allclose(numpy.asarray([1.5, 2.5]), annotated_array_out.data)
+
+    def test_iterated_processing_accumulator_aggregates_array_outputs(self):
+        accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
+        accumulator.add_processed_data_map((0,), ["out"], {"out": DataAndMetadata.new_data_and_metadata(numpy.asarray([1, 2], dtype=numpy.int32))})
+        accumulator.add_processed_data_map((1,), ["out"], {"out": DataAndMetadata.new_data_and_metadata(numpy.asarray([3, 4], dtype=numpy.int32))})
+
+        annotated_array_out = accumulator.annotated_array_map["out"]
+        self.assertIsInstance(annotated_array_out, annotated_array.AnnotatedArray)
+        self.assertEqual((2, 2), annotated_array_out.data.shape)
+        numpy.testing.assert_array_equal(numpy.asarray([[1, 2], [3, 4]], dtype=numpy.int32), annotated_array_out.data)
+
+    def test_iterated_processing_accumulator_aggregates_raw_ndarray_outputs(self):
+        accumulator = Symbolic._IteratedProcessingAccumulator(((2,),), (2,), (Calibration.Calibration(),))
+        accumulator.add_processed_data_map((0,), ["out"], {"out": numpy.asarray([1, 2], dtype=numpy.int32)})
+        accumulator.add_processed_data_map((1,), ["out"], {"out": numpy.asarray([3, 4], dtype=numpy.int32)})
+
+        annotated_array_out = accumulator.annotated_array_map["out"]
+        self.assertIsInstance(annotated_array_out, annotated_array.AnnotatedArray)
+        self.assertEqual((2, 2), annotated_array_out.data.shape)
+        numpy.testing.assert_array_equal(numpy.asarray([[1, 2], [3, 4]], dtype=numpy.int32), annotated_array_out.data)
+
+    def test_compute_on_iterable_item_with_no_selected_axis(self):
+        p = Symbolic.ComputationProcessor(
+            expression="output = numpy.sum(input)",
+            title="Test",
+            inputs=[
+                Symbolic.ComputationProcessorDataInput("input", "Input", "xdata", [Symbolic.ComputationProcessorRequirementDatumRank((1, 2))], list(), False),
+            ],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("output", None, "scalar")]
+        )
+        Symbolic.ComputationProcessor.register("_test", p)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller_with_application()
+                document_model = document_controller.document_model
+                array = annotated_array.zeros_annotated_array([
+                    annotated_array.AxisGroup.from_1d_size(5),
+                    annotated_array.AxisGroup.from_2d_size((8, 8)),
+                ])
+                data_item = DataItem.new_data_item_from_annotated_array(array)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                new_data_item = DataItem.new_data_item()
+                document_model.append_data_item(new_data_item)
+                computation = document_model.create_computation()
+                computation.processing_id = "_test"
+                computation.create_input_item("input", Symbolic.make_item(display_item.display_data_channel))
+                computation.create_output_item("output", Symbolic.make_item(new_data_item))
+                document_model.append_computation(computation)
+                document_model.recompute_all()
+                self.assertIsNone(computation.error_text)
+                self.assertEqual((5,), new_data_item.data_shape)
+        finally:
+            Symbolic.ComputationProcessor.unregister("_test")
+
+    def test_parameters_typed_extraction(self) -> None:
+        region = Graphics.EmptyRegion()
+        scalar_and_metadata = DataAndMetadata.ScalarAndMetadata.from_value(4.5, Calibration.Calibration(units="e"))
+        parameters = Symbolic.ComputationParameters({
+            "int_value": Symbolic.ComputationParameter(3),
+            "region_value": Symbolic.ComputationParameter(region),
+            "list_value": Symbolic.ComputationParameter([1, "x"]),
+            "map_value": Symbolic.ComputationParameter({"k": True}),
+            "scalar_value": Symbolic.ComputationParameter(numpy.float32(2.5)),
+            "scalar_metadata_value": Symbolic.ComputationParameter(scalar_and_metadata),
+        })
+
+        self.assertEqual(3.0, parameters.get_float("int_value"))
+        self.assertEqual(region, parameters.get_region("region_value"))
+        self.assertEqual([1, "x"], list(parameters.get_list("list_value")))
+        self.assertEqual({"k": True}, dict(parameters.get_map("map_value")))
+
+        promoted_scalar = parameters.get_scalar_and_metadata("scalar_value")
+        self.assertIsInstance(promoted_scalar, DataAndMetadata.ScalarAndMetadata)
+        self.assertEqual(2.5, promoted_scalar.value)
+
+        preserved_scalar = parameters.get_scalar_and_metadata("scalar_metadata_value")
+        self.assertIs(preserved_scalar, scalar_and_metadata)
+        self.assertEqual("e", preserved_scalar.calibration.units)
+
+        normalized_parameters = parameters.normalized_parameters()
+        normalized_scalar = normalized_parameters.get_scalar_and_metadata("scalar_metadata_value")
+        self.assertIsInstance(normalized_scalar, DataAndMetadata.ScalarAndMetadata)
+        self.assertEqual(4.5, normalized_scalar.value)
+        self.assertEqual("e", normalized_scalar.calibration.units)
+
+        with self.assertRaises(TypeError):
+            parameters.get_str("region_value")
+        with self.assertRaises(TypeError):
+            parameters.get_scalar_and_metadata("region_value")
+
+    # TODO: test broadcasting, including using display data
+
+    # TODO: test multuiple output shapes
 
     def disabled_test_reshape_rgb(self):
         assert False

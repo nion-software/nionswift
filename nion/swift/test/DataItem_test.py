@@ -16,10 +16,10 @@ import weakref
 import numpy
 
 # local libraries
+from nion.data import annotated_array
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
-from nion.swift import Application
 from nion.swift import Facade
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
@@ -28,8 +28,6 @@ from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.test import TestContext
-from nion.ui import TestUI
-from nion.utils import Geometry
 from nion.utils import Recorder
 
 
@@ -1640,6 +1638,27 @@ class TestDataItemClass(unittest.TestCase):
             document_model._queue_data_item_update(data_item, data_and_metadata)
             document_model.perform_data_item_updates()
             self.assertEqual(data_item.xdata.timestamp, datetime.datetime(2000, 1, 1))
+
+    def test_data_item_from_annotated_array_has_correct_timestamp(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            annotated_array_value = annotated_array.zeros_annotated_array([annotated_array.AxisGroup.from_2d_size((5, 4))])
+            data_item = DataItem.new_data_item_from_annotated_array(annotated_array_value)
+            document_model.append_data_item(data_item)
+            # get the created and data modified properties
+            annotated_array_created = annotated_array_value.metadata.created  # this is a TZ aware datetime
+            data_item_data_modified = data_item.data_modified  # this is a naive datetime
+            data_item_timezone = data_item.timezone
+            data_item_timezone_offset = data_item.timezone_offset
+            # make sure they are in agreement
+            self.assertIsNotNone(data_item_data_modified)
+            expected_timestamp = annotated_array_created.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            expected_timezone = typing.cast(str | None, getattr(annotated_array_created.tzinfo, "key", None)) or annotated_array_created.tzname()
+            expected_timezone_offset = annotated_array_created.strftime("%z")
+            self.assertEqual(data_item_data_modified, expected_timestamp)
+            self.assertEqual(data_item_timezone, expected_timezone)
+            self.assertEqual(data_item_timezone_offset, expected_timezone_offset)
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot

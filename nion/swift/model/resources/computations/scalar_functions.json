@@ -1,0 +1,76 @@
+[
+  {
+    "type": "computation_processor",
+    "processor_id": "mapped-sum",
+    "expression": "target = xd.sum_scalar(src)",
+    "title": "Mapped Sum",
+    "inputs": [
+      {
+        "type": "data",
+        "name": "src",
+        "label": "Source",
+        "data_type": "filtered_xdata",
+        "requirements": [
+          {
+            "type": "datum_rank",
+            "values": [1, 2]
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "target",
+        "label": "Result",
+        "data_type": "scalar"
+      }
+    ],
+    "attributes": {
+      "connection_type": "map"
+    },
+    "out_regions": [
+      {
+        "name": "pick_point",
+        "type": "point",
+        "params": {"label": "Pick", "role": "collection_index"}
+      }
+    ]
+  },
+  {
+    "type": "computation_processor",
+    "processor_id": "mapped-average",
+    "expression": "target = xd.mean_scalar(src)",
+    "title": "Mapped Average",
+    "inputs": [
+      {
+        "type": "data",
+        "name": "src",
+        "label": "Source",
+        "data_type": "filtered_xdata",
+        "requirements": [
+          {
+            "type": "datum_rank",
+            "values": [1, 2]
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "target",
+        "label": "Result",
+        "data_type": "scalar"
+      }
+    ],
+    "attributes": {
+      "connection_type": "map"
+    },
+    "out_regions": [
+      {
+        "name": "pick_point",
+        "type": "point",
+        "params": {"label": "Pick", "role": "collection_index"}
+      }
+    ]
+  }
+]

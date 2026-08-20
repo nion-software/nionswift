@@ -13,7 +13,7 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Facade
-from nion.swift.model import DataItem
+from nion.swift.model import DataItem, Symbolic
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
 from nion.utils import Geometry
@@ -1139,7 +1139,8 @@ class TestProcessingClass(unittest.TestCase):
                     data_item = DataItem.new_data_item(data_and_metadata)
                     document_model.append_data_item(data_item)
                     display_item = document_model.get_display_item_for_data_item(data_item)
-                    window_fn(display_item, display_item.data_item, None, {"mapping": "mapped"})
+                    window_fn(display_item, display_item.data_item, None)
+                    document_model.computations[-1].variables[0].input_operation = Symbolic.ComputationInputOperation.create_axis_set_operation("datum")
                     document_model.recompute_all()
                     self.assertEqual(data_and_metadata.data_shape, document_model.data_items[-1].data_shape)
                     self.assertFalse(document_model.computations[-1].error_text)
@@ -1149,6 +1150,7 @@ class TestProcessingClass(unittest.TestCase):
                     display_item = document_model.get_display_item_for_data_item(data_item)
                     display_data_channel = display_item.display_data_channel
                     window_fn(display_item, display_item.data_item)
+                    document_model.computations[-1].variables[0].input_operation = Symbolic.ComputationInputOperation.create_display_operation()
                     document_model.recompute_all()
                     display_values = display_data_channel.display_values
                     element_xdata = display_values.element_data_and_metadata
@@ -1180,7 +1182,8 @@ class TestProcessingClass(unittest.TestCase):
                 data_item = DataItem.new_data_item(data_and_metadata)
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                document_model.get_mapped_sum_new(display_item, display_item.data_item, None, {"mapping": "mapped"})
+                document_model.get_mapped_sum_new(display_item, display_item.data_item)
+                document_model.computations[-1].variables[0].input_operation = Symbolic.ComputationInputOperation.create_axis_set_operation("datum")
                 document_model.recompute_all()
                 self.assertEqual(data_and_metadata.navigation_dimension_shape, document_model.data_items[-1].data_shape)
                 self.assertFalse(document_model.computations[-1].error_text)

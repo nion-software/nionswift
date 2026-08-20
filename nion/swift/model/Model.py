@@ -231,6 +231,7 @@ ComputationVariable = Schema.entity("variable", None, None, {
     "items": Schema.array(Schema.component(Specifier), Schema.OPTIONAL),
     "property_name": Schema.prop(Schema.STRING),
     "control_type": Schema.prop(Schema.STRING),
+    "input_operation": Schema.prop(Schema.STRING),
 })
 
 ComputationVariable.rename("item", "specifier")
@@ -340,6 +341,43 @@ processing_id_update_map = {
 
 reverse_processing_id_update_map = {v: k for k, v in processing_id_update_map.items()}
 
+# Backward-compatibility map for processing IDs whose listed sources default to display-based input semantics.
+display_data_processors = {
+    "add": ["src1", "src2"],
+    "auto-correlate": ["src"],
+    "convert-to-scalar": ["src"],
+    "crop": ["src"],
+    "cross-correlate": ["src1", "src2"],
+    "divide": ["src1", "src2"],
+    "extract-luminance": ["src"],
+    "extract-red": ["src"],
+    "extract-green": ["src"],
+    "extract-blue": ["src"],
+    "extract-alpha": ["src"],
+    "fft": ["src"],
+    "gaussian-blur": ["src"],
+    "histogram": ["src"],
+    "invert": ["src"],
+    "laplace": ["src"],
+    "line-profile": ["src"],
+    "make-rgb": ["src_red", "src_green", "src_blue"],
+    "median-filter": ["src"],
+    "multiply": ["src1", "src2"],
+    "power-spectrum": ["src"],
+    "radial-profile": ["src"],
+    "rebin": ["src"],
+    "rebin_factor": ["src"],
+    "rebin_factor_1d": ["src"],
+    "resample": ["src"],
+    "resize": ["src"],
+    "slice": ["src"],
+    "sobel": ["src"],
+    "subtract": ["src1", "src2"],
+    "sum": ["src"],
+    "transpose-flip": ["src"],
+    "uniform-filter": ["src"],
+}
+
 
 def transform_forward(d: PersistentDictType) -> PersistentDictType:
     # ensure the display_layer has a uuid and modified and looks like a regular entity.
@@ -395,6 +433,24 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
         if processing_id:
             computation_d["processing_id"] = processing_id_update_map.get(processing_id, processing_id)
 
+    for computation_d in d.get("computations", list()):
+        processing_id = computation_d.get("processing_id")
+        if processing_id:
+            variables_l = computation_d.get("variables", None)
+            if variables_l is not None:
+                # ensure input operation is set if display
+                variable_map = {variable_d["name"]: variable_d for variable_d in variables_l}
+                for name in display_data_processors.get(processing_id, list()):
+                    variable_d = variable_map.get(name, None)
+                    if variable_d is not None and "input_operation" not in variable_d:
+                        variable_d["input_operation"] = "display"
+                if tuple(variable_map.keys()) == ("src", "mapping"):
+                    if processing_id in ("mapped-sum", "mapped-average"):
+                        variables_l[0]["input_operation"] = "axes:datum"
+                    else:
+                        variables_l[0]["input_operation"] = "axes:datum" if variables_l[1].get("value", None) == "mapped" else "display"
+                    del variables_l[1]
+
     return d
 
 
@@ -414,10 +470,6 @@ def transform_backward(d: PersistentDictType) -> PersistentDictType:
 
     # ensure the specifier to graphic uses PROJECT_VERSION 3 compatible keys
     # note this uses the non-renamed fields (specifier=item; secondary_specifier=item2; object_specifiers=items; specifiers=items)
-
-    # NOTE: The backing dict is not carefully handled - so sometimes it will contain the transformed dict and sometimes
-    # it won't. Obviously this is a problem; but the code currently works around it by adding extra checks for whether
-    # reference_uuid is in the item dict's. This will be cleaned up in a future refactoring.
 
     for computation_d in d.get("computations", list()):
         for variable_d in computation_d.get("variables", list()):
@@ -455,6 +507,20 @@ def transform_backward(d: PersistentDictType) -> PersistentDictType:
         processing_id = computation_d.get("processing_id")
         if processing_id:
             computation_d["processing_id"] = reverse_processing_id_update_map.get(processing_id, processing_id)
+
+    for computation_d in d.get("computations", list()):
+        processing_id = computation_d.get("processing_id")
+        if processing_id in processing_id_update_map.keys():
+            variables_l = computation_d.get("variables", None)
+            if variables_l is not None and len(variables_l) == 1:
+                variable_d = variables_l[0]
+                if variable_d.get("name") == "src":
+                    if variable_d.get("input_operation") == "display":
+                        variable_d.pop("input_operation", None)
+                        variables_l.append({"type": "variable", "uuid": str(uuid.uuid4()), "name": "mapping", "label": "Mapping", "value_type": "string", "value": "none"})
+                    elif variable_d.get("input_operation") == "axes:datum":
+                        variable_d.pop("input_operation", None)
+                        variables_l.append({"type": "variable", "uuid": str(uuid.uuid4()), "name": "mapping", "label": "Mapping", "value_type": "string", "value": "mapped"})
 
     return d
 
