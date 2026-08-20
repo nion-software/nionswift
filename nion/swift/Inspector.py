@@ -626,8 +626,8 @@ class InfoInspectorHandler(Declarative.Handler):
 
         self.ui_view = u.create_column(
             u.create_row(
-                u.create_label(text=_("Title"), width=60, tooltip=TOOL_TIP_STR),
-                u.create_line_edit(name="info_title_label", text="@binding(_title_model.value)", placeholder_text="@binding(_placeholder_title_model.value)", tooltip=TOOL_TIP_STR),
+                u.create_label(text=_("Title"), width=60, tool_tip=TOOL_TIP_STR),
+                u.create_line_edit(name="info_title_label", text="@binding(_title_model.value)", placeholder_text="@binding(_placeholder_title_model.value)", tool_tip=TOOL_TIP_STR),
                 u.create_spacing(8)
             ),
             u.create_row(
