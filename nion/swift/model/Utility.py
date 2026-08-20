@@ -452,11 +452,37 @@ ILLEGAL_FILENAME_CHARS_AND_POSITION_REGEX = f'^[. ]|{ILLEGAL_FILENAME_CHARS_REGE
 ILLEGAL_FILENAMES = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
                      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9', 'COM¹', 'COM²', 'COM³', 'LPT¹', 'LPT²', 'LPT³']
 
+def get_filename_illegal_chars_error(filename: str)  -> typing.Sequence[str] | None:
+    """Check if a filename contains illegal characters.
+
+    Returns a sequence of error messages if there are illegal chars or None when it is valid.
+    """
+    matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
+    illegal_chars = []
+    errors: list[str] = []
+    for match in matches:
+        if not str(match).isprintable():
+            if not errors:  # Only add the message once
+                errors.append(_("Contains non-printable character(s)"))
+            continue
+
+        if match == '\\':  # repr() will return '\\' so we special case it to just return '\'
+            match = r"'\'"
+        else:
+            match = repr(match)
+        if match not in illegal_chars:
+            illegal_chars.append(match)
+
+    if illegal_chars:
+        errors.append(_("Contains illegal character(s) {characters}").format(characters=", ".join(illegal_chars)))
+
+    return errors
+
 
 def verify_filename_is_legal(filename: str, maximum_length: int = 128) -> tuple[bool, typing.Sequence[str] | None]:
     """Check if a filename is allowed on all platforms.
 
-    Returns a tuple with a bool indicating if the path is valid or not, and a list of error messages or None when there are no errors.
+    Returns a tuple with a bool indicating if the filename is valid or not, and a list of error messages or None when there are no errors.
     Checks the filename is not in ILLEGAL_FILENAMES and no matches in the ILLEGAL_FILENAME_CHARS_REGEX.
     Even when the platform can support the filename if it is illegal on any platforms it will not be allowed so there can be cross-platform file compatibility.
     """
@@ -471,34 +497,28 @@ def verify_filename_is_legal(filename: str, maximum_length: int = 128) -> tuple[
     if filename == "":
         errors.append(_("Cannot be empty"))
     if len(filename) > 1:  # A filename can be " " or "." but cannot end with those characters, the "." will be caught by the leading periods check and so shouldn't be duplicated
-        if filename.endswith(" "):
-            errors.append(_("Cannot end with a whitespace"))
         if filename.endswith("."):
             errors.append(_("Cannot end with a period"))
 
     if filename.upper() in ILLEGAL_FILENAMES:
         errors.append(_("\"{filename}\" is illegal as it is reserved on some platforms").format(filename=filename))
-    matches = re.findall(ILLEGAL_FILENAME_CHARS_REGEX, filename)
-    matches = sorted(set(matches))
-    if matches:
-        if len(matches) == 1:
-            errors.append(_("Contains illegal character '{character}'").format(character=matches[0]))
-        else:
-            errors.append(_("Contains illegal characters {characters}").format(characters=matches))
+
+    illegal_chars_error = get_filename_illegal_chars_error(filename)
+    if illegal_chars_error is not None:
+        errors.extend(illegal_chars_error)
 
     return len(errors) == 0, errors or None
 
 
 def simplify_filename(filename: str, replacement_char: str = '_', maximum_length: int = 128) -> str:
-    # This function replaces any illegal characters in a file name. Not a full path.
-    # macOS illegal characters = \0 /
-    # linux illegal characters = \0 /
-    # Windows illegal characters = < > : / \ | ? * " ASCII values 0-31 (non-printable chars)
-    # Windows illegal filenames = CON PRN AUX NUL COM1 COM2 COM3 COM4 COM5 COM6 COM7 COM8 COM9
-    #                             LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9 COM¹ COM² COM³ LPT¹ LPT² LPT³
-    # those files names are illegal with or without a suffix, upper and lower case
-    # Windows file names cannot start or end with periods or spaces
+    """This function replaces any illegal characters in a file name. Not a full path.
 
+    macOS and linux illegal characters = \\0.
+    Windows illegal characters = < > : / \\ | ? * " ASCII values 0-31 (non-printable chars)
+    Windows illegal filenames = CON PRN AUX NUL COM1 COM2 COM3 COM4 COM5 COM6 COM7 COM8 COM9 LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9 COM¹ COM² COM³ LPT¹ LPT² LPT³
+    Those files names are illegal with or without a suffix, upper and lower case.
+    Windows file names cannot start or end with periods or spaces.
+    """
     assert maximum_length > 5
     assert len(replacement_char) == 1
 
