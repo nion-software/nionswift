@@ -1191,6 +1191,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         old_data_path = self.__project_data_path
         old_project_path = self.__project_path
         new_project_path = old_project_path.parent / f"{name}.nsproj"
+        new_data_path = old_data_path.parent / f"{name} Data" if old_data_path else ""
         try:
             self.__project_path = old_project_path.rename(new_project_path)
         except Exception as e:
@@ -1199,9 +1200,9 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
         error_messages = []
         try:
-            # The directory must be checked to exist because load_properties will set the data path to the default even when the directory does not exist
+            # If the directory doesn't exist then don't try renaming it
             if old_data_path is not None:
-                self.__project_data_path = old_data_path.rename(old_data_path.parent / f"{name} Data")
+                self.__project_data_path = old_data_path.rename(new_data_path)
         except Exception as e:
             error_messages.append(_("Exception while renaming the Data Folder"))
             logging.exception(_("Failed to rename project. Renaming Data Folder gave an exception:\n") + str(e))

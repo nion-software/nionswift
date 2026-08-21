@@ -1119,7 +1119,8 @@ class RenameProjectAction(UIWindow.Action):
     action_parameters = [
         UIWindow.ActionStringProperty("name")
     ]
-    check_project_name_is_available = FileStorageSystem.check_file_project_name_is_available  # The FileProjectStorageSystem is used as the default project storage system
+    # The FileProjectStorageSystem is used as the default project storage system
+    check_project_name_is_available = FileStorageSystem.check_file_project_name_is_available
 
     def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
         assert self.project_reference is not None
@@ -1127,7 +1128,8 @@ class RenameProjectAction(UIWindow.Action):
         assert project_name is not None
         application = typing.cast(Application, context.application)
         application.rename_project(self.project_reference, project_name)
-        self.project_reference = None  # Clear the now invalid project_reference so if it is invoked again it get the current project reference again
+        # Clear the now invalid project_reference so if this is invoked again it gets the latest project reference
+        self.project_reference = None
         self.accept_fn = None
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
