@@ -145,3 +145,15 @@ def mime_data_put_panel(mime_data: UserInterface.MimeData, display_item: typing.
         d = dict(d)
         d["display_item_specifier"] = Persistence.write_persistent_specifier(display_item.uuid)
     mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(d))
+
+
+def mime_get_number_of_items(mime_data: UserInterface.MimeData) -> int:
+    number_of_items = 0
+    if mime_data.has_format(DISPLAY_ITEMS_MIME_TYPE):
+        data_sources_mime_data = json.loads(mime_data.data_as_string(DISPLAY_ITEMS_MIME_TYPE))
+        number_of_items += len(data_sources_mime_data)
+    if mime_data.has_format(DISPLAY_ITEM_MIME_TYPE):
+        number_of_items += 1
+    if mime_data.file_paths:
+        number_of_items += len(mime_data.file_paths)
+    return number_of_items
