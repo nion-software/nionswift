@@ -1003,6 +1003,8 @@ class NewProjectAction(UIWindow.Action):
     def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
         application = typing.cast(Application, context.application)
         with application.prevent_close():
+            if callable(self.accept_fn):
+                self.accept_fn()
             project_name = self.get_string_property(context, "name")
             directory = self.get_string_property(context, "directory")
             assert project_name is not None
@@ -1017,8 +1019,6 @@ class NewProjectAction(UIWindow.Action):
         project_title = self.get_project_base_name(directory)
 
         def handle_create_clicked(new_name: str, new_directory: str) -> None:
-            if callable(self.accept_fn):
-                self.accept_fn()
             self.set_string_property(context, "name", new_name)
             self.set_string_property(context, "directory", new_directory)
             self.execute(context)
