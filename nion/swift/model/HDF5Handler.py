@@ -313,10 +313,17 @@ class HDF5HandlerFactory(StorageHandler.StorageHandlerFactoryLike):
 
 
 def _create_dataset(data_group: typing.Any, dataset_id: str, data: numpy.typing.NDArray[typing.Any], filter: h5py.filters.FilterRefBase | None = None) -> typing.Any:
+    chunks: tuple[int, ...] | None | bool = getattr(data, "chunks", True)
     data_shape = data.shape
 
     # create the dataset, preallocate space.
-    ds = data_group.create_dataset(dataset_id, shape=data_shape, dtype=data.dtype, compression=filter)
+    ds = data_group.create_dataset(dataset_id, shape=data_shape, dtype=data.dtype, compression=filter, chunks=chunks)
+
+    if callable(getattr(data, "iter_chunks", None)):
+        # if the data has an iter_chunks method, use it to write the data in chunks.
+        for selection in getattr(data, "iter_chunks")():
+            ds[selection] = data[selection]
+        return ds
 
     # search for the chunk size by iterating backwards through the shape and finding the
     # largest chunk size that is less than 64MB.
