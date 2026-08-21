@@ -6,9 +6,11 @@ from __future__ import annotations
 import datetime
 import io
 import json
+import logging
 import os
 import pathlib
 import threading
+import time
 import typing
 import uuid
 
@@ -348,6 +350,7 @@ class HDFImportExportDriver:
         self.__filter = filter
 
     def read_data(self, file_path: pathlib.Path, storage_handler_provider: StorageHandler.StorageHandlerProvider) -> StorageHandler.StorageHandlerImportData:
+        t0 = time.time()
         storage_handlers = list[StorageHandler.StorageHandler]()
         uuid_map = dict[uuid.UUID, uuid.UUID]()
         items = list[PersistentDictType]()
@@ -382,6 +385,7 @@ class HDFImportExportDriver:
             for key in sorted(index_group.attrs.keys()):
                 items.append(json.loads(index_group.attrs[key]))
         fp.close()
+        logging.getLogger("import").info(f"Import of {file_path} took {time.time() - t0:.2f} seconds")
         return StorageHandler.StorageHandlerImportData(storage_handlers, uuid_map, items)
 
     def write_display_item(self, path: pathlib.Path, items: typing.Sequence[StorageHandler.StorageHandlerExportItem]) -> None:
