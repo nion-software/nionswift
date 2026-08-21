@@ -6,13 +6,16 @@ from __future__ import annotations
 import datetime
 import io
 import json
+import logging
 import os
 import pathlib
 import threading
+import time
 import typing
 import uuid
 
 import h5py
+import hdf5plugin
 import numpy
 import numpy.typing
 
@@ -311,11 +314,18 @@ class HDF5HandlerFactory(StorageHandler.StorageHandlerFactoryLike):
         return ".h5"
 
 
-def _create_dataset(data_group: typing.Any, dataset_id: str, data: numpy.typing.NDArray[typing.Any]) -> typing.Any:
+def _create_dataset(data_group: typing.Any, dataset_id: str, data: numpy.typing.NDArray[typing.Any], filter: h5py.filters.FilterRefBase | None = None) -> typing.Any:
+    chunks: tuple[int, ...] | None | bool = getattr(data, "chunks", True)
     data_shape = data.shape
 
     # create the dataset, preallocate space.
-    ds = data_group.create_dataset(dataset_id, shape=data_shape, dtype=data.dtype)
+    ds = data_group.create_dataset(dataset_id, shape=data_shape, dtype=data.dtype, compression=filter, chunks=chunks)
+
+    if callable(getattr(data, "iter_chunks", None)):
+        # if the data has an iter_chunks method, use it to write the data in chunks.
+        for selection in getattr(data, "iter_chunks")():
+            ds[selection] = data[selection]
+        return ds
 
     # search for the chunk size by iterating backwards through the shape and finding the
     # largest chunk size that is less than 64MB.
@@ -336,10 +346,11 @@ def _create_dataset(data_group: typing.Any, dataset_id: str, data: numpy.typing.
 
 
 class HDFImportExportDriver:
-    def __init__(self) -> None:
-        pass
+    def __init__(self, filter: h5py.filters.FilterRefBase | None = None) -> None:
+        self.__filter = filter
 
     def read_data(self, file_path: pathlib.Path, storage_handler_provider: StorageHandler.StorageHandlerProvider) -> StorageHandler.StorageHandlerImportData:
+        t0 = time.time()
         storage_handlers = list[StorageHandler.StorageHandler]()
         uuid_map = dict[uuid.UUID, uuid.UUID]()
         items = list[PersistentDictType]()
@@ -374,6 +385,7 @@ class HDFImportExportDriver:
             for key in sorted(index_group.attrs.keys()):
                 items.append(json.loads(index_group.attrs[key]))
         fp.close()
+        logging.getLogger("import").info(f"Import of {file_path} took {time.time() - t0:.2f} seconds")
         return StorageHandler.StorageHandlerImportData(storage_handlers, uuid_map, items)
 
     def write_display_item(self, path: pathlib.Path, items: typing.Sequence[StorageHandler.StorageHandlerExportItem]) -> None:
@@ -385,7 +397,7 @@ class HDFImportExportDriver:
         for index, item in enumerate(items):
             index_group.attrs["1"] = json.dumps(item.write_to_dict())
             for data_item in item.data_items:
-                ds = _create_dataset(data_group, str(data_index), data_item.data)
+                ds = _create_dataset(data_group, str(data_index), data_item.data, self.__filter)
                 ds.attrs["properties"] = json.dumps(data_item.write_to_dict())
                 data_index += 1
         fp.close()
@@ -400,7 +412,17 @@ class HDFImportExportDriverFactory:
         return HDFImportExportDriver()
 
 
+class CompressedHDFImportExportDriverFactory:
+    driver_id = "nhdf-io-handler-compressed"
+    title = "NData HDF (lz4 compressed)"
+    extensions = ["nhdf"]
+
+    def make_import_export_driver(self) -> HDFImportExportDriver:
+        return HDFImportExportDriver(filter=hdf5plugin.Blosc(cname='lz4', clevel=9, shuffle=hdf5plugin.Blosc.BITSHUFFLE))
+
+
 Registry.register_component(HDFImportExportDriverFactory(), {"import-export-driver-factory"})
+Registry.register_component(CompressedHDFImportExportDriverFactory(), {"import-export-driver-factory"})
 
 
 """

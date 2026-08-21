@@ -31,7 +31,8 @@ dependencies = [
     "pillow",
     "pytz",
     "scipy",
-    "tzlocal"
+    "tzlocal",
+    "hdf5plugin"
 ]
 
 [project.scripts]
