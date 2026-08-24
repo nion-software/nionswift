@@ -42,31 +42,52 @@ def make_directory_if_needed(directory_path: str) -> None:
         os.makedirs(directory_path)
 
 
-def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike) -> typing.Optional[DataAndMetadata.ShapeType]:
+def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, target_chunk_size: int=240000) -> typing.Optional[DataAndMetadata.ShapeType]:
     """
     Calculate an appropriate write chunk shape for a given data shape and dtype.
 
-    The target chunk size is 580 kB which seems to be a sweet spot according to benchmarks.
+    The default target chunk size is 240 kB which seems to be a sweet spot according to benchmarks.
     The algorithm assumes that the data is c-contiguous in memory.
 
     If the total number of chunks that the calculated chunk shape would lead to is less than 100 (i.e. the file will
-    be less than 58 MB in size) or if the data shape is not suitable for chunking, return None.
+    be less than 24 MB in size) or if the data shape is not suitable for chunking, return None.
+
+    The chunk shape is calculated according to the following rules:
+    - Use a quarter of the data axis (i.e. the last axis for 1D data and the last two axis for 2D data)
+      if the number of elements in the last two or last three dimensions is large enough. If not, use
+      the entire data axis.
+    - Work backwards from the last axis and increse the number of elements per axis until prod(chunk_chape) >= target_chunk size.
+      A chunk cannot exceed the number of elements of an axis, so if one dimension is "full", move to the next axis.
+    - The slow scan axis and the sequence axis when acquiring a sequence of SIs or 4D STEM images can never be chunked (i.e.
+      chunk shape == 1 for these axis).
+    - The sequence axis in a sequence of 1D or 2D data can be chunked.
     """
     data_dtype = numpy.dtype(data_dtype)
 
-    target_chunk_size = 580*1024/data_dtype.itemsize
+    is_2d_data = data_descriptor.datum_dimension_count == 2
+
+    target_chunk_size = int(round(target_chunk_size / data_dtype.itemsize))
+    divisors = [1] * len(data_shape)
+    if len(data_shape) > 2 and (
+        (numpy.prod(data_shape[-3:]) > 8 * target_chunk_size and is_2d_data) or
+        (numpy.prod(data_shape[-2:]) > 2 * target_chunk_size)):
+        if is_2d_data:
+            divisors[-2:] = [4, 4]
+        else:
+            divisors[-1] = 4
+
     chunk_size = 1
     counter = len(data_shape)
     chunk_shape = [1] * len(data_shape)
     while chunk_size < target_chunk_size and counter > 0:
         counter -= 1
-        chunk_size *= data_shape[counter]
-        chunk_shape[counter] = data_shape[counter]
+        chunk_size *= data_shape[counter] // divisors[counter]
+        chunk_shape[counter] = data_shape[counter] // divisors[counter]
 
     if chunk_size == 0: # This means one of the input dimensions was "0", so chunking cannot be used
         return None
 
-    chunk_size //= data_shape[counter]
+    chunk_size //= chunk_shape[counter]
     remaining_elements = min(max(target_chunk_size // chunk_size, 1), data_shape[counter])
     chunk_shape[counter] = int(remaining_elements)
 
@@ -75,6 +96,12 @@ def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_d
         n_chunks *= data_shape[i] // chunk_shape[i]
     if n_chunks < 100:
         return None
+
+    # Do not allow chunking of the slow scan axis or the sequence axis when acquiring a sequence of SIs or 4D STEM images.
+    if is_2d_data and len(data_shape) > 3:
+        chunk_shape[:-3] = [1] * (len(data_shape) - 3)
+    elif not is_2d_data and len(data_shape) > 2:
+        chunk_shape[:-2] = [1] * (len(data_shape) - 2)
 
     return tuple(chunk_shape)
 
