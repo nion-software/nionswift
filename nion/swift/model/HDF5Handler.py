@@ -248,7 +248,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
             #   3 - 'data' exists and is the same size (overwrite)
             if not "data" in self.__file.fp:
                 # case 1
-                chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
+                chunks = get_write_chunk_shape_for_data(data.shape, data.dtype, data_descriptor)
                 self.__dataset = self.__file.fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
             else:
                 if self.__dataset is None:
@@ -258,7 +258,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                     json_properties = self.__dataset.attrs.get("properties", "")
                     self.__close_fp()
                     os.remove(self.__file_path)
-                    chunks = get_write_chunk_shape_for_data(data.shape, data.dtype)
+                    chunks = get_write_chunk_shape_for_data(data.shape, data.dtype, data_descriptor)
                     self.__dataset = self.__file.fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
             self.__copy_data(data)
             if json_properties is not None:
@@ -278,7 +278,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 os.remove(self.__file_path)
                 self.__file.open()
             # reserve the data
-            chunks = get_write_chunk_shape_for_data(data_shape, data_dtype)
+            chunks = get_write_chunk_shape_for_data(data_shape, data_dtype, data_descriptor)
             self.__dataset = self.__file.fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0, chunks=chunks)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
