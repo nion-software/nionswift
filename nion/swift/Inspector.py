@@ -932,6 +932,13 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                 spacing=8
             ),
             u.create_row(
+                u.create_label(text=_("Graph Style"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_combo_box(items=self._line_plot_display_layer_model.graph_style_items,
+                                   current_index="@binding(_line_plot_display_layer_model.current_graph_style_index_model.value)"),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
                 u.create_label(text=_("Complex Display"), width=120),
                 u.create_combo_box(items=self._line_plot_display_layer_model.display_type_items,
                                    current_index="@binding(_line_plot_display_layer_model.current_display_type_index_model.value)"),
@@ -1007,6 +1014,12 @@ class LinePlotDisplayLayerModel(Observable.Observable):
         self.stroke_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_color")
         self.stroke_width_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_width")
 
+        self.graph_style_items = [_("Bar"), _("Line")]
+        self._graph_style_flags = ["bar", "line"]
+        self._graph_style_reverse_map = {p: i for i, p in enumerate(self._graph_style_flags)}
+        current_graph_style = display_layer.graph_style or "bar"
+        self.current_graph_style_index_model = Model.PropertyModel[int](self._graph_style_reverse_map.get(current_graph_style, 0))
+
         self.display_type_items = [_("Log Absolute"), _("Absolute"), _("Phase"), _("Real"), _("Imaginary")]
         self._display_type_flags = ["log-absolute", "absolute", "phase", "real", "imaginary"]
         self._display_type_reverse_map = {p: i for i, p in enumerate(self._display_type_flags)}
@@ -1018,6 +1031,8 @@ class LinePlotDisplayLayerModel(Observable.Observable):
             ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_data_index_changed, self))
         self.__display_type_index_listener_model = self.current_display_type_index_model.property_changed_event.listen(
             ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_display_type_index_changed, self))
+        self.__graph_style_index_listener_model = self.current_graph_style_index_model.property_changed_event.listen(
+            ReferenceCounting.weak_partial(LinePlotDisplayLayerModel.__on_graph_style_index_changed, self))
 
     @property
     def is_data_complex(self) -> bool:
@@ -1045,6 +1060,16 @@ class LinePlotDisplayLayerModel(Observable.Observable):
                                                                    complex_display_type=new_type)
             command.perform()
             self.document_controller.push_undo_command(command)
+
+    def __on_graph_style_index_changed(self, property: str) -> None:
+        if property == "value":
+            new_style = self._graph_style_flags[self.current_graph_style_index_model.value or 0]
+            index = self.display_item.display_layers.index(self.display_layer)
+            if self.display_item.get_display_layer_property(index, "graph_style") != new_style:
+                command = ChangeDisplayLayerPropertyCommand(self.document_controller.document_model,
+                                                            self.display_item, index, "graph_style", new_style)
+                command.perform()
+                self.document_controller.push_undo_command(command)
 
     def __on_display_layer_list_changed(self, key: str, value: typing.Any, index: int) -> None:
         # changes affect all indices after index of change
@@ -2070,44 +2095,6 @@ class DisplayTypeChooserHandler(Declarative.Handler):
             self._document_controller.push_undo_command(command)
 
 
-class GraphStyleChooserHandler(Declarative.Handler):
-    """Chooser for the line plot graph style (graph_style), applied to all display layers."""
-
-    def __init__(self, display_item: DisplayItem.DisplayItem, document_controller: DocumentController.DocumentController) -> None:
-        super().__init__()
-        self._document_controller = document_controller
-        self._display_item = display_item
-        self._graph_style_items = (_("Default (Bar)"), _("Bar"), _("Line"))
-        self._graph_style_flags = (None, "bar", "line")
-        self._graph_style_reverse_map = {None: 0, "bar": 1, "line": 2}
-        self._current_index = self._graph_style_reverse_map.get(self.__current_graph_style, 0)
-
-        u = Declarative.DeclarativeUI()
-
-        self.ui_view = u.create_row(
-            u.create_label(text=_("Graph Style"), text_alignment_vertical="vcenter", text_alignment_horizontal="right", width=100),
-            u.create_combo_box(items=self._graph_style_items, on_current_index_changed="change_graph_style", current_index="@binding(_current_index)"),
-            u.create_stretch(),
-            spacing=8
-        )
-
-    @property
-    def __current_graph_style(self) -> typing.Optional[str]:
-        # use the graph style of the first display layer as the representative value
-        display_layers = self._display_item.display_layers
-        if display_layers:
-            return display_layers[0].graph_style
-        return None
-
-    def change_graph_style(self, widget: Declarative.UIWidget, current_index: int) -> None:
-        current_graph_style = self._graph_style_flags[current_index]
-        document_model = self._document_controller.document_model
-        for index in range(len(self._display_item.display_layers)):
-            if self._display_item.get_display_layer_property(index, "graph_style") != current_graph_style:
-                command = ChangeDisplayLayerPropertyCommand(document_model, self._display_item, index, "graph_style", current_graph_style)
-                command.perform()
-                self._document_controller.push_undo_command(command)
-
 
 class ContrastStringConverter(Converter.ConverterLike[float, str]):
 
@@ -2283,9 +2270,6 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self._display_type_chooser = DisplayTypeChooserHandler(display_item, document_controller)
         display_type_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._display_type_chooser)
 
-        self._graph_style_chooser = GraphStyleChooserHandler(display_item, document_controller)
-        graph_style_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._graph_style_chooser)
-
         self._line_plot_display_section_handler = LinePlotDisplaySectionHandler(document_controller, display_item)
         widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._line_plot_display_section_handler)
 
@@ -2293,7 +2277,6 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         legend_position_chooser_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self._legend_position_chooser)
 
         self.add_widget_to_content(display_type_chooser_widget)
-        self.add_widget_to_content(graph_style_chooser_widget)
         self.add_widget_to_content(widget)
         self.add_widget_to_content(legend_position_chooser_widget)
 

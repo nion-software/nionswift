@@ -149,6 +149,7 @@ class _VisibleDataInfo:
     binned_data: _NDArray
     binned_data_is_nan: _NDArray
     binned_left: int
+    pixels_per_channel: float
 
 
 def _prepare_visible_data(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
@@ -211,83 +212,117 @@ def _prepare_visible_data(plot_height: int, plot_width: int, plot_origin_y: int,
     binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
     binned_data_is_nan = numpy.isnan(binned_data)
     binned_left = int(uncalibrated_visible_left_channel * plot_width / uncalibrated_visible_width)
+    # pixels covered by a single data channel, used by centered "bar" style to shift the staircase left by half a channel.
+    pixels_per_channel = plot_width / uncalibrated_visible_width
     return _VisibleDataInfo(plot_height, plot_width, plot_origin_y, plot_origin_x,
-                            binned_data, binned_data_is_nan, binned_left)
+                            binned_data, binned_data_is_nan, binned_left, pixels_per_channel)
 
 
-def calculate_bar_segments(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
-                           scaled_xdata: DataAndMetadata.DataAndMetadata, scaled_data_min: float,
-                           scaled_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
-                           line_graph_x_calibration: Calibration.Calibration,
-                           rebin_cache: typing.Optional[typing.Dict[str, typing.Any]],
-                           axis_scale: LinePlotDisplay.AxisScale) -> typing.Tuple[typing.List[LineGraphSegment], int]:
-    """Calculate bar/histogram segments — staircase path, one horizontal step per pixel.
+def calculate_bar_segments(
+        plot_height: int,
+        plot_width: int,
+        plot_origin_y: int,
+        plot_origin_x: int,
+        scaled_xdata: DataAndMetadata.DataAndMetadata,
+        scaled_data_min: float,
+        scaled_data_range: float,
+        calibrated_left_channel: float,
+        calibrated_right_channel: float,
+        line_graph_x_calibration: Calibration.Calibration,
+        rebin_cache: typing.Optional[typing.Dict[str, typing.Any]],
+        axis_scale: LinePlotDisplay.AxisScale
+) -> typing.Tuple[typing.List[LineGraphSegment], int]:
 
-    Note: line_graph_x_calibration may not match the calibration of scaled_xdata since the x_calibration
-    represents the calibration of the graph itself, which may include multiple data items with different
-    calibrations. the units will match.
-    """
-    prepared = _prepare_visible_data(plot_height, plot_width, plot_origin_y, plot_origin_x,
-                                     scaled_xdata, scaled_data_min, scaled_data_range,
-                                     calibrated_left_channel, calibrated_right_channel,
-                                     line_graph_x_calibration, rebin_cache)
-    if prepared is None:
+    x_calibration = scaled_xdata.dimensional_calibrations[-1]
+    assert x_calibration.units == line_graph_x_calibration.units
+
+    if scaled_data_range == 0.0:
         return list(), 0
-    plot_height = prepared.plot_height
-    plot_width = prepared.plot_width
-    plot_origin_y = prepared.plot_origin_y
-    plot_origin_x = prepared.plot_origin_x
-    binned_data = prepared.binned_data
-    binned_data_is_nan = prepared.binned_data_is_nan
-    binned_left = prepared.binned_left
-    binned_length = len(binned_data)
 
-    origin_display = axis_scale.display_origin(scaled_data_min, scaled_data_min + scaled_data_range)
-    baseline = plot_origin_y + plot_height - int(plot_height * float(origin_display - scaled_data_min) / scaled_data_range)
+    origin_display = axis_scale.display_origin(
+        scaled_data_min,
+        scaled_data_min + scaled_data_range)
+
+    baseline = (plot_origin_y + plot_height - int(plot_height * float(origin_display - scaled_data_min) / scaled_data_range))
+
     baseline = min(plot_origin_y + plot_height, baseline)
     baseline = max(plot_origin_y, baseline)
 
-    segments: typing.List[LineGraphSegment] = list()
-    segment = LineGraphSegment()
-    # use line_commands as an optimization for adding line commands to the path. this is critical for performance.
-    # note: testing performance using a loop around drawing commands in test_line_plot_handle_calibrated_x_axis_with_negative_scale
-    line_commands = segment.line_commands
-    did_draw = False
-    last_py = baseline
-    for i in range(0, plot_width):
-        px = plot_origin_x + i
-        binned_index = binned_left + i
-        if binned_index >= 0 and binned_index < binned_length and not binned_data_is_nan[binned_index]:
-            data_value = binned_data[binned_index]
-            # plot_origin_y is the TOP of the drawing
-            # py extends DOWNWARDS
-            py = plot_origin_y + plot_height - (plot_height * (data_value - scaled_data_min) / scaled_data_range)
-            py = max(plot_origin_y, py)
-            py = min(plot_origin_y + plot_height, py)
-            if did_draw:
-                # only draw horizontal lines when necessary
-                if py != last_py:
-                    # draw forward from last_px to px at last_py level
-                    # note: using optimized line commands to optimize this critical code.
-                    line_commands.append((px, last_py))
-                    line_commands.append((px, py))
-            else:
-                did_draw = True
-                segment.first_line_to(px, py)
-            last_py = py
-        else:
-            if did_draw:
-                did_draw = False
-                segment.final_line_to(px, last_py)
+    cal_width = calibrated_right_channel - calibrated_left_channel
+    if cal_width == 0.0:
+        return list(), baseline
+
+    data = scaled_xdata._data_ex
+    n_samples = data.shape[-1]
+
+    if n_samples <= 0:
+        return list(), baseline
+
+    # Visible sample range.
+    edge_a = x_calibration.convert_from_calibrated_value(calibrated_left_channel)
+    edge_b = x_calibration.convert_from_calibrated_value(calibrated_right_channel)
+
+    first_sample = max(0, int(math.floor(min(edge_a, edge_b))) - 1)
+
+    last_sample = min(n_samples - 1, int(math.ceil(max(edge_a, edge_b))) + 1)
+
+    if first_sample > last_sample:
+        return list(), baseline
+
+    # Width of one channel in screen pixels.
+    #
+    # The axis is unchanged, therefore the first and last bars
+    # will naturally be clipped by half a bar at the graph edge.
+    channel_width_px = plot_width / max(1, (n_samples - 1))
+
+    segments: typing.List[LineGraphSegment] = []
+
+    segment: typing.Optional[LineGraphSegment] = None
+    line_commands = None
+
+    for sample_index in range(first_sample, last_sample + 1):
+
+        value = float(data[sample_index])
+
+        if numpy.isnan(value):
+            if segment is not None:
+                segment.final_line_to(last_px_right, last_py)
                 segments.append(segment)
-                segment = LineGraphSegment()
-                # update line_commands (a path drawing optimization) for the new segment.
-                line_commands = segment.line_commands
+                segment = None
+            continue
 
-    segment.final_line_to(plot_origin_x + plot_width, last_py)
+        cal_value = x_calibration.convert_to_calibrated_value(sample_index)
 
-    if did_draw:
+        px_center = (plot_origin_x + plot_width * (cal_value - calibrated_left_channel) / cal_width)
+
+        px_left = px_center - channel_width_px * 0.5
+        px_right = px_center + channel_width_px * 0.5
+
+        py = (plot_origin_y + plot_height - plot_height * (value - scaled_data_min) / scaled_data_range)
+
+        py = max(float(plot_origin_y), min(float(plot_origin_y + plot_height), py))
+
+        if segment is None:
+            segment = LineGraphSegment()
+            segment.first_line_to(px_left, py)
+            line_commands = segment.line_commands
+        else:
+            # Vertical edge.
+            line_commands.append((px_left, last_py))
+
+            # Move to new level.
+            line_commands.append((px_left, py))
+
+        # Horizontal top of bar.
+        line_commands.append((px_right, py))
+
+        last_px_right = px_right
+        last_py = py
+
+    if segment is not None:
+        segment.final_line_to(last_px_right, last_py)
         segments.append(segment)
+
     return segments, baseline
 
 
@@ -473,7 +508,7 @@ class SegmentsCacheItem:
     scaled_xdata: typing.Optional[DataAndMetadata.DataAndMetadata]
     axes: typing.Optional[LinePlotDisplay.LineGraphAxes]
     canvas_bounds: Geometry.IntRect
-    graph_style: str  # "bar" or "line"
+    graph_style: str  # "step" | "bar" | "line"
 
     def key(self) -> typing.Tuple[typing.Optional[int], typing.Optional[LinePlotDisplay.LineGraphAxes], Geometry.IntRect, str]:
         return id(self.scaled_xdata.data) if self.scaled_xdata else None, self.axes, self.canvas_bounds, self.graph_style
@@ -502,13 +537,21 @@ class SegmentsCacheItem:
 
             # draw the line plot itself
             if x_calibration and x_calibration.units == scaled_xdata.dimensional_calibrations[-1].units:
-                calc_fn = calculate_line_segments if self.graph_style == "line" else calculate_bar_segments
-                segments, baseline = calc_fn(plot_height, plot_width, plot_origin_y, plot_origin_x,
-                                             scaled_xdata,
-                                             scaled_data_min, scaled_data_range,
-                                             calibrated_left_channel,
-                                             calibrated_right_channel, x_calibration,
-                                             None, axes.axis_scale)
+                if self.graph_style == "line":
+                    segments, baseline = calculate_line_segments(plot_height, plot_width, plot_origin_y, plot_origin_x,
+                                                                 scaled_xdata,
+                                                                 scaled_data_min, scaled_data_range,
+                                                                 calibrated_left_channel,
+                                                                 calibrated_right_channel, x_calibration,
+                                                                 None, axes.axis_scale)
+                else:
+                    # "bar" (centered staircase spanning [c-0.5, c+0.5))
+                    segments, baseline = calculate_bar_segments(plot_height, plot_width, plot_origin_y, plot_origin_x,
+                                                                scaled_xdata,
+                                                                scaled_data_min, scaled_data_range,
+                                                                calibrated_left_channel,
+                                                                calibrated_right_channel, x_calibration,
+                                                                None, axes.axis_scale)
         return segments, baseline
 
 
@@ -534,8 +577,18 @@ def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_conte
         segments_cache_item = SegmentsCacheItem(scaled_xdata, line_graph_layer.axes, canvas_bounds, line_graph_layer.graph_style)
         segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
         segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
-        for segment in segments:
-            segment.stroke(drawing_context, baseline, line_graph_layer.stroke_color, line_graph_layer.stroke_width)
+
+        with drawing_context.saver():
+            drawing_context.clip_rect(
+                canvas_bounds.left,
+                canvas_bounds.top,
+                canvas_bounds.width,
+                canvas_bounds.height
+            )
+
+            for segment in segments:
+                segment.stroke(drawing_context, baseline, line_graph_layer.stroke_color, line_graph_layer.stroke_width)
+
         return scaled_xdata_cache_value, segments_cache_value
     return tuple()
 

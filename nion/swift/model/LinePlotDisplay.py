@@ -226,8 +226,8 @@ class LegendEntry:
 class LineGraphAxes:
     """Track information about line graph axes."""
 
-    def __init__(self, data_scale: float, scaled_data_min: float, scaled_data_max: float, data_left: int,
-                 data_right: int, x_calibration: typing.Optional[Calibration.Calibration],
+    def __init__(self, data_scale: float, scaled_data_min: float, scaled_data_max: float, data_left: float,
+                 data_right: float, x_calibration: typing.Optional[Calibration.Calibration],
                  y_calibration: typing.Optional[Calibration.Calibration], axis_scale_id: typing.Optional[str],
                  y_ticker: Geometry.Ticker) -> None:
         assert x_calibration is None or x_calibration.is_valid
@@ -297,11 +297,11 @@ class LineGraphAxes:
         return calibrated_value
 
     @property
-    def drawn_left_channel(self) -> int:
+    def drawn_left_channel(self) -> float:
         return self.__uncalibrated_left_channel
 
     @property
-    def drawn_right_channel(self) -> int:
+    def drawn_right_channel(self) -> float:
         return self.__uncalibrated_right_channel
 
     @property
@@ -437,7 +437,7 @@ class LineGraphLayer:
 
     @property
     def graph_style(self) -> str:
-        """Graph drawing style: 'bar' (staircase/histogram) or 'line' (diagonal)"""
+        """Graph drawing style: 'bar' (centered staircase, spans [c-0.5, c+0.5)) or 'line' (diagonal)"""
         return self.__graph_style
 
 
@@ -614,6 +614,13 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
             left_channel = typing.cast(int, min(left_channel, right_channel))
             right_channel = typing.cast(int, max(left_channel, right_channel))
 
+            # if any display layer uses the centered "bar" style, extend the drawn range 0.5 channel to the
+            # left so the leftmost bar (which is centered on its sample position, spanning [c-0.5, c+0.5)) is
+            # fully visible rather than being clipped at the left edge of the plot.
+            uses_bar_style = any(display_layer.graph_style == "bar" for display_layer in self.display_layers[0:MAX_LAYER_COUNT])
+            drawn_left_channel: float = left_channel #left_channel - 0.5 if uses_bar_style else left_channel
+            drawn_right_channel: float = right_channel #right_channel + 0.5 if uses_bar_style else right_channel
+
             if y_min is not None:
                 y_min_calibrated = displayed_intensity_calibration.convert_to_calibrated_value(y_min)
             else:
@@ -629,8 +636,8 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
             self.__axes = LineGraphAxes(data_scale,
                                         scaled_data_min,
                                         scaled_data_max,
-                                        left_channel,
-                                        right_channel,
+                                        drawn_left_channel,
+                                        drawn_right_channel,
                                         displayed_dimensional_calibration,
                                         displayed_intensity_calibration,
                                         y_axis_scale_id,
