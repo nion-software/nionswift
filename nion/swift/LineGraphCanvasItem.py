@@ -273,7 +273,7 @@ def calculate_bar_segments(
     #
     # The axis is unchanged, therefore the first and last bars
     # will naturally be clipped by half a bar at the graph edge.
-    channel_width_px = plot_width / max(1, (n_samples - 1))
+    channel_width_px = plot_width * abs(x_calibration.scale) / abs(cal_width)
 
     segments: typing.List[LineGraphSegment] = []
 
