@@ -418,6 +418,16 @@ class Quantity:
     def with_unit_description(self, unit_description: UnitDescription) -> Quantity:
         return Quantity(unit_description.convert_value_from_pixels(self.pixels), unit_description)
 
+    def with_same_value_new_description(self, unit_description: UnitDescription) -> Quantity:
+        """Return a new quantity with the same numeric value but a different unit description.
+
+        Unlike `with_unit_description`, this does not reconvert through pixels. Use this when the
+        unit id is unchanged but its conversion factor has changed (e.g. the ppi used for inches or
+        centimeters changed) and the displayed value (e.g. "4" inches) should be preserved while the
+        underlying pixel size changes to match the new conversion factor.
+        """
+        return Quantity(self.__value, unit_description)
+
     @property
     def value(self) -> float:
         return self.__value
@@ -450,6 +460,20 @@ svg_export_unit_descriptions = [
 ]
 
 
+def make_unit_descriptions_for_ppi(ppi: int) -> dict[str, UnitDescription]:
+    """Return unit descriptions (keyed by unit id) scaled to the given ppi.
+
+    The pixel unit never scales with ppi (a pixel is always a pixel); inches and centimeters
+    scale their pixels-per-unit conversion factor with ppi, since that is the definition of dpi/ppi:
+    the same physical size (in inches or centimeters) maps to more or fewer pixels depending on ppi.
+    """
+    return {
+        pixel_unit_description.unit_id: pixel_unit_description,
+        "inches": UnitDescription("inches", _("Inches"), ppi),
+        "centimeters": UnitDescription("centimeters", _("Centimeters"), ppi / 2.54),
+    }
+
+
 def calculate_display_size_in_pixels(display_item: DisplayItem.DisplayItem) -> Geometry.IntSize:
     """Return the display size in pixels.
 
@@ -467,20 +491,18 @@ def calculate_display_size_in_pixels(display_item: DisplayItem.DisplayItem) -> G
 
 
 class ExportSizeModel(Observable.Observable):
-    def __init__(self, display_item: DisplayItem.DisplayItem, unit_id_model: Model.PropertyModel[str]) -> None:
+    def __init__(self, display_item: DisplayItem.DisplayItem, unit_id_model: Model.PropertyModel[str], ppi: int = 96) -> None:
         super().__init__()
         self.__display_item = display_item
         self.__unit_id_model = unit_id_model
+        self.__ppi = ppi
+        self.__unit_descriptions_by_id = make_unit_descriptions_for_ppi(ppi)
         display_size = calculate_display_size_in_pixels(display_item)
         self.__aspect_ratio = (display_size.width / display_size.height if display_size.height > 0 else 1.0) if display_size.width > 0 else 1.0
         self.aspect_ratio_mode = Model.PropertyModel("default")
         self.__float_to_string_converter = Converter.FloatToStringConverter()
         self.__primary_field = 'width'
-        unit_description = pixel_unit_description
-        for unit_description_ in svg_export_unit_descriptions:
-            if unit_description_.unit_id == unit_id_model.value:
-                unit_description = unit_description_
-                break
+        unit_description = self.__unit_descriptions_by_id.get(unit_id_model.value or str(), pixel_unit_description)
         self.aspect_ratio_locked = Model.PropertyModel(True)
         self.is_line_plot = (display_item.used_display_type == "line_plot")
         self.__width_quantity = get_quantity_from_pixels(display_size.width, unit_description)
@@ -635,15 +657,16 @@ class ExportSizeModel(Observable.Observable):
     @property
     def unit_description(self) -> UnitDescription:
         """Return the unit description for the current unit id."""
-        for unit_description in svg_export_unit_descriptions:
-            if unit_description.unit_id == self.__unit_id_model.value:
-                return unit_description
-        return pixel_unit_description
+        return self.__unit_descriptions_by_id.get(self.__unit_id_model.value or str(), pixel_unit_description)
 
     @property
     def unit_index(self) -> int:
         """Return the unit index for the current unit description."""
-        return svg_export_unit_descriptions.index(self.unit_description)
+        unit_id = self.unit_description.unit_id
+        for index, unit_description_ in enumerate(svg_export_unit_descriptions):
+            if unit_description_.unit_id == unit_id:
+                return index
+        return 0
 
     @unit_index.setter
     def unit_index(self, unit_index: int) -> None:
@@ -666,6 +689,43 @@ class ExportSizeModel(Observable.Observable):
         self.notify_property_changed("height_text")
         self.notify_property_changed("placeholder_width_text")
         self.notify_property_changed("placeholder_height_text")
+        self.notify_property_changed("is_pixel_unit")
+
+    @property
+    def is_pixel_unit(self) -> bool:
+        """Return whether the currently selected unit is Pixels.
+
+        PPI only affects the pixel output when the unit is a physical unit (inches, centimeters);
+        when the unit is Pixels, an exact pixel count has been specified and PPI has no effect on
+        the output dimensions.
+        """
+        return self.unit_description.unit_id == pixel_unit_description.unit_id
+
+    @property
+    def ppi(self) -> int:
+        """Return the ppi used to convert between physical units (inches, centimeters) and pixels."""
+        return self.__ppi
+
+    def set_ppi(self, ppi: int) -> None:
+        """Set the ppi used to convert between physical units (inches, centimeters) and pixels.
+
+        Rebuilds the ppi-scaled unit descriptions. If the currently selected unit is ppi-dependent
+        (inches or centimeters), the displayed value is preserved (e.g. "4" inches stays "4") while the
+        underlying pixel size changes to match the new ppi. The pixel unit is unaffected by ppi, since a
+        pixel-specified size means an exact pixel count regardless of ppi.
+        """
+        if ppi == self.__ppi:
+            return
+        self.__ppi = ppi
+        self.__unit_descriptions_by_id = make_unit_descriptions_for_ppi(ppi)
+        new_unit_description = self.unit_description
+        self.__width_quantity = self.__width_quantity.with_same_value_new_description(new_unit_description)
+        self.__height_quantity = self.__height_quantity.with_same_value_new_description(new_unit_description)
+        self.notify_property_changed("width_text")
+        self.notify_property_changed("height_text")
+        self.notify_property_changed("placeholder_width_text")
+        self.notify_property_changed("placeholder_height_text")
+        self.notify_property_changed("shape_str")
 
     @property
     def pixel_shape(self) -> Geometry.IntSize:
@@ -724,10 +784,196 @@ class ExportSizeModel(Observable.Observable):
         self.notify_property_changed("height_text")
 
 
-class ExportSVGHandler(Declarative.Handler):
-    def __init__(self, model: ExportSizeModel, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+class ExportFormatModel(Observable.Observable):
+    """Holds the export-target state: SVG vs. Bitmap Image, the bitmap file format, and the target ppi.
+
+    This model is intentionally decoupled from ExportSizeModel -- it knows nothing about physical size,
+    units, or aspect ratio. It exposes `effective_ppi`, a fixed 96.0 while exporting SVG (matching
+    today's behavior), or the user's chosen ppi while exporting a bitmap; note this does not yet account
+    for the size unit being Pixels (see ExportDisplayHandler.effective_ppi for the fully-corrected value
+    used for size math, rendering, and export metadata, which also forces 96 in that case). Callers
+    (e.g. ExportDisplayHandler) are responsible for pushing the fully-corrected ppi into
+    `ExportSizeModel.set_ppi(...)` whenever it changes; this model does not do that itself, to avoid any
+    dependency between the two models.
+    """
+
+    # (format id, title, default file extension)
+    bitmap_format_descriptions: typing.Sequence[tuple[str, str, str]] = (
+        ("png", _("PNG"), "png"),
+        ("bmp", _("BMP"), "bmp"),
+        ("jpeg", _("JPEG"), "jpg"),
+    )
+
+    export_categories: typing.Sequence[tuple[str, str]] = (
+        ("svg", _("SVG")),
+        ("bitmap", _("Bitmap Image")),
+    )
+
+    ppi_presets: typing.Sequence[int] = (72, 96, 150, 300, 600)
+
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__()
+        self.__int_to_string_converter = Converter.IntegerToStringConverter()
+        self.__category_model = UserInterface.StringPersistentModel(ui=ui, storage_key="export_category", value="svg")
+        self.__bitmap_format_model = UserInterface.StringPersistentModel(ui=ui, storage_key="export_bitmap_format", value="png")
+        self.__ppi_model = UserInterface.IntegerPersistentModel(ui=ui, storage_key="export_ppi", value=96)
+        # tracks whether "Custom" is the user's explicit selection in the PPI combo box. This is
+        # distinct from "ppi is not a preset value": choosing "Custom" while ppi already happens to
+        # equal a preset (e.g. the default 96) must still reveal the custom-entry field, even though
+        # the underlying ppi value hasn't changed yet.
+        self.__custom_ppi_selected = self.ppi not in self.ppi_presets
+
+    @property
+    def export_category(self) -> str:
+        return self.__category_model.value or "svg"
+
+    @export_category.setter
+    def export_category(self, value: str) -> None:
+        self.__category_model.value = value
+        self.notify_property_changed("export_category")
+        self.notify_property_changed("export_category_index")
+        self.notify_property_changed("is_svg")
+        self.notify_property_changed("is_bitmap")
+        self.notify_property_changed("effective_ppi")
+        self.notify_property_changed("show_custom_ppi")
+
+    @property
+    def export_category_index(self) -> int:
+        ids = [category_id for category_id, _title in self.export_categories]
+        try:
+            return ids.index(self.export_category)
+        except ValueError:
+            return 0
+
+    @export_category_index.setter
+    def export_category_index(self, index: int) -> None:
+        ids = [category_id for category_id, _title in self.export_categories]
+        self.export_category = ids[index] if 0 <= index < len(ids) else "svg"
+
+    @property
+    def is_svg(self) -> bool:
+        return self.export_category == "svg"
+
+    @property
+    def is_bitmap(self) -> bool:
+        return self.export_category == "bitmap"
+
+    @property
+    def bitmap_format(self) -> str:
+        return self.__bitmap_format_model.value or "png"
+
+    @bitmap_format.setter
+    def bitmap_format(self, value: str) -> None:
+        self.__bitmap_format_model.value = value
+        self.notify_property_changed("bitmap_format")
+        self.notify_property_changed("bitmap_format_index")
+        self.notify_property_changed("bitmap_format_extension")
+
+    @property
+    def bitmap_format_index(self) -> int:
+        ids = [format_id for format_id, _title, _extension in self.bitmap_format_descriptions]
+        try:
+            return ids.index(self.bitmap_format)
+        except ValueError:
+            return 0
+
+    @bitmap_format_index.setter
+    def bitmap_format_index(self, index: int) -> None:
+        ids = [format_id for format_id, _title, _extension in self.bitmap_format_descriptions]
+        self.bitmap_format = ids[index] if 0 <= index < len(ids) else "png"
+
+    @property
+    def bitmap_format_extension(self) -> str:
+        """Return the default file extension (without leading dot) for the current bitmap format."""
+        for format_id, _title, extension in self.bitmap_format_descriptions:
+            if format_id == self.bitmap_format:
+                return extension
+        return "png"
+
+    @property
+    def ppi(self) -> int:
+        return self.__ppi_model.value or 96
+
+    @ppi.setter
+    def ppi(self, value: int) -> None:
+        if value <= 0:
+            return
+        custom_ppi_selected_changed = (value not in self.ppi_presets) != self.__custom_ppi_selected
+        self.__custom_ppi_selected = value not in self.ppi_presets
+        if value == self.ppi:
+            if custom_ppi_selected_changed:
+                self.notify_property_changed("ppi_index")
+                self.notify_property_changed("is_custom_ppi")
+                self.notify_property_changed("show_custom_ppi")
+            return
+        self.__ppi_model.value = value
+        self.notify_property_changed("ppi")
+        self.notify_property_changed("ppi_text")
+        self.notify_property_changed("ppi_index")
+        self.notify_property_changed("is_custom_ppi")
+        self.notify_property_changed("effective_ppi")
+        self.notify_property_changed("show_custom_ppi")
+
+    @property
+    def ppi_text(self) -> str | None:
+        return self.__int_to_string_converter.convert(self.ppi)
+
+    @ppi_text.setter
+    def ppi_text(self, value_str: str | None) -> None:
+        if not value_str:
+            return
+        value = self.__int_to_string_converter.convert_back(value_str)
+        if value is not None and value > 0:
+            self.ppi = value
+
+    @property
+    def ppi_index(self) -> int:
+        """Return the index of the current ppi in the presets list, or the "Custom" index if not a preset."""
+        if self.__custom_ppi_selected:
+            return len(self.ppi_presets)
+        try:
+            return self.ppi_presets.index(self.ppi)
+        except ValueError:
+            return len(self.ppi_presets)
+
+    @ppi_index.setter
+    def ppi_index(self, index: int) -> None:
+        if 0 <= index < len(self.ppi_presets):
+            self.ppi = self.ppi_presets[index]
+        else:
+            # "Custom" selected; the ppi value itself is unchanged (until the user types a new one
+            # into the custom-entry field), but the "custom" state must be recorded explicitly here
+            # since ppi may currently equal a preset value (e.g. the default 96) -- the custom entry
+            # field still needs to be revealed in that case.
+            self.__custom_ppi_selected = True
+            self.notify_property_changed("ppi_index")
+            self.notify_property_changed("is_custom_ppi")
+            self.notify_property_changed("show_custom_ppi")
+
+    @property
+    def is_custom_ppi(self) -> bool:
+        return self.__custom_ppi_selected
+
+    @property
+    def show_custom_ppi(self) -> bool:
+        """Return whether the custom-ppi text entry should be shown (bitmap mode and a non-preset ppi)."""
+        return self.is_bitmap and self.is_custom_ppi
+
+    @property
+    def effective_ppi(self) -> int:
+        """Return the ppi that should currently be used for size math.
+
+        Fixed at 96.0 while exporting SVG (matches today's fixed-96 SVG behavior); the user's chosen
+        ppi while exporting a Bitmap Image.
+        """
+        return 96 if self.is_svg else self.ppi
+
+
+class ExportDisplayHandler(Declarative.Handler):
+    def __init__(self, model: ExportSizeModel, format_model: ExportFormatModel, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         super().__init__()
         self.model = model
+        self.format_model = format_model
         u = Declarative.DeclarativeUI()
         left_column_width = get_font_metrics_fn("normal", "Shape (calibrated units)").width + 20
 
@@ -740,7 +986,32 @@ class ExportSVGHandler(Declarative.Handler):
         unit_titles = [unit_description.title for unit_description in svg_export_unit_descriptions]
         unit_combo_box_width = max(get_font_metrics_fn("normal", s).width for s in unit_titles) + 72
 
+        export_category_titles = [title for _category_id, title in ExportFormatModel.export_categories]
+        bitmap_format_titles = [title for _format_id, title, _extension in ExportFormatModel.bitmap_format_descriptions]
+        ppi_combo_titles = [str(int(ppi)) for ppi in ExportFormatModel.ppi_presets] + [_("Custom")]
+
         self.ui_view = u.create_column(
+            u.create_row(
+                u.create_label(text=_("Export As"), width=left_column_width),
+                u.create_combo_box(
+                    items=export_category_titles,
+                    current_index="@binding(format_model.export_category_index)",
+                    width=140
+                ),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("File Format"), width=left_column_width),
+                u.create_combo_box(
+                    items=bitmap_format_titles,
+                    current_index="@binding(format_model.bitmap_format_index)",
+                    enabled="@binding(format_model.is_bitmap)",
+                    width=140
+                ),
+                u.create_stretch(),
+                spacing=8
+            ),
             u.create_row(
                 u.create_label(text="Title", width=left_column_width),
                 u.create_label(text="@binding(model.title)", width=right_column_width),
@@ -802,9 +1073,92 @@ class ExportSVGHandler(Declarative.Handler):
                 u.create_stretch(),
                 spacing=8
             ),
+            u.create_row(
+                u.create_label(text=_("PPI"), width=left_column_width),
+                u.create_combo_box(
+                    items=ppi_combo_titles,
+                    current_index="@binding(format_model.ppi_index)",
+                    enabled="@binding(show_ppi_controls)",
+                    width=140
+                ),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Custom PPI"), width=left_column_width),
+                u.create_line_edit(
+                    text="@binding(format_model.ppi_text)",
+                    enabled="@binding(show_custom_ppi_controls)",
+                    width=100
+                ),
+                u.create_stretch(),
+                spacing=8
+            ),
             spacing=8,
             margin=12,
         )
+
+        # keep the size model's ppi synced with effective_ppi (96 for SVG or when the size unit is
+        # Pixels, the user's chosen ppi otherwise). this is the only coupling between the two models.
+        self.__apply_effective_ppi()
+        self.__format_property_changed_listener = format_model.property_changed_event.listen(self.__handle_format_property_changed)
+        # the PPI controls are only meaningful (and only shown) when exporting a bitmap AND the size
+        # unit is a physical unit (inches/centimeters); when the unit is Pixels, an exact pixel count
+        # has been specified and PPI has no effect on the output dimensions, so hide it to avoid the
+        # appearance of a dead control.
+        self.__model_property_changed_listener = model.property_changed_event.listen(self.__handle_model_property_changed)
+
+    def close(self) -> None:
+        self.__model_property_changed_listener.close()
+        self.__model_property_changed_listener = typing.cast(typing.Any, None)
+        self.__format_property_changed_listener.close()
+        self.__format_property_changed_listener = typing.cast(typing.Any, None)
+        super().close()
+
+    def __handle_format_property_changed(self, property_name: str) -> None:
+        if property_name in ("export_category", "ppi", "effective_ppi"):
+            self.__apply_effective_ppi()
+        if property_name in ("export_category", "is_bitmap", "ppi", "is_custom_ppi"):
+            self.notify_property_changed("show_ppi_controls")
+            self.notify_property_changed("show_custom_ppi_controls")
+
+    def __handle_model_property_changed(self, property_name: str) -> None:
+        if property_name == "is_pixel_unit":
+            self.__apply_effective_ppi()
+            self.notify_property_changed("show_ppi_controls")
+            self.notify_property_changed("show_custom_ppi_controls")
+
+    def __apply_effective_ppi(self) -> None:
+        self.model.set_ppi(self.effective_ppi)
+
+    @property
+    def effective_ppi(self) -> int:
+        """Return the ppi that should currently be used for size math, rendering, and export metadata.
+
+        Fixed at 96 while exporting SVG, or while exporting a Bitmap Image with the size unit set to
+        Pixels (an exact pixel count has been specified, so there is no physical size for ppi to apply
+        to -- using the user's last-chosen physical-unit ppi here would silently bake a stale, unrelated
+        ppi into font/line rendering and the exported file's DPI metadata). Otherwise, the user's chosen
+        ppi.
+        """
+        if self.format_model.is_svg or self.model.is_pixel_unit:
+            return 96
+        return self.format_model.ppi
+
+    @property
+    def show_ppi_controls(self) -> bool:
+        """Return whether the PPI preset combo box should be shown.
+
+        PPI only has a visible effect when exporting a bitmap with a physical (inches/centimeters)
+        size unit; when the unit is Pixels, an exact pixel count has already been specified and PPI
+        would have no effect on the output dimensions, so the control is hidden in that case.
+        """
+        return self.format_model.is_bitmap and not self.model.is_pixel_unit
+
+    @property
+    def show_custom_ppi_controls(self) -> bool:
+        """Return whether the custom-ppi text entry should be shown."""
+        return self.show_ppi_controls and self.format_model.is_custom_ppi
 
     def on_aspect_ratio_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
         modes = ["default", "16:9", "4:3", "1:1", "custom"]
@@ -816,7 +1170,7 @@ class ExportSVGHandler(Declarative.Handler):
             self.model.snap_dimensions_to_aspect_ratio()
 
 
-class ExportSVGDialog:
+class ExportDisplayDialog:
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem) -> None:
         super().__init__()
@@ -827,8 +1181,9 @@ class ExportSVGDialog:
             storage_key="export_units",
             value=pixel_unit_description.unit_id
         )
-        self.__model = ExportSizeModel(display_item, self.__units_model)
-        self.__handler = ExportSVGHandler(self.__model, document_controller.ui.get_font_metrics)
+        self.__format_model = ExportFormatModel(document_controller.ui)
+        self.__model = ExportSizeModel(display_item, self.__units_model, self.__format_model.effective_ppi)
+        self.__handler = ExportDisplayHandler(self.__model, self.__format_model, document_controller.ui.get_font_metrics)
         self.__init_ui()
 
     def __init_ui(self) -> None:
@@ -837,7 +1192,7 @@ class ExportSVGDialog:
             self.__document_controller.ui,
             self.__document_controller,
             u.create_modeless_dialog(
-                self.__handler.ui_view, title=_("Export SVG")
+                self.__handler.ui_view, title=_("Export SVG/Bitmap")
             ),
             self.__handler
         ))
@@ -848,22 +1203,38 @@ class ExportSVGDialog:
     def __ok_clicked(self) -> bool:
         pixel_shape = self.__model.pixel_shape
         ui = self.__document_controller.ui
-        filter = "SVG File (*.svg);;All Files (*.*)"
+        if self.__format_model.is_bitmap:
+            extension = self.__format_model.bitmap_format_extension
+            format_title = dict((format_id, title) for format_id, title, _extension in ExportFormatModel.bitmap_format_descriptions)[self.__format_model.bitmap_format]
+            filter = f"{format_title} File (*.{extension});;All Files (*.*)"
+        else:
+            extension = "svg"
+            filter = "SVG File (*.svg);;All Files (*.*)"
         export_dir = ui.get_persistent_string("export_directory", ui.get_document_location())
         export_dir = os.path.join(export_dir, self.__display_item.displayed_title)
         path, selected_filter, selected_directory = self.__document_controller.get_save_file_path(
             _("Export File"), export_dir, filter, None
         )
         if path and not os.path.splitext(path)[1]:
-            path = path + os.path.extsep + "svg"
+            path = path + os.path.extsep + extension
         if path:
             ui.set_persistent_string("export_directory", selected_directory)
-            self.__document_controller.export_svg_file(
-                DisplayPanel.DisplayPanelUISettings(ui),
-                self.__display_item,
-                pixel_shape,
-                pathlib.Path(path)
-            )
+            if self.__format_model.is_bitmap:
+                self.__document_controller.export_bitmap_file(
+                    DisplayPanel.DisplayPanelUISettings(ui),
+                    self.__display_item,
+                    pixel_shape,
+                    self.__handler.effective_ppi,
+                    pathlib.Path(path),
+                    extension
+                )
+            else:
+                self.__document_controller.export_svg_file(
+                    DisplayPanel.DisplayPanelUISettings(ui),
+                    self.__display_item,
+                    pixel_shape,
+                    pathlib.Path(path)
+                )
         return True
 
     def __cancel_clicked(self) -> bool:
