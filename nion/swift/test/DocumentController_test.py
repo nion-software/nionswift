@@ -2,12 +2,15 @@
 import contextlib
 import gc
 import logging
+import pathlib
+import tempfile
 import typing
 import unittest
 import uuid
 import weakref
 
 # third party libraries
+import imageio.v3 as imageio
 import numpy
 
 # local libraries
@@ -1234,6 +1237,51 @@ class TestDocumentControllerClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 data_item_reference.data_item = data_item
                 document_controller.periodic()
+
+
+class TestExportBitmapFile(unittest.TestCase):
+    """Tests for DocumentController.export_bitmap_file's imageio-based writers (PNG/JPEG) and its
+    fallback to UserInterface.save_rgba_data_to_file for other formats (e.g. BMP)."""
+
+    def setUp(self) -> None:
+        TestContext.begin_leaks()
+        self._test_setup = TestContext.TestSetup()
+
+    def tearDown(self) -> None:
+        self._test_setup = typing.cast(typing.Any, None)
+        TestContext.end_leaks(self)
+
+    def _make_display_item(self, document_controller: DocumentController.DocumentController) -> DisplayItem.DisplayItem:
+        document_model = document_controller.document_model
+        data_item = DataItem.DataItem(numpy.random.rand(8, 8).astype(numpy.float32))
+        document_model.append_data_item(data_item)
+        display_item = document_model.get_display_item_for_data_item(data_item)
+        assert display_item
+        return display_item
+
+    def test_bitmap_export_embeds_target_dpi_for_each_format(self) -> None:
+        """PNG and JPEG are both written via imageio, and both embed the target ppi as DPI metadata
+        that imageio itself can read back -- so no extra reader library (e.g. PIL) is needed to verify
+        the metadata; imageio.v3 alone (already a project dependency) is enough."""
+        cases = (("png", "png", 300, 4), ("jpg", "jpg", 150, 3))
+        for extension, image_format, ppi, expected_channel_count in cases:
+            with self.subTest(image_format=image_format):
+                with TestContext.create_memory_context() as test_context:
+                    document_controller = test_context.create_document_controller()
+                    display_item = self._make_display_item(document_controller)
+                    with tempfile.TemporaryDirectory() as tmp_dir:
+                        path = pathlib.Path(tmp_dir) / f"test.{extension}"
+                        document_controller.export_bitmap_file(
+                            DisplayPanel.DisplayPanelUISettings(document_controller.ui),
+                            display_item, Geometry.IntSize(w=16, h=16), ppi, path, image_format)
+                        self.assertTrue(path.exists())
+                        image_data = imageio.imread(path)
+                        self.assertEqual(expected_channel_count, image_data.shape[-1])  # jpeg has no alpha channel
+                        metadata = imageio.immeta(path)
+                        resolution_x, resolution_y = metadata["dpi"]
+                        self.assertAlmostEqual(resolution_x, ppi, delta=0.1)
+                        self.assertAlmostEqual(resolution_y, ppi, delta=0.1)
+
 
 
 if __name__ == '__main__':

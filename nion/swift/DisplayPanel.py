@@ -3503,3 +3503,23 @@ def preview(drawing_metrics: UISettings.DrawingMetrics, display_style: UISetting
                 display_canvas_item.update_canvas_items()
                 display_canvas_item.repaint_immediate(drawing_context, pixel_shape)
     return drawing_context
+
+
+def get_drawing_context_for_export(ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, display_shape: Geometry.IntSize, ppi: float, font_ppi: int) -> DrawingContext.DrawingContext:
+    # take a snapshot so to modify the display properties for the proper image zoom, position, and canvas mode.
+    # ensure that the snapshot is closed when finished.
+    display_item_snapshot = display_item.snapshot()
+    try:
+        # update the zoom, position, and canvas mode for the export. these are neutral values that ensure it will
+        # draw at 1:1 scale and centered in the canvas.
+        display_properties = display_item_snapshot.display_properties
+        display_properties["image_zoom"] = 1.0
+        display_properties["image_position"] = (0.5, 0.5)
+        display_properties["image_canvas_mode"] = "fit"
+        display_item_snapshot.display_properties = display_properties
+        # create the drawing context and shape for the preview
+        drawing_metrics = UISettings.DrawingMetrics(ui_settings=ui_settings, ppi=ppi, device_dpi=96.0)
+        # standard font pt is PPI / 6 for bitmaps; PPI for SVG is 72 PPI.
+        return preview(drawing_metrics, UISettings.DisplayStyle(font_ppi / 6), display_item_snapshot, display_shape)
+    finally:
+        display_item_snapshot.close()

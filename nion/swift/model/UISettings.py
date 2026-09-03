@@ -46,15 +46,21 @@ class DisplayStyle:
         "graphic-label": 9,
     }
 
-    def __init__(self) -> None:
+    def __init__(self, standard_font_pt: float | None = None) -> None:
+        self.__font_scaling = standard_font_pt / 9 if standard_font_pt else None
         self.__font_sizes_pt = dict(self._FONT_SIZES_PT)
 
     def get_font_size_pt(self, part: str) -> float:
         return self.__font_sizes_pt.get(part, 9)
 
     def get_font(self, part: str, drawing_metrics: DrawingMetrics) -> str:
-        """Get the complete font string for a display style part."""
-        size_pt = self.get_font_size_pt(part) * drawing_metrics.scale * 96.0 / drawing_metrics.device_dpi
+        """Get the complete font string for a display style part.
+
+        If standard_font_pt is provided, font is scaled by standard_font_pt / 9pt. Used during bitmap rendering.
+        Otherwise, font is scaled by drawing_metrics.scale, which is PPI / 96.0. Used during screen rendering.
+        """
+        font_scaling = self.__font_scaling if self.__font_scaling else drawing_metrics.scale
+        size_pt = self.get_font_size_pt(part) * font_scaling * 96.0 / drawing_metrics.device_dpi
         scaled_size_str = f"{size_pt:.2f}".rstrip("0").rstrip(".")
         return f"normal {scaled_size_str}pt Helvetica, Arial, sans-serif"
 
