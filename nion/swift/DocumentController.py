@@ -22,6 +22,9 @@ import typing
 import uuid
 import weakref
 
+# third party libraries
+import imageio.v3 as imageio
+
 from nion.data import DataAndMetadata
 from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
@@ -59,6 +62,7 @@ from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import Dialog
+from nion.ui import DrawingContext
 from nion.ui import PreferencesDialog
 from nion.ui import Window
 from nion.ui import UserInterface
@@ -1043,29 +1047,33 @@ class DocumentController(Window.Window):
             ExportDialog.ExportDialog(self.ui, self, display_items)
 
     def export_svg_file(self, ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, display_shape: Geometry.IntSize, path: pathlib.Path) -> None:
-        # take a snapshot so to modify the display properties for the proper image zoom, position, and canvas mode.
-        # ensure that the snapshot is closed when finished.
-        display_item_snapshot = display_item.snapshot()
-        try:
-            # update the zoom, position, and canvas mode for the export. these are neutral values that ensure it will
-            # draw at 1:1 scale and centered in the canvas.
-            display_properties = display_item_snapshot.display_properties
-            display_properties["image_zoom"] = 1.0
-            display_properties["image_position"] = (0.5, 0.5)
-            display_properties["image_canvas_mode"] = "fit"
-            display_item_snapshot.display_properties = display_properties
-            # create the drawing context and shape for the preview
-            drawing_metrics = UISettings.DrawingMetrics(ui_settings=ui_settings, ppi=96.0, device_dpi=96.0)
-            font = UISettings.DisplayStyle().get_font('legend', drawing_metrics)
-            drawing_context = DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item_snapshot, display_shape)
-            # set up the SVG
-            view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
-            svg = drawing_context.to_svg(display_shape, view_box)
-            # write the file
-            with Utility.AtomicFileWriter(path.with_suffix(".svg")) as fp:
-                fp.write(svg)
-        finally:
-            display_item_snapshot.close()
+        drawing_context = DisplayPanel.get_drawing_context_for_export(ui_settings, display_item, display_shape, 96, 72)
+        # set up the SVG
+        view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
+        svg = drawing_context.to_svg(display_shape, view_box)
+        # write the file
+        with Utility.AtomicFileWriter(path.with_suffix(".svg")) as fp:
+            fp.write(svg)
+
+    def export_bitmap_file(self, ui_settings: UISettings.UISettings, display_item: DisplayItem.DisplayItem, display_shape: Geometry.IntSize, ppi: int, path: pathlib.Path, image_format: str) -> None:
+        drawing_context = DisplayPanel.get_drawing_context_for_export(ui_settings, display_item, display_shape, ppi, ppi)
+        # rasterize the drawing context into an RGBA bitmap at the target pixel shape and write it to disk
+        rgba_data = self.ui.create_rgba_image(drawing_context, display_shape.width, display_shape.height)
+        if rgba_data is None:
+            return
+        if image_format in ("png", "jpg"):
+            # imageio (via Pillow) can embed the target DPI in these formats, so downstream apps
+            # display/print the exported image at the correct physical size. the data returned by
+            # create_rgba_image comes from Qt's rendering, which is byte-ordered BGRA in memory; reorder
+            # to RGBA before handing it to imageio.
+            rgba_array = DrawingContext.get_rgba_view_from_rgba_data(rgba_data)[..., (2, 1, 0, 3)]
+            if image_format == "png":
+                imageio.imwrite(str(path), rgba_array, extension=".png", dpi=(ppi, ppi))
+            elif image_format == "jpg":
+                # JPEG does not support an alpha channel.
+                imageio.imwrite(str(path), rgba_array[..., :3], extension=".jpg", dpi=(ppi, ppi))
+        else:
+            self.ui.save_rgba_data_to_file(rgba_data, str(path), image_format)
 
     def export_svg(self, display_item: DisplayItem.DisplayItem) -> None:
         ExportDialog.ExportSVGDialog(self, display_item)
