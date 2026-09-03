@@ -53,7 +53,7 @@
             },
             {
                 "type": "item",
-                "action_id": "file.export_svg"
+                "action_id": "file.export_display"
             },
             {
                 "type": "separator"

@@ -1075,8 +1075,9 @@ class DocumentController(Window.Window):
         else:
             self.ui.save_rgba_data_to_file(rgba_data, str(path), image_format)
 
-    def export_svg(self, display_item: DisplayItem.DisplayItem) -> None:
-        ExportDialog.ExportSVGDialog(self, display_item)
+    def export_display(self, display_item: DisplayItem.DisplayItem) -> None:
+        ExportDialog.ExportDisplayDialog(self, display_item)
+
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title: str, task_type: str, logging: bool = True) -> Task.TaskContextManager:
@@ -3205,9 +3206,9 @@ class ExportBatchAction(Window.Action):
         return len(context.display_items) > 0 or context.display_item is not None
 
 
-class ExportSVGAction(Window.Action):
-    action_id = "file.export_svg"
-    action_name = _("Export SVG...")
+class ExportDisplayAction(Window.Action):
+    action_id = "file.export_display"
+    action_name = _("Export SVG/Bitmap...")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         raise NotImplementedError()
@@ -3216,7 +3217,7 @@ class ExportSVGAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         selected_display_item = window.selected_display_item
         if selected_display_item:
-            window.export_svg(selected_display_item)
+            window.export_display(selected_display_item)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
@@ -3254,7 +3255,7 @@ Window.register_action(DeleteItemAction())
 Window.register_action(DeleteDataItemAction())
 Window.register_action(ExportAction())
 Window.register_action(ExportBatchAction())
-Window.register_action(ExportSVGAction())
+Window.register_action(ExportDisplayAction())
 Window.register_action(ImportDataAction())
 Window.register_action(ImportFolderAction())
 
