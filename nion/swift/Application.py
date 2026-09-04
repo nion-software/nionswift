@@ -766,7 +766,8 @@ class Application(UIApplication.BaseApplication):
                         menu.add_menu_item(_("Remove Project from List"), functools.partial(remove_project, index))
 
                         def rename_selected_project(project_reference: Profile.ProjectReference) -> None:
-                            action = RenameProjectAction(project_reference, accept_fn=self.close_window)
+                            action = RenameProjectAction()
+                            action.project_reference = project_reference
                             document_controller = self.__application.document_controllers[0]
                             action.invoke(UIWindow.ActionContext(self.__application, document_controller, None))
 
@@ -1133,15 +1134,13 @@ class ChooseProjectAction(UIWindow.Action):
 class RenameProjectAction(UIWindow.Action):
     """Rename a project.
 
-    If initialized with a project_reference then that will be used instead of using the current project.
+    If self.project_reference is set then it will be used instead of using the current project.
     Calling invoke will cause a UI window to appear prompting to rename the project which calls execute with the name provided.
     Calling execute uses the stored name to get the application to rename the project.
-    The accept_fn if provided is called before execute when the new project button is clicked in the UI window.
     """
-    def __init__(self, project_reference: Profile.ProjectReference | None = None, accept_fn: typing.Callable[[], None] | None = None) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.accept_fn = accept_fn
-        self.project_reference = project_reference
+        self.project_reference: Profile.ProjectReference | None = None
 
     action_id = "project.rename_project"
     action_name = _("Rename Project")
@@ -1159,7 +1158,6 @@ class RenameProjectAction(UIWindow.Action):
         application.rename_project(self.project_reference, project_name)
         # Clear the now invalid project_reference so if this is invoked again it gets the latest project reference
         self.project_reference = None
-        self.accept_fn = None
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
     def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
@@ -1183,8 +1181,6 @@ class RenameProjectAction(UIWindow.Action):
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
 
         def handle_rename_clicked(new_name: str, _: str) -> None:
-            if callable(self.accept_fn):
-                self.accept_fn()
             self.set_string_property(context, "name", new_name)
             self.execute(context)
 
