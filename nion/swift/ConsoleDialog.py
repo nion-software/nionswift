@@ -5,6 +5,7 @@ import code
 import contextlib
 import copy
 import dataclasses
+import datetime
 import gettext
 import importlib
 import io
@@ -16,11 +17,13 @@ import typing
 
 # local libraries
 from nion.swift import Panel
+from nion.swift.model import ApplicationData
 from nion.swift.model import DocumentModel
 from nion.swift.model import Persistence
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Widgets
+from nion.utils import DateTime
 from nion.utils import Registry
 
 # hack to work with conda/python3.10 until they fix readline
@@ -47,15 +50,91 @@ class ConsoleStartupComponent(typing.Protocol):
     def get_console_startup_info(self, logger: logging.Logger) -> ConsoleStartupInfo: ...
 
 
+class ApplicationDataLike(typing.Protocol):
+    """A protocol for the application data storage used by the console history store."""
+
+    def get_data_dict(self) -> typing.Dict[str, typing.Any]: ...
+
+    def set_data_dict(self, d: typing.Mapping[str, typing.Any]) -> None: ...
+
+
+class SingletonApplicationData:
+    """Application data storage using the application data singleton."""
+
+    def get_data_dict(self) -> typing.Dict[str, typing.Any]:
+        return ApplicationData.get_data()
+
+    def set_data_dict(self, d: typing.Mapping[str, typing.Any]) -> None:
+        ApplicationData.set_data(d)
+
+
+class ConsoleHistoryStore:
+    """Stores recent console commands persistently in the application data.
+
+    Entries older than the retention period are pruned and the number of entries is capped.
+    """
+
+    key = "console_history"
+    retention = datetime.timedelta(days=3)
+    max_entries = 500
+
+    def __init__(self, application_data: typing.Optional[ApplicationDataLike] = None) -> None:
+        self.__application_data: ApplicationDataLike = application_data or SingletonApplicationData()
+
+    def get_commands(self) -> typing.List[str]:
+        """Return the persisted commands, oldest first."""
+        return [entry["text"] for entry in self.__read_entries()]
+
+    def append_command(self, command: str) -> None:
+        """Append a command to the persisted commands. Blank commands are ignored."""
+        if not command.strip():
+            return
+        entries = self.__read_entries()
+        entries.append({"text": command, "timestamp": DateTime.utcnow().isoformat()})
+        self.__write_entries(entries)
+
+    def __read_entries(self) -> typing.List[typing.Dict[str, typing.Any]]:
+        data_dict = self.__application_data.get_data_dict()
+        entries_raw = data_dict.get(ConsoleHistoryStore.key, dict()).get("entries", list())
+        oldest = DateTime.utcnow() - ConsoleHistoryStore.retention
+        entries: typing.List[typing.Dict[str, typing.Any]] = list()
+        for entry in entries_raw:
+            text = entry.get("text") if isinstance(entry, dict) else None
+            timestamp = self.__parse_timestamp(entry.get("timestamp")) if isinstance(entry, dict) else None
+            if isinstance(text, str) and timestamp is not None and timestamp >= oldest:
+                entries.append({"text": text, "timestamp": entry["timestamp"]})
+        return entries[-ConsoleHistoryStore.max_entries:]
+
+    def __write_entries(self, entries: typing.Sequence[typing.Mapping[str, typing.Any]]) -> None:
+        data_dict = self.__application_data.get_data_dict()
+        data_dict.setdefault(ConsoleHistoryStore.key, dict())["entries"] = [dict(entry) for entry in entries[-ConsoleHistoryStore.max_entries:]]
+        self.__application_data.set_data_dict(data_dict)
+
+    @staticmethod
+    def __parse_timestamp(timestamp_str: typing.Any) -> typing.Optional[datetime.datetime]:
+        if not isinstance(timestamp_str, str):
+            return None
+        try:
+            timestamp = datetime.datetime.fromisoformat(timestamp_str)
+        except ValueError:
+            return None
+        # timestamps are written as naive utc timestamps; handle both cases for robustness.
+        return timestamp.replace(tzinfo=None) if timestamp.tzinfo is None else timestamp.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+
+
 class ConsoleWidgetStateController:
     delims = " \t\n`~!@#$%^&*()-=+[{]}\\|;:\'\",<>/?"
 
-    def __init__(self, locals: typing.Dict[str, typing.Any]) -> None:
+    def __init__(self, locals: typing.Dict[str, typing.Any], *, history_store: typing.Optional[ConsoleHistoryStore] = None) -> None:
         self.__incomplete = False
 
         self.__console = code.InteractiveConsole(locals)
 
-        self.__history: typing.List[str] = list()
+        # the history store is shared between consoles; each console gets a snapshot of the
+        # persisted history when it is created and appends its own commands to the store.
+        self.__history_store = history_store if history_store is not None else ConsoleHistoryStore()
+
+        self.__history: typing.List[str] = list(self.__history_store.get_commands())
         self.__history_point: typing.Optional[int] = None
         self.__command_cache: typing.Tuple[typing.Optional[int], str] = (None, str()) # Meaning of the tuple: (history_point where the command belongs, command)
 
@@ -83,9 +162,11 @@ class ConsoleWidgetStateController:
         return self.__incomplete
 
     # interpretCommand is called from the intrinsic widget.
-    def interpret_command(self, command: str) -> typing.Tuple[str, int]:
+    def interpret_command(self, command: str, *, persist_history: bool = True) -> typing.Tuple[str, int]:
         if command:
             self.__history.append(command)
+        if persist_history:
+            self.__history_store.append_command(command)
         self.__history_point = None
         self.__command_cache = (None, str())
         output = io.StringIO()
@@ -280,8 +361,9 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__text_edit_widget.set_text_color("white")
 
     def interpret_lines(self, lines: typing.Sequence[str]) -> None:
+        # these lines are not entered by the user (console startup, for instance); do not persist them.
         for l in lines:
-            self.__state_controller.interpret_command(l)
+            self.__state_controller.interpret_command(l, persist_history=False)
 
     def __return_pressed(self) -> bool:
         command = self.__get_partial_command()
