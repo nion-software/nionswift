@@ -1388,13 +1388,13 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[0].request_focus()
             root_canvas_item.refresh_layout_immediate()
             self.assertTrue(document_controller.workspace_controller.display_panels[0].content_canvas_item.selected)
-            self.assertTrue(document_controller.workspace_controller.display_panels[0].content_canvas_item.focused)
+            self.assertTrue(document_controller.workspace_controller.display_panels[0].content_canvas_item.is_focus_ring_visible)
             # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
             document_controller.workspace_controller.display_panels[1].header_canvas_item.simulate_click(Geometry.IntPoint(y=12, x=12))
             self.assertFalse(document_controller.workspace_controller.display_panels[0].content_canvas_item.selected)
-            self.assertFalse(document_controller.workspace_controller.display_panels[0].content_canvas_item.focused)
+            self.assertFalse(document_controller.workspace_controller.display_panels[0].content_canvas_item.is_focus_ring_visible)
             self.assertTrue(document_controller.workspace_controller.display_panels[1].content_canvas_item.selected)
-            self.assertTrue(document_controller.workspace_controller.display_panels[1].content_canvas_item.focused)
+            self.assertTrue(document_controller.workspace_controller.display_panels[1].content_canvas_item.is_focus_ring_visible)
 
     def test_creating_invalid_workspace_fails_gracefully(self):
         with TestContext.create_memory_context() as test_context:
@@ -1425,15 +1425,15 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel1.set_display_item(None)
             display_panel1.request_focus()
             # check assumptions
-            self.assertFalse(display_panel0.content_canvas_item.focused)
-            self.assertTrue(display_panel1.content_canvas_item.focused)
+            self.assertFalse(display_panel0.content_canvas_item.is_focus_ring_visible)
+            self.assertTrue(display_panel1.content_canvas_item.is_focus_ring_visible)
             # do drop
             mime_data = TestUI.MimeData()
             MimeTypes.mime_data_put_display_item(mime_data, display_item)
             document_controller.workspace_controller.handle_drop(display_panel0, mime_data, "middle", 160, 240)
             # check focus
-            self.assertTrue(display_panel0.content_canvas_item.focused)
-            self.assertFalse(display_panel1.content_canvas_item.focused)
+            self.assertTrue(display_panel0.content_canvas_item.is_focus_ring_visible)
+            self.assertFalse(display_panel1.content_canvas_item.is_focus_ring_visible)
 
     def test_browser_does_not_reset_selected_display_item_when_root_loses_focus(self):
         # make sure the inspector doesn't disappear when focus changes to one of its fields

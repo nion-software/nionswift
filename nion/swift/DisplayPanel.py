@@ -339,8 +339,8 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
     """
         An overlay for image panels to draw and handle focus, selection, and drop targets.
 
-        The overlay has a focused property, but this is not the same as the canvas focused_item.
-        The focused property here is just a flag to indicate whether to draw the focus ring.
+        The overlay has an is_focus_ring_visible property, just a flag to indicate whether to draw
+        the focus ring.
 
         Clients can connect to the following messages:
             on_context_menu_event(x, y, gx, gy)
@@ -383,11 +383,11 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
         super().close()
 
     @property
-    def focused(self) -> bool:
+    def is_focus_ring_visible(self) -> bool:
         return self.__display_panel_overlay_canvas_item.is_focused
 
-    @focused.setter
-    def focused(self, value: bool) -> None:
+    @is_focus_ring_visible.setter
+    def is_focus_ring_visible(self, value: bool) -> None:
         self.__display_panel_overlay_canvas_item.is_focused = value
 
     @property
@@ -2591,7 +2591,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     self.__display_composition_canvas_item.add_canvas_item(threaded_canvas_item)
                     add_display_controls(new_display_canvas_item)
                     # whenever focus or the display canvas item changes, update the focused status
-                    new_display_canvas_item.set_focused(self.__content_canvas_item.focused)
+                    new_display_canvas_item.set_focused(self.__content_canvas_item.is_focus_ring_visible)
                     self.__display_canvas_item = new_display_canvas_item
                     # configure the display data stream and listener to update the display canvas item when the display data changes.
                     display_info_stream = display_item.display_info_stream
@@ -2687,7 +2687,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     # if the display panel is receiving focus, tell the window (document_controller) about it so
     # it can update the selected display items. also tell the display panel manager about it.
     def set_focused(self, focused: bool) -> None:
-        self.__content_canvas_item.focused = focused
+        self.__content_canvas_item.is_focus_ring_visible = focused
         if focused:
             self.__document_controller.selected_display_panel = self
         # whenever focus or the display canvas item changes, update the focused status
@@ -2697,7 +2697,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def _is_focused(self) -> bool:
         """ Used for testing. """
-        return self.__content_canvas_item.focused
+        return self.__content_canvas_item.is_focus_ring_visible
 
     def request_focus(self) -> None:
         self.__content_canvas_item.request_focus()
