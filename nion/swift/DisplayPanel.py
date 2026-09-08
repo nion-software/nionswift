@@ -2740,6 +2740,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             else:
                 self.__switch_to_no_browser()
                 self._select()
+                self.request_focus()
             self.__display_changed = False
 
     def __update_selection_to_display(self) -> None:
@@ -2835,27 +2836,30 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __switch_to_no_browser(self) -> None:
         # release (close) any active horizontal/grid browser canvas item so that a display panel that is not
         # showing a browser does not keep mirroring and reacting to changes in the shared display items model.
+        # note: this method is also called from restore_contents, so it must not request focus itself;
+        # callers that want to grab focus after switching (e.g. __cycle_display) must do so explicitly.
         self.__destroy_horizontal_browser_canvas_item()
         self.__destroy_grid_browser_canvas_item()
         self.__display_composition_canvas_item.visible = True
-        self.__display_composition_canvas_item.request_focus()
 
     def __switch_to_horizontal_browser(self) -> DisplayPanelListCanvasItem:
+        # note: this method is also called from restore_contents, so it must not request focus itself;
+        # callers that want to grab focus after switching (e.g. __cycle_display) must do so explicitly.
         self.__destroy_grid_browser_canvas_item()
         horizontal_browser_canvas_item = self.__ensure_horizontal_browser_canvas_item()
         self.__display_composition_canvas_item.visible = True
         horizontal_browser_canvas_item.visible = True
-        horizontal_browser_canvas_item.request_focus()
         strip_canvas_item = self.__strip_canvas_item
         assert strip_canvas_item is not None
         return strip_canvas_item
 
     def __switch_to_grid_browser(self) -> DisplayPanelGridCanvasItem:
+        # note: this method is also called from restore_contents, so it must not request focus itself;
+        # callers that want to grab focus after switching (e.g. __cycle_display) must do so explicitly.
         self.__destroy_horizontal_browser_canvas_item()
         grid_browser_canvas_item = self.__ensure_grid_browser_canvas_item()
         self.__display_composition_canvas_item.visible = False
         grid_browser_canvas_item.visible = True
-        grid_browser_canvas_item.request_focus()
         grid_canvas_item = self.__grid_canvas_item
         assert grid_canvas_item is not None
         return grid_canvas_item
