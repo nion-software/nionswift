@@ -2140,55 +2140,40 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     return True
                 return True
 
-        display_items_model = document_controller.filtered_display_items_model
+        self.__filtered_display_items_model = document_controller.filtered_display_items_model
 
-        item_delegate = ItemDelegate(self, self.__selection, document_controller.ui)
+        # item_delegate only holds a weak reference back to this display panel (via ItemDelegate.__display_panel_ref),
+        # so it is safe to store as an instance attribute for later (lazy) use.
+        self.__item_delegate = ItemDelegate(self, self.__selection, document_controller.ui)
 
+        # these factories only capture document_controller (not self), so they are also safe to store as instance
+        # attributes for later (lazy) use.
         def strip_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui), draw_label=False)
-
-        strip_canvas_item = DisplayPanelListCanvasItem(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, strip_thumbnail_item_factory, item_delegate, item_width=80, key="display_items", is_shared_selection=True)
-        strip_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
-
-        strip_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(strip_canvas_item)
-        strip_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(strip_scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
-        strip_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
-        strip_scroll_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        strip_scroll_group_canvas_item.add_canvas_item(strip_scroll_area_canvas_item)
-        strip_scroll_group_canvas_item.add_canvas_item(strip_scroll_bar_canvas_item)
 
         def grid_thumbnail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanel.DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui))
 
-        grid_canvas_item = DisplayPanelGridCanvasItem(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_thumbnail_item_factory, item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
-        grid_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
+        self.__strip_thumbnail_item_factory = strip_thumbnail_item_factory
+        self.__grid_thumbnail_item_factory = grid_thumbnail_item_factory
 
-        grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
-        grid_scroll_area_canvas_item.auto_resize_contents = True
-        grid_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(grid_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
-        grid_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
-        grid_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-        grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_area_canvas_item)
-        grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
-
-        self.__strip_canvas_item = strip_canvas_item
-
-        self.__horizontal_browser_canvas_item = strip_scroll_group_canvas_item
-        self.__horizontal_browser_canvas_item.update_sizing(self.__horizontal_browser_canvas_item.sizing.with_fixed_height(96))
-        self.__horizontal_browser_canvas_item.visible = False
-
-        self.__grid_canvas_item = grid_canvas_item
-
-        self.__grid_browser_canvas_item = grid_scroll_group_canvas_item
-        self.__grid_browser_canvas_item.visible = False
+        # the horizontal and grid browser canvas items (and the display items model, canvas items, etc. that back
+        # them) are constructed lazily, only when the display panel is switched into that browser mode, and are
+        # fully destroyed (dropping all references so the underlying list model listeners are released) when
+        # switched away from. this avoids every display panel's non-visible browsers reacting to and mirroring
+        # every change in the shared display items model, which is otherwise wasteful when many display panels
+        # are open at once. see __ensure_horizontal_browser_canvas_item / __destroy_horizontal_browser_canvas_item
+        # and __ensure_grid_browser_canvas_item / __destroy_grid_browser_canvas_item.
+        self.__strip_canvas_item: DisplayPanelListCanvasItem | None = None
+        self.__horizontal_browser_canvas_item: CanvasItem.CanvasItemComposition | None = None
+        self.__grid_canvas_item: DisplayPanelGridCanvasItem | None = None
+        self.__grid_browser_canvas_item: CanvasItem.CanvasItemComposition | None = None
 
         # the column composition layout permits displaying data item and horizontal browser simultaneously and also the
         # data item and grid as the only items just by selecting hiding/showing individual canvas items.
         self.__browser_composition_canvas_item = CanvasItem.CanvasItemComposition()
         self.__browser_composition_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__browser_composition_canvas_item.add_canvas_item(self.__display_composition_canvas_item)
-        self.__browser_composition_canvas_item.add_canvas_item(self.__horizontal_browser_canvas_item)
-        self.__browser_composition_canvas_item.add_canvas_item(self.__grid_browser_canvas_item)
 
         self.__content_canvas_item.insert_canvas_item(0, self.__browser_composition_canvas_item)
 
@@ -2223,9 +2208,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
         self.__set_display_panel_controller(None)
-        self.__strip_canvas_item = typing.cast(typing.Any, None)
-        self.__grid_canvas_item = typing.cast(typing.Any, None)
-        self.__grid_browser_canvas_item = typing.cast(typing.Any, None)
+        self.__strip_canvas_item = None
+        self.__horizontal_browser_canvas_item = None
+        self.__grid_canvas_item = None
+        self.__grid_browser_canvas_item = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         self.__document_controller.filtered_display_items_model.release_selection(self.__selection)
@@ -2335,9 +2321,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__display_panel_controller.save(d)
         if self.__display_item:
             d["display_item_specifier"] = Persistence.write_persistent_specifier(self.__display_item.uuid)
-        if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
+        if self.__display_panel_controller is None and self.__is_horizontal_browser_visible:
             d["browser_type"] = "horizontal"
-        if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
+        if self.__display_panel_controller is None and self.__is_grid_browser_visible:
             d["browser_type"] = "grid"
         d["uuid"] = str(self.uuid)
         d["identifier"] = self.identifier
@@ -2372,13 +2358,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     @property
     def _is_result_panel(self) -> bool:
-        return not self.__display_item and not self.__grid_browser_canvas_item.visible and not self.__display_panel_controller
+        return not self.__display_item and not self.__is_grid_browser_visible and not self.__display_panel_controller
 
     @property
     def _display_panel_type(self) -> str:
-        if self.__horizontal_browser_canvas_item.visible:
+        if self.__is_horizontal_browser_visible:
             return "horizontal"
-        elif self.__grid_browser_canvas_item.visible:
+        elif self.__is_grid_browser_visible:
             return "grid"
         elif self.__display_item:
             return "data_item"
@@ -2742,15 +2728,15 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if self.__display_panel_controller is None:
             # the second part of the if statement below handles the case where the data item has been changed by
             # the user so the cycle should go back to the main display.
-            if self.__display_composition_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__display_changed):
-                if self.__horizontal_browser_canvas_item.visible:
-                    self.__switch_to_grid_browser()
+            if self.__display_composition_canvas_item.visible and (not self.__is_horizontal_browser_visible or not self.__display_changed):
+                if self.__is_horizontal_browser_visible:
+                    grid_canvas_item = self.__switch_to_grid_browser()
                     self.__update_selection_to_display()
-                    self.__grid_canvas_item.request_focus()
+                    grid_canvas_item.request_focus()
                 else:
-                    self.__switch_to_horizontal_browser()
+                    strip_canvas_item = self.__switch_to_horizontal_browser()
                     self.__update_selection_to_display()
-                    self.__strip_canvas_item.request_focus()
+                    strip_canvas_item.request_focus()
             else:
                 self.__switch_to_no_browser()
                 self._select()
@@ -2766,29 +2752,113 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         if self.__display_item in display_items:
             self.__selection.set(display_items.index(self.__display_item))
-            self.__strip_canvas_item.make_selection_visible()
-            self.__grid_canvas_item.make_selection_visible()
+            if self.__strip_canvas_item is not None:
+                self.__strip_canvas_item.make_selection_visible()
+            if self.__grid_canvas_item is not None:
+                self.__grid_canvas_item.make_selection_visible()
         else:
             self.__selection.clear()
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
 
+    @property
+    def __is_horizontal_browser_visible(self) -> bool:
+        horizontal_browser_canvas_item = self.__horizontal_browser_canvas_item
+        return horizontal_browser_canvas_item is not None and horizontal_browser_canvas_item.visible
+
+    @property
+    def __is_grid_browser_visible(self) -> bool:
+        grid_browser_canvas_item = self.__grid_browser_canvas_item
+        return grid_browser_canvas_item is not None and grid_browser_canvas_item.visible
+
+    def __ensure_horizontal_browser_canvas_item(self) -> CanvasItem.CanvasItemComposition:
+        horizontal_browser_canvas_item = self.__horizontal_browser_canvas_item
+        if horizontal_browser_canvas_item is None:
+            document_controller = self.__document_controller
+
+            strip_canvas_item = DisplayPanelListCanvasItem(Panel.ThreadSafeListModel(self.__filtered_display_items_model, document_controller.event_loop), self.__selection, self.__strip_thumbnail_item_factory, self.__item_delegate, item_width=80, key="display_items", is_shared_selection=True)
+            strip_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
+
+            strip_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(strip_canvas_item)
+            strip_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(strip_scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
+            strip_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+            strip_scroll_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+            strip_scroll_group_canvas_item.add_canvas_item(strip_scroll_area_canvas_item)
+            strip_scroll_group_canvas_item.add_canvas_item(strip_scroll_bar_canvas_item)
+            strip_scroll_group_canvas_item.update_sizing(strip_scroll_group_canvas_item.sizing.with_fixed_height(96))
+
+            self.__strip_canvas_item = strip_canvas_item
+
+            horizontal_browser_canvas_item = strip_scroll_group_canvas_item
+            horizontal_browser_canvas_item.visible = False
+            self.__horizontal_browser_canvas_item = horizontal_browser_canvas_item
+            self.__browser_composition_canvas_item.insert_canvas_item(1, horizontal_browser_canvas_item)
+        return horizontal_browser_canvas_item
+
+    def __destroy_horizontal_browser_canvas_item(self) -> None:
+        horizontal_browser_canvas_item = self.__horizontal_browser_canvas_item
+        if horizontal_browser_canvas_item is not None:
+            self.__browser_composition_canvas_item.remove_canvas_item(horizontal_browser_canvas_item)
+            self.__horizontal_browser_canvas_item = None
+            self.__strip_canvas_item = None
+
+    def __ensure_grid_browser_canvas_item(self) -> CanvasItem.CanvasItemComposition:
+        grid_browser_canvas_item = self.__grid_browser_canvas_item
+        if grid_browser_canvas_item is None:
+            document_controller = self.__document_controller
+
+            grid_canvas_item = DisplayPanelGridCanvasItem(Panel.ThreadSafeListModel(self.__filtered_display_items_model, document_controller.event_loop), self.__selection, self.__grid_thumbnail_item_factory, self.__item_delegate, item_size=Geometry.IntSize(80, 80), key="display_items", is_shared_selection=True)
+            grid_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
+
+            grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
+            grid_scroll_area_canvas_item.auto_resize_contents = True
+            grid_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(grid_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
+            grid_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+            grid_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_area_canvas_item)
+            grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
+
+            self.__grid_canvas_item = grid_canvas_item
+
+            grid_browser_canvas_item = grid_scroll_group_canvas_item
+            grid_browser_canvas_item.visible = False
+            self.__grid_browser_canvas_item = grid_browser_canvas_item
+            self.__browser_composition_canvas_item.insert_canvas_item(1, grid_browser_canvas_item)
+        return grid_browser_canvas_item
+
+    def __destroy_grid_browser_canvas_item(self) -> None:
+        grid_browser_canvas_item = self.__grid_browser_canvas_item
+        if grid_browser_canvas_item is not None:
+            self.__browser_composition_canvas_item.remove_canvas_item(grid_browser_canvas_item)
+            self.__grid_browser_canvas_item = None
+            self.__grid_canvas_item = None
+
     def __switch_to_no_browser(self) -> None:
+        # release (close) any active horizontal/grid browser canvas item so that a display panel that is not
+        # showing a browser does not keep mirroring and reacting to changes in the shared display items model.
+        self.__destroy_horizontal_browser_canvas_item()
+        self.__destroy_grid_browser_canvas_item()
         self.__display_composition_canvas_item.visible = True
-        self.__horizontal_browser_canvas_item.visible = False
-        self.__grid_browser_canvas_item.visible = False
         self.__display_composition_canvas_item.request_focus()
 
-    def __switch_to_horizontal_browser(self) -> None:
+    def __switch_to_horizontal_browser(self) -> DisplayPanelListCanvasItem:
+        self.__destroy_grid_browser_canvas_item()
+        horizontal_browser_canvas_item = self.__ensure_horizontal_browser_canvas_item()
         self.__display_composition_canvas_item.visible = True
-        self.__horizontal_browser_canvas_item.visible = True
-        self.__grid_browser_canvas_item.visible = False
-        self.__horizontal_browser_canvas_item.request_focus()
+        horizontal_browser_canvas_item.visible = True
+        horizontal_browser_canvas_item.request_focus()
+        strip_canvas_item = self.__strip_canvas_item
+        assert strip_canvas_item is not None
+        return strip_canvas_item
 
-    def __switch_to_grid_browser(self) -> None:
+    def __switch_to_grid_browser(self) -> DisplayPanelGridCanvasItem:
+        self.__destroy_horizontal_browser_canvas_item()
+        grid_browser_canvas_item = self.__ensure_grid_browser_canvas_item()
         self.__display_composition_canvas_item.visible = False
-        self.__horizontal_browser_canvas_item.visible = False
-        self.__grid_browser_canvas_item.visible = True
-        self.__grid_browser_canvas_item.request_focus()
+        grid_browser_canvas_item.visible = True
+        grid_browser_canvas_item.request_focus()
+        grid_canvas_item = self.__grid_canvas_item
+        assert grid_canvas_item is not None
+        return grid_canvas_item
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
