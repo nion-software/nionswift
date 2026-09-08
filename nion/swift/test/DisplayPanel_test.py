@@ -129,6 +129,16 @@ class TestDisplayPanelClass(unittest.TestCase):
         # trigger layout
         return self.display_panel.display_canvas_item
 
+    def test_line_plot_legend_hidden_columns_do_not_impose_minimum_width(self):
+        # regression test: the outer left/right legend columns and the inner top legend row are normally hidden
+        # (invisible) unless the user has chosen an "outer" or "top" legend position. hidden canvas items should
+        # not contribute to the minimum width of their containing row/column, so the line plot should still be
+        # able to lay out (and draw) narrower than the hidden legend content would otherwise require.
+        line_plot_canvas_item = self.setup_line_plot()
+        minimum_width = line_plot_canvas_item.layout_sizing.minimum_width
+        self.assertIsNotNone(minimum_width)
+        self.assertLess(minimum_width, 100)
+
     def test_image_panel_gets_destructed(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
