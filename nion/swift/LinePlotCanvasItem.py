@@ -129,6 +129,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__line_graph_legend_row.add_stretch()
         self.__line_graph_legend_column = CanvasItem.CanvasItemComposition()
         self.__line_graph_legend_column.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__line_graph_legend_column.update_sizing(self.__line_graph_legend_column.sizing.with_collapsible(True))
         self.__line_graph_legend_column.add_canvas_item(self.__line_graph_legend_row)
         self.__line_graph_legend_column.add_stretch()
         self.__line_graph_outer_left_column = CanvasItem.CanvasItemComposition()
@@ -181,6 +182,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # create and add the outer level labels
         legend_row = CanvasItem.CanvasItemComposition()
         legend_row.layout = CanvasItem.CanvasItemRowLayout()
+        legend_row.update_sizing(legend_row.sizing.with_collapsible(True))
         legend_row.add_canvas_item(self.__line_graph_outer_left_column)
         legend_row.add_canvas_item(line_graph_group_canvas_item)
         legend_row.add_canvas_item(self.__line_graph_outer_right_column)
