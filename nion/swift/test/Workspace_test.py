@@ -489,6 +489,19 @@ class TestWorkspaceClass(unittest.TestCase):
                 root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
                 self.assertEqual("grid", display_panel.save_contents()["browser_type"])
 
+    def test_workspace_restores_detail_browser_after_reload(self):
+        with create_memory_profile_context() as profile_context:
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            with contextlib.closing(document_controller):
+                workspace_controller = document_controller.workspace_controller
+                display_panel = workspace_controller.display_panels[0]
+                workspace_controller.switch_to_display_content(display_panel, "detail-browser-display-panel", None)
+            # reload with the storage copied before the document closes
+            document_controller = profile_context.create_document_controller(auto_close=False)
+            with contextlib.closing(document_controller):
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                self.assertEqual("detail", display_panel.display_panel_type)
+
     def test_workspace_saves_contents_immediately_following_cycle_display(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller(auto_close=False)

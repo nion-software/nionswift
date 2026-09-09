@@ -2168,22 +2168,26 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__strip_thumbnail_item_factory = strip_thumbnail_item_factory
         self.__grid_thumbnail_item_factory = grid_thumbnail_item_factory
 
-        # the horizontal and grid browser canvas items (and the display items model, canvas items, etc. that back
-        # them) are constructed lazily, only when the display panel is switched into that browser mode, and are
-        # fully destroyed (dropping all references so the underlying list model listeners are released) when
-        # switched away from. this avoids every display panel's non-visible browsers reacting to and mirroring
-        # every change in the shared display items model, which is otherwise wasteful when many display panels
-        # are open at once. see __ensure_horizontal_browser_canvas_item / __destroy_horizontal_browser_canvas_item
-        # and __ensure_grid_browser_canvas_item / __destroy_grid_browser_canvas_item.
+        # the horizontal, grid, and detail browser canvas items (and the display items model, canvas items, etc.
+        # that back them) are constructed lazily, only when the display panel is switched into that browser mode,
+        # and are fully destroyed (dropping all references so the underlying list model listeners are released)
+        # when the display panel switches to another mode. this avoids every display panel's non-visible browsers
+        # reacting to and mirroring every change in the shared display items model, which is otherwise wasteful when
+        # many display panels are open at once. see the __ensure_*_browser_canvas_item and
+        # __destroy_*_browser_canvas_item methods.
         self.__strip_canvas_item: DisplayPanelListCanvasItem | None = None
         self.__strip_thumbnail_loader: DataPanel.DataPanelBrowserThumbnailLoader | None = None
         self.__horizontal_browser_canvas_item: CanvasItem.CanvasItemComposition | None = None
         self.__grid_canvas_item: DisplayPanelGridCanvasItem | None = None
         self.__grid_thumbnail_loader: DataPanel.DataPanelBrowserThumbnailLoader | None = None
         self.__grid_browser_canvas_item: CanvasItem.CanvasItemComposition | None = None
+        self.__detail_canvas_item: DisplayPanelListCanvasItem | None = None
+        self.__detail_thumbnail_loader: DataPanel.DataPanelBrowserThumbnailLoader | None = None
+        self.__detail_browser_canvas_item: CanvasItem.CanvasItemComposition | None = None
+        self.__detail_dates_periodic_listeners: typing.Sequence[DocumentController.PeriodicListener] = tuple()
 
         # the column composition layout permits displaying data item and horizontal browser simultaneously and also the
-        # data item and grid as the only items just by selecting hiding/showing individual canvas items.
+        # grid or the detail browser as the only item just by selecting hiding/showing individual canvas items.
         self.__browser_composition_canvas_item = CanvasItem.CanvasItemComposition()
         self.__browser_composition_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__browser_composition_canvas_item.add_canvas_item(self.__display_composition_canvas_item)
@@ -2227,10 +2231,16 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         if self.__grid_thumbnail_loader:
             self.__grid_thumbnail_loader.close()
             self.__grid_thumbnail_loader = None
+        if self.__detail_thumbnail_loader:
+            self.__detail_thumbnail_loader.close()
+            self.__detail_thumbnail_loader = None
         self.__strip_canvas_item = None
         self.__horizontal_browser_canvas_item = None
         self.__grid_canvas_item = None
         self.__grid_browser_canvas_item = None
+        self.__detail_canvas_item = None
+        self.__detail_browser_canvas_item = None
+        self.__detail_dates_periodic_listeners = tuple()
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         self.__document_controller.filtered_display_items_model.release_selection(self.__selection)
@@ -2279,6 +2289,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     @property
     def _grid_canvas_item_for_test(self) -> DisplayPanelGridCanvasItem | None:
         return self.__grid_canvas_item
+
+    @property
+    def _detail_canvas_item_for_test(self) -> DisplayPanelListCanvasItem | None:
+        return self.__detail_canvas_item
 
     @property
     def header_canvas_item(self) -> Panel.HeaderCanvasItem:
@@ -2352,6 +2366,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__is_grid_browser_visible:
             d["browser_type"] = "grid"
+        if self.__display_panel_controller is None and self.__is_detail_browser_visible:
+            d["browser_type"] = "detail"
         d["uuid"] = str(self.uuid)
         d["identifier"] = self.identifier
         return d
@@ -2374,6 +2390,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     self.__switch_to_horizontal_browser()
                 elif d.get("browser_type") == "grid":
                     self.__switch_to_grid_browser()
+                elif d.get("browser_type") == "detail":
+                    self.__switch_to_detail_browser()
                 else:
                     self.__switch_to_no_browser()
         except Exception as e:
@@ -2385,7 +2403,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     @property
     def _is_result_panel(self) -> bool:
-        return not self.__display_item and not self.__is_grid_browser_visible and not self.__display_panel_controller
+        return not self.__display_item and not self.__is_grid_browser_visible and not self.__is_detail_browser_visible and not self.__display_panel_controller
 
     @property
     def _display_panel_type(self) -> str:
@@ -2393,6 +2411,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             return "horizontal"
         elif self.__is_grid_browser_visible:
             return "grid"
+        elif self.__is_detail_browser_visible:
+            return "detail"
         elif self.__display_item:
             return "data_item"
         else:
@@ -2510,6 +2530,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             d["browser_type"] = "horizontal"
         elif display_panel_type == "browser-display-panel":
             d["browser_type"] = "grid"
+        elif display_panel_type == "detail-browser-display-panel":
+            d["browser_type"] = "detail"
         elif display_panel_type == "empty-display-panel":
             d["browser_type"] = "empty"
 
@@ -2804,6 +2826,8 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 self.__strip_canvas_item.make_selection_visible()
             if self.__grid_canvas_item is not None:
                 self.__grid_canvas_item.make_selection_visible()
+            if self.__detail_canvas_item is not None:
+                self.__detail_canvas_item.make_selection_visible()
         else:
             self.__selection.clear()
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
@@ -2817,6 +2841,11 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __is_grid_browser_visible(self) -> bool:
         grid_browser_canvas_item = self.__grid_browser_canvas_item
         return grid_browser_canvas_item is not None and grid_browser_canvas_item.visible
+
+    @property
+    def __is_detail_browser_visible(self) -> bool:
+        detail_browser_canvas_item = self.__detail_browser_canvas_item
+        return detail_browser_canvas_item is not None and detail_browser_canvas_item.visible
 
     def __ensure_horizontal_browser_canvas_item(self) -> CanvasItem.CanvasItemComposition:
         horizontal_browser_canvas_item = self.__horizontal_browser_canvas_item
@@ -2888,19 +2917,62 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__grid_browser_canvas_item = None
             self.__grid_canvas_item = None
 
+    def __ensure_detail_browser_canvas_item(self) -> CanvasItem.CanvasItemComposition:
+        detail_browser_canvas_item = self.__detail_browser_canvas_item
+        if detail_browser_canvas_item is None:
+            document_controller = self.__document_controller
+            detail_item_height = DataPanel.get_detail_item_height(document_controller.get_font_metrics)
+
+            def detail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+                return DataPanel.DataPanelDetailItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanel.DataPanelUISettings(document_controller.ui), detail_item_height)
+
+            detail_canvas_item = DisplayPanelListCanvasItem(Panel.ThreadSafeListModel(self.__filtered_display_items_model, document_controller.event_loop), self.__selection, detail_item_factory, self.__item_delegate, item_height=detail_item_height, key="display_items", is_shared_selection=True)
+            detail_canvas_item.on_focus_changed = ReferenceCounting.weak_partial(DisplayPanel.set_focused, self)
+
+            detail_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(detail_canvas_item)
+            detail_scroll_area_canvas_item.auto_resize_contents = True
+            detail_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(detail_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
+            detail_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+            detail_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            detail_scroll_group_canvas_item.add_canvas_item(detail_scroll_area_canvas_item)
+            detail_scroll_group_canvas_item.add_canvas_item(detail_scroll_bar_canvas_item)
+
+            self.__detail_canvas_item = detail_canvas_item
+            self.__detail_thumbnail_loader = DataPanel.DataPanelBrowserThumbnailLoader(detail_canvas_item, document_controller.event_loop)
+            self.__detail_dates_periodic_listeners = DataPanel.add_detail_dates_periodic_listeners(document_controller, detail_canvas_item)
+
+            detail_browser_canvas_item = detail_scroll_group_canvas_item
+            detail_browser_canvas_item.visible = False
+            self.__detail_browser_canvas_item = detail_browser_canvas_item
+            self.__browser_composition_canvas_item.insert_canvas_item(1, detail_browser_canvas_item)
+        return detail_browser_canvas_item
+
+    def __destroy_detail_browser_canvas_item(self) -> None:
+        detail_browser_canvas_item = self.__detail_browser_canvas_item
+        if detail_browser_canvas_item is not None:
+            if self.__detail_thumbnail_loader:
+                self.__detail_thumbnail_loader.close()
+                self.__detail_thumbnail_loader = None
+            self.__browser_composition_canvas_item.remove_canvas_item(detail_browser_canvas_item)
+            self.__detail_browser_canvas_item = None
+            self.__detail_canvas_item = None
+            self.__detail_dates_periodic_listeners = tuple()
+
     def __switch_to_no_browser(self) -> None:
-        # release (close) any active horizontal/grid browser canvas item so that a display panel that is not
-        # showing a browser does not keep mirroring and reacting to changes in the shared display items model.
+        # release (close) any active horizontal/grid/detail browser canvas item so that a display panel that is
+        # not showing a browser does not keep mirroring and reacting to changes in the shared display items model.
         # note: this method is also called from restore_contents, so it must not request focus itself;
         # callers that want to grab focus after switching (e.g. __cycle_display) must do so explicitly.
         self.__destroy_horizontal_browser_canvas_item()
         self.__destroy_grid_browser_canvas_item()
+        self.__destroy_detail_browser_canvas_item()
         self.__display_composition_canvas_item.visible = True
 
     def __switch_to_horizontal_browser(self) -> DisplayPanelListCanvasItem:
         # note: this method is also called from restore_contents, so it must not request focus itself;
         # callers that want to grab focus after switching (e.g. __cycle_display) must do so explicitly.
         self.__destroy_grid_browser_canvas_item()
+        self.__destroy_detail_browser_canvas_item()
         horizontal_browser_canvas_item = self.__ensure_horizontal_browser_canvas_item()
         self.__display_composition_canvas_item.visible = True
         horizontal_browser_canvas_item.visible = True
@@ -2915,6 +2987,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # note: this method is also called from restore_contents, so it must not request focus itself;
         # callers that want to grab focus after switching (e.g. __cycle_display) must do so explicitly.
         self.__destroy_horizontal_browser_canvas_item()
+        self.__destroy_detail_browser_canvas_item()
         grid_browser_canvas_item = self.__ensure_grid_browser_canvas_item()
         self.__display_composition_canvas_item.visible = False
         grid_browser_canvas_item.visible = True
@@ -2924,6 +2997,21 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         grid_canvas_item = self.__grid_canvas_item
         assert grid_canvas_item is not None
         return grid_canvas_item
+
+    def __switch_to_detail_browser(self) -> DisplayPanelListCanvasItem:
+        # note: this method is also called from restore_contents, so it must not request focus itself;
+        # callers that want to grab focus after switching (e.g. __cycle_display) must do so explicitly.
+        self.__destroy_horizontal_browser_canvas_item()
+        self.__destroy_grid_browser_canvas_item()
+        detail_browser_canvas_item = self.__ensure_detail_browser_canvas_item()
+        self.__display_composition_canvas_item.visible = False
+        detail_browser_canvas_item.visible = True
+        # the items of the browser are now in view.
+        if self.__detail_thumbnail_loader:
+            self.__detail_thumbnail_loader.handle_items_in_view_changed()
+        detail_canvas_item = self.__detail_canvas_item
+        assert detail_canvas_item is not None
+        return detail_canvas_item
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
@@ -3026,6 +3114,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             self.__document_controller.add_action_to_menu(menu, "display_panel.show_item", action_context)
             self.__document_controller.add_action_to_menu(menu, "display_panel.show_thumbnail_browser", action_context)
             self.__document_controller.add_action_to_menu(menu, "display_panel.show_grid_browser", action_context)
+            self.__document_controller.add_action_to_menu(menu, "display_panel.show_detail_browser", action_context)
             menu.add_separator()
             DisplayPanelManager().build_menu(menu, self.__document_controller, self)
         menu.popup(gx, gy)
