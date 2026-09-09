@@ -498,7 +498,7 @@ class TestWorkspaceClass(unittest.TestCase):
                 root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
                 root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
                 display_panel = workspace_controller.display_panels[0]
-                display_panel.cycle_display()  # none -> horizontal
+                display_panel.cycle_display()  # none -> grid
             # reload with the storage copied before the document closes
             document_controller = profile_context.create_document_controller(auto_close=False)
             document_model = document_controller.document_model
@@ -507,7 +507,7 @@ class TestWorkspaceClass(unittest.TestCase):
                 display_panel = workspace_controller.display_panels[0]
                 root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
                 root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
-                self.assertEqual("horizontal", display_panel.save_contents()["browser_type"])
+                self.assertEqual("grid", display_panel.save_contents()["browser_type"])
 
     def test_workspace_insert_into_no_splitter_undo_and_redo_works_cleanly(self):
         with TestContext.create_memory_context() as test_context:
