@@ -2742,6 +2742,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 self._select()
                 self.request_focus()
             self.__display_changed = False
+            # notify so that the new browser type gets persisted into the workspace layout.
+            if callable(self.on_contents_changed):
+                self.on_contents_changed()
 
     def __update_selection_to_display(self) -> None:
         # match the selection in the browsers (thumbnail and grid) to the display item.
