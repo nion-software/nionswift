@@ -1,4 +1,5 @@
 # standard libraries
+import concurrent.futures
 import contextlib
 import copy
 import math
@@ -589,6 +590,76 @@ class TestDisplayItemClass(unittest.TestCase):
                     data_ref.data_updated()
 
                 self.assertTrue(stream_updated_event.wait(timeout=2.0))
+
+    def test_computed_value_stream_close_waits_for_in_flight_submit(self) -> None:
+        """Regression for close/submit race: close must block while second submit is in-flight."""
+
+        class ControlledExecutor(DisplayItem.ComputedValueStreamExecutor[int]):
+            def __init__(self) -> None:
+                self.submit_count = 0
+                self.second_submit_blocked_event = threading.Event()
+                self.release_second_submit_event = threading.Event()
+                self.thread_pool_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+            def submit(self, fn: typing.Callable[[int | None, int], None], value: int | None, index: int) -> concurrent.futures.Future[None]:
+                self.submit_count += 1
+                future = self.thread_pool_executor.submit(fn, value, index)
+                if self.submit_count == 2:
+                    self.second_submit_blocked_event.set()
+                    self.release_second_submit_event.wait(timeout=2.0)
+                return future
+
+            def shutdown(self) -> None:
+                self.thread_pool_executor.shutdown(wait=True)
+
+        first_run_started_event = threading.Event()
+        allow_first_run_finish_event = threading.Event()
+        second_run_started_event = threading.Event()
+        allow_second_run_finish_event = threading.Event()
+
+        def value_fn(value: int | None) -> int | None:
+            if value == 0:
+                first_run_started_event.set()
+                allow_first_run_finish_event.wait(timeout=2.0)
+            elif value == 1:
+                second_run_started_event.set()
+                allow_second_run_finish_event.wait(timeout=2.0)
+            return value
+
+        source_stream = Stream.ValueStream(0)
+        executor = ControlledExecutor()
+        computed_value_stream = DisplayItem.ComputedValueStream(source_stream, value_fn, executor)
+        close_finished_event = threading.Event()
+
+        def close_stream() -> None:
+            computed_value_stream.close()
+            close_finished_event.set()
+
+        try:
+            self.assertTrue(first_run_started_event.wait(timeout=2.0))
+            source_stream.value = 1
+            allow_first_run_finish_event.set()
+            self.assertTrue(executor.second_submit_blocked_event.wait(timeout=2.0))
+
+            close_thread = threading.Thread(target=close_stream)
+            close_thread.start()
+
+            # Regression assertion: close must not finish while submit is still in progress.
+            self.assertFalse(close_finished_event.wait(timeout=0.1))
+
+            executor.release_second_submit_event.set()
+            self.assertTrue(second_run_started_event.wait(timeout=2.0))
+            self.assertFalse(close_finished_event.wait(timeout=0.1))
+
+            allow_second_run_finish_event.set()
+            close_thread.join(timeout=2.0)
+            self.assertFalse(close_thread.is_alive())
+            self.assertTrue(close_finished_event.is_set())
+        finally:
+            allow_first_run_finish_event.set()
+            allow_second_run_finish_event.set()
+            executor.release_second_submit_event.set()
+            executor.shutdown()
 
     def test_displayed_title_is_inherited_from_source(self):
         with create_memory_profile_context() as profile_context:
