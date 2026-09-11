@@ -566,8 +566,18 @@ def draw_fills(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context
         segments_cache_item = SegmentsCacheItem(scaled_xdata, line_graph_layer.axes, canvas_bounds, line_graph_layer.graph_style)
         segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
         segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
-        for segment in segments:
-            segment.fill(drawing_context, baseline, line_graph_layer.fill_color)
+        with drawing_context.saver():
+            # clip to the plot area. bar-graph bars are centered and the first/last bars extend
+            # half a bar beyond the plot edges by design, so the fill must be clipped (like the
+            # stroke) to avoid spilling off the left/right side of the graph.
+            drawing_context.clip_rect(
+                canvas_bounds.left,
+                canvas_bounds.top,
+                canvas_bounds.width,
+                canvas_bounds.height
+            )
+            for segment in segments:
+                segment.fill(drawing_context, baseline, line_graph_layer.fill_color)
         return scaled_xdata_cache_value, segments_cache_value
     return tuple()
 
