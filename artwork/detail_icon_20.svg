@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- batik-rasterizer -d ../nion/swift/resources -m image/png detail_icon_20.svg -->
+<svg width="20" height="20"
+     viewPort="0 0 20 20" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+
+    <rect x="2" y="3.75" width="16" height="2.5" fill="black" stroke="none"/>
+    <rect x="2" y="8.75" width="16" height="2.5" fill="black" stroke="none"/>
+    <rect x="2" y="13.75" width="16" height="2.5" fill="black" stroke="none"/>
+
+    <!-- <rect x="0" y="0" width="20" height="20" fill="none" stroke="gray" stroke-width="1" color="red"/> -->
+</svg>

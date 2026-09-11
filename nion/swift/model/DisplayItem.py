@@ -3244,14 +3244,18 @@ class DisplayItem(Persistence.PersistentObject):
         return self.created
 
     @property
-    def date_for_sorting_local_as_string(self) -> str:
+    def date_for_sorting_local(self) -> datetime.datetime:
         data_item = self.data_item
         if data_item:
-            return data_item.date_for_sorting_local_as_string
+            return data_item.date_for_sorting_local
         date_utc = self.date_for_sorting
         tz_minutes = Utility.local_utcoffset_minutes(date_utc)
         date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
-        return date_local.strftime("%c")
+        return date_local
+
+    @property
+    def date_for_sorting_local_as_string(self) -> str:
+        return self.date_for_sorting_local.strftime("%c")
 
     @property
     def created_local(self) -> datetime.datetime:
