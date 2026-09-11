@@ -2134,6 +2134,8 @@ class ComputedValueStream(Stream.ValueStream[OT], typing.Generic[T, OT]):
         self.__index = 0
         self.__pending_value: T | None = None
         self.__pending_index = 0
+        self.__submit_in_progress = False
+        self.__submit_condition = threading.Condition(self.__lock)
         self.__latest_result: OT | None = None
         self.__latest_index = 0
         self.__computed_once_event = threading.Event()
@@ -2146,6 +2148,8 @@ class ComputedValueStream(Stream.ValueStream[OT], typing.Generic[T, OT]):
         with self.__lock:
             self.__is_shutdown = True
             self.__listener = typing.cast(typing.Any, None)
+            while self.__submit_in_progress:
+                self.__submit_condition.wait()
             future = self.__future
             self.__future = None
         if future:
@@ -2168,11 +2172,16 @@ class ComputedValueStream(Stream.ValueStream[OT], typing.Generic[T, OT]):
             self.__pending_value = None
             self.__is_pending = False
             self.__is_running = True
+            self.__submit_in_progress = True
+            future: concurrent.futures.Future[None] | None = None
             self.__lock.release()
             try:
-                self.__future = self.__executor.submit(self.__run, value, index)
+                future = self.__executor.submit(self.__run, value, index)
             finally:
                 self.__lock.acquire()
+                self.__future = future
+                self.__submit_in_progress = False
+                self.__submit_condition.notify_all()
 
     def __run(self, value: T | None, index: int) -> None:
         try:
