@@ -13,6 +13,7 @@ h5py
 pytz
 tzlocal
 pillow
+hdf5plugin
 
 # for testing
 types-pytz
