@@ -7,18 +7,22 @@ on:
     branches: [ master ]
   workflow_dispatch:
     # Example manual run:
-    # gh workflow run python-package.yml --repo nion-software/nionswift --ref master -f "python_versions=['3.15.0-rc.2']"
+    # gh workflow run python-package.yml -f "python_versions=['3.15.0-rc.2']"
     inputs:
       python_versions:
         description: Python versions matrix JSON for manual runs
-        required: true
+        required: false
+        default: ''
         type: string
 jobs:
   build-python-package:
     if: github.event_name != 'workflow_dispatch'
     uses: nion-software/github-workflows/.github/workflows/build-python-package.yml@main
+  build-python-package-manual-default:
+    if: github.event_name == 'workflow_dispatch' && inputs.python_versions == ''
+    uses: nion-software/github-workflows/.github/workflows/build-python-package.yml@main
   build-python-package-manual:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.python_versions != ''
     uses: nion-software/github-workflows/.github/workflows/build-python-package.yml@main
     with:
       python-versions: ${{ inputs.python_versions }}
