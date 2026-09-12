@@ -11,6 +11,8 @@ The organization uses two complementary views:
 - **Execution-scope categories**: target axis-group operations, data reshaping primitives, higher-order operations, sequence/collection operations, and data generation operations.
 - **Target-operation families** (within target axis-group operations): base array transformations, geometric transforms, filtering and frequency-domain operations, value transformations, and analysis/feature extraction.
 
+A third, orthogonal classification — **variant groups** — identifies operations within these categories that a user can substitute for one another in the same pipeline slot (for example, switching between window functions). See `Variant Groups`.
+
 ## Scope and Execution Boundary
 
 This document defines **operation semantics**, not execution orchestration.
@@ -161,6 +163,59 @@ Operations that move data between domains record the transition using arrow nota
 - **Either**
 
 This field may constrain the input, describe the output, or both, and an operation must say which. Because symmetry is usually contingent — on the input value type, on an output format selection, or on a mode parameter — qualified statements of the form *`Hermitian` when X, `Non-Hermitian` otherwise* are the normal case rather than an exception. An entry that names no term from the list above is not a valid value for this field.
+
+## Variant Groups
+
+A **variant group** is a set of operations that fill the same role in a pipeline and can be substituted for one another with a loose, rather than exact, compatibility requirement. This is a UI/authoring-layer classification, distinct from the structural, execution-scope families used elsewhere in this document (for example `Filtering and Frequency-Domain Operations` or `Value Transformations`), which group operations by what they compute rather than by whether a user should be able to swap between them. A single execution-scope family may contain more than one variant group, and an execution-scope family is not itself required to be a variant group.
+
+The motivating case is window functions: `Gaussian Window`, `Hamming Window`, `Kaiser Window`, and the other entries under `Windowing Generators` all occupy the same slot — "the window applied before a spectral analysis" — even though each has its own parameters (Gaussian sigma, Kaiser beta, Tukey alpha, or no shape parameter at all for Hamming). A user selecting a window function should be able to switch among these variants without rebuilding the surrounding computation, even though the parameter panel changes shape when they do.
+
+### Membership Criteria
+
+Two operations belong to the same variant group when they fill the same conceptual pipeline role **and** agree on the following fields from `Operation Compatibility`:
+
+- **Input Dimensionality** class
+- **Input Value Type** compatibility class (for example, both `Linear`)
+- **Output Value Type** class, including the same conversion behavior (both preserve the input value type, or both convert it the same way)
+- **Output Container Model** and **Output Cardinality**
+- **Data-Modification Behavior** category
+
+Members are explicitly **not** required to agree on their parameter sets — differing parameters are the reason variant groups exist. Coordinate Calibration and Intensity Calibration are expected to be broadly similar across members but are not part of the test, since minor per-variant differences (for example, which filters accept calibrated kernel sizes) do not prevent a meaningful switch.
+
+Membership is not transitive by coincidence: two operations that happen to match on these fields but serve unrelated roles (for example, `Negate` and `Transpose` under a loose reading) are not a variant group. The pipeline-role judgment is the primary criterion; the compatibility fields are a necessary check, not a sufficient one.
+
+### Parameter Classification
+
+Within a variant group, each parameter of each member operation is classified as:
+
+- **Shared**: meaningful across every member of the group (for example, output shape, or a normalization policy common to all windows). Shared parameters are defined once at the group level and carry over unchanged when the user switches variants.
+- **Variant-specific**: meaningful only to a subset of members (for example, Gaussian sigma, Kaiser beta, Tukey alpha, bilateral's intensity standard deviation). These are defined per member.
+
+Mapping a variant-specific parameter from one member onto an analogous parameter of another (for example, treating Gaussian sigma and Tukey alpha as both controlling "window width") is intentionally out of scope. It requires a per-pair heuristic conversion that is easy to get wrong and hard to make obvious to the user; a variant group does not attempt it.
+
+### Switching Behavior
+
+Switching the selected variant within a group is a UI/authoring operation, not a change of execution semantics:
+
+- Shared parameters carry over unchanged.
+- Variant-specific parameters reset to that member's defaults on first selection, but implementations should cache the last-used variant-specific values per member (scoped to the computation node) so that switching back to a previously configured variant restores its prior settings rather than its bare defaults.
+- The underlying computation graph records only the concrete selected operation (for example, `Gaussian Window` with its parameters), exactly as it would if the variant group did not exist. Variant-group membership is a registry used by the authoring UI to offer alternatives; it is not part of the persisted computation or its execution semantics, consistent with this document's `Scope and Execution Boundary`.
+
+### Candidate Variant Groups
+
+The following groups are seeded from the current operation catalog. Each is noted at its defining operation as `Variant Group: <name>`.
+
+- **Window Functions**: `Gaussian Window`, `Hann Window`, `Hamming Window`, `Blackman Window`, `Blackman-Harris Window`, `Bartlett (Triangular) Window`, `Kaiser Window`, `Tukey Window` (all under `Windowing Generators`).
+- **Smoothing Filters**: `Gaussian`, `Uniform (Box)`, `Median`, `Bilateral` (under `Spatial Filters`).
+- **Edge Detectors**: `Sobel`, `Prewitt`, `Laplacian` (under `Spatial Filters`). `Unsharp Mask` is excluded: it is a sharpening operation whose output stays in the input's value range and units, rather than an edge-magnitude/derivative output, so it does not fill the same role.
+- **Morphological Operations**: `Erosion`, `Dilation`, `Opening`, `Closing` (under `Spatial Filters`).
+
+Two families that might appear to be candidates are deliberately excluded:
+
+- **Construction operations** (`Complex Construction`, `Vector Construction`, `RGB/RGBA Construction`) differ in Input Cardinality (binary, n-ary, and ternary/quaternary respectively) and in Output Value Type, so they are not mutually substitutable.
+- **Extraction operations** (`Complex-to-Real Conversion`, `RGB-to-Real Conversion`, `Vector-to-Real Conversion`) each require a different, mutually exclusive Input Value Type (`Requires Complex`, `Requires RGB/RGBA`, `Requires Vector`), so at most one is ever applicable to a given input; there is nothing to switch between.
+
+`Frequency Domain Filter`'s `low-pass`/`high-pass`/`bandpass` modes are not listed as a variant group because they are already modeled as parameter values of one operation rather than as separate operations; this is the preferred modeling approach whenever candidate variants share essentially all of their parameters, reserving the variant-group mechanism for cases like windowing where the parameter sets genuinely diverge.
 
 ## Selector Model
 
@@ -582,11 +637,15 @@ Linear and nonlinear filters that operate on local neighborhoods. All spatial fi
 - **Median**: Applies a median filter with specified kernel size.
 - **Bilateral**: Applies edge-preserving bilateral filtering with spatial and intensity standard deviations.
 
+**Variant Group: Smoothing Filters** — `Gaussian`, `Uniform (Box)`, `Median`, and `Bilateral` are interchangeable (see `Variant Groups`).
+
 **Edge Detection and Enhancement:**
 - **Sobel**: Applies a Sobel edge-detection filter (returns magnitude).
 - **Prewitt**: Applies a Prewitt edge-detection filter as an alternative to Sobel.
 - **Laplacian**: Applies a Laplacian filter for edge detection or second-derivative computation.
 - **Unsharp Mask**: Sharpens the image by enhancing high-frequency components via subtraction of a blurred version.
+
+**Variant Group: Edge Detectors** — `Sobel`, `Prewitt`, and `Laplacian` are interchangeable (see `Variant Groups`). `Unsharp Mask` is not a member of this group.
 
 **Morphological Operations:**
 - **Erosion**: Reduces features by removing outer pixels; common on binary data.
@@ -595,6 +654,8 @@ Linear and nonlinear filters that operate on local neighborhoods. All spatial fi
 - **Closing**: Dilation followed by erosion; fills small holes and gaps.
 
 Morphological operations are most commonly applied to binary (boolean or thresholded) data.
+
+**Variant Group: Morphological Operations** — `Erosion`, `Dilation`, `Opening`, and `Closing` are interchangeable (see `Variant Groups`).
 
 **Compatibility:**
 - Input Dimensionality: 1D or 2D for Gaussian, Uniform (Box), Median, Laplacian, and Unsharp Mask; 2D for Sobel, Prewitt, Bilateral, and the morphological operations
@@ -672,6 +733,8 @@ Computes the discrete Fourier transform of the signal axis group along specified
 - Axes to transform
 - Optional output format (full, hermitian, etc.)
 - Scaling method (see below)
+
+**Primitive constraint:** `annotated_array.primitives.fft` and `annotated_array.primitives.ifft` accept only arrays with exactly one axis group, and that axis group must be rank 1 or 2. Higher-level processing layers are responsible for target-axis selection and/or scalar-axis-group collapsing before invoking these primitives.
 
 **Scaling Methods:**
 
@@ -2102,6 +2165,8 @@ Generates standard analysis windows as arrays for direct use or composition with
 - **Bartlett (Triangular) Window**
 - **Kaiser Window**
 - **Tukey Window**
+
+**Variant Group: Window Functions** — all of the above are interchangeable (see `Variant Groups`). Output shape and any normalization policy are shared parameters; per-window shape parameters (Gaussian sigma, Kaiser beta, Tukey alpha) are variant-specific.
 
 **Compatibility:**
 - Input Dimensionality: n/a — no array input
