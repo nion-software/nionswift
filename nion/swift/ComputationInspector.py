@@ -5,6 +5,7 @@ import asyncio
 import collections
 import datetime
 import gettext
+import math
 import sys
 import typing
 import uuid
@@ -14,6 +15,7 @@ import weakref
 # None
 
 # local libraries
+from nion.data import Calibration
 from nion.swift import DisplayPanel
 from nion.swift import EntityBrowser
 from nion.swift import Inspector
@@ -21,6 +23,7 @@ from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
+from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -584,6 +587,229 @@ class ClosingPropertyBinding(Binding.PropertyBinding):
         weakref.finalize(self, finalize, source)
 
 
+class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
+    def __init__(self, document_controller: DocumentController.DocumentController,
+                 display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str,
+                 converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
+                 fallback: typing.Any = None) -> None:
+        super().__init__(graphic, property_name, converter=converter, fallback=fallback)
+        self.__display_item_proxy = display_item.create_proxy()
+        self.__graphic_proxy = graphic.create_proxy()
+        self.__document_controller = document_controller
+        self.__property_name = property_name
+        self.__old_source_setter = self.source_setter
+        self.__old_source_getter = self.source_getter
+        self.source_setter = ReferenceCounting.weak_partial(ChangeGraphicPropertyBinding.__set_value, self)
+        self.source_getter = ReferenceCounting.weak_partial(ChangeGraphicPropertyBinding.__get_value, self)
+
+        def finalize(display_item_proxy: Persistence.PersistentObjectProxy[DisplayItem.DisplayItem], graphic_proxy: Persistence.PersistentObjectProxy[Graphics.Graphic]) -> None:
+            display_item_proxy.close()
+            graphic_proxy.close()
+
+        weakref.finalize(self, finalize, self.__display_item_proxy, self.__graphic_proxy)
+
+    def __get_value(self) -> typing.Any:
+        display_item = self.__display_item_proxy.item
+        graphic = self.__graphic_proxy.item
+        if display_item and graphic:
+            return getattr(graphic, self.__property_name)
+        return None
+
+    def __set_value(self, value: typing.Any) -> None:
+        display_item = self.__display_item_proxy.item
+        graphic = self.__graphic_proxy.item
+        if display_item and graphic:
+            if value != getattr(graphic, self.__property_name):
+                command = DisplayPanel.ChangeGraphicsCommand(self.__document_controller.document_model, display_item, [graphic], title=_("Change Display Type"), command_id="change_display_" + self.__property_name, is_mergeable=True, **{self.__property_name: value})
+                command.perform()
+                self.__document_controller.push_undo_command(command)
+
+
+class CalibratedBinding(Binding.Binding):
+    """A abstract calibrated dimension value binding.
+
+    Takes a value binding and a display item, and combines them to convert between the binding value and the calibrated string for a UI element.
+
+    The display item is monitored for changes to the calibration info, and the target value is updated when the calibration info changes.
+
+    Subclasses must override the two conversion methods.
+    """
+    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding, dimension_index: int) -> None:
+        super().__init__(None)
+        display_info = display_item.display_info
+        self.__display_calibration_info = display_info.display_calibration_info if display_info else None
+        self.__dimension_index = dimension_index
+        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
+        self.__value_binding = value_binding
+        self.__value_binding.target_setter = ReferenceCounting.weak_partial(self.__class__.__update_target, self)
+
+    def __update_target(self, value: typing.Any) -> None:
+        self.update_target_direct(self.get_target_value())
+
+    def __handle_display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        display_calibration_info = display_info.display_calibration_info if display_info else None
+        self.__display_calibration_info = display_calibration_info
+        if display_calibration_info:
+            self.__update_target(display_calibration_info.displayed_display_data_calibrations)
+
+    def __get_calibration_and_data_size(self) -> DisplayItem.CalibrationAndDataSize:
+        if self.__display_calibration_info:
+            return self.__display_calibration_info.get_dimension_calibration_and_data_size(self.__dimension_index)
+        else:
+            return DisplayItem.CalibrationAndDataSize(Calibration.Calibration(), 1)
+
+    # set the model value from the target ui element text.
+    def update_source(self, target_value: typing.Any) -> None:
+        calibration_and_data_size = self.__get_calibration_and_data_size()
+        calibration = calibration_and_data_size.calibration
+        data_size = calibration_and_data_size.data_size
+        converted_value = self._convert_str_to_value(calibration, self.__display_calibration_info, data_size, target_value)
+        self.__value_binding.update_source(converted_value)
+
+    # get the value from the model and return it as a string suitable for the target ui element.
+    # in this binding, it combines the two source bindings into one.
+    def get_target_value(self) -> typing.Optional[str]:
+        value = self.__value_binding.get_target_value()
+        calibration_and_data_size = self.__get_calibration_and_data_size()
+        calibration = calibration_and_data_size.calibration
+        data_size = calibration_and_data_size.data_size
+        return self._convert_value_to_str(calibration, self.__display_calibration_info, data_size, value) if value is not None else None
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        """Subclasses must override this method to convert from the string to the model value, using the calibration and data size as needed."""
+        raise NotImplementedError()
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        """Subclasses must override this method to convert from the model value to the string, using the calibration and data size as needed."""
+        raise NotImplementedError()
+
+
+class CalibratedValueBinding(CalibratedBinding):
+    def __init__(self, index: int, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
+        super().__init__(display_item, value_binding, index)
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        if value_str is not None:
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_value(value) / data_size
+        return None
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        if value is not None:
+            return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
+        return None
+
+
+class CalibratedSizeBinding(CalibratedBinding):
+    def __init__(self, index: int, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
+        super().__init__(display_item, value_binding, index)
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        if value_str is not None:
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                return calibration.convert_from_calibrated_size(value) / data_size
+        return None
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        if value is not None:
+            return calibration.convert_to_calibrated_size_str(data_size * value, value_range=(0, data_size), samples=data_size)
+        return None
+
+
+class CalibratedWidthBinding(CalibratedBinding):
+    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
+        super().__init__(display_item, value_binding, 0)
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        if value_str is not None:
+            value = Converter.FloatToStringConverter().convert_back(value_str)
+            if value is not None:
+                display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+                factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
+                return calibration.convert_from_calibrated_size(value) / data_size / factor
+        return None
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        if value is not None:
+            display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
+            factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
+            return calibration.convert_to_calibrated_size_str(data_size * value * factor, value_range=(0, data_size), samples=data_size)
+        return None
+
+
+class CalibratedAngleBinding(CalibratedBinding):
+    # NOTE: the angle can change depending on the calibrations
+
+    def __init__(self, display_item: DisplayItem.DisplayItem, value_binding: Binding.Binding) -> None:
+        super().__init__(display_item, value_binding, 0)
+
+    def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
+        return Inspector.RadianToDegreeStringConverter().convert_back(value_str) if value_str is not None else None
+
+    def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
+        return Inspector.RadianToDegreeStringConverter().convert(value) if value is not None else None
+
+
+class CalibratedLengthBinding(Binding.Binding):
+    def __init__(self, display_item: DisplayItem.DisplayItem, start_binding: Binding.Binding, end_binding: Binding.Binding) -> None:
+        super().__init__(None)
+        display_info = display_item.display_info
+        self.__display_calibration_info = display_info.display_calibration_info if display_info else None
+        self.__display_item_listener = Stream.ValueStreamAction(display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__handle_display_info_changed, self))
+        self.__start_binding = start_binding
+        self.__end_binding = end_binding
+        self.__start_binding.target_setter = ReferenceCounting.weak_partial(self.__class__.__update_target, self)
+        self.__end_binding.target_setter = ReferenceCounting.weak_partial(self.__class__.__update_target, self)
+
+    def __update_target(self, value: typing.Any) -> None:
+        self.update_target_direct(self.get_target_value())
+
+    def __handle_display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+        display_calibration_info = display_info.display_calibration_info if display_info else None
+        self.__display_calibration_info = display_calibration_info
+        if display_calibration_info:
+            self.__update_target(display_calibration_info.displayed_display_data_calibrations)
+
+    def __get_calibration_and_data_size(self, dimension_index: int) -> DisplayItem.CalibrationAndDataSize:
+        if self.__display_calibration_info:
+            return self.__display_calibration_info.get_dimension_calibration_and_data_size(dimension_index, uniform=True)
+        else:
+            return DisplayItem.CalibrationAndDataSize(Calibration.Calibration(), 1)
+
+    # set the model value from the target ui element text.
+    def update_source(self, target_value: typing.Any) -> None:
+        start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
+        end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
+        y_calibration_and_data_size = self.__get_calibration_and_data_size(0)
+        x_calibration_and_data_size = self.__get_calibration_and_data_size(1)
+        calibrated_start = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_to_calibrated_value(start.y * y_calibration_and_data_size.data_size),
+                                               x=x_calibration_and_data_size.calibration.convert_to_calibrated_value(start.x * x_calibration_and_data_size.data_size))
+        calibrated_end = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_to_calibrated_value(end.y * y_calibration_and_data_size.data_size),
+                                             x=x_calibration_and_data_size.calibration.convert_to_calibrated_value(end.x * x_calibration_and_data_size.data_size))
+        delta = calibrated_end - calibrated_start
+        angle = -math.atan2(delta.y, delta.x)
+        new_calibrated_end = calibrated_start + target_value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
+        end = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_from_calibrated_value(new_calibrated_end.y) / y_calibration_and_data_size.data_size,
+                                  x=x_calibration_and_data_size.calibration.convert_from_calibrated_value(new_calibrated_end.x) / x_calibration_and_data_size.data_size)
+        self.__end_binding.update_source(end)
+
+    # get the value from the model and return it as a string suitable for the target ui element.
+    # in this binding, it combines the two source bindings into one.
+    def get_target_value(self) -> typing.Optional[str]:
+        start = self.__start_binding.get_target_value() or Geometry.FloatPoint()
+        end = self.__end_binding.get_target_value() or Geometry.FloatPoint()
+        y_calibration_and_data_size = self.__get_calibration_and_data_size(0)
+        x_calibration_and_data_size = self.__get_calibration_and_data_size(1)
+        calibrated_start = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_to_calibrated_value(start.y * y_calibration_and_data_size.data_size),
+                                               x=x_calibration_and_data_size.calibration.convert_to_calibrated_value(start.x * x_calibration_and_data_size.data_size))
+        calibrated_end = Geometry.FloatPoint(y=y_calibration_and_data_size.calibration.convert_to_calibrated_value(end.y * y_calibration_and_data_size.data_size),
+                                             x=x_calibration_and_data_size.calibration.convert_to_calibrated_value(end.x * x_calibration_and_data_size.data_size))
+        calibrated_distance = Geometry.distance(calibrated_end, calibrated_start)
+        return y_calibration_and_data_size.calibration.convert_calibrated_size_to_str(calibrated_distance)
+
+
 class GraphicHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, graphic: Graphics.Graphic):
         super().__init__()
@@ -606,7 +832,7 @@ class GraphicHandler(Declarative.Handler):
             if property in ("start", "end"):
                 graphic = source
                 display_item = graphic.display_item
-                return Inspector.CalibratedValueBinding(-1, display_item, Inspector.ChangeGraphicPropertyBinding(self.document_controller, display_item, graphic, property))
+                return CalibratedValueBinding(-1, display_item, ChangeGraphicPropertyBinding(self.document_controller, display_item, graphic, property))
         if isinstance(source, Graphics.RectangleGraphic):
             if property in ("center_x", "center_y"):
                 graphic = source
@@ -614,14 +840,14 @@ class GraphicHandler(Declarative.Handler):
                 index = 1 if property == "center_x" else 0
                 graphic_name = "rectangle"
                 property_model = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
-                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
+                return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             elif property in ("width", "height"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "width" else 0
                 graphic_name = "rectangle"
                 size_model = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
-                return Inspector.CalibratedSizeBinding(index, display_item, ClosingTuplePropertyBinding(size_model, "value", index))
+                return CalibratedSizeBinding(index, display_item, ClosingTuplePropertyBinding(size_model, "value", index))
             elif property in ("rotation_deg", ):
                 graphic = source
                 display_item = graphic.display_item
@@ -635,34 +861,34 @@ class GraphicHandler(Declarative.Handler):
                 index = 1 if property == "start_x" else 0
                 graphic_name = "line_profile"
                 property_model = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {} Start").format(graphic_name), command_id="change_" + graphic_name + "_start")
-                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
+                return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property in ("end_x", "end_y"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "end_x" else 0
                 graphic_name = "line_profile"
                 property_model = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {} End").format(graphic_name), command_id="change_" + graphic_name + "_end")
-                return Inspector.CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
+                return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property == "length":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
                 property_model1 = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_start")
                 property_model2 = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_end")
-                return Inspector.CalibratedLengthBinding(display_item, ClosingPropertyBinding(property_model1, "value"), ClosingPropertyBinding(property_model2, "value"))
+                return CalibratedLengthBinding(display_item, ClosingPropertyBinding(property_model1, "value"), ClosingPropertyBinding(property_model2, "value"))
             if property == "angle":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
                 property_model_f = Inspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
-                return Inspector.CalibratedAngleBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
+                return CalibratedAngleBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         if isinstance(source, Graphics.LineProfileGraphic):
             if property == "width":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
                 property_model_f = Inspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "width", title=_("Change {} Line Width").format(graphic_name), command_id="change_" + graphic_name + "_line_width")
-                return Inspector.CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
+                return CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         return None
 
     def __make_component_content(self, graphic: Graphics.Graphic) -> Declarative.UIDescription:
