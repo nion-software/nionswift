@@ -1844,6 +1844,82 @@ class TestInspectorClass(unittest.TestCase):
             Registry.unregister_component(calibration_provider, {"calibration-provider"})
 
 
+    def test_variant_switch_removes_and_adds_variant_specific_parameters(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((16,)))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.processing_id = "gaussian-window"
+            computation.create_variable("sigma", value_type="real", value=0.7, value_default=0.3, value_min=0.0, value_max=1.0, label="Relative Sigma")
+            document_model.set_data_item_computation(data_item, computation)
+
+            ComputationInspector._switch_computation_variant(computation, "hamming-window")
+            self.assertEqual("hamming-window", computation.processing_id)
+            self.assertIsNone(computation._get_variable("sigma"))
+
+    def test_variant_switch_restores_cached_value_when_switching_back(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((16,)))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.processing_id = "gaussian-window"
+            computation.create_variable("sigma", value_type="real", value=0.7, value_default=0.3, value_min=0.0, value_max=1.0, label="Relative Sigma")
+            document_model.set_data_item_computation(data_item, computation)
+
+            ComputationInspector._switch_computation_variant(computation, "hamming-window")
+            ComputationInspector._switch_computation_variant(computation, "gaussian-window")
+
+            self.assertEqual("gaussian-window", computation.processing_id)
+            sigma_variable = computation._get_variable("sigma")
+            self.assertIsNotNone(sigma_variable)
+            self.assertEqual(0.7, sigma_variable.value)  # restored, not reset to the 0.3 default
+
+    def test_variant_switch_uses_default_value_on_first_selection(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((16,)))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.processing_id = "hamming-window"
+            document_model.set_data_item_computation(data_item, computation)
+
+            ComputationInspector._switch_computation_variant(computation, "gaussian-window")
+
+            sigma_variable = computation._get_variable("sigma")
+            self.assertIsNotNone(sigma_variable)
+            self.assertEqual(0.3, sigma_variable.value)  # never selected on this computation before; uses default
+
+    def test_change_computation_variant_command_undo_restores_previous_variant_and_value(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((16,)))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.processing_id = "gaussian-window"
+            computation.create_variable("sigma", value_type="real", value=0.7, value_default=0.3, value_min=0.0, value_max=1.0, label="Relative Sigma")
+            document_model.set_data_item_computation(data_item, computation)
+
+            command = ComputationInspector.ChangeComputationVariantCommand(document_controller, computation, "hamming-window")
+            command.perform()
+            document_controller.push_undo_command(command)
+
+            self.assertEqual("hamming-window", computation.processing_id)
+            self.assertIsNone(computation._get_variable("sigma"))
+
+            document_controller.handle_undo()
+
+            self.assertEqual("gaussian-window", computation.processing_id)
+            sigma_variable = computation._get_variable("sigma")
+            self.assertIsNotNone(sigma_variable)
+            self.assertEqual(0.7, sigma_variable.value)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

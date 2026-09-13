@@ -55,6 +55,101 @@ _ = gettext.gettext
 COMPACT_FIELD_MAX_WIDTH = 240
 
 
+_variant_value_cache: typing.Dict[uuid.UUID, typing.Dict[str, typing.Dict[str, typing.Any]]] = dict()
+
+
+def _switch_computation_variant(computation: Symbolic.Computation, new_processing_id: str) -> None:
+    """Switch ``computation`` to ``new_processing_id``, another member of its variant group.
+
+    Variant-specific variables (those not shared by name between the old and new
+    processing id) are removed and replaced by the new member's variables, restoring
+    each one's last-used value if the member was previously selected on this
+    computation, or its default otherwise. Variables shared by name are left
+    untouched. See `Switching Behavior` under `Variant Groups` in the
+    processing-operations design document.
+    """
+    old_processing_id = computation.processing_id
+    if old_processing_id == new_processing_id:
+        return
+    new_processor = Symbolic.ComputationProcessor.get_processor(new_processing_id)
+    if new_processor is None:
+        return
+    old_processor = Symbolic.ComputationProcessor.get_processor(old_processing_id) if old_processing_id else None
+    old_parameter_names = {parameter.name for parameter in old_processor.parameters} if old_processor else set()
+    new_parameters = new_processor.parameters
+    new_parameter_names = {parameter.name for parameter in new_parameters}
+
+    node_cache = _variant_value_cache.setdefault(computation.uuid, dict())
+
+    if old_processing_id:
+        old_cache = node_cache.setdefault(old_processing_id, dict())
+        for name in old_parameter_names - new_parameter_names:
+            variable = computation._get_variable(name)
+            if variable is not None:
+                old_cache[name] = variable.value
+                computation.remove_variable(variable)
+
+    computation.processing_id = new_processing_id
+
+    new_cache = node_cache.get(new_processing_id, dict())
+    for parameter in new_parameters:
+        if parameter.name not in old_parameter_names:
+            value = new_cache.get(parameter.name, parameter.value_default)
+            computation.create_variable(parameter.name, parameter.variable_type, value,
+                                        value_default=parameter.value_default, value_min=parameter.value_min,
+                                        value_max=parameter.value_max, control_type=parameter.control_type,
+                                        label=parameter.label)
+
+    # cover the case where old and new members declare identical parameter sets (for example, no
+    # parameters at all), where no variable was added or removed to trigger a recompute on its own.
+    computation.needs_update = True
+
+
+class ChangeComputationVariantCommand(Undo.UndoableCommand):
+    """Switch a computation to a different member of its variant group.
+
+    See `Variant Groups` in the processing-operations design document.
+    """
+
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, new_processing_id: str) -> None:
+        super().__init__(_("Change Computation Variant"))
+        document_model = document_controller.document_model
+        self.__document_model = document_model
+        self.__computation_proxy = computation.create_proxy()
+        self.__old_processing_id = computation.processing_id
+        self.__new_processing_id = new_processing_id
+        self.initialize()
+
+    def close(self) -> None:
+        self.__document_model = typing.cast(typing.Any, None)
+        self.__computation_proxy.close()
+        self.__computation_proxy = typing.cast(typing.Any, None)
+        super().close()
+
+    def _perform(self) -> None:
+        computation = self.__computation_proxy.item
+        if computation:
+            _switch_computation_variant(computation, self.__new_processing_id)
+
+    def _get_modified_state(self) -> typing.Any:
+        computation = self.__computation_proxy.item
+        return computation.modified_state if computation else None, self.__document_model.modified_state
+
+    def _set_modified_state(self, modified_state: typing.Any) -> None:
+        computation = self.__computation_proxy.item
+        if computation:
+            computation.modified_state = modified_state[0]
+        self.__document_model.modified_state = modified_state[1]
+
+    def _undo(self) -> None:
+        computation = self.__computation_proxy.item
+        if computation and self.__old_processing_id:
+            _switch_computation_variant(computation, self.__old_processing_id)
+
+    def _redo(self) -> None:
+        self.perform()
+
+
 class ChangeComputationVariableCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model: DocumentModel.DocumentModel, computation: Symbolic.Computation,
@@ -1249,6 +1344,11 @@ class ComputationInspectorContext(EntityBrowser.Context):
         return typing.cast(bool, self.values.get("compact", False))
 
 
+def _variant_processing_id_title(processing_id: str) -> str:
+    processor = Symbolic.ComputationProcessor.get_processor(processing_id)
+    return (processor.title if processor else None) or processing_id
+
+
 class VariableHandler(Declarative.Handler):
     """A declarative handler that displays the control for a single computation variable.
 
@@ -1328,6 +1428,10 @@ class ComputationInspectorModel(Observable.Observable):
     - computation_inputs_model: a ListModel of the computation data source inputs
     - computation_parameters_model: a ListModel of the computation parameter inputs
     - is_custom: a boolean indicating whether the computation is custom (has a script expression)
+    - variant_group: the VariantGroup that the computation's processing id belongs to, or None
+    - has_variant_group: whether the computation's processing id belongs to a variant group
+    - variant_group_title: the title of the variant group, or an empty string
+    - variant_titles: the display titles of the variant group's member processing ids
 
     Provides the following dynamic properties that are updated based on the computation state:
     - error_state_model: a PropertyModel that is 1 if there is an error and 0 otherwise
@@ -1337,6 +1441,7 @@ class ComputationInspectorModel(Observable.Observable):
     - last_computed_status: a string indicating the last computed status, primarily the timestamp and duration
     - status: a string indicating the current status of the computation, such as computing or up-to-date
     - status_color: a color string, red for error, black for success
+    - variant_current_index_model: a PropertyModel holding the index of the current variant within variant_group
 
     The model tries to be stable during fast updates.
 
@@ -1352,6 +1457,11 @@ class ComputationInspectorModel(Observable.Observable):
         self.computation_parameters_model = ListModel.FilteredListModel(container=computation, master_items_key="variables")
         self.computation_parameters_model.filter = ListModel.PredicateFilter(lambda v: v.variable_type not in Symbolic._data_source_types)
         self.is_custom = computation.expression is not None
+
+        self.variant_group = Symbolic.VariantGroup.group_for_processing_id(computation.processing_id)
+        self.variant_group_title = self.variant_group.title if self.variant_group else str()
+        self.variant_titles = [_variant_processing_id_title(processing_id) for processing_id in self.variant_group.processing_ids] if self.variant_group else list()
+        self.variant_current_index_model = Model.PropertyModel(self.__variant_index_for_processing_id(computation.processing_id))
 
         # configure the is_stoppable stream that is True when the computation is stoppable. used to enable button.
         # the low level value is debounced and exposed as the is_stoppable property to avoid rapid changes during fast updates.
@@ -1381,6 +1491,12 @@ class ComputationInspectorModel(Observable.Observable):
     def finish_init(self) -> None:
         self.__computation_property_changed("error_text")
 
+    def __variant_index_for_processing_id(self, processing_id: typing.Optional[str]) -> int:
+        variant_group = self.variant_group
+        if variant_group and processing_id is not None and processing_id in variant_group.processing_ids:
+            return variant_group.processing_ids.index(processing_id)
+        return -1
+
     def __computation_property_changed(self, key: str) -> None:
         # observe computation property changes, update the model state, and send out property changed notifications as needed.
 
@@ -1405,12 +1521,18 @@ class ComputationInspectorModel(Observable.Observable):
             update_status_str()
         if key in ("last_computed_status", "auto_update", "needs_update"):
             self.notify_property_changed("update_button_enabled")
+        if key == "processing_id":
+            self.variant_current_index_model.value = self.__variant_index_for_processing_id(self.computation.processing_id)
 
     def __is_stoppable_changed(self, value: bool | None) -> None:
         self.notify_property_changed("is_stoppable")
 
     def __status_changed(self, value: bool | None) -> None:
         self.notify_property_changed("status")
+
+    @property
+    def has_variant_group(self) -> bool:
+        return self.variant_group is not None
 
     @property
     def update_button_enabled(self) -> bool:
@@ -1558,6 +1680,13 @@ class ComputationInspectorHandler(Declarative.Handler):
                 spacing=12,
                 size_policy_vertical="expanding"
             )
+        variant_row = u.create_row(
+            u.create_label(text="@binding(model.variant_group_title)"),
+            u.create_combo_box(items=self.model.variant_titles, current_index="@binding(model.variant_current_index_model.value)", on_current_index_changed="variant_selected"),
+            u.create_stretch(),
+            spacing=12,
+            visible="@binding(model.has_variant_group)"
+        )
         parameters = u.create_column(items="model.computation_parameters_model.items", item_component_id="variable", spacing=8)
         # the script editing note is omitted in the compact layout: it applies to every built-in computation,
         # so it is permanent clutter in the inspector panel, where it is also one of the widest strings.
@@ -1568,7 +1697,7 @@ class ComputationInspectorHandler(Declarative.Handler):
         else:
             note_line = [u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")]
         controls = u.create_row(u.create_column(last_computed_row, status, auto_update_row, control_row, *note_line, u.create_stretch(), spacing=12), u.create_stretch())
-        inspector_column = u.create_column(label, *source_line, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
+        inspector_column = u.create_column(label, *source_line, u.create_column(input_output_row, variant_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
         return inspector_column
 
     def update_computation(self, widget: UserInterface.PushButtonWidget) -> None:
@@ -1577,6 +1706,16 @@ class ComputationInspectorHandler(Declarative.Handler):
 
     def stop_computation(self, widget: UserInterface.PushButtonWidget) -> None:
         self.model.computation.stop()
+
+    def variant_selected(self, widget: UserInterface.ComboBoxWidget, current_index: int) -> None:
+        variant_group = self.model.variant_group
+        computation = self.model.computation
+        if variant_group and 0 <= current_index < len(variant_group.processing_ids):
+            new_processing_id = variant_group.processing_ids[current_index]
+            if new_processing_id != computation.processing_id:
+                command = ChangeComputationVariantCommand(self.document_controller, computation, new_processing_id)
+                command.perform()
+                self.document_controller.push_undo_command(command)
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "variable":

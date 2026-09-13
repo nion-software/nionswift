@@ -2188,7 +2188,7 @@ class Computation(Persistence.PersistentObject):
         self.define_property("last_computed_timestamp", converter=Converter.DatetimeToStringConverter(), changed=self.__property_changed, hidden=True)
         self.define_property("last_computed_status", ComputationResultStatusEnum.PENDING.value, changed=self.__property_changed, hidden=True)
         self.define_property("label", changed=self.__property_changed, hidden=True)
-        self.define_property("processing_id", hidden=True)  # see note above
+        self.define_property("processing_id", changed=self.__property_changed, hidden=True)  # see note above
         self.define_property("needs_recompute", False, changed=self.__property_changed, hidden=True)
         self.define_property("auto_update", True, changed=self.__property_changed, hidden=True)
         self.define_relationship("variables", variable_factory, insert=self.__variable_inserted, remove=self.__variable_removed, hidden=True)
@@ -4224,6 +4224,10 @@ class ComputationProcessor:
     def unregister(cls, processor_id: str) -> None:
         del ComputationProcessor._processors[processor_id]
 
+    @classmethod
+    def get_processor(cls, processor_id: str) -> "ComputationProcessor | None":
+        return cls._processors.get(processor_id)
+
     def to_dict(self) -> PersistentDictType:
         return {
             "expression": self.expression,
@@ -4280,6 +4284,43 @@ class ComputationProcessor:
             if output_label := output.label:
                 return output_label
         return None
+
+
+class VariantGroup:
+    """A named, ordered set of interchangeable processing ids.
+
+    See `Variant Groups` in the processing-operations design document: members fill
+    the same pipeline role and are loosely compatible, so the authoring UI can offer
+    them as alternatives for a computation, even though their parameter sets differ.
+    Membership here is purely a UI/authoring classification; it has no effect on a
+    computation's persisted state or execution semantics.
+    """
+
+    _groups: typing.ClassVar[dict[str, "VariantGroup"]] = dict()
+    _group_by_processing_id: typing.ClassVar[dict[str, "VariantGroup"]] = dict()
+
+    def __init__(self, group_id: str, title: str, processing_ids: typing.Sequence[str]) -> None:
+        self.group_id = group_id
+        self.title = title
+        self.processing_ids = list(processing_ids)
+
+    @classmethod
+    def register(cls, variant_group: "VariantGroup") -> None:
+        assert variant_group.group_id not in cls._groups
+        cls._groups[variant_group.group_id] = variant_group
+        for processing_id in variant_group.processing_ids:
+            assert processing_id not in cls._group_by_processing_id
+            cls._group_by_processing_id[processing_id] = variant_group
+
+    @classmethod
+    def unregister(cls, group_id: str) -> None:
+        variant_group = cls._groups.pop(group_id)
+        for processing_id in variant_group.processing_ids:
+            cls._group_by_processing_id.pop(processing_id, None)
+
+    @classmethod
+    def group_for_processing_id(cls, processing_id: typing.Optional[str]) -> typing.Optional["VariantGroup"]:
+        return cls._group_by_processing_id.get(processing_id) if processing_id else None
 
 
 @dataclasses.dataclass

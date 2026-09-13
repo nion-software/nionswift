@@ -13,6 +13,7 @@ import numpy
 
 from nion.data import annotated_array
 from nion.data.annotated_array import primitives
+from nion.swift.model import Symbolic
 from nion.swift.model.computation_api import v1 as computation_api
 
 
@@ -94,6 +95,7 @@ def register_builtin_computations() -> None:
     computation_api.get_api().register_executor("gaussian-window", GaussianWindowExecutor())
     computation_api.get_api().register_executor("hamming-window", HammingWindowExecutor())
     computation_api.get_api().register_executor("hann-window", HannWindowExecutor())
+    Symbolic.VariantGroup.register(Symbolic.VariantGroup("window-functions", "Window Function", ["gaussian-window", "hamming-window", "hann-window"]))
     _definitions_registered = True
 
 
