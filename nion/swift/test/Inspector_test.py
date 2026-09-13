@@ -100,7 +100,7 @@ class TestInspectorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            size_width_binding = Inspector.CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(rect_graphic, "size", 0))
+            size_width_binding = ComputationInspector.CalibratedSizeBinding(0, display_item, Binding.TuplePropertyBinding(rect_graphic, "size", 0))
             size_width_binding.update_source("0.6")
             self.assertEqual(center, rect_graphic.center)
             size_width_binding = None
@@ -1622,7 +1622,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item.append_display_data_channel_for_data_item(data_item2)
             display_item.append_display_data_channel_for_data_item(data_item3)
 
-            binding = Inspector.CalibratedValueBinding(-1, display_item, Inspector.ChangeGraphicPropertyBinding(document_controller, display_item, interval2, "start"))
+            binding = ComputationInspector.CalibratedValueBinding(-1, display_item, ComputationInspector.ChangeGraphicPropertyBinding(document_controller, display_item, interval2, "start"))
             with contextlib.closing(binding):
                 display_item.remove_graphic(interval).close()
 
