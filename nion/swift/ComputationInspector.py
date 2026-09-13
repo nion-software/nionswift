@@ -18,7 +18,7 @@ import weakref
 from nion.data import Calibration
 from nion.swift import DisplayPanel
 from nion.swift import EntityBrowser
-from nion.swift import Inspector
+from nion.swift import GraphicsInspector
 from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DataItem
@@ -746,10 +746,10 @@ class CalibratedAngleBinding(CalibratedBinding):
         super().__init__(display_item, value_binding, 0)
 
     def _convert_str_to_value(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value_str: str | None) -> float | None:
-        return Inspector.RadianToDegreeStringConverter().convert_back(value_str) if value_str is not None else None
+        return GraphicsInspector.RadianToDegreeStringConverter().convert_back(value_str) if value_str is not None else None
 
     def _convert_value_to_str(self, calibration: Calibration.Calibration, display_calibration_info: DisplayItem.DisplayCalibrationInfo | None, data_size: int, value: float | None) -> str | None:
-        return Inspector.RadianToDegreeStringConverter().convert(value) if value is not None else None
+        return GraphicsInspector.RadianToDegreeStringConverter().convert(value) if value is not None else None
 
 
 class CalibratedLengthBinding(Binding.Binding):
@@ -839,55 +839,55 @@ class GraphicHandler(Declarative.Handler):
                 display_item = graphic.display_item
                 index = 1 if property == "center_x" else 0
                 graphic_name = "rectangle"
-                property_model = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
+                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             elif property in ("width", "height"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "width" else 0
                 graphic_name = "rectangle"
-                size_model = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
+                size_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
                 return CalibratedSizeBinding(index, display_item, ClosingTuplePropertyBinding(size_model, "value", index))
             elif property in ("rotation_deg", ):
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "rectangle"
-                rotation_model = Inspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
-                return ClosingPropertyBinding(rotation_model, "value", converter=Inspector.RadianToDegreeStringConverter())
+                rotation_model = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
+                return ClosingPropertyBinding(rotation_model, "value", converter=GraphicsInspector.RadianToDegreeStringConverter())
         if isinstance(source, Graphics.LineTypeGraphic):
             if property in ("start_x", "start_y"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "start_x" else 0
                 graphic_name = "line_profile"
-                property_model = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {} Start").format(graphic_name), command_id="change_" + graphic_name + "_start")
+                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {} Start").format(graphic_name), command_id="change_" + graphic_name + "_start")
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property in ("end_x", "end_y"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "end_x" else 0
                 graphic_name = "line_profile"
-                property_model = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {} End").format(graphic_name), command_id="change_" + graphic_name + "_end")
+                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {} End").format(graphic_name), command_id="change_" + graphic_name + "_end")
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property == "length":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model1 = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_start")
-                property_model2 = Inspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_end")
+                property_model1 = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_start")
+                property_model2 = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {} Length").format(graphic_name), command_id="change_" + graphic_name + "_length_end")
                 return CalibratedLengthBinding(display_item, ClosingPropertyBinding(property_model1, "value"), ClosingPropertyBinding(property_model2, "value"))
             if property == "angle":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model_f = Inspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
+                property_model_f = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "angle", title=_("Change {} Angle").format(graphic_name), command_id="change_" + graphic_name + "_angle")
                 return CalibratedAngleBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         if isinstance(source, Graphics.LineProfileGraphic):
             if property == "width":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model_f = Inspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "width", title=_("Change {} Line Width").format(graphic_name), command_id="change_" + graphic_name + "_line_width")
+                property_model_f = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "width", title=_("Change {} Line Width").format(graphic_name), command_id="change_" + graphic_name + "_line_width")
                 return CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         return None
 

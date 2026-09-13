@@ -15,6 +15,7 @@ from nion.data import DataAndMetadata
 from nion.swift import ComputationInspector
 from nion.swift import DisplayPanel
 from nion.swift import Facade
+from nion.swift import GraphicsInspector
 from nion.swift import Inspector
 from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataItem
@@ -842,7 +843,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
-            rectangle_handler= Inspector.GraphicsInspectorHandler(document_controller, display_item, display_item.graphics[0])
+            rectangle_handler= GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, display_item.graphics[0])
             self.assertEqual(rectangle_handler._center_x_model.value, "256.0 mm")  # x
             self.assertEqual(rectangle_handler._center_y_model.value, "64.00 mm")  # y
             self.assertEqual(rectangle_handler._width_model.value, "512.0 mm")  # width
@@ -862,7 +863,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
-            line_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, line_graphic)
+            line_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, line_graphic)
             self.assertEqual(line_handler._x0_model.value, "40.0 mm")  # x0
             self.assertEqual(line_handler._y0_model.value, "10.00 mm")  # y0
             self.assertEqual(line_handler._x1_model.value, "160.0 mm")  # x1
@@ -879,7 +880,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item.calibration_style_id = "calibrated"
             display_item.data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
-            point_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, display_item.graphics[0])
+            point_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, display_item.graphics[0])
             self.assertEqual(point_handler._point_position_x_model.value, "256.0 mm")  # x
             self.assertEqual(point_handler._point_position_y_model.value, "64.00 mm")  # y
 
@@ -896,7 +897,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # b
             display_item.data_item.set_dimensional_calibration(2, Calibration.Calibration(units="nm", scale=0.5))  # y
             display_item.data_item.set_dimensional_calibration(3, Calibration.Calibration(units="nm", scale=2.0))  # x
-            point_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, display_item.graphics[0])
+            point_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, display_item.graphics[0])
             self.assertEqual("6.00 nm", point_handler._point_position_y_model.value)  # y
             self.assertEqual("24.0 nm", point_handler._point_position_x_model.value)  # x
 
@@ -967,7 +968,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item.add_graphic(interval_graphic)
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="eV", scale=2.0))  # energy
-            interval_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, interval_graphic)
+            interval_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, interval_graphic)
             self.assertEqual("40.0 eV", interval_handler._start_model.value)  # energy
             self.assertEqual("80.0 eV", interval_handler._end_model.value)  # energy
 
@@ -985,7 +986,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="s", scale=1.0))  # time
             data_item.set_dimensional_calibration(1, Calibration.Calibration(units="eV", scale=2.0))  # energy
-            interval_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, interval_graphic)
+            interval_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, interval_graphic)
             self.assertEqual("40.0 eV", interval_handler._start_model.value)  # energy
             self.assertEqual("80.0 eV", interval_handler._end_model.value)  # energy
 
@@ -1006,7 +1007,7 @@ class TestInspectorClass(unittest.TestCase):
             display_item.add_graphic(interval_graphic)
             display_item.calibration_style_id = "calibrated"
             data_item.set_dimensional_calibration(0, Calibration.Calibration(units="eV", scale=2.0))  # energy
-            interval_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, interval_graphic)
+            interval_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, interval_graphic)
             self.assertEqual("40.0 eV", interval_handler._start_model.value)  # energy
             self.assertEqual("80.0 eV", interval_handler._end_model.value)  # energy
 
@@ -1024,7 +1025,7 @@ class TestInspectorClass(unittest.TestCase):
             point_graphic.position = Geometry.FloatPoint(0.5, 0.5)
             display_item.add_graphic(point_graphic)
             display_item.calibration_style_id = "relative-top-left"
-            point_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, point_graphic)
+            point_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, point_graphic)
             point_handler._point_position_x_model.value = "0.75"
             point_handler._point_position_y_model.value = "0.25"
             self.assertEqual(Geometry.FloatPoint(0.25, 0.75), point_graphic.position)
@@ -1047,7 +1048,7 @@ class TestInspectorClass(unittest.TestCase):
             point_graphic.position = Geometry.FloatPoint(0.5, 0.5)
             display_item.add_graphic(point_graphic)
             display_item.calibration_style_id = "relative-top-left"
-            point_handler = Inspector.GraphicsInspectorHandler(document_controller, display_item, point_graphic)
+            point_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, point_graphic)
             point_handler._point_position_x_model.value = "0.75"
             point_handler._point_position_y_model.value = "0.25"
             self.assertEqual(Geometry.FloatPoint(0.25, 0.75), point_graphic.position)
