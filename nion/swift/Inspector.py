@@ -3547,7 +3547,7 @@ class RealSliderVariableHandler(Declarative.Handler):
         super().__init__()
         self.variable = variable
         self.variable_model = variable_model
-        self.slider_converter = Converter.FloatToScaledIntegerConverter(2000, 0, 100)
+        self.slider_converter = Converter.FloatToScaledIntegerConverter(2000, variable.value_min, variable.value_max)
         self.float_str_converter = Converter.FloatToStringConverter()
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
