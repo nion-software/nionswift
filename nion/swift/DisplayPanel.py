@@ -2031,7 +2031,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             if display_canvas_item and hasattr(display_canvas_item, "get_drop_regions_map"):
                 # give the display canvas item a chance to provide drop regions based on the display item being dropped
                 display_item = None
-                if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
+                if mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
+                    # There is currently no handling for a drag of multiple items with get_drop_regions_map
+                    self.__content_canvas_item.drop_regions_map = dict()  # Make sure the drop regions map is cleared
+                elif mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
                     display_item, d = MimeTypes.mime_data_get_panel(mime_data, self.document_controller.document_model)
                 if not display_item:
                     display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_controller.document_model)
