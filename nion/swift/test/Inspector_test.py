@@ -12,6 +12,7 @@ import numpy
 # local imports
 from nion.data import Calibration
 from nion.data import DataAndMetadata
+from nion.swift import ComputationInspector
 from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift import Inspector
@@ -1363,7 +1364,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             computation = document_model.get_data_item_computation(new_data_item)
             old_bins = computation.get_input_value("bins")
-            inspector_section = Inspector.ComputationInspectorSection(Inspector.ComputationInspectorContext(document_controller), new_data_item)
+            inspector_section = Inspector.ComputationInspectorSection(ComputationInspector.ComputationInspectorContext(document_controller), new_data_item)
             with contextlib.closing(inspector_section):
                 field_widget = inspector_section.find_widget_by_id("value")
                 field_widget.editing_finished("100")
@@ -1384,7 +1385,7 @@ class TestInspectorClass(unittest.TestCase):
             document_model.recompute_all()
             computation = document_model.get_data_item_computation(new_data_item)
             self.assertEqual({data_item}, computation.get_variable_input_items("src"))
-            command = Inspector.ChangeComputationVariableCommand(document_model, computation, computation._get_variable("src"), specified_object=None)
+            command = ComputationInspector.ChangeComputationVariableCommand(document_model, computation, computation._get_variable("src"), specified_object=None)
             command.perform()
             document_controller.push_undo_command(command)
             self.assertIsNone(computation.get_input("src"))
@@ -1823,3 +1824,4 @@ class TestInspectorClass(unittest.TestCase):
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
+

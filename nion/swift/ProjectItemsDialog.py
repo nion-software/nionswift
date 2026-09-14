@@ -19,9 +19,8 @@ import typing
 # None
 
 # local libraries
-from nion.swift import ComputationPanel
+from nion.swift import ComputationInspector
 from nion.swift import EntityBrowser
-from nion.swift import Inspector
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
@@ -175,10 +174,10 @@ class DataStructureInspectorHandlerFactory(EntityBrowser.ItemInspectorHandlerFac
 
 class ComputationInspectorHandlerFactory(EntityBrowser.ItemInspectorHandlerFactory):
     def make_sections(self, context: EntityBrowser.Context, item: typing.Any) -> typing.Sequence[typing.Tuple[str, Declarative.HandlerLike]]:
-        if isinstance(item, Symbolic.Computation) and isinstance(context, Inspector.ComputationInspectorContext):
+        if isinstance(item, Symbolic.Computation) and isinstance(context, ComputationInspector.ComputationInspectorContext):
             return [
-                (_("Edit"), ComputationPanel.ComputationInspectorHandler(context, item)),
-                (_("Errors"), ComputationPanel.ComputationErrorInspectorHandler(context, item)),
+                (_("Edit"), ComputationInspector.ComputationInspectorHandler(context, item)),
+                (_("Errors"), ComputationInspector.ComputationErrorInspectorHandler(context, item)),
             ]
         return list()
 
@@ -210,7 +209,7 @@ class ProjectItemsDialog(Declarative.WindowHandler):
 
         self.dialog_id = "project_items"
 
-        context = Inspector.ComputationInspectorContext(document_controller, self, True)
+        context = ComputationInspector.ComputationInspectorContext(document_controller, self, True)
 
         items = (
             EntityBrowser.EntityBrowserEntry(context, _("Data Items"), document_controller.document_model, "data_items",
