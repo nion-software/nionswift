@@ -818,14 +818,14 @@ class CalibratedLengthBinding(Binding.Binding):
 
 
 class GraphicHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, graphic: Graphics.Graphic):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, graphic: Graphics.Graphic, compact: bool = False):
         super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
         self.graphic = graphic
         u = Declarative.DeclarativeUI()
-        graphic_content = self.__make_component_content(graphic)
+        graphic_content = self.__make_component_content(graphic, compact)
         label_row = u.create_row(
             u.create_label(text="@binding(variable.display_label)"),
             # u.create_label(text=f"#{variable._bound_items.index(item)}"),
@@ -861,6 +861,14 @@ class GraphicHandler(Declarative.Handler):
                 graphic_name = "rectangle"
                 rotation_model = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "rotation", title=_("Change {} Rotation").format(graphic_name), command_id="change_" + graphic_name + "_size")
                 return ClosingPropertyBinding(rotation_model, "value", converter=GraphicsInspector.RadianToDegreeStringConverter())
+        if isinstance(source, Graphics.PointTypeGraphic):
+            if property in ("position_x", "position_y"):
+                graphic = source
+                display_item = graphic.display_item
+                index = 1 if property == "position_x" else 0
+                graphic_name = "point"
+                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "position", title=_("Change {} Position").format(graphic_name), command_id="change_" + graphic_name + "_position")
+                return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
         if isinstance(source, Graphics.LineTypeGraphic):
             if property in ("start_x", "start_y"):
                 graphic = source
@@ -898,7 +906,7 @@ class GraphicHandler(Declarative.Handler):
                 return CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         return None
 
-    def __make_component_content(self, graphic: Graphics.Graphic) -> Declarative.UIDescription:
+    def __make_component_content(self, graphic: Graphics.Graphic, compact: bool = False) -> Declarative.UIDescription:
         u = Declarative.DeclarativeUI()
         if isinstance(graphic, Graphics.IntervalGraphic):
             graphic_row = u.create_row(
@@ -927,6 +935,15 @@ class GraphicHandler(Declarative.Handler):
                 u.create_stretch(),
                 spacing=12)
             return u.create_column(position_row, size_row, rotation_row, spacing=8)
+        if isinstance(graphic, Graphics.PointTypeGraphic):
+            # the position is bound through get_binding, which maps it onto the position tuple.
+            position_row = u.create_row(
+                u.create_label(text=_("X"), width=24),
+                u.create_line_edit(text="@binding(graphic.position_x)", width=90),
+                u.create_label(text=_("Y"), width=24),
+                u.create_line_edit(text="@binding(graphic.position_y)", width=90),
+                u.create_stretch(), spacing=12)
+            return position_row
         if isinstance(graphic, Graphics.LineProfileGraphic):
             start_row = u.create_row(
                 u.create_label(text=_("X0"), width=24),
@@ -940,14 +957,15 @@ class GraphicHandler(Declarative.Handler):
                 u.create_label(text=_("Y1"), width=24),
                 u.create_line_edit(text="@binding(graphic.end_y)", width=90),
                 u.create_stretch(), spacing=12)
+            # the compact layout abbreviates these to fit the 24 point label column, as the graphics inspector does.
             length_row = u.create_row(
-                u.create_label(text=_("Length"), width=24),
+                u.create_label(text=_("L") if compact else _("Length"), width=24),
                 u.create_line_edit(text="@binding(graphic.length)", width=90),
-                u.create_label(text=_("Angle"), width=24),
+                u.create_label(text=_("A") if compact else _("Angle"), width=24),
                 u.create_line_edit(text="@binding(graphic.angle)", width=90),
                 u.create_stretch(), spacing=12)
             line_width_row = u.create_row(
-                u.create_label(text=_("Width"), width=24),
+                u.create_label(text=_("W") if compact else _("Width"), width=24),
                 u.create_line_edit(text="@binding(graphic.width)", width=90),
                 u.create_stretch(), spacing=12)
             return u.create_column(start_row, end_row, length_row, line_width_row, spacing=8)
@@ -959,7 +977,7 @@ class GraphicVariableHandlerFactory(VariableHandlerComponentFactory2):
         if computation_variable.variable_type == Symbolic.ComputationVariableType.GRAPHIC:
             graphic = typing.cast(typing.Optional[Graphics.Graphic], computation_variable.bound_item.value if computation_variable.bound_item else None)
             if graphic:
-                return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic)
+                return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic, computation_inspector_context.compact)
         return None
 
 
@@ -1125,25 +1143,26 @@ class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory2):
 
 
 class GraphicListVariableHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, compact: bool = False) -> None:
         super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
+        self.__compact = compact
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(items="variable._bound_items", item_component_id="graphic_item", spacing=8)
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "graphic_item" and item and item.value:
             graphic = typing.cast(Graphics.Graphic, item.value)
-            return GraphicHandler(self.document_controller, self.computation, self.variable, graphic)
+            return GraphicHandler(self.document_controller, self.computation, self.variable, graphic, self.__compact)
         return None
 
 
 class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.is_list:
-            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable)
+            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable, computation_inspector_context.compact)
         return None
 
 
@@ -1540,11 +1559,15 @@ class ComputationInspectorHandler(Declarative.Handler):
                 size_policy_vertical="expanding"
             )
         parameters = u.create_column(items="model.computation_parameters_model.items", item_component_id="variable", spacing=8)
-        if sys.platform == "darwin":
-            note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script."), word_wrap=compact), visible="@binding(model.is_custom)")
+        # the script editing note is omitted in the compact layout: it applies to every built-in computation,
+        # so it is permanent clutter in the inspector panel, where it is also one of the widest strings.
+        if compact:
+            note_line = []
+        elif sys.platform == "darwin":
+            note_line = [u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")]
         else:
-            note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script."), word_wrap=compact), visible="@binding(model.is_custom)")
-        controls = u.create_row(u.create_column(last_computed_row, status, auto_update_row, control_row, note, u.create_stretch(), spacing=12), u.create_stretch())
+            note_line = [u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")]
+        controls = u.create_row(u.create_column(last_computed_row, status, auto_update_row, control_row, *note_line, u.create_stretch(), spacing=12), u.create_stretch())
         inspector_column = u.create_column(label, *source_line, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
         return inspector_column
 
