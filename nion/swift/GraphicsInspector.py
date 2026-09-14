@@ -12,7 +12,6 @@ import typing
 # local libraries
 from nion.data import Calibration
 from nion.swift import DisplayPanel
-from nion.swift import Inspector
 from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
@@ -754,6 +753,9 @@ class GraphicsSectionHandler(Declarative.Handler):
         self.__display_item = display_item
         self._graphics_model = graphics_model
         self._graphic_handlers: list[GraphicsInspectorHandler] = []
+        # imported here rather than at module scope: Inspector imports this module, so a module level
+        # import would form an import cycle.
+        from nion.swift import Inspector
         self._calibration_style_model = Inspector.CalibrationStyleModel(document_controller, display_item, Inspector.DimensionalCalibrationStyleModelAdapter())
 
         u = Declarative.DeclarativeUI()
