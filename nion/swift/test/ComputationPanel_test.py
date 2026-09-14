@@ -8,9 +8,9 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import ComputationInspector
 from nion.swift import ComputationPanel
 from nion.swift import Facade
-from nion.swift import Inspector
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
@@ -189,7 +189,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.periodic()
             # change variable
             properties = {"variable_type": "data_item", "specified_object": data_item3}
-            command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, **properties)
+            command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger error
@@ -232,7 +232,7 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertIsNotNone(computation.error_text)
             # change variable
             properties = {"variable_type": "data_item", "specified_object": data_item2}
-            command = Inspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, **properties)
+            command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, **properties)
             command.perform()
             document_controller.push_undo_command(command)
             # verify change and trigger computation
