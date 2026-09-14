@@ -1178,15 +1178,17 @@ def make_computation_variable_component(computation_inspector_context: Computati
 class ComputationInspectorContext(EntityBrowser.Context):
     # a context for the inspectors (not consistently available in all inspectors yet)
     # allows access to a reference handler (when the user clicks links on referenced components),
-    # the window (document controller), the document model, and whether to provide link controls.
+    # the window (document controller), the document model, whether to provide link controls,
+    # and whether the UI is hosted in a narrow container such as the inspector panel (compact).
 
-    def __init__(self, document_controller: DocumentController.DocumentController, reference_handler: typing.Optional[EntityBrowser.ReferenceHandlerContext] = None, provide_reference_links: bool = False) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, reference_handler: typing.Optional[EntityBrowser.ReferenceHandlerContext] = None, provide_reference_links: bool = False, compact: bool = False) -> None:
         super().__init__()
         self.values["reference_handler"] = reference_handler or document_controller
         self.values["window"] = document_controller
         self.values["event_loop"] = document_controller.event_loop
         self.values["document_model"] = document_controller.document_model
         self.values["do_references"] = provide_reference_links
+        self.values["compact"] = compact
 
     @property
     def reference_handler(self) -> EntityBrowser.ReferenceHandlerContext:
@@ -1207,6 +1209,12 @@ class ComputationInspectorContext(EntityBrowser.Context):
     @property
     def do_references(self) -> bool:
         return typing.cast(bool, self.values.get("do_references", False))
+
+    @property
+    def compact(self) -> bool:
+        # whether the UI is hosted in a narrow container, such as the inspector panel, in which case
+        # the UI should avoid side-by-side columns and dialog-sized fixed widths.
+        return typing.cast(bool, self.values.get("compact", False))
 
 
 class VariableHandler(Declarative.Handler):
@@ -1485,30 +1493,43 @@ class ComputationInspectorHandler(Declarative.Handler):
         super().close()
 
     def __make_ui(self) -> Declarative.UIDescriptionResult:
+        # the compact layout is used when hosted in a narrow container such as the inspector panel: the
+        # results are omitted (the container already displays them) and fixed widths are relaxed in favor
+        # of word wrapping, since the inspector panel does not scroll horizontally.
+        compact = self.__computation_inspector_context.compact
         u = Declarative.DeclarativeUI()
-        label = u.create_label(text=self.model.computation.label)
+        label = u.create_label(text="@binding(model.computation.label)", word_wrap=compact, widget_id="computation_label")
         source_line = [u.create_component_instance("source_component")] if self.__computation_inspector_context.do_references else []
         auto_update = u.create_check_box(text=_("Auto Update"), checked="@binding(model.computation.auto_update)")
         update_button = u.create_push_button(text=_("Update"), on_clicked="update_computation", enabled="@binding(model.update_button_enabled)")
         auto_update_row = u.create_row(auto_update, update_button, u.create_stretch(), spacing=12)
-        progress = u.create_progress_bar(value="@binding(model.progress_value)", width=160, height=8)
+        if compact:
+            progress = u.create_progress_bar(value="@binding(model.progress_value)", height=8)
+        else:
+            progress = u.create_progress_bar(value="@binding(model.progress_value)", width=160, height=8)
         stop_button = u.create_push_button(text=_("Stop"), visible="@binding(model.is_stoppable)", on_clicked="stop_computation")
         control_row = u.create_row(progress, stop_button, u.create_stretch(), spacing=12)
-        last_computed_row = u.create_row(u.create_label(text=_("Last Computed: ")), u.create_label(text="@binding(model.last_computed_status)"), u.create_stretch())
-        status = u.create_label(text="@binding(model.status)", max_width=300)
+        last_computed_row = u.create_row(u.create_label(text=_("Last Computed: ")), u.create_label(text="@binding(model.last_computed_status)", word_wrap=compact), u.create_stretch())
+        if compact:
+            status = u.create_label(text="@binding(model.status)", word_wrap=True)
+        else:
+            status = u.create_label(text="@binding(model.status)", max_width=300)
         inputs = u.create_column(items="model.computation_inputs_model.items", item_component_id="variable", spacing=8, size_policy_vertical="expanding")
-        results = u.create_column(items="model.computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
-        input_output_row = u.create_row(
-            u.create_column(u.create_column(inputs), u.create_stretch()),
-            u.create_column(u.create_column(results), u.create_stretch()),
-            spacing=12,
-            size_policy_vertical="expanding"
-        )
+        if compact:
+            input_output_row = u.create_column(inputs)
+        else:
+            results = u.create_column(items="model.computation.results", item_component_id="result", spacing=8, size_policy_vertical="expanding")
+            input_output_row = u.create_row(
+                u.create_column(u.create_column(inputs), u.create_stretch()),
+                u.create_column(u.create_column(results), u.create_stretch()),
+                spacing=12,
+                size_policy_vertical="expanding"
+            )
         parameters = u.create_column(items="model.computation_parameters_model.items", item_component_id="variable", spacing=8)
         if sys.platform == "darwin":
-            note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")
+            note = u.create_row(u.create_label(text=_("Use Command+Shift+E to edit data item script."), word_wrap=compact), visible="@binding(model.is_custom)")
         else:
-            note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script.")), visible="@binding(model.is_custom)")
+            note = u.create_row(u.create_label(text=_("Use Ctrl+Shift+E to edit data item script."), word_wrap=compact), visible="@binding(model.is_custom)")
         controls = u.create_row(u.create_column(last_computed_row, status, auto_update_row, control_row, note, u.create_stretch(), spacing=12), u.create_stretch())
         inspector_column = u.create_column(label, *source_line, u.create_column(input_output_row, parameters, u.create_divider(orientation="horizontal"), controls, spacing=12), spacing=12)
         return inspector_column

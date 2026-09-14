@@ -1299,6 +1299,28 @@ class TestInspectorClass(unittest.TestCase):
             line_edit_widget2.editing_finished("1.1")
             self.assertEqual(x.value, 1.1)
 
+    def test_computation_inspector_label_follows_computation_label(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_variable("x", "integral", 0)
+            computation.label = "Label1"
+            document_model.set_data_item_computation(data_item, computation)
+            display_panel = document_controller.selected_display_panel
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            document_controller.periodic()
+            inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
+            label_widget = inspector_section.find_widget_by_id("computation_label")
+            self.assertEqual("Label1", label_widget.text)
+            computation.label = "Label2"
+            document_controller.periodic()
+            self.assertEqual("Label2", label_widget.text)
+
     def test_computation_inspector_handles_computation_variable_checkbox_and_undo_redo_cycle(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
