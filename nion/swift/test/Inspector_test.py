@@ -1289,12 +1289,12 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_panel("inspector-panel")
             document_controller.periodic()
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
-            line_edit_widget1 = inspector_section._variables_column_widget.children[0].content_widget.find_widget_by_id("value")
+            line_edit_widget1 = inspector_section.find_widget_by_id("value")
             line_edit_widget1.editing_finished("1")
             self.assertEqual(x.value, 1)
             x.value_type = Symbolic.ComputationVariableType.REAL
             document_controller.periodic()
-            line_edit_widget2 = inspector_section._variables_column_widget.children[0].content_widget.find_widget_by_id("value")
+            line_edit_widget2 = inspector_section.find_widget_by_id("value")
             line_edit_widget2.editing_finished("1.1")
             self.assertEqual(x.value, 1.1)
 
