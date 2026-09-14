@@ -3391,102 +3391,33 @@ class GraphicsInspectorSection(InspectorSection):
         self.add_widget_to_content(self.__widget)
 
 
-class VariableWidget(Widgets.CompositeWidgetBase):
-    """A composite widget for displaying a 'variable' control.
+class ComputationInspectorSection(InspectorSection):
+    """Displays a computation's inputs, parameters, results, and status.
 
-    Also watches for changes to the variable that require a different UI and rebuilds
-    the UI if necessary.
-
-    The content_widget for the CompositeWidgetBase is a column widget and always has
-    a single child which is the UI for the variable. The child is replaced if necessary.
+    Shares its implementation with the computation editor dialog (see ComputationPanel.ComputationHandler)
+    via ComputationInspectorHandler, so both UIs stay in sync with a single implementation.
     """
 
-    def __init__(self, computation_inspector_context: ComputationInspector.ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
-        document_controller = computation_inspector_context.window
-        self.__content_widget = document_controller.ui.create_column_widget()
-        super().__init__(self.__content_widget)
-        self.__unbinder = Unbinder()
-        self.__make_widget_from_variable(computation_inspector_context, computation, variable)
-
-        def rebuild_variable() -> None:
-            self.__content_widget.remove_all()
-            self.__make_widget_from_variable(computation_inspector_context, computation, variable)
-
-        self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(rebuild_variable)
-
-    def close(self) -> None:
-        self.__variable_needs_rebuild_event_listener.close()
-        self.__variable_needs_rebuild_event_listener = typing.cast(typing.Any, None)
-        self.__unbinder.close()
-        self.__unbinder = typing.cast(typing.Any, None)
-        super().close()
-
-    def __make_widget_from_variable(self, computation_inspector_context: ComputationInspector.ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
-        document_controller = computation_inspector_context.window
-        variable_value_model = ComputationInspector.VariableValueModel(document_controller, computation, variable)
-        handler = ComputationInspector.make_computation_variable_component(computation_inspector_context, computation, variable, variable_value_model)
-        if handler:
-            widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, handler)
-            self.__content_widget.add(widget)
-
-
-class ComputationInspectorSection(InspectorSection):
     def __init__(self, computation_inspector_context: ComputationInspector.ComputationInspectorContext, data_item: DataItem.DataItem) -> None:
         document_controller = computation_inspector_context.window
         super().__init__(document_controller.ui, "computation", _("Computation"))
-        self.__computation_variable_inserted_event_listener: typing.Optional[Event.EventListener]
-        self.__computation_variable_removed_event_listener: typing.Optional[Event.EventListener]
         document_model = document_controller.document_model
         computation = document_model.get_data_item_computation(data_item)
         if computation:
-            label_row = self.ui.create_row_widget()
-            label_widget = self.ui.create_label_widget()
-            label_widget.bind_text(Binding.PropertyBinding(computation, "label"))
-            label_row.add(label_widget)
-            label_row.add_stretch()
-            self._unbinder.add([data_item, computation], [label_widget.unbind_text])
-
-            self._variables_column_widget = self.ui.create_column_widget()
-
-            stretch_column = self.ui.create_column_widget()
-            stretch_column.add_stretch()
-
-            self.add_widget_to_content(label_row)
-            self.add_widget_to_content(self._variables_column_widget)
-            self.add_widget_to_content(stretch_column)
-
-            def variable_inserted(name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
-                if name == "variables":
-                    assert computation  # mypy bug: doesn't pass the 'if computation' here
-                    widget_wrapper = VariableWidget(computation_inspector_context, computation, variable)
-                    self._variables_column_widget.insert(widget_wrapper, index)
-
-            def variable_removed(name: str, index: int, variable: Symbolic.ComputationVariable) -> None:
-                if name == "variables":
-                    self._variables_column_widget.remove(self._variables_column_widget.children[index])
-
-            self.__computation_variable_inserted_event_listener = computation.item_inserted_event.listen(variable_inserted)
-            self.__computation_variable_removed_event_listener = computation.item_removed_event.listen(variable_removed)
-
-            for index, variable in enumerate(computation.variables):
-                variable_inserted("variables", index, variable)
+            self.__computation_inspector_handler: typing.Optional[ComputationInspector.ComputationInspectorHandler] = ComputationInspector.ComputationInspectorHandler(computation_inspector_context, computation)
+            widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self.__computation_inspector_handler)
+            self.add_widget_to_content(widget)
         else:
+            self.__computation_inspector_handler = None
             none_label = self.ui.create_label_widget(_("None"))
             none_label.text_font = "italic"
             none_widget = self.ui.create_row_widget()
             none_widget.add(none_label)
             self.add_widget_to_content(none_widget)
-            self.__computation_variable_inserted_event_listener = None
-            self.__computation_variable_removed_event_listener = None
         self.finish_widget_content()
 
     def close(self) -> None:
-        if self.__computation_variable_inserted_event_listener:
-            self.__computation_variable_inserted_event_listener.close()
-            self.__computation_variable_inserted_event_listener = None
-        if self.__computation_variable_removed_event_listener:
-            self.__computation_variable_removed_event_listener.close()
-            self.__computation_variable_removed_event_listener = None
+        self.__computation_inspector_handler = None
         super().close()
 
 

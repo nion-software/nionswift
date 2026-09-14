@@ -32,7 +32,6 @@ from nion.ui import Declarative
 from nion.ui import UserInterface
 from nion.utils import Binding
 from nion.utils import Converter
-from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
@@ -985,30 +984,44 @@ class ComputationInspectorContext(EntityBrowser.Context):
 
 
 class VariableHandler(Declarative.Handler):
-    def __init__(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable):
+    """A declarative handler that displays the control for a single computation variable.
+
+    Watches the variable for changes that require a different UI (e.g. a change of variable
+    type) and rebuilds its component in place if necessary.
+    """
+
+    def __init__(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
         super().__init__()
-        self.computation = computation
-        self.variable = variable
-        variable_model = VariableValueModel(computation_inspector_context.window, computation, variable)
-        # use 2000 below to avoid a match slider, which gives rise to a bizarre slider bug https://bugreports.qt.io/browse/QTBUG-77368
-        # also must be a multiple of inspector slider to avoid
-        self.slider_converter = Converter.FloatToScaledIntegerConverter(2000, 0, 100)
-        self.float_str_converter = Converter.FloatToStringConverter()
-        self.int_str_converter = Converter.IntegerToStringConverter()
-        self.property_changed_event = Event.Event()
-        self.__variable_component: typing.Optional[Declarative.HandlerLike] = make_computation_variable_component(computation_inspector_context, computation, variable, variable_model)
+        self.__computation_inspector_context = computation_inspector_context
+        self.__computation = computation
+        self.__variable = variable
+        self.__rebuild_count = 0
         u = Declarative.DeclarativeUI()
-        if self.__variable_component:
-            self.ui_view = u.create_column(u.create_component_instance("component"), spacing=8)
-        else:
-            label = u.create_label(text="@binding(variable.display_label)")
-            self.ui_view = u.create_column(label, u.create_label(text=_("Missing") + " " + f"[{variable.variable_type}]"), spacing=8)
+        self.ui_view = u.create_column(u.create_component_instance("@binding(component_identifier)"), spacing=8)
+        self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(self.__rebuild)
+
+    def close(self) -> None:
+        self.__variable_needs_rebuild_event_listener.close()
+        self.__variable_needs_rebuild_event_listener = typing.cast(typing.Any, None)
+        super().close()
+
+    @property
+    def component_identifier(self) -> str:
+        return f"component_{self.__rebuild_count}"
+
+    def __rebuild(self) -> None:
+        self.__rebuild_count += 1
+        self.notify_property_changed("component_identifier")
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
-        if component_id == "component":
-            assert self.__variable_component
-            return self.__variable_component
-        return None
+        computation_inspector_context = self.__computation_inspector_context
+        computation = self.__computation
+        variable = self.__variable
+        variable_model = VariableValueModel(computation_inspector_context.window, computation, variable)
+        variable_component = make_computation_variable_component(computation_inspector_context, computation, variable, variable_model)
+        if variable_component:
+            return variable_component
+        return ConstantVariableHandler(variable, _("Missing") + " " + f"[{variable.variable_type}]")
 
 
 class ResultHandler(Declarative.Handler):
