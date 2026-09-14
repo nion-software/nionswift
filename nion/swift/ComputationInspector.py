@@ -50,6 +50,11 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
+# the maximum width of a variable field in the compact layout, chosen to fit the inspector panel
+# at its minimum width (320) without clipping, since the inspector panel does not scroll horizontally.
+COMPACT_FIELD_MAX_WIDTH = 240
+
+
 class ChangeComputationVariableCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model: DocumentModel.DocumentModel, computation: Symbolic.Computation,
@@ -291,7 +296,7 @@ class StringVariableHandlerFactory(VariableHandlerComponentFactory2):
 
 
 class DataSourceVariableHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, compact: bool = False) -> None:
         super().__init__()
         self.document_controller = document_controller
         self.computation = computation
@@ -314,9 +319,11 @@ class DataSourceVariableHandler(Declarative.Handler):
             "crop_enabled": "@binding(crop_enabled)",
             "on_crop_enabled_clicked": "handle_toggle_crop_enabled"
         }
+        # the input operation choices include the data shape, so they can be wider than the compact layout allows.
+        input_operation_combo_box = u.create_combo_box(items_ref="input_operation_items", current_index="@binding(input_operation_index)", max_width=COMPACT_FIELD_MAX_WIDTH) if compact else u.create_combo_box(items_ref="input_operation_items", current_index="@binding(input_operation_index)")
         axis_set_chooser = u.create_column(
             u.create_label(text=_("Input Operation")),
-            u.create_combo_box(items_ref="input_operation_items", current_index="@binding(input_operation_index)"),
+            input_operation_combo_box,
             u.create_stretch(),
             # Show input operation choices only when this source can iterate across axis sets.
             visible = "@binding(variable.is_iterable)"
@@ -558,7 +565,7 @@ class DataSourceVariableHandler(Declarative.Handler):
 class DataSourceVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type in Symbolic._data_source_types:
-            return DataSourceVariableHandler(computation_inspector_context.window, computation, computation_variable, variable_model)
+            return DataSourceVariableHandler(computation_inspector_context.window, computation, computation_variable, variable_model, computation_inspector_context.compact)
         return None
 
 
@@ -1058,7 +1065,10 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
         label = u.create_label(text="@binding(variable.display_label)")
         # the link is optional (for now) - it does not appear in the standard computation panel.
         link = u.create_push_button(text="\N{RIGHTWARDS BLACK ARROW}", on_clicked="handle_link", border_color="transparent", background_color="rgba(0,0,0,0.0)", style="minimal", size_policy_horizontal="maximum")
-        line_edit = u.create_label(text="@binding(variable_value)", width=300)
+        if computation_inspector_context.compact:
+            line_edit = u.create_label(text="@binding(variable_value)", max_width=COMPACT_FIELD_MAX_WIDTH, word_wrap=True)
+        else:
+            line_edit = u.create_label(text="@binding(variable_value)", width=300)
         self.ui_view = u.create_column(u.create_row(label, *([link] if computation_inspector_context.do_references else []), u.create_stretch()), line_edit, u.create_stretch(), spacing=8)
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(DataStructurePropertyVariableHandler.__property_changed, self))
         if variable.bound_item:
@@ -1087,13 +1097,16 @@ class DataStructurePropertyVariableHandler(Declarative.Handler):
 
 class ConstantVariableHandler(Declarative.Handler):
     # used to display a constant string
-    def __init__(self, variable: Symbolic.ComputationVariable, value: str) -> None:
+    def __init__(self, variable: Symbolic.ComputationVariable, value: str, compact: bool = False) -> None:
         super().__init__()
         self.variable = variable
         self.variable_value = value
         u = Declarative.DeclarativeUI()
         label = u.create_label(text="@binding(variable.display_label)")
-        line_edit = u.create_label(text="@binding(variable_value)", width=300)
+        if compact:
+            line_edit = u.create_label(text="@binding(variable_value)", max_width=COMPACT_FIELD_MAX_WIDTH, word_wrap=True)
+        else:
+            line_edit = u.create_label(text="@binding(variable_value)", width=300)
         self.ui_view = u.create_column(label, line_edit, spacing=8)
 
 
@@ -1107,7 +1120,7 @@ class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory2):
                 if isinstance(data_structure, DataStructure.DataStructure):
                     return DataStructureHandler(computation_inspector_context, computation, computation_variable, data_structure)
                 else:
-                    return ConstantVariableHandler(computation_variable, _("N/A"))
+                    return ConstantVariableHandler(computation_variable, _("N/A"), computation_inspector_context.compact)
         return None
 
 
@@ -1255,7 +1268,7 @@ class VariableHandler(Declarative.Handler):
         variable_component = make_computation_variable_component(computation_inspector_context, computation, variable, variable_model)
         if variable_component:
             return variable_component
-        return ConstantVariableHandler(variable, _("Missing") + " " + f"[{variable.variable_type}]")
+        return ConstantVariableHandler(variable, _("Missing") + " " + f"[{variable.variable_type}]", computation_inspector_context.compact)
 
 
 class ResultHandler(Declarative.Handler):
@@ -1509,7 +1522,8 @@ class ComputationInspectorHandler(Declarative.Handler):
             progress = u.create_progress_bar(value="@binding(model.progress_value)", width=160, height=8)
         stop_button = u.create_push_button(text=_("Stop"), visible="@binding(model.is_stoppable)", on_clicked="stop_computation")
         control_row = u.create_row(progress, stop_button, u.create_stretch(), spacing=12)
-        last_computed_row = u.create_row(u.create_label(text=_("Last Computed: ")), u.create_label(text="@binding(model.last_computed_status)", word_wrap=compact), u.create_stretch())
+        # align to the top of the row so the label stays with the first line when the value wraps.
+        last_computed_row = u.create_row(u.create_label(text=_("Last Computed: ")), u.create_label(text="@binding(model.last_computed_status)", word_wrap=compact), u.create_stretch(), alignment="start")
         if compact:
             status = u.create_label(text="@binding(model.status)", word_wrap=True)
         else:
