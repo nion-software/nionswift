@@ -2431,19 +2431,26 @@ class GraphicsInspectorSection(InspectorSection):
 
 
 class ComputationInspectorSection(InspectorSection):
-    """Displays a computation's inputs, parameters, results, and status.
+    """Displays a computation's inputs, parameters, and status.
 
     Shares its implementation with the computation editor dialog (see ComputationPanel.ComputationHandler)
     via ComputationInspectorHandler, so both UIs stay in sync with a single implementation.
+
+    The inspector panel is narrow and does not scroll horizontally, so this section always uses the
+    compact layout, regardless of the context passed by the caller.
     """
 
     def __init__(self, computation_inspector_context: ComputationInspector.ComputationInspectorContext, data_item: DataItem.DataItem) -> None:
         document_controller = computation_inspector_context.window
         super().__init__(document_controller.ui, "computation", _("Computation"))
+        compact_inspector_context = ComputationInspector.ComputationInspectorContext(document_controller,
+                                                                                     computation_inspector_context.reference_handler,
+                                                                                     computation_inspector_context.do_references,
+                                                                                     compact=True)
         document_model = document_controller.document_model
         computation = document_model.get_data_item_computation(data_item)
         if computation:
-            self.__computation_inspector_handler: typing.Optional[ComputationInspector.ComputationInspectorHandler] = ComputationInspector.ComputationInspectorHandler(computation_inspector_context, computation)
+            self.__computation_inspector_handler: typing.Optional[ComputationInspector.ComputationInspectorHandler] = ComputationInspector.ComputationInspectorHandler(compact_inspector_context, computation)
             widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, self.__computation_inspector_handler)
             self.add_widget_to_content(widget)
         else:
