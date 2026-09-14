@@ -186,34 +186,55 @@ class DisplayPanelOverlayCanvasItemComposer(CanvasItem.BaseComposer):
                 drawing_context.line_width = 0.5
                 drawing_context.stroke()
 
-            if drop_region != "none":
+            def draw_panel_grid(region_rect: Geometry.IntRect, split: tuple[int, int]) -> None:
+                # Draw a grid of panels to preview what the split will look like
+                gap = 4  # Each panel is separated by a gap of 4px
+                horizontal, vertical = split
+                # The panel width and height can be calculated as: n - 1 gaps + 2 border gaps + n panel widths equal the total canvas size which is rearranged to get the panel width/height
+                panel_width = (region_rect.width - (gap * (1 + horizontal))) / horizontal
+                panel_height = (region_rect.height - (gap * (1 + vertical))) / vertical
+                for h in range(0, horizontal):
+                    for v in range(0, vertical):
+                        panel_origin_x = region_rect.origin.x + gap + h * (gap + panel_width)
+                        panel_origin_y = region_rect.origin.y + gap + v * (gap + panel_height)
+                        drawing_context.rect(panel_origin_x, panel_origin_y, panel_width, panel_height)
+
+            def draw_drop_region(region_rect: Geometry.IntRect, split: tuple[int, int] | None = None, drop_region: str = 'middle') -> None:
                 with drawing_context.saver():
                     drawing_context.begin_path()
-                    if drop_region in drop_regions_map:
-                        drop_region_hit_rect, drop_region_draw_rect = drop_regions_map[drop_region]
-                        drawing_context.rect(drop_region_draw_rect.left, drop_region_draw_rect.top, drop_region_draw_rect.width, drop_region_draw_rect.height)
-                    elif drop_region == "left":
-                        drawing_context.rect(0, 0, int(canvas_bounds.width * 0.10), canvas_bounds.height)
-                    elif drop_region == "right":
-                        drawing_context.rect(int(canvas_bounds.width * 0.90), 0, int(canvas_bounds.width - canvas_bounds.width * 0.90), canvas_bounds.height)
-                    elif drop_region == "top":
-                        drawing_context.rect(0, 0, canvas_bounds.width, int(canvas_bounds.height * 0.10))
-                    elif drop_region == "bottom":
-                        drawing_context.rect(0, int(canvas_bounds.height * 0.90), canvas_bounds.width, int(canvas_bounds.height - canvas_bounds.height * 0.90))
-                    elif self.__drag_items_split and self.__drag_items_split != (1, 1):
-                        # Draw a grid of panels to preview what the split will look like
-                        gap = 4  # Each panel is separated by a gap of 4px
-                        horizontal, vertical = self.__drag_items_split
-                        # The panel width and height can be calculated as: n - 1 gaps + 2 border gaps + n panel widths equal the total canvas size which is rearranged to get the panel width/height
-                        panel_width = (canvas_bounds.width - (gap * (1 + horizontal))) / horizontal
-                        panel_height = (canvas_bounds.height - (gap * (1 + vertical))) / vertical
-                        for h in range(0, horizontal):
-                            for v in range(0, vertical):
-                                drawing_context.rect(gap + h * (gap + panel_width), gap + v * (gap + panel_height), panel_width, panel_height)
-                    else:
-                        drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+                    if not split or split == (1, 1):
+                        drawing_context.rect(region_rect.left, region_rect.top, region_rect.width, region_rect.height)
+                    elif split is not None:  # There is multi-item-drag which should be drawn as a grid of the split
+                        if drop_region in ("left", "right", "top", "bottom"):
+                            # The split is drawn as it will appear after the drop is completed with a grid to the side of the original panel
+                            region_width = int(canvas_bounds.width * 0.5) if drop_region in ("left", "right") else canvas_bounds.width
+                            region_height = int(canvas_bounds.height * 0.5) if drop_region in ("top", "bottom") else canvas_bounds.height
+                            region_origin_x = int(canvas_bounds.width * 0.5) if drop_region == "right" else 0
+                            region_origin_y = int(canvas_bounds.height * 0.5) if drop_region == "bottom" else 0
+                            # The draw region will now be the opposite panel when split midway which is used to contain the grid of the multi-item-drag split
+                            region_rect = Geometry.IntRect((region_origin_y, region_origin_x), (region_height, region_width))
+                        draw_panel_grid(region_rect, split)
+
                     drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
                     drawing_context.fill()
+
+            if drop_region != "none":
+                if drop_region in drop_regions_map:
+                    _, drop_region_draw_rect = drop_regions_map[drop_region]
+                else:
+                    origin_x, origin_y, width, height = 0, 0, canvas_bounds.width, canvas_bounds.height
+                    if drop_region == "left":
+                        width = int(canvas_bounds.width * 0.10)
+                    elif drop_region == "right":
+                        origin_x = int(canvas_bounds.width * 0.90)
+                        width = int(canvas_bounds.width * 0.10)
+                    elif drop_region == "top":
+                        height = int(canvas_bounds.height * 0.10)
+                    elif drop_region == "bottom":
+                        height = int(canvas_bounds.height * 0.10)
+                        origin_y = int(canvas_bounds.height * 0.90)
+                    drop_region_draw_rect = Geometry.IntRect((origin_y, origin_x), (height, width))
+                draw_drop_region(drop_region_draw_rect, self.__drag_items_split, drop_region)
 
             if is_selected:
                 stroke_style = focused_style if is_focused else selected_style

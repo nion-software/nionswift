@@ -816,7 +816,7 @@ class Workspace:
 
         if source_display_items:
             command: Undo.UndoableCommand = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
-            self.split_panel_and_insert_display_items(destination_display_panel, source_display_items)
+            self.split_panel_and_insert_display_items(destination_display_panel, source_display_items, region)
             self.document_controller.push_undo_command(command)
         elif source_display_item and destination_display_panel.handle_drop_display_item(region, source_display_item):
             pass  # If handle_drop_display_item returns true then the drop was handled by the function
@@ -1070,8 +1070,15 @@ class Workspace:
 
         return columns_ceil, rows_ceil
 
-    def split_panel_and_insert_display_items(self, display_panel: DisplayPanel.DisplayPanel, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
-        """Split the display panel into a grid that fits the display items, then populate the new panels with the display items."""
+    def split_panel_and_insert_display_items(self, display_panel: DisplayPanel.DisplayPanel, display_items: typing.Sequence[DisplayItem.DisplayItem], region: str = 'middle') -> None:
+        """Split the display panel into a grid that fits the display items, then populate the new panels with the display items.
+
+        If the region is provided with left, right, top or bottom then the panel will be split in half first before continuing the split and insert on the corresponding panel.
+        """
+        if region in ('left', 'right', 'top', 'bottom'):  # Insert an empty panel, then use that to split and insert into
+            _, new_display_panel = self._insert_display_panel(display_panel, region, None, None, None, None)
+            assert new_display_panel
+            display_panel = new_display_panel
         horizontal, vertical = self.get_split_for_selection(len(display_items))
         # apply_layouts mutates the workspace_controller.display_panels so directly using it would cause recursion
         display_panels = self.apply_layouts(display_panel, [display_panel], horizontal, vertical)
