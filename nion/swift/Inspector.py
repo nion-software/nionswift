@@ -2974,3 +2974,13 @@ class DeclarativeColorChooserConstructor:
 
 
 Feature.FeatureManager().add_feature(Feature.Feature("feature.scale_marker_customization", "Scale marker customization (position, color, background).", False))
+
+
+# Temporary backward compatibility aliases.
+#
+# The computation inspector UI moved to ComputationInspector. These are the two names that existing
+# plugins use, so they remain importable from this module to keep those plugins working against this
+# release. They are temporary and are to be removed once those plugins have been updated to import
+# from ComputationInspector. New code must use ComputationInspector directly.
+VariableHandlerComponentFactory = ComputationInspector.VariableHandlerComponentFactory
+VariableValueModel = ComputationInspector.VariableValueModel
