@@ -50,6 +50,20 @@ def create_splitter_desc(orientation: str, splits: typing.Sequence[float], child
     return {"type": "splitter", "orientation": orientation, "splits": list(splits), "children": list(children)}
 
 
+def _swap_orientation(orientation: typing.Optional[str]) -> typing.Optional[str]:
+    """Swap "horizontal" and "vertical".
+
+    The persisted layout format keeps the orientation meaning used before splitter orientations were standardized
+    (the opposite of CanvasItem.SplitterCanvasItem's orientation), so this is applied when reading a persisted
+    orientation into a splitter canvas item and when writing a splitter canvas item's orientation to be persisted.
+    """
+    if orientation == "horizontal":
+        return "vertical"
+    if orientation == "vertical":
+        return "horizontal"
+    return orientation
+
+
 class CreateWorkspaceCommand(Undo.UndoableCommand):
     def __init__(self, workspace_controller: Workspace, name: str) -> None:
         super().__init__("Create Workspace")
@@ -418,7 +432,8 @@ class Workspace:
         def _post_children_adjust() -> None: pass
         post_children_adjust = _post_children_adjust
         if type == "splitter":
-            splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=desc.get("orientation"))
+            splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=_swap_orientation(desc.get("orientation")))
+            splitter_canvas_item.collapsible = False
             splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, splitter_canvas_item)
             splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, splitter_canvas_item)
             def splitter_post_children_adjust() -> None:
@@ -461,7 +476,7 @@ class Workspace:
         selected_display_panel = None
         type = d["type"]
         if type == "splitter":
-            if isinstance(canvas_item, CanvasItem.SplitterCanvasItem) and canvas_item.orientation == d.get("orientation", None):
+            if isinstance(canvas_item, CanvasItem.SplitterCanvasItem) and canvas_item.orientation == _swap_orientation(d.get("orientation", None)):
                 canvas_item_container = canvas_item
                 children = d.get("children", list())
                 if len(children) == len(canvas_item_container.canvas_items):
@@ -508,7 +523,9 @@ class Workspace:
     def _deconstruct(self, canvas_item: CanvasItem.AbstractCanvasItem) -> Persistence.PersistentDictType:
         if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
             children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
-            d = create_splitter_desc(canvas_item.orientation, canvas_item.splits, children)
+            orientation = _swap_orientation(canvas_item.orientation)
+            assert orientation is not None
+            d = create_splitter_desc(orientation, canvas_item.splits, children)
             return d
         if isinstance(canvas_item, DisplayPanel.DisplayPanel):
             display_panel = canvas_item
@@ -869,7 +886,7 @@ class Workspace:
                               new_uuid: typing.Optional[uuid.UUID],
                               new_splits: typing.Optional[typing.List[float]] = None) -> typing.Tuple[typing.Optional[typing.List[float]], typing.Optional[DisplayPanel.DisplayPanel]]:
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
-        orientation = "vertical" if region in ("left", "right") else "horizontal"
+        orientation = "horizontal" if region in ("left", "right") else "vertical"
         new_display_panel = None
         container = display_panel.container
         assert container
@@ -877,6 +894,7 @@ class Workspace:
         old_splits = list(container.splits) if isinstance(container, CanvasItem.SplitterCanvasItem) and container.orientation == orientation else None
         # always wrap target panel in new splitter. this makes it easier to close splitters without affecting other layout.
         splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
+        splitter_canvas_item.collapsible = False
         splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, splitter_canvas_item)
         splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, splitter_canvas_item)
         container.wrap_canvas_item(display_panel, splitter_canvas_item)
@@ -936,10 +954,10 @@ class Workspace:
                     display_panel_index = container.canvas_items.index(display_panel)
                     if display_panel_index > 0:
                         old_display_panel = typing.cast(DisplayPanel.DisplayPanel, container.canvas_items[display_panel_index - 1])
-                        region_id = "right" if container.orientation == "vertical" else "bottom"
+                        region_id = "right" if container.orientation == "horizontal" else "bottom"
                     else:
                         old_display_panel = typing.cast(DisplayPanel.DisplayPanel, container.canvas_items[1])
-                        region_id = "left" if container.orientation == "vertical" else "top"
+                        region_id = "left" if container.orientation == "horizontal" else "top"
                 self.__remove_display_panel_at_index(self.__display_panels.index(display_panel))
                 container.remove_canvas_item(display_panel)
                 if len(container.canvas_items) == 1:
@@ -973,7 +991,8 @@ class Workspace:
 
             if h > 1:
                 # insert the rows
-                row_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
+                row_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="vertical")
+                row_splitter_canvas_item.collapsible = False
                 row_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, row_splitter_canvas_item)
                 row_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, row_splitter_canvas_item)
                 display_panel_container.wrap_canvas_item(display_panel, row_splitter_canvas_item)
@@ -992,7 +1011,8 @@ class Workspace:
             if w > 1:
                 for row_display_panel in row_display_panels:
                     # insert the columns
-                    column_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="vertical")
+                    column_splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
+                    column_splitter_canvas_item.collapsible = False
                     column_splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, column_splitter_canvas_item)
                     column_splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, column_splitter_canvas_item)
                     row_display_panel_container = row_display_panel.container
