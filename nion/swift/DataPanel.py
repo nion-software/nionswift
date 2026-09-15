@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 # standard libraries
+import datetime
 import gettext
 import operator
 import pkgutil
+import time
 import typing
 
 # third party libraries
@@ -76,7 +78,7 @@ def get_mime_data_and_thumbnail_data(drag_started_event: GridFlowCanvasItem.Grid
     return mime_data, thumbnail_data
 
 
-class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
+class DataPanelItemBaseCanvasItem(CanvasItem.CanvasItemComposition):
     """Canvas item to draw a data panel list item.
 
     This is critical performance code. It is called for every item in the list. So use a custom renderer.
@@ -89,24 +91,28 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__font_metrics_fn = font_metrics_fn
         self.__thumbnail: Bitmap.Bitmap | None = None
 
-        def thumbnail_updated(canvas_item: typing.Self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
-            self.__thumbnail = thumbnail_bitmap
-            self.update()
-
         self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item)
-        self.__thumbnail_source_action = Stream.ValueStreamAction(self.__thumbnail_source, ReferenceCounting.weak_partial(thumbnail_updated, self))
+        self.__thumbnail_source_action = Stream.ValueStreamAction(self.__thumbnail_source, ReferenceCounting.weak_partial(DataPanelItemBaseCanvasItem.__handle_thumbnail_updated, self))
 
-        thumbnail_updated(self, self.__thumbnail_source.value)
+        self._update_thumbnail()
 
-        self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelListItem.__item_changed, self))
-
-    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        raise NotImplementedError()
+        self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelItemBaseCanvasItem._item_changed, self))
 
     def close(self) -> None:
         self.__thumbnail_source_action = typing.cast(typing.Any, None)
         self.__thumbnail_source = typing.cast(typing.Any, None)
         super().close()
+
+    def _update_thumbnail(self) -> None:
+        self.__handle_thumbnail_updated(self.__thumbnail_source.value)
+
+    def __handle_thumbnail_updated(self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
+        self.__thumbnail = thumbnail_bitmap
+        self._thumbnail_updated()
+        self.update()
+
+    def _thumbnail_updated(self) -> None:
+        pass
 
     @property
     def _thumbnail(self) -> typing.Optional[Bitmap.Bitmap]:
@@ -127,6 +133,10 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         return " ".join([format_str, storage_space_string])
 
     @property
+    def date_for_sorting_local(self) -> datetime.datetime:
+        return self.__display_item.date_for_sorting_local if self.__display_item else datetime.datetime.now()
+
+    @property
     def datetime_str(self) -> str:
         return self.__display_item.date_for_sorting_local_as_string if self.__display_item else str()
 
@@ -134,8 +144,11 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
     def status_str(self) -> str:
         return self.__display_item.status_str if self.__display_item else str()
 
-    def __item_changed(self) -> None:
-        self.update()
+    def _handle_item_changed(self) -> None:
+        self._item_changed()
+
+    def _item_changed(self) -> None:
+        pass
 
 
 class DataPanelListItemComposer(CanvasItem.BaseComposer):
@@ -201,17 +214,140 @@ class DataPanelListItemComposer(CanvasItem.BaseComposer):
                     drawing_context.draw_image(self.__bitmap.rgba_bitmap_data, display_left, display_top, display_width, display_height)
 
 
-class DataPanelListItem(DataPanelItemBaseCanvasItem):
+class DataPanelListItem(CanvasItem.AbstractCanvasItem):
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.__thumbnail: Bitmap.Bitmap | None = None
+        self.__title = str()
+        self.__format_str = str()
+        self.__datetime_str = str()
+        self.__status_str = str()
+        self.__line_height = 0
+
+    def set_thumbnail(self, thumbnail: typing.Optional[Bitmap.Bitmap]) -> None:
+        self.__thumbnail = thumbnail
+        self.update()
+
+    def set_item_info(self, title: str, format_str: str, datetime_str: str, status_str: str, line_height: int) -> None:
+        self.__title = title
+        self.__format_str = format_str
+        self.__datetime_str = datetime_str
+        self.__status_str = status_str
+        self.__line_height = line_height
+        self.update()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        return DataPanelListItemComposer(self, self.layout_sizing, composer_cache, self.__thumbnail, self.__line_height, self.__title, self.__format_str, self.__datetime_str, self.__status_str)
+
+
+class DataPanelListItemComposition(DataPanelItemBaseCanvasItem):
     def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface, font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        self.__list_item_canvas_item = DataPanelListItem()
         super().__init__(display_item, ui, font_metrics_fn)
         self.__font_metrics_fn = font_metrics_fn
+        self.__line_height = font_metrics_fn("11px sans-serif", "M").height
+        self.add_canvas_item(self.__list_item_canvas_item)
+        self._update_thumbnail()
+        self._item_changed()
         self.update_sizing(self.sizing.with_fixed_height(72))
         self.update_sizing(self.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
 
-    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        line_height = self.__font_metrics_fn("11px sans-serif", "M").height
-        return DataPanelListItemComposer(self, self.layout_sizing, composer_cache, self._thumbnail, line_height, self.title, self.format_str, self.datetime_str, self.status_str)
+    def _thumbnail_updated(self) -> None:
+        self.__list_item_canvas_item.set_thumbnail(self._thumbnail)
+
+    def _item_changed(self) -> None:
+        self.__list_item_canvas_item.set_item_info(self.title, self.format_str, self.datetime_str, self.status_str, self.__line_height)
+
+
+class TextMeasure(CanvasItem.TextMeasure):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__()
+        self.__ui = ui
+
+    def get_font_metrics(self, font: str, text: str) -> UserInterface.FontMetrics:
+        return self.__ui.get_font_metrics(font, text)
+
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, truncate_mode: str) -> str:
+        truncate_mode_ = UserInterface.TruncateModeType.NONE
+        if truncate_mode == "middle":
+            truncate_mode_ = UserInterface.TruncateModeType.MIDDLE
+        elif truncate_mode == "left":
+            truncate_mode_ = UserInterface.TruncateModeType.LEFT
+        elif truncate_mode == "right":
+            truncate_mode_ = UserInterface.TruncateModeType.RIGHT
+        return self.__ui.truncate_string_to_width(font_str, text, pixel_width, truncate_mode_)
+
+
+class DataPanelDetailItem(CanvasItem.CanvasItemComposition):
+
+    def __init__(self, ui: UserInterface.UserInterface, line_height: int) -> None:
+        super().__init__()
+        self.__ui = ui
+        # margins provide the left/right padding for the row. note that TextCanvasItem defaults to a 4px cell
+        # padding (baked into its size by size_to_content), but BitmapCanvasItem defaults to no padding, so the
+        # date's own padding must be zeroed out here to avoid combining with the margin and doubling the padding
+        # on the right side relative to the left (which otherwise would have only the margin, no cell padding).
+        self.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(top=0, left=4, bottom=0, right=4), spacing=4)
+        self.__thumbnail_canvas_item = CanvasItem.BitmapCanvasItem()
+        self.__thumbnail_canvas_item.update_sizing(self.__thumbnail_canvas_item.sizing.with_fixed_size(Geometry.IntSize(line_height - 4, line_height - 4)))
+        self.__title_canvas_item = CanvasItem.TextCanvasItem()
+        self.__title_canvas_item.text_align = "left"
+        self.__title_canvas_item.truncation_mode = "middle"
+        self.__title_canvas_item.text_measure = TextMeasure(ui)
+        self.__title_canvas_item.update_sizing(self.__title_canvas_item.sizing.with_unconstrained_width())
+        self.__date_canvas_item = CanvasItem.TextCanvasItem(text_align="right", padding=Geometry.IntSize(), text_measure=TextMeasure(ui))
+        self.add_canvas_item(self.__thumbnail_canvas_item)
+        self.add_canvas_item(self.__title_canvas_item)
+        self.add_canvas_item(self.__date_canvas_item)
+
+    def set_thumbnail(self, thumbnail: typing.Optional[Bitmap.Bitmap]) -> None:
+        self.__thumbnail_canvas_item.bitmap = thumbnail
+
+    def set_item_info(self, title: str, format_str: str, date_for_sorting_local: datetime.datetime, status_str: str, line_height: int) -> None:
+        def format_datetime(dt: datetime.datetime) -> str:
+            now = datetime.datetime.now()
+            seconds = (now - dt).total_seconds()
+            if seconds < 60:
+                # show localized time with seconds if within 60 seconds
+                if time.strftime("%p"):
+                    return dt.strftime("%I:%M:%S %p").lstrip("0").replace(" AM", "am").replace(" PM", "pm")  # 12 hr am/pm
+                else:
+                    return dt.strftime("%H:%M:%S")  # 24 hr
+            elif seconds < 12 * 600:
+                # show localized time without seconds if within 12 hours
+                if time.strftime("%p"):
+                    return dt.strftime("%I:%M %p").lstrip("0").replace(" AM", "am").replace(" PM", "pm")  # 12 hr am/pm
+                else:
+                    return dt.strftime("%H:%M")  # 24 hr
+            elif now - dt <= datetime.timedelta(weeks=48):
+                # show localized date if within 48 weeks
+                return dt.strftime("%b %d")
+            else:
+                # show year
+                return dt.strftime("%Y")
+
+        self.__title_canvas_item.text = title
+        self.__date_canvas_item.text = format_datetime(date_for_sorting_local)
+        self.__date_canvas_item.size_to_content(self.__ui.get_font_metrics)
+
+
+class DataPanelDetailItemComposition(DataPanelItemBaseCanvasItem):
+    def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface, font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics], font_str: str, line_height: int) -> None:
+        self.__list_item_canvas_item = DataPanelDetailItem(ui, line_height)
+        super().__init__(display_item, ui, font_metrics_fn)
+        self.__line_height = line_height
+        self.add_canvas_item(self.__list_item_canvas_item)
+        self._update_thumbnail()
+        self._item_changed()
+        self.update_sizing(self.sizing.with_fixed_height(self.__line_height))
+        self.update_sizing(self.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+    def _thumbnail_updated(self) -> None:
+        self.__list_item_canvas_item.set_thumbnail(self._thumbnail)
+
+    def _item_changed(self) -> None:
+        self.__list_item_canvas_item.set_item_info(self.title, self.format_str, self.date_for_sorting_local, self.status_str, self.__line_height)
 
 
 class DataPanelGridItemComposer(CanvasItem.BaseComposer):
@@ -345,26 +481,46 @@ class DataPanel(Panel.Panel):
 
         item_delegate = ItemDelegate(self, self.__selection)
 
+        font_str = "11px sans-serif"
+
+        line_height = round(document_controller.get_font_metrics(font_str, "M").height)
+
         def list_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
-            return DataPanelListItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, document_controller.get_font_metrics)
+            return DataPanelListItemComposition(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, document_controller.get_font_metrics)
 
         # note is_shared_selection is True for both list and grid canvas items. prevents the selection from being updated when items are inserted.
         # instead, the selection in the model itself is used.
         list_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, list_item_factory, item_delegate, item_height=80, key="display_items", is_shared_selection=True)
         list_canvas_item.wants_drag_events = True
         list_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        list_scroll_area_canvas_item.auto_resize_contents = True
         list_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(list_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
         list_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
         list_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         list_scroll_group_canvas_item.add_canvas_item(list_scroll_area_canvas_item)
         list_scroll_group_canvas_item.add_canvas_item(list_scroll_bar_canvas_item)
 
+        detail_line_height: typing.Final[int] = line_height + 6
+
+        def detail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+            return DataPanelDetailItemComposition(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, document_controller.get_font_metrics, font_str, detail_line_height)
+
+        # note is_shared_selection is True for both list and grid canvas items. prevents the selection from being updated when items are inserted.
+        # instead, the selection in the model itself is used.
+        detail_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, detail_item_factory, item_delegate, item_height=detail_line_height, key="display_items", is_shared_selection=True)
+        detail_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(detail_canvas_item)
+        detail_scroll_area_canvas_item.auto_resize_contents = True
+        detail_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(detail_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
+        detail_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        detail_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        detail_scroll_group_canvas_item.add_canvas_item(detail_scroll_area_canvas_item)
+        detail_scroll_group_canvas_item.add_canvas_item(detail_scroll_bar_canvas_item)
+
         def grid_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanelUISettings(document_controller.ui))
 
         # note is_shared_selection is True for both list and grid canvas items. prevents the selection from being updated when items are inserted.
         # instead, the selection in the model itself is used.
-        line_height = document_controller.get_font_metrics("11px sans-serif", "M").height
         grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_item_factory, item_delegate, item_size=Geometry.IntSize(80 + line_height, 80), key="display_items", is_shared_selection=True)
         grid_canvas_item.wants_drag_events = True
         grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
@@ -377,10 +533,12 @@ class DataPanel(Panel.Panel):
 
         def begin_changes(key: str) -> None:
             list_canvas_item._begin_batch_update()
+            detail_canvas_item._begin_batch_update()
             grid_canvas_item._begin_batch_update()
 
         def end_changes(key: str) -> None:
             list_canvas_item._end_batch_update()
+            detail_canvas_item._end_batch_update()
             grid_canvas_item._end_batch_update()
 
         # the display items model can notify us when it is about to change. in order to gang up changes, watch
@@ -393,21 +551,26 @@ class DataPanel(Panel.Panel):
         self._scroll_bar_canvas_item = list_scroll_bar_canvas_item
 
         list_icon_20_bytes = pkgutil.get_data(__name__, "resources/list_icon_20.png")
+        detail_icon_20_bytes = pkgutil.get_data(__name__, "resources/detail_icon_20.png")
         grid_icon_20_bytes = pkgutil.get_data(__name__, "resources/grid_icon_20.png")
         list_icon_20_bytes = list_icon_20_bytes or bytes()
+        detail_icon_20_bytes = detail_icon_20_bytes or bytes()
         grid_icon_20_bytes = grid_icon_20_bytes or bytes()
         list_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(list_icon_20_bytes))
+        detail_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(detail_icon_20_bytes))
         grid_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(grid_icon_20_bytes))
 
         list_icon_button.update_sizing(list_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
+        detail_icon_button.update_sizing(detail_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
         grid_icon_button.update_sizing(grid_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
 
         button_row = CanvasItem.CanvasItemComposition()
         button_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
         button_row.add_canvas_item(list_icon_button)
+        button_row.add_canvas_item(detail_icon_button)
         button_row.add_canvas_item(grid_icon_button)
 
-        buttons_widget = ui.create_canvas_widget(properties={"height": 20, "width": 44})
+        buttons_widget = ui.create_canvas_widget(properties={"height": 20, "width": 66})
         buttons_widget.canvas_item.add_canvas_item(button_row)
 
         search_widget = ui.create_row_widget()
@@ -426,6 +589,7 @@ class DataPanel(Panel.Panel):
 
         stack_canvas_item = CanvasItem.StackCanvasItem()
         stack_canvas_item.add_canvas_item(list_scroll_group_canvas_item)
+        stack_canvas_item.add_canvas_item(detail_scroll_group_canvas_item)
         stack_canvas_item.add_canvas_item(grid_scroll_group_canvas_item)
         stack_canvas_item.current_index = 0
         stack_canvas_item.update_sizing(stack_canvas_item.sizing.with_unconstrained_height())
@@ -433,7 +597,7 @@ class DataPanel(Panel.Panel):
         self.data_view_widget = ui.create_canvas_widget(properties={"size-policy-vertical": "expanding"})
         self.data_view_widget.canvas_item.add_canvas_item(stack_canvas_item)
 
-        self.__view_button_group = CanvasItem.RadioButtonGroup([list_icon_button, grid_icon_button])
+        self.__view_button_group = CanvasItem.RadioButtonGroup([list_icon_button, detail_icon_button, grid_icon_button])
         self.__view_button_group.current_index = 0
         self.__view_button_group.on_current_index_changed = lambda index: setattr(stack_canvas_item, "current_index", index)
 
@@ -463,6 +627,7 @@ class DataPanel(Panel.Panel):
         self.widget = widget
 
         self.__list_canvas_item = list_canvas_item
+        self.__detail_canvas_item = detail_canvas_item
         self.__grid_canvas_item = grid_canvas_item
 
         # listen to the focus changed event for the list and grid canvas items.
@@ -522,7 +687,7 @@ class DataPanel(Panel.Panel):
         # this is called when the keyboard focus for the data panel is changed.
         # if we are receiving focus, tell the window (document_controller) that
         # we now have the focus.
-        if self.__list_canvas_item.focused or self.__grid_canvas_item.focused:
+        if self.__list_canvas_item.focused or self.__detail_canvas_item.focused or self.__grid_canvas_item.focused:
             self.document_controller.data_panel_focused()
 
     def _request_focus_for_test(self) -> None:
