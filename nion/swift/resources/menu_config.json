@@ -300,6 +300,25 @@
             },
             {
                 "type": "item",
+                "action_id": "graphics.add_spot_graphic"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.add_angle_graphic"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.add_band_pass_graphic"
+            },
+            {
+                "type": "item",
+                "action_id": "graphics.add_lattice_graphic"
+            },
+            {
+                "type": "separator"
+            },
+            {
+                "type": "item",
                 "action_id": "display_panel.center_graphics"
             },
             {
@@ -523,25 +542,6 @@
                     {
                         "type": "item",
                         "action_id": "processing.hann_window"
-                    },
-                    {
-                        "type": "separator"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_spot_graphic"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_angle_graphic"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_band_pass_graphic"
-                    },
-                    {
-                        "type": "item",
-                        "action_id": "graphics.add_lattice_graphic"
                     }
                 ]
             },
