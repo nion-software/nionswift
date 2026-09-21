@@ -2749,7 +2749,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __update_selection_to_display(self) -> None:
         # match the selection in the browsers (thumbnail and grid) to the display item.
         # if the display item is not in the filtered display items, clear the selection.
-        display_items = typing.cast(typing.Sequence[DisplayItem.DisplayItem], self.__filtered_display_items_model.display_items)
+        display_items = self.__filtered_display_items_model.display_items
         # selection changed listener is only intended to observe external changes.
         # disable it here and re-enable it after we adjust the selection.
         self.__selection_changed_event_listener.close()
@@ -3025,7 +3025,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # item displayed but gets deleted => no display
         if len(self.__selection.indexes) == 1:
             index = list(self.__selection.indexes)[0]
-            display_item = typing.cast(typing.Sequence[DisplayItem.DisplayItem], self.__filtered_display_items_model.display_items)[index]
+            display_item = self.__filtered_display_items_model.display_items[index]
             self.set_display_item(display_item, update_selection=False)  # do not sync the selection - it's already known
             self.__display_changed = True
         elif len(self.__selection.indexes) > 1:
