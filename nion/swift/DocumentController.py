@@ -48,6 +48,7 @@ from nion.swift.model import Changes
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import DisplayItemsModel
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
@@ -295,9 +296,8 @@ class DocumentController(Window.Window):
         # and next by applying a custom filter to the items from the items resulting in the first selection.
         # data items model tracks the main list of items selected in the data panel.
         # filtered display items model tracks the filtered items from those in data items model.
-        self.__display_items_model = ListModel.FilteredListModel(container=self.document_model, items_key="display_items")
-        typing.cast(typing.Any, self.__display_items_model).filter_id = None  # extra tracking field. fix typing in 3.8.
-        self.__filtered_display_items_model = ListModel.FilteredListModel(items_key="display_items", container=self.__display_items_model)
+        self.__display_items_model = DisplayItemsModel.DisplayItemsModel()
+        self.__filtered_display_items_model = DisplayItemsModel.FilteredDisplayItemsModel(self.__display_items_model)
 
         def filtered_display_items_item_removed(selection: Selection.IndexedSelection, key: str, value: DisplayItem.DisplayItem, index: int) -> None:
             selection.remove_index(index)
@@ -309,7 +309,7 @@ class DocumentController(Window.Window):
 
         # see set_filter
         self.__display_items_model.set_container_filter_sort(self.document_model, ListModel.AndFilter((self.project_filter, self.get_filter_predicate(None))), DisplayItem.sort_by_date_key, True)
-        typing.cast(typing.Any, self.__display_items_model).filter_id = None
+        self.__display_items_model.filter_id = None
 
         def call_soon() -> None:
             # call the function (this is guaranteed to be called on the main thread)
@@ -669,11 +669,11 @@ class DocumentController(Window.Window):
         return self.document_model._project
 
     @property
-    def display_items_model(self) -> ListModel.FilteredListModel:
+    def display_items_model(self) -> DisplayItemsModel.DisplayItemsModel:
         return self.__display_items_model
 
     @property
-    def filtered_display_items_model(self) -> ListModel.FilteredListModel:
+    def filtered_display_items_model(self) -> DisplayItemsModel.FilteredDisplayItemsModel:
         return self.__filtered_display_items_model
 
     def get_filter_predicate(self, filter_id: typing.Optional[str]) -> ListModel.Filter:
@@ -706,7 +706,7 @@ class DocumentController(Window.Window):
         container = data_group if data_group else self.document_model
         if container != self.__display_items_model.container:
             self.__display_items_model.set_container_filter_sort(data_group, self.project_filter, None, False)
-            typing.cast(typing.Any, self.__display_items_model).filter_id = None
+            self.__display_items_model.filter_id = None
             self.filter_changed_event.fire(data_group, self.__display_items_model.filter_id)
             self.project.data_group = data_group
             self.project.filter_id = self.__display_items_model.filter_id
@@ -715,7 +715,7 @@ class DocumentController(Window.Window):
     def set_filter(self, filter_id: typing.Optional[str]) -> None:
         if filter_id != self.__display_items_model.filter_id:
             self.__display_items_model.set_container_filter_sort(self.document_model, ListModel.AndFilter((self.project_filter, self.get_filter_predicate(filter_id))), DisplayItem.sort_by_date_key, True)
-            typing.cast(typing.Any, self.__display_items_model).filter_id = filter_id
+            self.__display_items_model.filter_id = filter_id
             self.filter_changed_event.fire(None, filter_id)
             self.project.data_group = None
             self.project.filter_id = filter_id
@@ -851,7 +851,7 @@ class DocumentController(Window.Window):
         self.select_data_item_in_data_panel(data_item)
 
     def delete_display_items(self, display_items: typing.Sequence[DisplayItem.DisplayItem], container: typing.Optional[Observable.Observable] = None) -> None:
-        container = container if container else self.__display_items_model.container
+        container = container if container else typing.cast(typing.Optional[Observable.Observable], self.__display_items_model.container)
         if container is self.document_model:
             if display_items:
                 command = self.create_remove_display_items_command(display_items)
