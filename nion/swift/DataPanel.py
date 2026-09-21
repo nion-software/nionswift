@@ -285,14 +285,27 @@ class DataPanelUISettings(UISettings.UISettings):
 
 class DataPanel(Panel.Panel):
 
+    # the user's choice of browser type (list/grid) is persisted under this key (via ui.get/set_persistent_string)
+    # so it is restored the next time the application is launched.
+    BROWSER_TYPE_PREFERENCE_KEY = "DataPanel/BrowserType"
+
     def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: Persistence.PersistentDictType) -> None:
         super().__init__(document_controller, panel_id, _("Data Items"))
 
         ui = document_controller.ui
 
         display_items_model = document_controller.filtered_display_items_model
+        self.__display_items_model = display_items_model
 
         self.__selection = self.document_controller.selection
+
+        # the grid view is built lazily (on first switch, persisted-preference restore, or test access) since
+        # building it eagerly would double the per-item cost of every insert/remove for a view most users
+        # never show. kept alive for the panel's lifetime once built, unlike DisplayPanel's per-panel browsers
+        # (see DisplayPanel.__ensure_grid_browser_canvas_item), since only one DataPanel instance ever exists.
+        self.__grid_canvas_item: GridCanvasItem.GridCanvasItem2 | None = None
+        self.__grid_scroll_group_canvas_item: CanvasItem.CanvasItemComposition | None = None
+        self.__grid_canvas_item_focus_changed_event_listener: Event.EventListener | None = None
 
         def selection_changed() -> None:
             # called when the selection changes; notify selected display item changed if focused.
@@ -343,7 +356,8 @@ class DataPanel(Panel.Panel):
                 return "accept"
 
 
-        item_delegate = ItemDelegate(self, self.__selection)
+        self.__item_delegate = ItemDelegate(self, self.__selection)
+        item_delegate = self.__item_delegate
 
         def list_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
             return DataPanelListItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, document_controller.get_font_metrics)
@@ -359,29 +373,15 @@ class DataPanel(Panel.Panel):
         list_scroll_group_canvas_item.add_canvas_item(list_scroll_area_canvas_item)
         list_scroll_group_canvas_item.add_canvas_item(list_scroll_bar_canvas_item)
 
-        def grid_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
-            return DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanelUISettings(document_controller.ui))
-
-        # note is_shared_selection is True for both list and grid canvas items. prevents the selection from being updated when items are inserted.
-        # instead, the selection in the model itself is used.
-        line_height = document_controller.get_font_metrics("11px sans-serif", "M").height
-        grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(display_items_model, document_controller.event_loop), self.__selection, grid_item_factory, item_delegate, item_size=Geometry.IntSize(80 + line_height, 80), key="display_items", is_shared_selection=True)
-        grid_canvas_item.wants_drag_events = True
-        grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
-        grid_scroll_area_canvas_item.auto_resize_contents = True
-        grid_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(grid_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
-        grid_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
-        grid_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-        grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_area_canvas_item)
-        grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
-
         def begin_changes(key: str) -> None:
             list_canvas_item._begin_batch_update()
-            grid_canvas_item._begin_batch_update()
+            if self.__grid_canvas_item is not None:
+                self.__grid_canvas_item._begin_batch_update()
 
         def end_changes(key: str) -> None:
             list_canvas_item._end_batch_update()
-            grid_canvas_item._end_batch_update()
+            if self.__grid_canvas_item is not None:
+                self.__grid_canvas_item._end_batch_update()
 
         # the display items model can notify us when it is about to change. in order to gang up changes, watch
         # for these notification events and tell the list canvas item to only update at the end of the changes.
@@ -426,16 +426,40 @@ class DataPanel(Panel.Panel):
 
         stack_canvas_item = CanvasItem.StackCanvasItem()
         stack_canvas_item.add_canvas_item(list_scroll_group_canvas_item)
-        stack_canvas_item.add_canvas_item(grid_scroll_group_canvas_item)
-        stack_canvas_item.current_index = 0
         stack_canvas_item.update_sizing(stack_canvas_item.sizing.with_unconstrained_height())
+        self.__stack_canvas_item = stack_canvas_item
 
         self.data_view_widget = ui.create_canvas_widget(properties={"size-policy-vertical": "expanding"})
         self.data_view_widget.canvas_item.add_canvas_item(stack_canvas_item)
 
+        # keyed by name so the switch logic below has no per-type special cases; ordered to match the buttons
+        # passed to RadioButtonGroup. "list" is built eagerly above; "grid" (and any future addition) is built
+        # lazily via its ensure function, unless restored as the persisted choice below.
+        self.__browser_type_ensure_fns: dict[str, typing.Callable[[], CanvasItem.CanvasItemComposition]] = {
+            "list": lambda: list_scroll_group_canvas_item,
+            "grid": self.__ensure_grid_canvas_item,
+        }
+        self.__browser_type_ids = list(self.__browser_type_ensure_fns)
+
         self.__view_button_group = CanvasItem.RadioButtonGroup([list_icon_button, grid_icon_button])
-        self.__view_button_group.current_index = 0
-        self.__view_button_group.on_current_index_changed = lambda index: setattr(stack_canvas_item, "current_index", index)
+
+        # restore the persisted browser type, building it (if not "list", already built above) before switching.
+        browser_type_id = ui.get_persistent_string(self.BROWSER_TYPE_PREFERENCE_KEY, "list")
+        initial_index = self.__browser_type_ids.index(browser_type_id) if browser_type_id in self.__browser_type_ids else 0
+        if initial_index != 0:
+            self.__browser_type_ensure_fns[browser_type_id]()
+            stack_canvas_item.current_index = initial_index
+        else:
+            stack_canvas_item.current_index = 0
+        self.__view_button_group.current_index = initial_index
+
+        def on_view_button_group_current_index_changed(index: int) -> None:
+            browser_type_id = self.__browser_type_ids[index]
+            self.__browser_type_ensure_fns[browser_type_id]()
+            stack_canvas_item.current_index = index
+            ui.set_persistent_string(self.BROWSER_TYPE_PREFERENCE_KEY, browser_type_id)
+
+        self.__view_button_group.on_current_index_changed = on_view_button_group_current_index_changed
 
         self.__filter_description_combo_box = ui.create_combo_box_widget(item_getter=operator.attrgetter("title"))
 
@@ -463,16 +487,14 @@ class DataPanel(Panel.Panel):
         self.widget = widget
 
         self.__list_canvas_item = list_canvas_item
-        self.__grid_canvas_item = grid_canvas_item
 
-        # listen to the focus changed event for the list and grid canvas items.
+        # listen to the focus changed event for the list canvas item.
         # if we are receiving focus, tell the window (document_controller) to update the selected display item.
+        # the grid canvas item's equivalent listener is installed lazily when the grid canvas item is built.
         self.__list_canvas_item_focus_changed_event_listener = list_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
-        self.__grid_canvas_item_focus_changed_event_listener = grid_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
 
         # for tests only
         self._data_list_canvas_item = list_scroll_group_canvas_item
-        self._data_grid_canvas_item = grid_scroll_group_canvas_item
 
         def update_filter_description(collection_info: typing.Optional[DocumentController.CollectionInfo]) -> None:
             if collection_info != self.__filter_description_combo_box.current_item:
@@ -514,15 +536,51 @@ class DataPanel(Panel.Panel):
     def _list_canvas_item(self) -> ListCanvasItem.ListCanvasItem2:
         return self.__list_canvas_item
 
+    def __ensure_grid_canvas_item(self) -> CanvasItem.CanvasItemComposition:
+        # build the grid canvas item and its wrapper the first time it's needed (see the comment in
+        # __init__ near where self.__grid_canvas_item is first declared for why this is lazy). shaped like
+        # DisplayPanel.__ensure_grid_browser_canvas_item, but this view is never torn down once built,
+        # since there's only ever one DataPanel (unlike DisplayPanel, which can have many open at once).
+        grid_scroll_group_canvas_item = self.__grid_scroll_group_canvas_item
+        if grid_scroll_group_canvas_item is None:
+            document_controller = self.document_controller
+
+            def grid_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+                return DataPanelGridItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanelUISettings(document_controller.ui))
+
+            # note is_shared_selection is True for both list and grid canvas items. prevents the selection from being updated when items are inserted.
+            # instead, the selection in the model itself is used.
+            line_height = document_controller.get_font_metrics("11px sans-serif", "M").height
+            grid_canvas_item = GridCanvasItem.GridCanvasItem2(Panel.ThreadSafeListModel(self.__display_items_model, document_controller.event_loop), self.__selection, grid_item_factory, self.__item_delegate, item_size=Geometry.IntSize(80 + line_height, 80), key="display_items", is_shared_selection=True)
+            grid_canvas_item.wants_drag_events = True
+            grid_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
+            grid_scroll_area_canvas_item.auto_resize_contents = True
+            grid_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(grid_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
+            grid_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+            grid_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_area_canvas_item)
+            grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
+            self.__stack_canvas_item.add_canvas_item(grid_scroll_group_canvas_item)
+            self.__grid_canvas_item_focus_changed_event_listener = grid_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
+            self.__grid_canvas_item = grid_canvas_item
+            self.__grid_scroll_group_canvas_item = grid_scroll_group_canvas_item
+        return grid_scroll_group_canvas_item
+
     @property
     def _grid_canvas_item(self) -> GridCanvasItem.GridCanvasItem2:
+        self.__ensure_grid_canvas_item()
+        assert self.__grid_canvas_item is not None
         return self.__grid_canvas_item
+
+    @property
+    def _data_grid_canvas_item(self) -> CanvasItem.CanvasItemComposition:
+        return self.__ensure_grid_canvas_item()
 
     def __notify_focus_changed(self) -> None:
         # this is called when the keyboard focus for the data panel is changed.
         # if we are receiving focus, tell the window (document_controller) that
         # we now have the focus.
-        if self.__list_canvas_item.focused or self.__grid_canvas_item.focused:
+        if self.__list_canvas_item.focused or (self.__grid_canvas_item is not None and self.__grid_canvas_item.focused):
             self.document_controller.data_panel_focused()
 
     def _request_focus_for_test(self) -> None:
@@ -530,4 +588,5 @@ class DataPanel(Panel.Panel):
 
     def make_selection_visible(self) -> None:
         self.__list_canvas_item.make_selection_visible()
-        self.__grid_canvas_item.make_selection_visible()
+        if self.__grid_canvas_item is not None:
+            self.__grid_canvas_item.make_selection_visible()
