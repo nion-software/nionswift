@@ -182,7 +182,7 @@ class ThumbnailManager(metaclass=Utility.Singleton):
             self.__thumbnail_sources.clear()
 
     def thumbnail_source_for_display_item(self, ui: UserInterface.UserInterface, display_item: DisplayItem.DisplayItem, *, _suppress_recompute: bool = False) -> ThumbnailSource:
-        """Returned ThumbnailSource must be closed."""
+        """Return a shared ThumbnailSource, cached per display item and closed automatically when it closes."""
         with self.__lock:
             thumbnail_source = self.__thumbnail_sources.get(display_item.uuid)
             if not thumbnail_source:
