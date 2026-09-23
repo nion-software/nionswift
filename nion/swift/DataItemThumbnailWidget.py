@@ -39,9 +39,16 @@ class AbstractThumbnailSource:
     def __init__(self) -> None:
         self.on_thumbnail_bitmap_changed: typing.Callable[[Bitmap.Bitmap | None], None] | None = None
         self.overlay_canvas_items = list[CanvasItem.AbstractCanvasItem]()
+        self._thumbnail_bitmap: Bitmap.Bitmap | None = None
 
     def close(self) -> None:
         self.on_thumbnail_bitmap_changed = None
+
+    @property
+    def thumbnail_bitmap(self) -> Bitmap.Bitmap | None:
+        """Return the current thumbnail bitmap, if any, so that a new listener can pick up an already
+        computed value (on_thumbnail_bitmap_changed only reports future changes, not the current value)."""
+        return self._thumbnail_bitmap
 
     def populate_mime_data_for_drag(self, mime_data: UserInterface.MimeData, size: Geometry.IntSize) -> typing.Tuple[bool, typing.Optional[_NDArray]]:
         return False, None
@@ -303,7 +310,10 @@ class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
                     overlay_canvas_item.update_sizing(overlay_canvas_item.sizing.with_fixed_size(self.__thumbnail_size))
             self.__bitmap_overlay_canvas_item.set_overlay_canvas_items(thumbnail_source.overlay_canvas_items)
             self.__thumbnail_source.on_thumbnail_bitmap_changed = ReferenceCounting.weak_partial(self.__class__.__thumbnail_bitmap_changed, self)
-            self.__thumbnail_bitmap_changed(None)
+            # seed with the source's current bitmap (if it was already computed before this listener was
+            # attached, on_thumbnail_bitmap_changed will not fire again since the value won't change).
+            self.__thumbnail_bitmap_changed(thumbnail_source.thumbnail_bitmap)
+
 
     def close(self) -> None:
         self.__thumbnail_source.close()
@@ -454,7 +464,7 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         self.__thumbnail_source = None
 
     def __update_thumbnail(self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
-        self.__thumbnail_bitmap = thumbnail_bitmap
+        self._thumbnail_bitmap = thumbnail_bitmap
         if callable(self.on_thumbnail_bitmap_changed):
             self.on_thumbnail_bitmap_changed(thumbnail_bitmap)
 
