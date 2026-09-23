@@ -3828,7 +3828,6 @@ class WorkspaceSplit5x4Action(WorkspaceSplitAction):
 class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
     action_id = "workspace.new_workspace_from_selection"
     action_name = _("New Workspace From Selection")
-    MAX_PANELS: typing.Final[int] = 60
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         text = self.get_string_property(context, "name")
@@ -3847,13 +3846,16 @@ class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         selection = window.selected_display_items
-        return bool(selection) and len(selection) <= self.MAX_PANELS
+        return bool(selection) and len(selection) <= Workspace.MAX_SPLIT_FROM_SELECTION
 
     def get_action_name(self, context: Window.ActionContext) -> str:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         assert workspace_controller is not None
+
+        if len(window.selected_display_items) > Workspace.MAX_SPLIT_FROM_SELECTION:
+            return self.action_name + f"(Max {Workspace.MAX_SPLIT_FROM_SELECTION} items)"
 
         if not self.is_enabled(context):
             return self.action_name  # If the action is disabled return the default name
