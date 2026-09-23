@@ -2697,15 +2697,18 @@ class DocumentController(Window.Window):
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
 
-    # receive files into the document model. data_group and index can optionally
-    # be specified. if data_group is specified, the item is added to an arbitrary
-    # position in the document model (the end) and at the group at the position
-    # specified by the index. if the data group is not specified, the item is added
-    # at the index within the document model.
-    def receive_files(self, files: typing.Sequence[str], data_group: typing.Optional[DataGroup.DataGroup] = None, index: int = -1) -> typing.Sequence[DisplayItem.DisplayItem]:
+    def receive_files(self, filepaths: typing.Sequence[str], data_group: typing.Optional[DataGroup.DataGroup] = None, index: int = -1) -> typing.Sequence[DisplayItem.DisplayItem]:
+        """Import files using the provided filepaths and add them to the document model.
+
+        data_group and index can optionally be specified.
+        If data_group is specified, the item is added to an arbitrary position in the document model (the end) and at the group at the position specified by the index.
+        If the data group is not specified, the item is added at the index within the document model.
+        The newly created display items are selected in the data panel.
+        Returns the display items created by importing the files.
+        """
         display_items = list[DisplayItem.DisplayItem]()
-        file_paths = [pathlib.Path(file_path) for file_path in files]
-        for file_index, file_path in enumerate(file_paths):
+        paths = [pathlib.Path(path) for path in filepaths]
+        for file_index, file_path in enumerate(paths):
             try:
                 document_model = self.document_model
                 project = document_model._project
@@ -2728,8 +2731,6 @@ class DocumentController(Window.Window):
                     loaded_data_item = project._load_data_item(data_item_properties)
                     if loaded_data_item:
                         data_items.append(loaded_data_item)
-                # keep a list of display items for bookkeeping.
-                display_items = list[DisplayItem.DisplayItem]()
                 for item_d in import_data.items:
                     if item_d.get("type") == "display_item":
                         # create a new display item and read it from the dictionary.
@@ -3813,7 +3814,6 @@ class WorkspaceSplit5x4Action(WorkspaceSplitAction):
 class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
     action_id = "workspace.new_workspace_from_selection"
     action_name = _("New Workspace From Selection")
-    MAX_PANELS: typing.Final[int] = 60
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
         text = self.get_string_property(context, "name")
@@ -3823,8 +3823,7 @@ class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
         workspace_controller = window.workspace_controller
         assert workspace_controller is not None
         selection = list(window.selected_display_items)
-        split = Workspace.Workspace.get_split_for_selection(len(selection))
-        command = Workspace.CreateWorkspaceFromSelectionCommand(workspace_controller, text, selection, split)
+        command = Workspace.CreateWorkspaceFromSelectionCommand(workspace_controller, text, selection)
         command.perform()
         window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
@@ -3833,13 +3832,16 @@ class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         selection = window.selected_display_items
-        return bool(selection) and len(selection) <= self.MAX_PANELS
+        return bool(selection) and len(selection) <= Workspace.MAX_SPLIT_FROM_SELECTION
 
     def get_action_name(self, context: Window.ActionContext) -> str:
         context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         assert workspace_controller is not None
+
+        if len(window.selected_display_items) > Workspace.MAX_SPLIT_FROM_SELECTION:
+            return self.action_name + f"(Max {Workspace.MAX_SPLIT_FROM_SELECTION} items)"
 
         if not self.is_enabled(context):
             return self.action_name  # If the action is disabled return the default name
