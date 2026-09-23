@@ -44,6 +44,8 @@ _ = gettext.gettext
 
 commands_logger = logging.getLogger("_commands")
 
+MAX_SPLIT_FROM_SELECTION = 60  # Max number of items allowed while splitting a display panel from a selection
+
 
 def create_image_desc() -> Persistence.PersistentDictType:
     return {"type": "image", "identifier": "".join([random.choice(string.ascii_uppercase) for _ in range(2)]), "uuid": str(uuid.uuid4())}
@@ -1155,6 +1157,9 @@ class Workspace:
         """
         if selection_count <= 1:
             return 1, 1
+
+        if selection_count > MAX_SPLIT_FROM_SELECTION:
+            selection_count = MAX_SPLIT_FROM_SELECTION
 
         ratio = 0.6
         columns = math.sqrt(selection_count / ratio)
