@@ -1,16 +1,18 @@
 import json
 import os
+import typing
 import unittest
+import zoneinfo
 
 from nion.swift.model import Utility
 
 class TestUtilityClass(unittest.TestCase):
 
     def setUp(self):
-        pass
+        self.__get_localzone = Utility.tzlocal.get_localzone
 
     def tearDown(self):
-        pass
+        Utility.tzlocal.get_localzone = self.__get_localzone
 
     def test_backwards_compatibility_for_short_versions(self):
         self.assertEqual(Utility.compare_versions("1", "1.0.0"), 0)
@@ -117,6 +119,31 @@ class TestUtilityClass(unittest.TestCase):
                 is_valid, errors = Utility.verify_filename_is_legal(test_input)
                 self.assertTrue(is_valid)
                 self.assertEqual(errors, None)
+
+    def test_get_local_timezone_maps_windows_keys_unknown_to_tzlocal(self) -> None:
+        # Windows 11 KB5124010 added time zone keys tzlocal does not know. see nionswift#1971.
+        def raise_british_columbia() -> typing.NoReturn:
+            raise zoneinfo.ZoneInfoNotFoundError("British Columbia Standard Time")
+
+        def raise_alberta() -> typing.NoReturn:
+            raise zoneinfo.ZoneInfoNotFoundError("Alberta Standard Time")
+
+        Utility.tzlocal.get_localzone = raise_british_columbia
+        self.assertEqual("America/Vancouver", Utility.get_local_timezone())
+        Utility.tzlocal.get_localzone = raise_alberta
+        self.assertEqual("America/Edmonton", Utility.get_local_timezone())
+
+    def test_get_local_timezone_returns_none_when_undeterminable(self) -> None:
+        def raise_unknown_zone() -> typing.NoReturn:
+            raise zoneinfo.ZoneInfoNotFoundError("Some Unknown Zone")
+
+        def raise_other_error() -> typing.NoReturn:
+            raise RuntimeError("no time zone")
+
+        Utility.tzlocal.get_localzone = raise_unknown_zone
+        self.assertIsNone(Utility.get_local_timezone())
+        Utility.tzlocal.get_localzone = raise_other_error
+        self.assertIsNone(Utility.get_local_timezone())
 
 
 if __name__ == '__main__':

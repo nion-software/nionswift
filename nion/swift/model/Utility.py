@@ -17,6 +17,7 @@ import threading
 import time
 import traceback
 import types
+import zoneinfo
 
 # third party libraries
 import typing
@@ -81,6 +82,13 @@ class TimezoneMinutesToStringConverter:
         return (int(value[1:3]) * 60 + int(value[3:5])) * (-1 if value[0] == '-' else 1) if value is not None else None
 
 
+# Windows time zone keys added by Windows 11 KB5124010, which tzlocal does not map to IANA names.
+# Remove once tzlocal ships the mapping. See nion-software/nionswift#1971.
+windows_timezone_fallbacks: typing.Mapping[str, str] = {
+    "British Columbia Standard Time": "America/Vancouver",
+    "Alberta Standard Time": "America/Edmonton",
+}
+
 local_timezone_override: typing.Optional[typing.List[str]] = None  # for testing
 try:
     import tzlocal
@@ -88,7 +96,13 @@ try:
     def get_local_timezone() -> typing.Optional[str]:
         if local_timezone_override is None:
             # see note https://github.com/regebro/tzlocal/issues/117#issuecomment-939351032
-            return str(tzlocal.get_localzone())
+            try:
+                return str(tzlocal.get_localzone())
+            except zoneinfo.ZoneInfoNotFoundError as e:
+                # the exception argument is the unmapped time zone key.
+                return windows_timezone_fallbacks.get(str(e.args[0]) if e.args else str())
+            except Exception:
+                return None
         else:
             return local_timezone_override[0]
 except ImportError:
