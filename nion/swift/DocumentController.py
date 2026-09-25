@@ -2150,7 +2150,7 @@ class DocumentController(Window.Window):
 
             def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.Sequence[int]) -> str:
                 if data_descriptor.is_sequence:
-                    data_type_name = _("Sequence of {} ".format(data_shape[0]))
+                    data_type_name = _("Sequence of {count} ").format(count=data_shape[0])
                     index = 1
                 else:
                     data_type_name = str()
@@ -2182,7 +2182,7 @@ class DocumentController(Window.Window):
                     data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dims, data_dims)
                     if data_descriptor.expected_dimension_count == data_metadata.data_descriptor.expected_dimension_count and data_descriptor != data_metadata.data_descriptor:
                         data_type_name = describe_data_descriptor(data_descriptor, data_metadata.data_shape)
-                        action = menu.add_menu_item(_("Redimension to {}").format(data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
+                        action = menu.add_menu_item(_("Redimension to {data_type}").format(data_type=data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
                         self.__data_menu_actions.append(action)
 
             # add squeeze menu item if available
@@ -2202,7 +2202,7 @@ class DocumentController(Window.Window):
                         del data_shape[data_descriptor.datum_dimension_index_slice.start + index]
                         data_descriptor.datum_dimension_count -= 1
                     data_type_name = describe_data_descriptor(data_descriptor, data_shape)
-                    self.__data_menu_actions.append(menu.add_menu_item(_("Squeeze to {}").format(data_type_name), functools.partial(self._perform_squeeze, display_item)))
+                    self.__data_menu_actions.append(menu.add_menu_item(_("Squeeze to {data_type}").format(data_type=data_type_name), functools.partial(self._perform_squeeze, display_item)))
         else:
             action = menu.add_menu_item(_("No Data Selected"), lambda: None)
             action.enabled = False
