@@ -222,12 +222,44 @@ class AboutDialog(Dialog.OkCancelDialog):
 
 
 # facilitate bootstrapping the application
+_original_dgettext = gettext.dgettext
+
+
+def install_gettext_fast_path(domain: str = "messages", localedir: str | None = None) -> None:
+    """Resolve the gettext catalog once instead of on every translated string.
+
+    gettext.gettext calls gettext.dgettext for each message, which calls gettext.translation, which probes the
+    filesystem for a catalog and raises FileNotFoundError when there is none. That costs about eight microseconds
+    per call, on the main thread, for every translated string in the user interface. Resolving the catalog once
+    per process reduces it to a dictionary lookup.
+
+    Replacing dgettext takes effect even in modules which already bound gettext.gettext at import time, because
+    gettext.gettext looks dgettext up in the gettext module namespace on each call.
+
+    This is a temporary measure. The permanent fix is for each module to bind the gettext method of a translation
+    object resolved once, rather than binding gettext.gettext itself.
+    """
+    # fallback=True returns a NullTranslations, whose gettext returns the message unchanged, rather than raising.
+    translation = gettext.translation(domain, localedir, fallback=True)
+
+    def dgettext(message_domain: str, message: str) -> str:
+        # a message for another domain is left to the original implementation, so binding a text domain elsewhere
+        # still works.
+        if message_domain != domain:
+            return _original_dgettext(message_domain, message)
+        return translation.gettext(message)
+
+    gettext.dgettext = dgettext  # type: ignore  # parameter name differs from the stub; call is positional-only in practice
+
+
 class Application(UIApplication.BaseApplication):
     count = 0  # useful for detecting leaks in tests
 
     def __init__(self, ui: UserInterface.UserInterface, set_global: bool = True, use_existing_event_loop: bool = False) -> None:
         super().__init__(ui)
         self.__class__.count += 1
+
+        install_gettext_fast_path()
 
         self.__use_existing_event_loop = use_existing_event_loop
         self.__existing_event_loop: asyncio.AbstractEventLoop | None = None
