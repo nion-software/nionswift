@@ -755,7 +755,7 @@ class Application(UIApplication.BaseApplication):
                     if index is not None:
                         project_reference_item = project_reference_items_model.project_reference_items[index]
                         menu = self.window.create_context_menu()
-                        menu.add_menu_item(_(f"Open Project Location"), functools.partial(ProjectPanel.reveal_project, project_reference_item.project_reference))
+                        menu.add_menu_item(_("Open Project Location"), functools.partial(ProjectPanel.reveal_project, project_reference_item.project_reference))
                         menu.add_separator()
 
                         def remove_project(index: int) -> None:
@@ -763,7 +763,7 @@ class Application(UIApplication.BaseApplication):
                             profile = self.__application.profile
                             profile.remove_project_reference(project_reference_item.project_reference)
 
-                        menu.add_menu_item(_(f"Remove Project from List"), functools.partial(remove_project, index))
+                        menu.add_menu_item(_("Remove Project from List"), functools.partial(remove_project, index))
                         menu.popup(gx, gy)
                     return True
 
