@@ -802,7 +802,7 @@ def make_image_chooser(document_controller: DocumentController.DocumentControlle
     return column, [property_changed_listener]
 
 
-class EditComputationDialog(Dialog.ActionDialog):
+class EditComputationDialog(Dialog.ToolDialog):
 
     def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem):
 

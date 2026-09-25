@@ -576,7 +576,7 @@ class CollectionsPanel(Panel.Panel):
         return self._collections_section._collection_info_list_stream
 
 
-class ProjectDialog(Dialog.ActionDialog):
+class ProjectDialog(Dialog.ToolDialog):
 
     def __init__(self, ui: UserInterface.UserInterface, app: Application.Application) -> None:
         super().__init__(ui, _("Project Manager"), app=app, window_style="window", persistent_id="ProjectsDialog")

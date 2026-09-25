@@ -265,7 +265,7 @@ class Recorder:
                 self.on_recording_state_changed(self.__recording_state)
 
 
-class RecorderDialog(Dialog.ActionDialog):
+class RecorderDialog(Dialog.ToolDialog):
 
     def __init__(self, document_controller: DocumentController.DocumentController, data_item: DataItem.DataItem) -> None:
         ui = document_controller.ui

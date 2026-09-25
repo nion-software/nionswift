@@ -424,7 +424,7 @@ class DefaultConsoleStartupComponent:
 Registry.register_component(DefaultConsoleStartupComponent(), {"console-startup"})
 
 
-class ConsoleDialog(Dialog.ActionDialog):
+class ConsoleDialog(Dialog.ToolDialog):
 
     console_number = 0
 
