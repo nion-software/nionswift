@@ -276,6 +276,18 @@ class TestHistogramPanelClass(unittest.TestCase):
                 self.assertTrue(numpy.array_equal(counts / float(numpy.max(counts)), histogram_widget_data.data))
                 self.assertEqual(display_range, histogram_widget_data.display_range)
 
+    def test_histogram_statistics_are_identical_to_numpy_with_reused_scratch(self):
+        # the standard deviation and root mean square reuse one scratch array; they must equal numpy for each dtype and
+        # layout, including after the scratch array was last used for data of another shape or type.
+        rng = numpy.random.default_rng(0)
+        float_data = rng.normal(100.0, 20.0, (1031, 997))
+        integer_data = rng.integers(-100, 150, (1031, 997))
+        scratch = HistogramPanel.StatisticsScratchArray()
+        for data in (float_data.astype(numpy.float32), integer_data.astype(numpy.int32), numpy.asfortranarray(float_data.astype(numpy.float32)), float_data, float_data.astype(numpy.float32).T, float_data[::3, 1::2], integer_data.astype(numpy.int32)[:, ::-2], numpy.array(2.5, dtype=numpy.float32), numpy.array(7, dtype=numpy.int16)):
+            with self.subTest(dtype=data.dtype, shape=data.shape, strides=data.strides):
+                self.assertEqual(numpy.std(data).item(), HistogramPanel._calculate_standard_deviation(data, scratch))
+                self.assertEqual(numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data)))).item(), HistogramPanel._calculate_root_mean_square(data, scratch))
+
     def test_histogram_processor(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
