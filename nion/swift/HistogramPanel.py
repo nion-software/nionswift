@@ -551,6 +551,12 @@ def calculate_region_data(display_data_and_metadata_ref: typing.Any, region_ref:
     return display_data_and_metadata
 
 
+# the number of elements binned at a time by calculate_histogram_widget_data. 100k elements keeps every temporary of a
+# slice under 1 MB, including 8 byte intermediates, and the working set in cache. on Windows, a freed allocation of 1 MB
+# or more is returned to the operating system, so a larger temporary pays to be faulted in again on every update.
+_HISTOGRAM_SLICE_LENGTH = 100_000
+
+
 def calculate_histogram_widget_data(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], display_range: typing.Optional[typing.Tuple[float, float]]) -> HistogramWidgetData:
     bins = 320
     subsample = 0  # hard coded subsample size
@@ -574,8 +580,14 @@ def calculate_histogram_widget_data(display_data_and_metadata: typing.Optional[D
         # but improves the speed (compared to numpy) by a factor of 10x.
         range_ = (display_range[1] - display_range[0])
         if range_ > 0.0:
-            # int clipping seems faster
-            histogram_data = numpy.bincount(numpy.clip(((bins + 2) * ((data_sample.ravel() - display_range[0]) / range_)).astype(int), 0, bins + 2), minlength=bins + 2)[1:bins + 1]
+            # bin the data in slices and sum the counts, which is exact since the slices partition the data. small slices
+            # keep the temporaries in cache rather than allocating several full size temporaries. int clipping seems faster.
+            flat_data = data_sample.ravel()
+            bin_counts = numpy.zeros((bins + 3,), dtype=numpy.int64)
+            for slice_start in range(0, flat_data.size, _HISTOGRAM_SLICE_LENGTH):
+                data_slice = flat_data[slice_start:slice_start + _HISTOGRAM_SLICE_LENGTH]
+                bin_counts += numpy.bincount(numpy.clip(((bins + 2) * ((data_slice - display_range[0]) / range_)).astype(numpy.int64), 0, bins + 2), minlength=bins + 3)
+            histogram_data = bin_counts[1:bins + 1]
             # histogram_data = numpy.bincount(((bins + 2) * numpy.clip((data_sample - display_range[0]) / (display_range[1] - display_range[0]), 0.0, 1.0)).astype(int).ravel())[1:bins+1]
         else:
             histogram_data = numpy.zeros((bins,), dtype=int)
