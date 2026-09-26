@@ -288,6 +288,27 @@ class TestHistogramPanelClass(unittest.TestCase):
                 self.assertEqual(numpy.std(data).item(), HistogramPanel._calculate_standard_deviation(data, scratch))
                 self.assertEqual(numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data)))).item(), HistogramPanel._calculate_root_mean_square(data, scratch))
 
+    def test_histogram_statistics_root_mean_square_of_integer_data_does_not_overflow(self):
+        # the square of an integer value may not fit in its type, such as a uint16 camera count or the minimum int8.
+        rng = numpy.random.default_rng(0)
+        scratch = HistogramPanel.StatisticsScratchArray()
+        for dtype in (numpy.uint8, numpy.int8, numpy.int16, numpy.uint16, numpy.int32):
+            with self.subTest(dtype=numpy.dtype(dtype)):
+                data = rng.integers(numpy.iinfo(dtype).min, numpy.iinfo(dtype).max, (211, 307), dtype=dtype, endpoint=True)
+                data[0, 0] = numpy.iinfo(dtype).min
+                data[0, 1] = numpy.iinfo(dtype).max
+                self.assertEqual(numpy.sqrt(numpy.mean(numpy.square(data.astype(numpy.float64)))).item(), HistogramPanel._calculate_root_mean_square(data, scratch))
+
+    def test_histogram_statistics_of_big_endian_data_equal_those_of_native_data(self):
+        # data read from a file may be big endian; its statistics must be those of the same values in native order.
+        rng = numpy.random.default_rng(0)
+        intensity_calibration = Calibration.Calibration()
+        for data in (rng.normal(100.0, 20.0, (211, 307)).astype(numpy.float32), rng.integers(0, 65535, (211, 307), dtype=numpy.uint16)):
+            with self.subTest(dtype=data.dtype):
+                native_statistics = HistogramPanel.calculate_statistics(DataAndMetadata.new_data_and_metadata(data), None, None, intensity_calibration)
+                big_endian_statistics = HistogramPanel.calculate_statistics(DataAndMetadata.new_data_and_metadata(data.astype(data.dtype.newbyteorder(">"))), None, None, intensity_calibration)
+                self.assertEqual(native_statistics, big_endian_statistics)
+
     def test_histogram_processor(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
