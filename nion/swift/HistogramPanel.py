@@ -600,14 +600,84 @@ def calculate_histogram_widget_data(display_data_and_metadata: typing.Optional[D
     return HistogramWidgetData()
 
 
-def calculate_statistics(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], display_data_range: typing.Optional[typing.Tuple[float, float]], region: typing.Optional[Graphics.Graphic], displayed_intensity_calibration: typing.Optional[Calibration.Calibration]) -> _StatisticsTable:
+class StatisticsScratchArray:
+    """A reusable array for the full size intermediate values of calculate_statistics.
+
+    Reusing the array avoids allocating a full size array on each update. On Windows, a freed allocation of 1 MB or more
+    is returned to the operating system, so a new one pays to be faulted in again. The array is held until data with a
+    different shape, layout, or type needs it. The object is not thread safe; the caller must confine it to one thread
+    at a time.
+    """
+
+    def __init__(self) -> None:
+        self.__array: _NDArray | None = None
+        self.__key: tuple[tuple[int, ...], tuple[int, ...], numpy.dtype[typing.Any]] | None = None
+
+    def array_like(self, data: _NDArray, dtype: numpy.typing.DTypeLike) -> _NDArray:
+        """Return an uninitialized array with the shape and memory layout of data and the given type.
+
+        The same array is returned by a later call for data with the same shape, layout, and type, so its contents are
+        valid only until the next call.
+        """
+        key = (data.shape, data.strides, numpy.dtype(dtype))
+        if self.__array is None or key != self.__key:
+            # release the previous array before allocating its replacement, so that both are not held at once.
+            self.__array = None
+            self.__array = numpy.empty_like(data, dtype=dtype)
+            self.__key = key
+        return self.__array
+
+
+def _calculate_standard_deviation(data: _NDArray, scratch: StatisticsScratchArray) -> float:
+    """Return the population standard deviation of data, identical to numpy.std, using scratch for the deviations.
+
+    This follows the steps of numpy.std for all axes and no degrees of freedom correction, so that the value is bit
+    identical, but writes the deviations into the scratch array instead of a new full size array. The data must be of a
+    floating point or integer type.
+    """
+    # numpy accumulates integer data in float64 and floating point data in its own type.
+    accumulate_dtype = numpy.dtype(numpy.float64) if issubclass(data.dtype.type, numpy.integer) else None
+    count = numpy.intp(data.size)
+    mean = numpy.add.reduce(data, axis=None, dtype=accumulate_dtype, keepdims=True)
+    # the mean of 0-d data is a scalar rather than an array, which cannot be divided in place.
+    if isinstance(mean, numpy.ndarray):
+        mean = numpy.true_divide(mean, count, out=mean, casting="unsafe", subok=False)
+    else:
+        mean = mean.dtype.type(mean / count)
+    deviations = scratch.array_like(data, numpy.result_type(data.dtype, mean.dtype))
+    numpy.subtract(data, mean, out=deviations)
+    numpy.square(deviations, out=deviations)
+    variance = numpy.add.reduce(deviations, axis=None, dtype=accumulate_dtype, keepdims=False)
+    variance = variance.dtype.type(variance / count)
+    return float(numpy.sqrt(variance))
+
+
+def _calculate_root_mean_square(data: _NDArray, scratch: StatisticsScratchArray) -> float:
+    """Return the root mean square of the magnitudes of data, using scratch for the squares.
+
+    The data must be of a floating point or integer type.
+    """
+    squares = scratch.array_like(data, data.dtype)
+    numpy.absolute(data, out=squares)
+    numpy.square(squares, out=squares)
+    return float(numpy.sqrt(numpy.mean(squares)))
+
+
+def calculate_statistics(display_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata], display_data_range: typing.Optional[typing.Tuple[float, float]], region: typing.Optional[Graphics.Graphic], displayed_intensity_calibration: typing.Optional[Calibration.Calibration], scratch: StatisticsScratchArray | None = None) -> _StatisticsTable:
     data = display_data_and_metadata.data if display_data_and_metadata else None
     display_data_and_metadata = None  # release ref for gc. needed for tests, because this may occur on a thread.
     data_range = display_data_range
     if data is not None and data.size > 0 and displayed_intensity_calibration:
         mean = numpy.mean(data).item()
-        std = numpy.std(data).item()
-        rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data)))).item()
+        # compute the standard deviation and root mean square with a reused array for the full size intermediate values
+        # where the type allows it. other types, such as complex and bool, are rare enough to use numpy directly.
+        if issubclass(data.dtype.type, (numpy.floating, numpy.integer)):
+            scratch = scratch or StatisticsScratchArray()
+            std = _calculate_standard_deviation(data, scratch)
+            rms = _calculate_root_mean_square(data, scratch)
+        else:
+            std = numpy.std(data).item()
+            rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data)))).item()
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype) or (1, 1)
         sum_data = mean * functools.reduce(operator.mul, dimensional_shape)
         if region is None:
@@ -654,6 +724,10 @@ class HistogramProcessor(Observable.Observable):
         self.__histogram_widget_data_dirty = False
         self.__statistics_dirty = False
         self.__region_data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
+        # the scratch array is shared by evaluations, which normally run on the processor thread; the lock protects it
+        # when a test evaluates immediately on another thread.
+        self.__statistics_scratch = StatisticsScratchArray()
+        self.__statistics_scratch_lock = threading.Lock()
         # these fields are used for outputs.
         self.__histogram_widget_data = HistogramWidgetData()
         self.__statistics: _StatisticsTable = dict()
@@ -808,7 +882,8 @@ class HistogramProcessor(Observable.Observable):
             if histogram_widget_data_dirty:
                 histogram_widget_data = calculate_histogram_widget_data(region_data_and_metadata, display_range)
             if statistics_dirty:
-                statistics = calculate_statistics(region_data_and_metadata, display_data_range, region, displayed_intensity_calibration)
+                with self.__statistics_scratch_lock:
+                    statistics = calculate_statistics(region_data_and_metadata, display_data_range, region, displayed_intensity_calibration, self.__statistics_scratch)
             with self.__lock:
                 if not self.__histogram_widget_data_dirty and not self.__statistics_dirty:
                     self.__region_data_and_metadata = region_data_and_metadata
