@@ -70,8 +70,9 @@ class CreateWorkspaceCommand(Undo.UndoableCommand):
         self.__workspace_controller = workspace_controller
         self.__workspace_layout_uuid = workspace_controller._workspace.uuid
         self.__new_name = name
-        self.__new_layout: typing.Optional[Persistence.PersistentDictType] = None
-        self.__new_workspace_id: typing.Optional[str] = None
+        # captured from the created workspace on undo, so that a subsequent redo restores that
+        # exact workspace rather than building an approximation of it.
+        self.__new_workspace_dict: Persistence.PersistentDictType | None = None
         self.initialize()
 
     def _get_modified_state(self) -> typing.Any:
@@ -81,15 +82,17 @@ class CreateWorkspaceCommand(Undo.UndoableCommand):
         self.__workspace_controller._project.modified_state = modified_state
 
     def _perform(self) -> None:
-        new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
+        if self.__new_workspace_dict is not None:
+            new_workspace = self.__workspace_controller.new_workspace_from_dict(self.__new_workspace_dict)
+        else:
+            new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name)
         self.__workspace_controller._change_workspace(new_workspace)
 
     def _undo(self) -> None:
         new_workspace = self.__workspace_controller._workspace
         workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
         assert workspace_layout
-        self.__new_layout = self.__workspace_controller._workspace.layout
-        self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
+        self.__new_workspace_dict = new_workspace.write_to_dict()
         self.__workspace_controller._change_workspace(workspace_layout)
         self.__workspace_controller._project.remove_item("workspaces", new_workspace)
 
@@ -123,13 +126,12 @@ class RemoveWorkspaceCommand(Undo.UndoableCommand):
     def __init__(self, workspace_controller: Workspace):
         super().__init__("Remove Workspace")
         self.__workspace_controller = workspace_controller
-        self.__old_name = workspace_controller._workspace.name
-        self.__old_layout = workspace_controller._workspace.layout
-        self.__old_workspace_id = workspace_controller._workspace.workspace_id
+        self.__old_workspace_dict = workspace_controller._workspace.write_to_dict()
         self.__old_workspace_index = workspace_controller._project.workspaces.index(workspace_controller._workspace)
+        old_workspace_id = workspace_controller._workspace.workspace_id
         sorted_workspaces = workspace_controller._project.sorted_workspaces
         assert len(sorted_workspaces) > 1
-        current_index = [w.workspace_id for w in sorted_workspaces].index(self.__old_workspace_id)
+        current_index = [w.workspace_id for w in sorted_workspaces].index(old_workspace_id)
         next_index = (current_index + 1) % len(sorted_workspaces)
         self.__next_workspace_id = sorted_workspaces[next_index].workspace_id
         self.initialize()
@@ -148,7 +150,7 @@ class RemoveWorkspaceCommand(Undo.UndoableCommand):
         self.__workspace_controller._project.remove_item("workspaces", old_workspace)
 
     def _undo(self) -> None:
-        new_workspace = self.__workspace_controller.new_workspace(name=self.__old_name, layout=self.__old_layout, workspace_id=self.__old_workspace_id, index=self.__old_workspace_index)
+        new_workspace = self.__workspace_controller.new_workspace_from_dict(self.__old_workspace_dict, index=self.__old_workspace_index)
         self.__workspace_controller._change_workspace(new_workspace)
 
     def _redo(self) -> None:
@@ -185,8 +187,9 @@ class CloneWorkspaceCommand(Undo.UndoableCommand):
         self.__workspace_controller = workspace_controller
         self.__workspace_layout_uuid = workspace_controller._workspace.uuid
         self.__new_name = name
-        self.__new_layout = workspace_controller._workspace.layout
-        self.__new_workspace_id: typing.Optional[str] = None
+        # captured from the clone itself on undo, so that a subsequent redo restores that exact
+        # workspace rather than building an approximation of it.
+        self.__new_workspace_dict: Persistence.PersistentDictType | None = None
         self.initialize()
 
     def _get_modified_state(self) -> typing.Any:
@@ -196,15 +199,25 @@ class CloneWorkspaceCommand(Undo.UndoableCommand):
         self.__workspace_controller._project.modified_state = modified_state
 
     def _perform(self) -> None:
-        new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
+        if self.__new_workspace_dict is not None:
+            new_workspace = self.__workspace_controller.new_workspace_from_dict(self.__new_workspace_dict)
+        else:
+            # a clone copies everything about the source workspace except its identity and its
+            # timestamps; dropping 'created' and 'modified' keeps the clone sorted as newly created.
+            new_workspace_dict = dict(self.__workspace_controller._workspace.write_to_dict())
+            new_workspace_dict.pop("uuid", None)
+            new_workspace_dict.pop("workspace_id", None)
+            new_workspace_dict.pop("created", None)
+            new_workspace_dict.pop("modified", None)
+            new_workspace_dict["name"] = self.__new_name
+            new_workspace = self.__workspace_controller.new_workspace_from_dict(new_workspace_dict)
         self.__workspace_controller._change_workspace(new_workspace)
 
     def _undo(self) -> None:
         new_workspace = self.__workspace_controller._workspace
         workspace_layout = self.__workspace_controller.get_workspace_layout_by_uuid(self.__workspace_layout_uuid)
         assert workspace_layout
-        self.__new_layout = self.__workspace_controller._workspace.layout
-        self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
+        self.__new_workspace_dict = new_workspace.write_to_dict()
         self.__workspace_controller._change_workspace(workspace_layout)
         self.__workspace_controller._project.remove_item("workspaces", new_workspace)
 
@@ -705,6 +718,20 @@ class Workspace:
         workspace.name = name if name is not None else _("Workspace")
         if workspace_id:
             workspace.workspace_id = workspace_id
+        return workspace
+
+    def new_workspace_from_dict(self, d: Persistence.PersistentDictType, index: int | None = None) -> WorkspaceLayout.WorkspaceLayout:
+        """ Create a workspace from a full persistent dict, insert into document_model, and return it.
+
+        Unlike new_workspace, this restores every persistent property of the original workspace,
+        including its uuid and creation timestamp. Use it when an undo or redo must bring back a
+        particular workspace rather than make a similar one.
+        """
+        workspace = WorkspaceLayout.WorkspaceLayout()
+        workspace.begin_reading()
+        workspace.read_from_dict(d)
+        workspace.finish_reading()
+        self._project.insert_item("workspaces", index if index is not None else len(self._project.workspaces), workspace)
         return workspace
 
     def ensure_workspace(self, name: str, layout: Persistence.PersistentDictType, workspace_id: str) -> None:
