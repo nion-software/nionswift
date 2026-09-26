@@ -8,6 +8,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import HistogramPanel
 from nion.swift.model import DataItem
@@ -255,6 +256,25 @@ class TestHistogramPanelClass(unittest.TestCase):
             self.assertAlmostEqual(float(statistics_dict["mean"]), numpy.average(numpy.sum(data[..., 14:16], -1)))
             self.assertAlmostEqual(float(statistics_dict["min"]), numpy.amin(numpy.sum(data[..., 14:16], -1)))
             self.assertAlmostEqual(float(statistics_dict["max"]), numpy.amax(numpy.sum(data[..., 14:16], -1)))
+
+    def test_histogram_widget_data_is_identical_to_single_pass_histogram(self):
+        # the widget histogram is computed in slices; it must be exactly the histogram of every pixel in one pass.
+        bins = 320
+        slice_length = HistogramPanel._HISTOGRAM_SLICE_LENGTH
+        rng = numpy.random.default_rng(0)
+        float_data = rng.normal(100.0, 20.0, (1031, 997)).astype(numpy.float32)
+        float_data[0, :4] = numpy.nan, numpy.inf, -numpy.inf, 1e12
+        float_data[-1, -2:] = -1e12, 3e9
+        integer_data = rng.integers(0, 4096, (641, 709), dtype=numpy.uint16)
+        for data, display_range in ((float_data, (40.0, 160.0)), (integer_data, (100.0, 3000.0))):
+            with self.subTest(dtype=data.dtype):
+                self.assertGreater(data.size, 2 * slice_length)
+                self.assertNotEqual(data.size % slice_length, 0)
+                with numpy.errstate(invalid="ignore"):
+                    counts = numpy.bincount(numpy.clip(((bins + 2) * ((data.ravel() - display_range[0]) / (display_range[1] - display_range[0]))).astype(numpy.int64), 0, bins + 2), minlength=bins + 3)[1:bins + 1]
+                    histogram_widget_data = HistogramPanel.calculate_histogram_widget_data(DataAndMetadata.new_data_and_metadata(data), display_range)
+                self.assertTrue(numpy.array_equal(counts / float(numpy.max(counts)), histogram_widget_data.data))
+                self.assertEqual(display_range, histogram_widget_data.display_range)
 
     def test_histogram_processor(self):
         with TestContext.create_memory_context() as test_context:
