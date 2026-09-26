@@ -655,10 +655,17 @@ def _calculate_standard_deviation(data: _NDArray, scratch: StatisticsScratchArra
 def _calculate_root_mean_square(data: _NDArray, scratch: StatisticsScratchArray) -> float:
     """Return the root mean square of the magnitudes of data, using scratch for the squares.
 
-    The data must be of a floating point or integer type.
+    Integer data is squared in float64, since its square may not fit in its own type. The data must be of a floating
+    point or integer type.
     """
-    squares = scratch.array_like(data, data.dtype)
-    numpy.absolute(data, out=squares)
+    # the dtype argument converts integer data to float64 before taking the absolute value, so that the minimum of a signed
+    # type does not overflow. it is omitted for floating point data, since numpy rejects a dtype with a byte order.
+    if issubclass(data.dtype.type, numpy.integer):
+        squares = scratch.array_like(data, numpy.float64)
+        numpy.absolute(data, out=squares, dtype=numpy.float64)
+    else:
+        squares = scratch.array_like(data, data.dtype)
+        numpy.absolute(data, out=squares)
     numpy.square(squares, out=squares)
     return float(numpy.sqrt(numpy.mean(squares)))
 
