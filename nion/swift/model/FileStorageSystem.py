@@ -1198,6 +1198,7 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
         self.__data_properties_map = data_properties_map
         self.__data_map = data_map
         self.__data_read_event = data_read_event
+        self._write_properties_count = 0
 
     def close(self) -> None:
         self.__uuid = typing.cast(str, None)
@@ -1228,6 +1229,7 @@ class MemoryStorageHandler(StorageHandler.StorageHandler):
         return self.__data_map.get(self.__uuid)
 
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
+        self._write_properties_count += 1
         self.__data_properties_map[self.__uuid] = Utility.clean_dict(properties)
 
     def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
