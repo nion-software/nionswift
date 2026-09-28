@@ -615,8 +615,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         assert canvas_bounds
         plot_rect = canvas_bounds.translated(plot_origin)
         axes = self.__last_axes
-        left_channel = axes.drawn_left_channel if axes else 0
-        right_channel = axes.drawn_right_channel if axes else 0
+        left_channel = int(axes.drawn_left_channel) if axes else 0
+        right_channel = int(axes.drawn_right_channel) if axes else 0
         return LinePlotCanvasItemMapping(data_scale, plot_rect, left_channel, right_channel)
 
     @property
@@ -848,7 +848,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if canvas_bounds and canvas_bounds.contains_point(mouse):
                     mouse = mouse - canvas_bounds.origin
                     x = float(mouse.x) / canvas_bounds.width
-                    px = axes.drawn_left_channel + int(x * (axes.drawn_right_channel - axes.drawn_left_channel))
+                    px = int(axes.drawn_left_channel) + int(x * (axes.drawn_right_channel - axes.drawn_left_channel))
                     pos_1d = px,
         return pos_1d
 
