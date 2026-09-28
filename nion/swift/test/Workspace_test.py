@@ -1031,6 +1031,85 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(2, len(document_controller.project.workspaces))
             self.assertEqual("1", workspace_controller._workspace.name)
 
+    def test_undo_remove_workspace_restores_identity_and_sorted_position(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            workspace_controller = document_controller.workspace_controller
+            workspace1 = workspace_controller._workspace
+            workspace2 = workspace_controller.new_workspace(*get_layout("2x1"))
+            utcnow = DateTime.utcnow()
+            workspace1.name = "1"
+            workspace1._set_created(utcnow + datetime.timedelta(seconds=2))
+            workspace2.name = "2"
+            workspace2._set_created(utcnow + datetime.timedelta(seconds=1))
+            workspace_controller.change_workspace(workspace2)
+            old_uuid = workspace2.uuid
+            old_workspace_id = workspace2.workspace_id
+            old_created = workspace2.created
+            self.assertEqual(["1", "2"], [w.name for w in document_controller.project.sorted_workspaces])
+            # remove the workspace and undo the removal
+            command = Workspace.RemoveWorkspaceCommand(workspace_controller)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertEqual(1, len(document_controller.project.workspaces))
+            document_controller.handle_undo()
+            # the restored workspace must be the one that was removed, not a similar new one
+            self.assertEqual(2, len(document_controller.project.workspaces))
+            restored_workspace = document_controller.project.workspaces[1]
+            self.assertEqual("2", restored_workspace.name)
+            self.assertEqual(old_uuid, restored_workspace.uuid)
+            self.assertEqual(old_workspace_id, restored_workspace.workspace_id)
+            self.assertEqual(old_created, restored_workspace.created)
+            # a new 'created' would sort the restored workspace to the front of the list
+            self.assertEqual(["1", "2"], [w.name for w in document_controller.project.sorted_workspaces])
+
+    def test_redo_clone_workspace_restores_identity_of_the_original_clone(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            workspace_controller = document_controller.workspace_controller
+            command = Workspace.CloneWorkspaceCommand(workspace_controller, "CLONE")
+            command.perform()
+            document_controller.push_undo_command(command)
+            clone_uuid = workspace_controller._workspace.uuid
+            clone_workspace_id = workspace_controller._workspace.workspace_id
+            document_controller.handle_undo()
+            self.assertEqual(1, len(document_controller.project.workspaces))
+            document_controller.handle_redo()
+            self.assertEqual(2, len(document_controller.project.workspaces))
+            self.assertEqual("CLONE", workspace_controller._workspace.name)
+            self.assertEqual(clone_uuid, workspace_controller._workspace.uuid)
+            self.assertEqual(clone_workspace_id, workspace_controller._workspace.workspace_id)
+
+    def test_redo_create_workspace_restores_identity_of_the_original_workspace(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            workspace_controller = document_controller.workspace_controller
+            command = Workspace.CreateWorkspaceCommand(workspace_controller, "NEW")
+            command.perform()
+            document_controller.push_undo_command(command)
+            new_uuid = workspace_controller._workspace.uuid
+            new_workspace_id = workspace_controller._workspace.workspace_id
+            document_controller.handle_undo()
+            self.assertEqual(1, len(document_controller.project.workspaces))
+            document_controller.handle_redo()
+            self.assertEqual(2, len(document_controller.project.workspaces))
+            self.assertEqual("NEW", workspace_controller._workspace.name)
+            self.assertEqual(new_uuid, workspace_controller._workspace.uuid)
+            self.assertEqual(new_workspace_id, workspace_controller._workspace.workspace_id)
+
+    def test_clone_workspace_sorts_as_newly_created(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            workspace_controller = document_controller.workspace_controller
+            workspace1 = workspace_controller._workspace
+            workspace1.name = "1"
+            workspace1._set_created(DateTime.utcnow() - datetime.timedelta(days=1))
+            command = Workspace.CloneWorkspaceCommand(workspace_controller, "CLONE")
+            command.perform()
+            document_controller.push_undo_command(command)
+            # the clone is a new workspace; it must not inherit the source's creation timestamp
+            self.assertEqual(["CLONE", "1"], [w.name for w in document_controller.project.sorted_workspaces])
+
     def test_workspace_records_and_reloads_image_panel_contents(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller(auto_close=False)
