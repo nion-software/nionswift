@@ -838,6 +838,27 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
+    def test_undo_delete_restores_item_order_after_reload(self) -> None:
+        # undoing a delete puts the items back in their original order, and that order is what gets saved.
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                for i in range(4):
+                    data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+                    data_item.title = str(i)
+                    document_model.append_data_item(data_item)
+                data_item_uuids = [data_item.uuid for data_item in document_model.data_items]
+                display_item_uuids = [display_item.uuid for display_item in document_model.display_items]
+                undelete_log = document_model.remove_display_item_with_log(document_model.display_items[1])
+                document_model.undelete_all(undelete_log)
+                undelete_log.close()
+                self.assertEqual(data_item_uuids, [data_item.uuid for data_item in document_model.data_items])
+                self.assertEqual(display_item_uuids, [display_item.uuid for display_item in document_model.display_items])
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertEqual(data_item_uuids, [data_item.uuid for data_item in document_model.data_items])
+                self.assertEqual(display_item_uuids, [display_item.uuid for display_item in document_model.display_items])
+
     def test_delete_and_undelete_from_memory_storage_system_restores_data_item_after_reload(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
