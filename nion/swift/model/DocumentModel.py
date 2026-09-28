@@ -44,19 +44,6 @@ from nion.utils import Registry
 _ = gettext.gettext
 
 
-def save_item_order(items: typing.List[Persistence.PersistentObject]) -> typing.List[Persistence.PersistentObjectSpecifier]:
-    return [item.item_specifier for item in items]
-
-
-def restore_item_order(project: Project.Project, uuid_order: typing.List[Persistence.PersistentObjectSpecifier]) -> typing.List[Persistence.PersistentObject]:
-    items: typing.List[Persistence.PersistentObject] = list()
-    for item_specifier in uuid_order:
-        item = project.resolve_item_specifier(item_specifier)
-        assert item
-        items.append(item)
-    return items
-
-
 class Closeable(typing.Protocol):
     def close(self) -> None: ...
 
@@ -255,14 +242,12 @@ class UndeleteDataItem(Changes.UndeleteBase):
         index = project.data_items.index(data_item)
         self.data_item_uuid = data_item.uuid
         self.index = index
-        self.order = save_item_order(typing.cast(typing.List[Persistence.PersistentObject], document_model.data_items))  # cast required for mypy bug?
 
     def close(self) -> None:
         pass
 
     def undelete(self, document_model: DocumentModel) -> None:
         document_model.restore_data_item(self.data_item_uuid, self.index)
-        document_model.restore_items_order("data_items", self.order)
 
 
 class UndeleteDisplayItemInDataGroup(Changes.UndeleteBase):
@@ -292,7 +277,6 @@ class UndeleteDisplayItem(Changes.UndeleteBase):
         index = project.display_items.index(display_item)
         self.item_dict = display_item.write_to_dict()
         self.index = index
-        self.order = save_item_order(typing.cast(typing.List[Persistence.PersistentObject], document_model.display_items))  # cast required for mypy bug?
 
     def close(self) -> None:
         pass
@@ -303,7 +287,6 @@ class UndeleteDisplayItem(Changes.UndeleteBase):
         display_item.read_from_dict(self.item_dict)
         display_item.finish_reading()
         document_model.insert_display_item(self.index, display_item, update_session=False)
-        document_model.restore_items_order("display_items", self.order)
 
 
 class ItemsController(abc.ABC):
@@ -315,13 +298,10 @@ class ItemsController(abc.ABC):
     def item_index(self, item: Persistence.PersistentObject) -> int: ...
 
     @abc.abstractmethod
-    def save_item_order(self) -> typing.List[Persistence.PersistentObjectSpecifier]: ...
-
-    @abc.abstractmethod
     def write_to_dict(self, data_structure: Persistence.PersistentObject) -> Persistence.PersistentDictType: ...
 
     @abc.abstractmethod
-    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties], order: typing.List[Persistence.PersistentObjectSpecifier]) -> None: ...
+    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties]) -> None: ...
 
 
 class DataStructuresController(ItemsController):
@@ -334,19 +314,15 @@ class DataStructuresController(ItemsController):
     def item_index(self, data_structure: Persistence.PersistentObject) -> int:
         return typing.cast(DataStructure.DataStructure, data_structure).project.data_structures.index(data_structure)
 
-    def save_item_order(self) -> typing.List[Persistence.PersistentObjectSpecifier]:
-        return save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__document_model.data_structures))  # cast required for mypy bug?
-
     def write_to_dict(self, data_structure: Persistence.PersistentObject) -> Persistence.PersistentDictType:
         return data_structure.write_to_dict()
 
-    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties], order: typing.List[Persistence.PersistentObjectSpecifier]) -> None:
+    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties]) -> None:
         data_structure = DataStructure.DataStructure()
         data_structure.begin_reading()
         data_structure.read_from_dict(item_dict)
         data_structure.finish_reading()
         self.__document_model.insert_data_structure(index, data_structure)
-        self.__document_model.restore_items_order("data_structures", order)
 
 
 class ComputationsController(ItemsController):
@@ -359,13 +335,10 @@ class ComputationsController(ItemsController):
     def item_index(self, computation: Persistence.PersistentObject) -> int:
         return typing.cast(Symbolic.Computation, computation).project.computations.index(computation)
 
-    def save_item_order(self) -> typing.List[Persistence.PersistentObjectSpecifier]:
-        return save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__document_model.computations))  # cast required for mypy bug?
-
     def write_to_dict(self, computation: Persistence.PersistentObject) -> Persistence.PersistentDictType:
         return computation.write_to_dict()
 
-    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties], order: typing.List[Persistence.PersistentObjectSpecifier]) -> None:
+    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties]) -> None:
         computation = Symbolic.Computation()
         computation.begin_reading()
         computation.read_from_dict(item_dict)
@@ -374,7 +347,6 @@ class ComputationsController(ItemsController):
         # resolved. so mark it as needing update here. this is a hack.
         computation.needs_update = not computation.is_resolved
         self.__document_model.insert_computation(index, computation)
-        self.__document_model.restore_items_order("computations", order)
 
 
 class ConnectionsController(ItemsController):
@@ -387,20 +359,16 @@ class ConnectionsController(ItemsController):
     def item_index(self, connection: Persistence.PersistentObject) -> int:
         return typing.cast(Connection.Connection, connection).project.connections.index(connection)
 
-    def save_item_order(self) -> typing.List[Persistence.PersistentObjectSpecifier]:
-        return save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__document_model.connections))  # cast required for mypy bug?
-
     def write_to_dict(self, connection: Persistence.PersistentObject) -> Persistence.PersistentDictType:
         return connection.write_to_dict()
 
-    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties], order: typing.List[Persistence.PersistentObjectSpecifier]) -> None:
+    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties]) -> None:
         item = Connection.connection_factory(typing.cast(typing.Callable[[str], str], item_dict.get))
         if item:
             item.begin_reading()
             item.read_from_dict(item_dict)
             item.finish_reading()
             self.__document_model.insert_connection(index, item)
-            self.__document_model.restore_items_order("connections", order)
 
 
 class GraphicsController(ItemsController):
@@ -413,13 +381,10 @@ class GraphicsController(ItemsController):
     def item_index(self, graphic: Persistence.PersistentObject) -> int:
         return typing.cast(Graphics.Graphic, graphic).display_item.graphics.index(graphic)
 
-    def save_item_order(self) -> typing.List[Persistence.PersistentObjectSpecifier]:
-        return list()
-
     def write_to_dict(self, graphic: Persistence.PersistentObject) -> Persistence.PersistentDictType:
         return graphic.write_to_dict()
 
-    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties], order: typing.List[Persistence.PersistentObjectSpecifier]) -> None:
+    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties]) -> None:
         graphic = Graphics.factory(typing.cast(typing.Callable[[str], str], item_dict.get))
         graphic.begin_reading()
         graphic.read_from_dict(item_dict)
@@ -440,13 +405,10 @@ class DisplayDataChannelsController(ItemsController):
     def item_index(self, display_data_channel: Persistence.PersistentObject) -> int:
         return typing.cast(DisplayItem.DisplayDataChannel, display_data_channel).display_item.display_data_channels.index(display_data_channel)
 
-    def save_item_order(self) -> typing.List[Persistence.PersistentObjectSpecifier]:
-        return list()
-
     def write_to_dict(self, display_data_channel: Persistence.PersistentObject) -> Persistence.PersistentDictType:
         return display_data_channel.write_to_dict()
 
-    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties], order: typing.List[Persistence.PersistentObjectSpecifier]) -> None:
+    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties]) -> None:
         display_data_channel = DisplayItem.display_data_channel_factory(typing.cast(typing.Callable[[str], str], item_dict.get))
         display_data_channel.begin_reading()
         display_data_channel.read_from_dict(item_dict)
@@ -467,13 +429,10 @@ class DisplayLayersController(ItemsController):
     def item_index(self, display_layer: Persistence.PersistentObject) -> int:
         return typing.cast(DisplayItem.DisplayLayer, display_layer).display_item.display_layers.index(display_layer)
 
-    def save_item_order(self) -> typing.List[Persistence.PersistentObjectSpecifier]:
-        return list()
-
     def write_to_dict(self, display_layer: Persistence.PersistentObject) -> Persistence.PersistentDictType:
         return display_layer.write_to_dict()
 
-    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties], order: typing.List[Persistence.PersistentObjectSpecifier]) -> None:
+    def restore_from_dict(self, item_dict: Persistence.PersistentDictType, index: int, container: typing.Optional[Persistence.PersistentObject], container_properties: typing.Optional[DisplayItem.DisplayItemSaveProperties]) -> None:
         display_layer = DisplayItem.display_layer_factory(typing.cast(typing.Callable[[str], str], item_dict.get))
         display_layer.begin_reading()
         display_layer.read_from_dict(item_dict)
@@ -496,7 +455,6 @@ class UndeleteItem(Changes.UndeleteBase):
             self.container_properties = typing.cast(typing.Callable[[], DisplayItem.DisplayItemSaveProperties], getattr(container, "save_properties"))()
         self.item_dict = self.__items_controller.write_to_dict(item)
         self.index = index
-        self.order = self.__items_controller.save_item_order()
 
     def close(self) -> None:
         if self.container_item_proxy:
@@ -506,7 +464,7 @@ class UndeleteItem(Changes.UndeleteBase):
     def undelete(self, document_model: DocumentModel) -> None:
         container = typing.cast(Persistence.PersistentObject, self.container_item_proxy.item) if self.container_item_proxy else None
         container_properties = self.container_properties
-        self.__items_controller.restore_from_dict(self.item_dict, self.index, container, container_properties, self.order)
+        self.__items_controller.restore_from_dict(self.item_dict, self.index, container, container_properties)
 
 
 class AbstractImplicitDependency(abc.ABC):
@@ -961,18 +919,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int | None = None) -> typing.Optional[DataItem.DataItem]:
         # restore the data item from the trash, inserting it at before_index or appending it if before_index is None.
         return self._project.restore_data_item(data_item_uuid, before_index)
-
-    def restore_items_order(self, name: str, order: typing.List[Persistence.PersistentObjectSpecifier]) -> None:
-        if name == "data_items":
-            self.__data_items = typing.cast(typing.List[DataItem.DataItem], restore_item_order(self._project, order))
-        elif name == "display_items":
-            self.__display_items = typing.cast(typing.List[DisplayItem.DisplayItem], restore_item_order(self._project, order))
-        elif name == "data_structures":
-            self.__data_structures = typing.cast(typing.List[DataStructure.DataStructure], restore_item_order(self._project, order))
-        elif name == "computations":
-            self.__computations = typing.cast(typing.List[Symbolic.Computation], restore_item_order(self._project, order))
-        elif name == "connections":
-            self.__connections = typing.cast(typing.List[Connection.Connection], restore_item_order(self._project, order))
 
     def deepcopy_display_item(self, display_item: DisplayItem.DisplayItem) -> DisplayItem.DisplayItem:
         data_item_copy: typing.Optional[DataItem.DataItem]

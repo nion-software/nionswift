@@ -1159,6 +1159,8 @@ class PersistentObject(Observable.Observable):
     def insert_item(self, name: str, before_index: int, item: PersistentObject) -> None:
         """ Insert item in persistent storage and then into relationship storage and notify. """
         relationship = self.__relationships[name]
+        # a stale index, such as one recorded by undo before other items were removed, inserts at the end.
+        before_index = min(before_index, len(relationship.values))
         relationship.values.insert(before_index, item)
         relationship.index[item.uuid] = item
         self.__update_modified(DateTime.utcnow())
