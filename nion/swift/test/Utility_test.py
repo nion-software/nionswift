@@ -4,6 +4,8 @@ import typing
 import unittest
 import zoneinfo
 
+import numpy
+
 from nion.swift.model import Utility
 
 class TestUtilityClass(unittest.TestCase):
@@ -46,6 +48,18 @@ class TestUtilityClass(unittest.TestCase):
         # ok for json to switch tuples to lists
         self.assertEqual(Utility.clean_dict(json.loads(json.dumps(d0))), d2)
         self.assertEqual(Utility.clean_dict(json.loads(json.dumps(d1))), d3)
+
+    def test_clean_dict_cleans_nested_values(self) -> None:
+        # none values are removed from dicts but kept in lists, numpy values become python values, and the cleaned
+        # dict shares no containers with the original.
+        d = {"a": None, "b": [None, {"c": None, "d": numpy.float32(1.5)}, [numpy.int64(3), True]], "e": numpy.bool_(True), "h": {"i": [1, "x", 2.5]}}
+        cleaned = Utility.clean_dict(d)
+        self.assertEqual({"b": [None, {"d": 1.5}, [3, True]], "e": True, "h": {"i": [1, "x", 2.5]}}, cleaned)
+        self.assertIs(float, type(cleaned["b"][1]["d"]))
+        self.assertIs(int, type(cleaned["b"][2][0]))
+        self.assertIs(bool, type(cleaned["e"]))
+        self.assertIsNot(d["h"], cleaned["h"])
+        self.assertIsNot(d["h"]["i"], cleaned["h"]["i"])
 
     def test_simplify_filename(self):
         test_filenames = [("test.bmp", "test.bmp"),
