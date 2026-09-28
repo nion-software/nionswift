@@ -16,6 +16,7 @@ import numpy
 # local libraries
 from nion.data import DataAndMetadata
 from nion.swift import Facade
+from nion.swift.model import Changes
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -360,24 +361,57 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.remove_data_item(data_item)
             self.assertEqual(len(document_model.data_structures), 0)
 
-    def test_restoring_items_order_reorders_each_type_of_item(self) -> None:
-        # undoing a delete restores the saved order of each type of item.
+    def test_undoing_delete_restores_each_type_of_item_at_its_index(self) -> None:
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
             for _ in range(3):
-                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+                data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+                document_model.append_data_item(data_item)
                 data_structure = document_model.create_data_structure()
                 data_structure.set_property_value("value", 0)
                 document_model.append_data_structure(data_structure)
-                document_model.append_computation(document_model.create_computation())
+                computation = document_model.create_computation()
+                computation.create_input_item("src", Symbolic.make_item(data_item))
+                document_model.append_computation(computation)
             for data_structure in document_model.data_structures:
                 document_model.append_connection(Connection.PropertyConnection(data_structure, "value", document_model.data_structures[0], "value"))
-            for name in ("data_items", "display_items", "data_structures", "computations", "connections"):
+            removers: typing.Mapping[str, typing.Callable[[typing.Any], Changes.UndeleteLog]] = {
+                "data_items": document_model.remove_data_item_with_log,
+                "display_items": document_model.remove_display_item_with_log,
+                "data_structures": document_model.remove_data_structure_with_log,
+                "computations": document_model.remove_computation_with_log,
+            }
+            # deleting a data structure also deletes the connection from it, and deleting a data item also deletes its display item.
+            names = ("data_items", "display_items", "data_structures", "computations", "connections")
+            uuids = {name: [item.uuid for item in getattr(document_model, name)] for name in names}
+            for name, remove_with_log in removers.items():
                 with self.subTest(name=name):
-                    items = list(getattr(document_model, name))
-                    self.assertEqual(3, len(items))
-                    document_model.restore_items_order(name, [item.item_specifier for item in reversed(items)])
-                    self.assertEqual(list(reversed(items)), getattr(document_model, name))
+                    undelete_log = remove_with_log(getattr(document_model, name)[1])
+                    self.assertEqual(2, len(getattr(document_model, name)))
+                    document_model.undelete_all(undelete_log)
+                    undelete_log.close()
+                    self.assertEqual(uuids, {name: [item.uuid for item in getattr(document_model, name)] for name in names})
+
+    def test_undoing_delete_after_other_items_are_removed_reports_the_actual_index(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            for _ in range(3):
+                document_model.append_data_structure(document_model.create_data_structure())
+            data_structures = list(document_model.data_structures)
+            undelete_log = document_model.remove_data_structure_with_log(data_structures[2])
+            document_model.remove_data_structure(data_structures[0])
+            document_model.remove_data_structure(data_structures[1])
+            inserted_indexes: list[tuple[str, int]] = list()
+
+            def handle_item_inserted(key: str, value: typing.Any, before_index: int) -> None:
+                inserted_indexes.append((key, before_index))
+
+            item_inserted_listener = document_model.item_inserted_event.listen(handle_item_inserted)
+            document_model.undelete_all(undelete_log)
+            undelete_log.close()
+            item_inserted_listener = typing.cast(typing.Any, None)
+            self.assertEqual([("data_structures", 0)], inserted_indexes)
+            self.assertEqual([data_structures[2].uuid], [data_structure.uuid for data_structure in document_model.data_structures])
 
     def test_inserting_items_puts_each_type_of_item_at_the_index(self) -> None:
         with TestContext.create_memory_context() as test_context:
