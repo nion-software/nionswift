@@ -133,7 +133,7 @@ class Singleton(type):
 
 
 DirtyValue = typing.Any
-CleanValue = typing.Union[typing.Dict[str, typing.Any], typing.List[typing.Any], typing.Tuple[typing.Any], str, float, int, bool, None]
+CleanValue = typing.Union[typing.Dict[str, typing.Any], typing.List[typing.Any], typing.Tuple[typing.Any, ...], str, float, int, bool, None]
 
 
 # the exact types which are already json-clean. clean_item returns these unchanged.
@@ -142,44 +142,58 @@ _json_clean_scalar_types = frozenset((str, int, float, bool, type(None)))
 
 def clean_dict(d0: typing.Dict[str, DirtyValue], clean_item_fn: typing.Optional[typing.Callable[[DirtyValue], CleanValue]] = None) -> typing.Dict[str, CleanValue]:
     """Return a json-clean dict. Will log info message for failures."""
+    if not clean_item_fn:
+        return _clean_dict_with_clean_item(d0)
     d: typing.Dict[str, CleanValue] = dict()
-    if clean_item_fn:
-        for key in d0:
-            cleaned_item = clean_item_fn(d0[key])
-            if cleaned_item is not None:
-                d[key] = cleaned_item
-        return d
-    # handle the common types inline rather than through clean_item, for performance.
-    for key, value in d0.items():
-        value_type = type(value)
-        if value_type in _json_clean_scalar_types:
-            if value is not None:
-                d[key] = value
-        elif value_type is dict:
-            d[key] = clean_dict(value)
-        elif value_type is list:
-            d[key] = clean_list(value)
-        elif (cleaned_item := clean_item(value)) is not None:
+    for key in d0:
+        cleaned_item = clean_item_fn(d0[key])
+        if cleaned_item is not None:
             d[key] = cleaned_item
     return d
 
 
 def clean_list(l0: typing.List[DirtyValue], clean_item_fn: typing.Optional[typing.Callable[[DirtyValue], CleanValue]] = None) -> typing.List[CleanValue]:
     """Return a json-clean list. Will log info message for failures."""
+    if not clean_item_fn:
+        return _clean_list_with_clean_item(l0)
     l: typing.List[CleanValue] = list()
-    if clean_item_fn:
-        for item in l0:
-            l.append(clean_item_fn(item))
-        return l
-    # handle the common types inline rather than through clean_item, for performance.
+    for item in l0:
+        l.append(clean_item_fn(item))
+    return l
+
+
+# clean_dict and clean_list with the default clean_item. the common types are handled inline rather than through
+# clean_item, for performance, and give the same results as clean_item.
+def _clean_dict_with_clean_item(d0: typing.Mapping[str, DirtyValue]) -> typing.Dict[str, CleanValue]:
+    d: typing.Dict[str, CleanValue] = dict()
+    for key, value in d0.items():
+        value_type = type(value)
+        if value_type in _json_clean_scalar_types:
+            if value is not None:
+                d[key] = value
+        elif value_type is dict:
+            d[key] = _clean_dict_with_clean_item(value)
+        elif value_type is list:
+            d[key] = _clean_list_with_clean_item(value)
+        elif value_type is tuple:
+            d[key] = tuple(_clean_list_with_clean_item(value))
+        elif (cleaned_item := clean_item(value)) is not None:
+            d[key] = cleaned_item
+    return d
+
+
+def _clean_list_with_clean_item(l0: typing.Sequence[DirtyValue]) -> typing.List[CleanValue]:
+    l: typing.List[CleanValue] = list()
     for item in l0:
         item_type = type(item)
         if item_type in _json_clean_scalar_types:
             l.append(item)
         elif item_type is dict:
-            l.append(clean_dict(item))
+            l.append(_clean_dict_with_clean_item(item))
         elif item_type is list:
-            l.append(clean_list(item))
+            l.append(_clean_list_with_clean_item(item))
+        elif item_type is tuple:
+            l.append(tuple(_clean_list_with_clean_item(item)))
         else:
             l.append(clean_item(item))
     return l

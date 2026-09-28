@@ -61,6 +61,16 @@ class TestUtilityClass(unittest.TestCase):
         self.assertIsNot(d["h"], cleaned["h"])
         self.assertIsNot(d["h"]["i"], cleaned["h"]["i"])
 
+    def test_clean_dict_cleans_values_nested_in_tuples(self) -> None:
+        # tuples stay tuples, keep their none values, and have their contents cleaned like lists.
+        d = {"a": (None, numpy.int64(2), (numpy.float32(0.5), None), {"b": None, "c": 1}, [None])}
+        cleaned = Utility.clean_dict(d)
+        self.assertEqual({"a": (None, 2, (0.5, None), {"c": 1}, [None])}, cleaned)
+        self.assertIs(tuple, type(cleaned["a"]))
+        self.assertIs(tuple, type(cleaned["a"][2]))
+        self.assertIs(int, type(cleaned["a"][1]))
+        self.assertIs(float, type(cleaned["a"][2][0]))
+
     def test_simplify_filename(self):
         test_filenames = [("test.bmp", "test.bmp"),
                           (r"5/3/2024.txt", r"5_3_2024.txt"),
