@@ -974,7 +974,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.__data_items = typing.cast(typing.List[DataItem.DataItem], restore_item_order(self._project, order))
         elif name == "display_items":
             self.__display_items = typing.cast(typing.List[DisplayItem.DisplayItem], restore_item_order(self._project, order))
-        elif name == "data_strutures":
+        elif name == "data_structures":
             self.__data_structures = typing.cast(typing.List[DataStructure.DataStructure], restore_item_order(self._project, order))
         elif name == "computations":
             self.__computations = typing.cast(typing.List[Symbolic.Computation], restore_item_order(self._project, order))
