@@ -762,7 +762,8 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
     def _untransform_properties(self, properties: PersistentDictType) -> PersistentDictType:
         # called by the base class to untransform properties before writing to storage. this is where we can apply any transformations needed for the data item properties.
-        return Model.transform_backward(copy.deepcopy(properties))
+        # clean_dict returns a new json-clean copy, which transform_backward is free to modify without modifying the live properties.
+        return Model.transform_backward(Utility.clean_dict(properties))
 
     # override
     def _insert_item(self, parent: Persistence.PersistentObject, name: str, before_index: int, item: Persistence.PersistentObject) -> None:
@@ -949,10 +950,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         self.__write_properties_inner(untransformed_properties)
 
     def __write_properties_inner(self, properties: PersistentDictType) -> None:
+        # properties must be json-clean and may be modified.
         if self.__project_path:
             # atomically overwrite
             with Utility.AtomicFileWriter(self.__project_path) as fp:
-                properties = Utility.clean_dict(properties)
                 project_data_paths = list()
                 for project_data_path in [self.__project_data_path] if self.__project_data_path else []:
                     if project_data_path.parent == self.__project_path.parent:
@@ -1071,7 +1072,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             return None
 
     def _migrate_library_properties(self, library_properties: PersistentDictType, reader_info_list: typing.List[ReaderInfo]) -> None:
-        self.__write_properties_inner(library_properties)
+        self.__write_properties_inner(Utility.clean_dict(library_properties))
         for reader_info in reader_info_list:
             data_item_properties = Utility.clean_dict(reader_info.properties if reader_info.properties else dict())
             if data_item_properties.get("version", 0) == DataItem.DataItem.writer_version:
