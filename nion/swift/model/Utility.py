@@ -136,24 +136,52 @@ DirtyValue = typing.Any
 CleanValue = typing.Union[typing.Dict[str, typing.Any], typing.List[typing.Any], typing.Tuple[typing.Any], str, float, int, bool, None]
 
 
+# the exact types which are already json-clean. clean_item returns these unchanged.
+_json_clean_scalar_types = frozenset((str, int, float, bool, type(None)))
+
+
 def clean_dict(d0: typing.Dict[str, DirtyValue], clean_item_fn: typing.Optional[typing.Callable[[DirtyValue], CleanValue]] = None) -> typing.Dict[str, CleanValue]:
     """Return a json-clean dict. Will log info message for failures."""
-    clean_item_fn = clean_item_fn if clean_item_fn else clean_item
     d: typing.Dict[str, CleanValue] = dict()
-    for key in d0:
-        cleaned_item = clean_item_fn(d0[key])
-        if cleaned_item is not None:
+    if clean_item_fn:
+        for key in d0:
+            cleaned_item = clean_item_fn(d0[key])
+            if cleaned_item is not None:
+                d[key] = cleaned_item
+        return d
+    # handle the common types inline rather than through clean_item, for performance.
+    for key, value in d0.items():
+        value_type = type(value)
+        if value_type in _json_clean_scalar_types:
+            if value is not None:
+                d[key] = value
+        elif value_type is dict:
+            d[key] = clean_dict(value)
+        elif value_type is list:
+            d[key] = clean_list(value)
+        elif (cleaned_item := clean_item(value)) is not None:
             d[key] = cleaned_item
     return d
 
 
 def clean_list(l0: typing.List[DirtyValue], clean_item_fn: typing.Optional[typing.Callable[[DirtyValue], CleanValue]] = None) -> typing.List[CleanValue]:
     """Return a json-clean list. Will log info message for failures."""
-    clean_item_fn = clean_item_fn if clean_item_fn else clean_item
     l: typing.List[CleanValue] = list()
-    for index, item in enumerate(l0):
-        cleaned_item = clean_item_fn(item)
-        l.append(cleaned_item)
+    if clean_item_fn:
+        for item in l0:
+            l.append(clean_item_fn(item))
+        return l
+    # handle the common types inline rather than through clean_item, for performance.
+    for item in l0:
+        item_type = type(item)
+        if item_type in _json_clean_scalar_types:
+            l.append(item)
+        elif item_type is dict:
+            l.append(clean_dict(item))
+        elif item_type is list:
+            l.append(clean_list(item))
+        else:
+            l.append(clean_item(item))
     return l
 
 
