@@ -360,6 +360,25 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.remove_data_item(data_item)
             self.assertEqual(len(document_model.data_structures), 0)
 
+    def test_restoring_items_order_reorders_each_type_of_item(self) -> None:
+        # undoing a delete restores the saved order of each type of item.
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+                data_structure = document_model.create_data_structure()
+                data_structure.set_property_value("value", 0)
+                document_model.append_data_structure(data_structure)
+                document_model.append_computation(document_model.create_computation())
+            for data_structure in document_model.data_structures:
+                document_model.append_connection(Connection.PropertyConnection(data_structure, "value", document_model.data_structures[0], "value"))
+            for name in ("data_items", "display_items", "data_structures", "computations", "connections"):
+                with self.subTest(name=name):
+                    items = list(getattr(document_model, name))
+                    self.assertEqual(3, len(items))
+                    document_model.restore_items_order(name, [item.item_specifier for item in reversed(items)])
+                    self.assertEqual(list(reversed(items)), getattr(document_model, name))
+
     def test_computation_creates_dependency_between_data_source_graphic_and_target(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
