@@ -810,15 +810,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     def __project_item_inserted(self, name: str, item: Persistence.PersistentObject, before_index: int) -> None:
         if name == "data_items":
-            self.__handle_data_item_inserted(typing.cast(DataItem.DataItem, item))
+            self.__handle_data_item_inserted(typing.cast(DataItem.DataItem, item), before_index)
         elif name == "display_items":
-            self.__handle_display_item_inserted(typing.cast(DisplayItem.DisplayItem, item))
+            self.__handle_display_item_inserted(typing.cast(DisplayItem.DisplayItem, item), before_index)
         elif name == "data_structures":
-            self.__handle_data_structure_inserted(typing.cast(DataStructure.DataStructure, item))
+            self.__handle_data_structure_inserted(typing.cast(DataStructure.DataStructure, item), before_index)
         elif name == "computations":
-            self.__handle_computation_inserted(typing.cast(Symbolic.Computation, item))
+            self.__handle_computation_inserted(typing.cast(Symbolic.Computation, item), before_index)
         elif name == "connections":
-            self.__handle_connection_inserted(typing.cast(Connection.Connection, item))
+            self.__handle_connection_inserted(typing.cast(Connection.Connection, item), before_index)
         elif name == "data_groups":
             assert isinstance(item, DataGroup.DataGroup)
             self.notify_insert_item("data_groups", item, before_index)
@@ -916,12 +916,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         data_item_copy.title = display_item.displayed_title + " (" + _("Duplicate") + ")"
         return data_item_copy
 
-    def __handle_data_item_inserted(self, data_item: DataItem.DataItem) -> None:
+    def __handle_data_item_inserted(self, data_item: DataItem.DataItem, before_index: int) -> None:
         assert data_item is not None
         assert data_item not in self.data_items
-        # insert in internal list
-        before_index = len(self.__data_items)
-        self.__data_items.append(data_item)
+        # insert in internal list at the same index as the project, so both have the same order
+        self.__data_items.insert(before_index, data_item)
         data_item._document_model = self
         data_item.set_session_manager(self)
         self.notify_insert_item("data_items", data_item, before_index)
@@ -943,18 +942,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self.notify_remove_item("data_items", data_item, index)
 
     def append_data_item(self, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
+        self.insert_data_item(len(self.__data_items), data_item, auto_display=auto_display)
+
+    def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
         data_item.session_id = self.session_id
-        self._project.append_data_item(data_item)
+        self._project.insert_data_item(index, data_item)
         # automatically add a display
         if auto_display:
             display_item = DisplayItem.DisplayItem(data_item=data_item)
             self.append_display_item(display_item)
-
-    def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
-        data_items = list(self.__data_items)
-        self.append_data_item(data_item, auto_display=auto_display)
-        data_items.insert(index, data_item)
-        self.__data_items = data_items
 
     def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool = False) -> None:
         self.__cascade_delete(data_item, safe=safe).close()
@@ -962,8 +958,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_data_item_with_log(self, data_item: DataItem.DataItem, *, safe: bool = False) -> Changes.UndeleteLog:
         return self.__cascade_delete(data_item, safe=safe)
 
-    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int = 0) -> typing.Optional[DataItem.DataItem]:
-        return self._project.restore_data_item(data_item_uuid)
+    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int | None = None) -> typing.Optional[DataItem.DataItem]:
+        # restore the data item from the trash, inserting it at before_index or appending it if before_index is None.
+        return self._project.restore_data_item(data_item_uuid, before_index)
 
     def restore_items_order(self, name: str, order: typing.List[Persistence.PersistentObjectSpecifier]) -> None:
         if name == "data_items":
@@ -1003,15 +1000,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         return display_item_copy
 
     def append_display_item(self, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
-        if update_session:
-            display_item.session_id = self.session_id
-        self._project.append_display_item(display_item)
+        self.insert_display_item(len(self.__display_items), display_item, update_session=update_session)
 
     def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
-        display_items = list(self.__display_items)
-        self.append_display_item(display_item, update_session=update_session)
-        display_items.insert(before_index, display_item)
-        self.__display_items = display_items
+        if update_session:
+            display_item.session_id = self.session_id
+        self._project.insert_display_item(before_index, display_item)
 
     def remove_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
         self.__cascade_delete(display_item).close()
@@ -1019,7 +1013,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_display_item_with_log(self, display_item: DisplayItem.DisplayItem) -> Changes.UndeleteLog:
         return self.__cascade_delete(display_item)
 
-    def __handle_display_item_inserted(self, display_item: DisplayItem.DisplayItem) -> None:
+    def __handle_display_item_inserted(self, display_item: DisplayItem.DisplayItem, before_index: int) -> None:
         assert display_item is not None
         assert display_item not in self.__display_items
         # bookkeeping
@@ -1028,9 +1022,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         if self.__threaded_drawing:
             display_item._display_relay_stream = DisplayItem.AsyncRelayStream[DisplayItem.DisplayDataAndCalibrationInfo](self.__event_loop)
             display_item._display_executor = DisplayItem.ComputedValueStreamThreadPoolExecutor[DisplayItem.DisplayDataChannelsAndCalibrationStyle]()
-        # insert in internal list
-        before_index = len(self.__display_items)
-        self.__display_items.append(display_item)
+        # insert in internal list at the same index as the project, so both have the same order
+        self.__display_items.insert(before_index, display_item)
 
         def item_changed(display_item: DisplayItem.DisplayItem, name: str, value: typing.Any, index: int) -> None:
             # pass display item because display data channel might be being removed in which case it will have no container.
@@ -2019,20 +2012,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self._project.append_connection(connection)
 
     def insert_connection(self, before_index: int, connection: Connection.Connection) -> None:
-        connections = list(self.__connections)
-        self.append_connection(connection)
-        connections.insert(before_index, connection)
-        self.__connections = connections
+        self._project.insert_connection(before_index, connection)
 
     def remove_connection(self, connection: Connection.Connection) -> None:
         connection.project.remove_connection(connection)
 
-    def __handle_connection_inserted(self, connection: Connection.Connection) -> None:
+    def __handle_connection_inserted(self, connection: Connection.Connection, before_index: int) -> None:
         assert connection is not None
         assert connection not in self.__connections
-        # insert in internal list
-        before_index = len(self.__connections)
-        self.__connections.append(connection)
+        # insert in internal list at the same index as the project, so both have the same order
+        self.__connections.insert(before_index, connection)
         # send notifications
         self.notify_insert_item("connections", connection, before_index)
 
@@ -2051,10 +2040,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self._project.append_data_structure(data_structure)
 
     def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure) -> None:
-        data_structures = list(self.__data_structures)
-        self.append_data_structure(data_structure)
-        data_structures.insert(before_index, data_structure)
-        self.__data_structures = data_structures
+        self._project.insert_data_structure(before_index, data_structure)
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
         return self.__cascade_delete(data_structure).close()
@@ -2062,12 +2048,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_data_structure_with_log(self, data_structure: DataStructure.DataStructure) -> Changes.UndeleteLog:
         return self.__cascade_delete(data_structure)
 
-    def __handle_data_structure_inserted(self, data_structure: DataStructure.DataStructure) -> None:
+    def __handle_data_structure_inserted(self, data_structure: DataStructure.DataStructure, before_index: int) -> None:
         assert data_structure is not None
         assert data_structure not in self.__data_structures
-        # insert in internal list
-        before_index = len(self.__data_structures)
-        self.__data_structures.append(data_structure)
+        # insert in internal list at the same index as the project, so both have the same order
+        self.__data_structures.insert(before_index, data_structure)
         self.__data_structure_listeners[data_structure] = data_structure.data_structure_objects_changed_event.listen(self.__transaction_manager._rebuild_transactions)
         # transactions
         self.__transaction_manager._add_item(data_structure)
@@ -2129,10 +2114,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self._project.append_computation(computation)
 
     def insert_computation(self, before_index: int, computation: Symbolic.Computation) -> None:
-        computations = list(self.__computations)
-        self.append_computation(computation)
-        computations.insert(before_index, computation)
-        self.__computations = computations
+        self._project.insert_computation(before_index, computation)
 
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool = False) -> None:
         self.__cascade_delete(computation, safe=safe).close()
@@ -2140,12 +2122,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
     def remove_computation_with_log(self, computation: Symbolic.Computation, *, safe: bool = False) -> Changes.UndeleteLog:
         return self.__cascade_delete(computation, safe=safe)
 
-    def __handle_computation_inserted(self, computation: Symbolic.Computation) -> None:
+    def __handle_computation_inserted(self, computation: Symbolic.Computation, before_index: int) -> None:
         assert computation is not None
         assert computation not in self.__computations
-        # insert in internal list
-        before_index = len(self.__computations)
-        self.__computations.append(computation)
+        # insert in internal list at the same index as the project, so both have the same order
+        self.__computations.insert(before_index, computation)
         # listeners
         self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
         self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))

@@ -406,14 +406,18 @@ class Project(Persistence.PersistentObject):
         self.notify_property_changed(name)
 
     def append_data_item(self, data_item: DataItem.DataItem) -> None:
+        self.insert_data_item(len(self.data_items), data_item)
+
+    def insert_data_item(self, before_index: int, data_item: DataItem.DataItem) -> None:
         assert not self.get_item_by_uuid("data_items", data_item.uuid)
-        self.append_item("data_items", data_item)
+        self.insert_item("data_items", before_index, data_item)
         data_item.write_data_if_not_delayed()  # initially write to disk
 
     def remove_data_item(self, data_item: DataItem.DataItem) -> None:
         self.remove_item("data_items", data_item)
 
-    def restore_data_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[DataItem.DataItem]:
+    def restore_data_item(self, data_item_uuid: uuid.UUID, before_index: int | None = None) -> typing.Optional[DataItem.DataItem]:
+        # restore the data item from the trash, inserting it at before_index or appending it if before_index is None.
         item_d = self.__storage_system.restore_item(data_item_uuid)
         if item_d is not None:
             data_item_uuid = uuid.UUID(item_d.get("uuid"))
@@ -422,35 +426,47 @@ class Project(Persistence.PersistentObject):
             data_item.read_from_dict(item_d)
             data_item.finish_reading()
             assert not self.get_item_by_uuid("data_items", data_item.uuid)
-            self.append_item("data_items", data_item)
+            self.insert_item("data_items", before_index if before_index is not None else len(self.data_items), data_item)
             assert data_item.container == self
             return data_item
         return None
 
     def append_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
+        self.insert_display_item(len(self.display_items), display_item)
+
+    def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem) -> None:
         assert not self.get_item_by_uuid("display_items", display_item.uuid)
-        self.append_item("display_items", display_item)
+        self.insert_item("display_items", before_index, display_item)
 
     def remove_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
         self.remove_item("display_items", display_item)
 
     def append_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
+        self.insert_data_structure(len(self.data_structures), data_structure)
+
+    def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure) -> None:
         assert not self.get_item_by_uuid("data_structures", data_structure.uuid)
-        self.append_item("data_structures", data_structure)
+        self.insert_item("data_structures", before_index, data_structure)
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
         self.remove_item("data_structures", data_structure)
 
     def append_computation(self, computation: Symbolic.Computation) -> None:
+        self.insert_computation(len(self.computations), computation)
+
+    def insert_computation(self, before_index: int, computation: Symbolic.Computation) -> None:
         assert not self.get_item_by_uuid("computations", computation.uuid)
-        self.append_item("computations", computation)
+        self.insert_item("computations", before_index, computation)
 
     def remove_computation(self, computation: Symbolic.Computation) -> None:
         self.remove_item("computations", computation)
 
     def append_connection(self, connection: Connection.Connection) -> None:
+        self.insert_connection(len(self.connections), connection)
+
+    def insert_connection(self, before_index: int, connection: Connection.Connection) -> None:
         assert not self.get_item_by_uuid("connections", connection.uuid)
-        self.append_item("connections", connection)
+        self.insert_item("connections", before_index, connection)
 
     def remove_connection(self, connection: Connection.Connection) -> None:
         self.remove_item("connections", connection)
