@@ -1417,16 +1417,20 @@ class DocumentController(Window.Window):
                 if display_item in data_group.display_items:
                     data_group.remove_display_item(display_item)
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
-            for display_item in display_items:
-                if display_item in document_model.display_items:
-                    self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
+            # a single transaction writes the project once rather than once per removed item.
+            with document_model.transaction_context():
+                for display_item in display_items:
+                    if display_item in document_model.display_items:
+                        self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
 
         def _redo(self) -> None:
             data_group = self.__data_group_proxy.item
             assert data_group
-            for undelete_log in reversed(self.__undelete_logs):
-                self.__document_controller.document_model.undelete_all(undelete_log)
-                undelete_log.close()
+            # a single transaction writes the project once rather than once per restored property.
+            with self.__document_controller.document_model.transaction_context():
+                for undelete_log in reversed(self.__undelete_logs):
+                    self.__document_controller.document_model.undelete_all(undelete_log)
+                    undelete_log.close()
             self.__undelete_logs.clear()
             index = self.__display_item_index
             display_items = [display_item_proxy.item for display_item_proxy in reversed(self.__data_group_display_item_proxies)]
@@ -1884,9 +1888,11 @@ class DocumentController(Window.Window):
             workspace_controller = self.__document_controller.workspace_controller
             assert workspace_controller
             self.__new_workspace_layout = workspace_controller.deconstruct()
-            for undelete_log in reversed(self.__undelete_logs):
-                self.__document_controller.document_model.undelete_all(undelete_log)
-                undelete_log.close()
+            # a single transaction writes the project once rather than once per restored property.
+            with self.__document_controller.document_model.transaction_context():
+                for undelete_log in reversed(self.__undelete_logs):
+                    self.__document_controller.document_model.undelete_all(undelete_log)
+                    undelete_log.close()
             self.__undelete_logs.clear()
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
@@ -1931,13 +1937,15 @@ class DocumentController(Window.Window):
         def _perform(self) -> None:
             document_model = self.__document_controller.document_model
             display_items = [document_model.display_items[index] for index in self.__display_item_indexes]
-            for display_item in display_items:
-                if display_item in document_model.display_items:
-                    selected_display_items = list(self.__document_controller.selected_display_items)
-                    if display_item in selected_display_items:
-                        selected_display_items.remove(display_item)
-                    self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
-                    self.__document_controller.select_display_items_in_data_panel(selected_display_items)
+            # a single transaction writes the project once rather than once per removed item.
+            with document_model.transaction_context():
+                for display_item in display_items:
+                    if display_item in document_model.display_items:
+                        selected_display_items = list(self.__document_controller.selected_display_items)
+                        if display_item in selected_display_items:
+                            selected_display_items.remove(display_item)
+                        self.__undelete_logs.append(document_model.remove_display_item_with_log(display_item))
+                        self.__document_controller.select_display_items_in_data_panel(selected_display_items)
 
         def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
@@ -1949,9 +1957,11 @@ class DocumentController(Window.Window):
             workspace_controller = self.__document_controller.workspace_controller
             assert workspace_controller
             self.__new_workspace_layout = workspace_controller.deconstruct()
-            for undelete_log in reversed(self.__undelete_logs):
-                self.__document_controller.document_model.undelete_all(undelete_log)
-                undelete_log.close()
+            # a single transaction writes the project once rather than once per restored property.
+            with self.__document_controller.document_model.transaction_context():
+                for undelete_log in reversed(self.__undelete_logs):
+                    self.__document_controller.document_model.undelete_all(undelete_log)
+                    undelete_log.close()
             self.__undelete_logs.clear()
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
@@ -1991,9 +2001,11 @@ class DocumentController(Window.Window):
         def _perform(self) -> None:
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
-            for data_item in data_items:
-                if data_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
+            # a single transaction writes the project once rather than once per removed item.
+            with document_model.transaction_context():
+                for data_item in data_items:
+                    if data_item in document_model.data_items:
+                        self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
 
         def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
@@ -2005,9 +2017,11 @@ class DocumentController(Window.Window):
             workspace_controller = self.__document_controller.workspace_controller
             assert workspace_controller
             self.__new_workspace_layout = workspace_controller.deconstruct()
-            for undelete_log in reversed(self.__undelete_logs):
-                self.__document_controller.document_model.undelete_all(undelete_log)
-                undelete_log.close()
+            # a single transaction writes the project once rather than once per restored property.
+            with self.__document_controller.document_model.transaction_context():
+                for undelete_log in reversed(self.__undelete_logs):
+                    self.__document_controller.document_model.undelete_all(undelete_log)
+                    undelete_log.close()
             self.__undelete_logs.clear()
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
@@ -2442,9 +2456,11 @@ class DocumentController(Window.Window):
             workspace_controller = self.__document_controller.workspace_controller
             assert workspace_controller
             self.__new_workspace_layout = workspace_controller.deconstruct()
-            for undelete_log in reversed(self.__undelete_logs):
-                self.__document_controller.document_model.undelete_all(undelete_log)
-                undelete_log.close()
+            # a single transaction writes the project once rather than once per restored property.
+            with self.__document_controller.document_model.transaction_context():
+                for undelete_log in reversed(self.__undelete_logs):
+                    self.__document_controller.document_model.undelete_all(undelete_log)
+                    undelete_log.close()
             self.__undelete_logs.clear()
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
@@ -2676,9 +2692,11 @@ class DocumentController(Window.Window):
             self.__document_controller.document_model.modified_state = modified_state
 
         def _redo(self) -> None:
-            for undelete_log in reversed(self.__undelete_logs):
-                self.__document_controller.document_model.undelete_all(undelete_log)
-                undelete_log.close()
+            # a single transaction writes the project once rather than once per restored property.
+            with self.__document_controller.document_model.transaction_context():
+                for undelete_log in reversed(self.__undelete_logs):
+                    self.__document_controller.document_model.undelete_all(undelete_log)
+                    undelete_log.close()
             self.__undelete_logs.clear()
             workspace_controller = self.__document_controller.workspace_controller
             assert workspace_controller
@@ -2691,9 +2709,11 @@ class DocumentController(Window.Window):
             self.__new_workspace_layout = workspace_controller.deconstruct()
             document_model = self.__document_controller.document_model
             data_items = [document_model.data_items[index] for index in self.__data_item_indexes]
-            for data_item in data_items:
-                if data_item in document_model.data_items:
-                    self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
+            # a single transaction writes the project once rather than once per removed item.
+            with document_model.transaction_context():
+                for data_item in data_items:
+                    if data_item in document_model.data_items:
+                        self.__undelete_logs.append(document_model.remove_data_item_with_log(data_item, safe=True))
             assert self.__old_workspace_layout is not None
             workspace_controller.reconstruct(self.__old_workspace_layout)
 
