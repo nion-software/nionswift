@@ -379,6 +379,34 @@ class TestDocumentModelClass(unittest.TestCase):
                     document_model.restore_items_order(name, [item.item_specifier for item in reversed(items)])
                     self.assertEqual(list(reversed(items)), getattr(document_model, name))
 
+    def test_inserting_items_puts_each_type_of_item_at_the_index(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            for _ in range(2):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+                data_structure = document_model.create_data_structure()
+                data_structure.set_property_value("value", 0)
+                document_model.append_data_structure(data_structure)
+                document_model.append_computation(document_model.create_computation())
+            for data_structure in document_model.data_structures:
+                document_model.append_connection(Connection.PropertyConnection(data_structure, "value", document_model.data_structures[0], "value"))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.insert_data_item(1, data_item, auto_display=False)
+            display_item = DisplayItem.DisplayItem(data_item=data_item)
+            document_model.insert_display_item(1, display_item)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("value", 0)
+            document_model.insert_data_structure(1, data_structure)
+            computation = document_model.create_computation()
+            document_model.insert_computation(1, computation)
+            connection = Connection.PropertyConnection(data_structure, "value", document_model.data_structures[0], "value")
+            document_model.insert_connection(1, connection)
+            for name, item in (("data_items", data_item), ("display_items", display_item), ("data_structures", data_structure), ("computations", computation), ("connections", connection)):
+                with self.subTest(name=name):
+                    items = getattr(document_model, name)
+                    self.assertEqual(3, len(items))
+                    self.assertIs(item, items[1])
+
     def test_computation_creates_dependency_between_data_source_graphic_and_target(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

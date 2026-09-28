@@ -57,10 +57,6 @@ def restore_item_order(project: Project.Project, uuid_order: typing.List[Persist
     return items
 
 
-def insert_item_order(uuid_order: typing.List[Persistence.PersistentObjectSpecifier], index: int, item: Persistence.PersistentObject) -> None:
-    uuid_order.insert(index, item.item_specifier)
-
-
 class Closeable(typing.Protocol):
     def close(self) -> None: ...
 
@@ -955,10 +951,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             self.append_display_item(display_item)
 
     def insert_data_item(self, index: int, data_item: DataItem.DataItem, auto_display: bool = True) -> None:
-        uuid_order = save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__data_items))  # cast required for mypy bug?
+        data_items = list(self.__data_items)
         self.append_data_item(data_item, auto_display=auto_display)
-        insert_item_order(uuid_order, index, data_item)
-        self.__data_items = typing.cast(typing.List[DataItem.DataItem], restore_item_order(self._project, uuid_order))
+        data_items.insert(index, data_item)
+        self.__data_items = data_items
 
     def remove_data_item(self, data_item: DataItem.DataItem, *, safe: bool = False) -> None:
         self.__cascade_delete(data_item, safe=safe).close()
@@ -1012,10 +1008,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self._project.append_display_item(display_item)
 
     def insert_display_item(self, before_index: int, display_item: DisplayItem.DisplayItem, *, update_session: bool = True) -> None:
-        uuid_order = save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__display_items))  # cast required for mypy bug?
+        display_items = list(self.__display_items)
         self.append_display_item(display_item, update_session=update_session)
-        insert_item_order(uuid_order, before_index, display_item)
-        self.__display_items = typing.cast(typing.List[DisplayItem.DisplayItem], restore_item_order(self._project, uuid_order))
+        display_items.insert(before_index, display_item)
+        self.__display_items = display_items
 
     def remove_display_item(self, display_item: DisplayItem.DisplayItem) -> None:
         self.__cascade_delete(display_item).close()
@@ -2023,10 +2019,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self._project.append_connection(connection)
 
     def insert_connection(self, before_index: int, connection: Connection.Connection) -> None:
-        uuid_order = save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__connections))  # cast required for mypy bug?
+        connections = list(self.__connections)
         self.append_connection(connection)
-        insert_item_order(uuid_order, before_index, connection)
-        self.__connections = typing.cast(typing.List[Connection.Connection], restore_item_order(self._project, uuid_order))
+        connections.insert(before_index, connection)
+        self.__connections = connections
 
     def remove_connection(self, connection: Connection.Connection) -> None:
         connection.project.remove_connection(connection)
@@ -2055,10 +2051,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self._project.append_data_structure(data_structure)
 
     def insert_data_structure(self, before_index: int, data_structure: DataStructure.DataStructure) -> None:
-        uuid_order = save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__data_structures))  # cast required for mypy bug?
+        data_structures = list(self.__data_structures)
         self.append_data_structure(data_structure)
-        insert_item_order(uuid_order, before_index, data_structure)
-        self.__data_structures = typing.cast(typing.List[DataStructure.DataStructure], restore_item_order(self._project, uuid_order))
+        data_structures.insert(before_index, data_structure)
+        self.__data_structures = data_structures
 
     def remove_data_structure(self, data_structure: DataStructure.DataStructure) -> None:
         return self.__cascade_delete(data_structure).close()
@@ -2133,10 +2129,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         self._project.append_computation(computation)
 
     def insert_computation(self, before_index: int, computation: Symbolic.Computation) -> None:
-        uuid_order = save_item_order(typing.cast(typing.List[Persistence.PersistentObject], self.__computations))  # cast required for mypy bug?
+        computations = list(self.__computations)
         self.append_computation(computation)
-        insert_item_order(uuid_order, before_index, computation)
-        self.__computations = typing.cast(typing.List[Symbolic.Computation], restore_item_order(self._project, uuid_order))
+        computations.insert(before_index, computation)
+        self.__computations = computations
 
     def remove_computation(self, computation: Symbolic.Computation, *, safe: bool = False) -> None:
         self.__cascade_delete(computation, safe=safe).close()
