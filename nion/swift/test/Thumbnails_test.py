@@ -18,6 +18,7 @@ from nion.ui import Bitmap
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.utils import Geometry
+from nion.utils import Stream
 
 
 class TestThumbnailsClass(unittest.TestCase):
@@ -46,7 +47,11 @@ class TestThumbnailsClass(unittest.TestCase):
                     if bitmap.rgba_bitmap_data is not None:
                         finished.set()
                 thumbnail_source.on_thumbnail_bitmap_changed = thumbnail_bitmap_changed  # watch for actual data
-                finished.wait(1.0)
+                # the thumbnail is sent on the main thread, so run the event loop while waiting.
+                end_time = time.monotonic() + 1.0
+                while not finished.is_set() and time.monotonic() < end_time:
+                    document_controller.periodic()
+                    time.sleep(0.01)
                 mime_data = document_controller.ui.create_mime_data()
                 valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, Geometry.IntSize(64, 64))
                 self.assertTrue(valid)
@@ -127,6 +132,31 @@ class TestThumbnailsClass(unittest.TestCase):
             data_item.set_data(numpy.full((8, 8), 3, dtype=numpy.float32))
             ui.gate.set()
             self.assertEqual(3, wait_for_thumbnail_value(thumbnail_source, 3))
+
+    def test_thumbnail_computed_on_thread_is_sent_on_main_thread(self):
+        # listeners such as the data panel update canvas items when a thumbnail arrives; doing so from the thread
+        # computing the thumbnail races with the main thread and can fail while items are being removed.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.ones((8, 8), dtype=numpy.float32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(document_controller.ui, display_item)
+            sending_threads = list[threading.Thread]()
+
+            def handle_thumbnail(thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
+                sending_threads.append(threading.current_thread())
+
+            thumbnail_source_action = Stream.ValueStreamAction(thumbnail_source, handle_thumbnail)
+            # changing the data recomputes the thumbnail on a thread.
+            data_item.set_data(numpy.full((8, 8), 2, dtype=numpy.float32))
+            end_time = time.monotonic() + 5.0
+            while not sending_threads and time.monotonic() < end_time:
+                document_controller.periodic()
+                time.sleep(0.01)
+            self.assertTrue(sending_threads)
+            self.assertEqual({threading.current_thread()}, set(sending_threads))
 
 
 if __name__ == '__main__':

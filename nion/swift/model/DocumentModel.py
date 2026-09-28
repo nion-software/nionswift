@@ -1028,6 +1028,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         assert display_item not in self.__display_items
         # bookkeeping
         display_item.set_storage_cache(self.__project.storage_cache)
+        display_item._event_loop = self.__event_loop
         if self.__threaded_drawing:
             display_item._display_relay_stream = DisplayItem.AsyncRelayStream[DisplayItem.DisplayDataAndCalibrationInfo](self.__event_loop)
             display_item._display_executor = DisplayItem.ComputedValueStreamThreadPoolExecutor[DisplayItem.DisplayDataChannelsAndCalibrationStyle]()
