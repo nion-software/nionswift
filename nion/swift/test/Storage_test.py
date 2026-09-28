@@ -866,6 +866,23 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.data_items))
                 self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
+    def test_delete_and_undelete_from_file_storage_system_restores_data_item_whose_file_was_renamed(self) -> None:
+        # a data file in the trash which is not named for its data item is still found when restoring.
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((16, 16)))
+                document_model.append_data_item(data_item)
+                data_item_uuid = data_item.uuid
+                document_model.remove_data_item(data_item, safe=True)
+                trash_dir = document_model._project.project_storage_system._trash_dir
+                trash_file_path = next(trash_dir.glob("*.ndata"))
+                trash_file_path.rename(trash_dir / "renamed.ndata")
+                document_model.restore_data_item(data_item_uuid)
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
+                self.assertTrue(numpy.array_equal(numpy.ones((16, 16)), document_model.data_items[0].data))
+
     def test_deleted_file_removed_from_file_storage_system_restores_data_item_after_reload(self):
         # is established for restoring items in the trash.
         with create_temp_profile_context() as profile_context:
