@@ -1003,9 +1003,19 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
     def _restore_item(self, data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]:
         assert self.__project_data_path is not None
-        data_item_uuid_str = str(data_item_uuid)
         trash_dir = self.__project_data_path / "trash"
-        storage_handlers = self.__find_storage_handlers(trash_dir, skip_trash=False)
+        # a data file in the trash is normally named for its data item, so only that file is read. files named
+        # otherwise are found by reading every file in the trash.
+        named_file_paths = {str(file_path) for file_path in trash_dir.glob(self.__get_data_file_stem(data_item_uuid) + ".*")} if trash_dir.exists() else set()
+        if (properties := self.__restore_item_from_storage_handlers(self.__make_storage_handlers(named_file_paths), data_item_uuid)) is not None:
+            return properties
+        return self.__restore_item_from_storage_handlers(self.__find_storage_handlers(trash_dir, skip_trash=False), data_item_uuid)
+
+    def __restore_item_from_storage_handlers(self, storage_handlers: typing.Sequence[StorageHandler.StorageHandler], data_item_uuid: uuid.UUID) -> typing.Optional[PersistentDictType]:
+        # restore the data item from whichever storage handler holds it and close the storage handlers.
+        # return the data item properties, or None if none of the storage handlers holds it.
+        assert self.__project_data_path is not None
+        data_item_uuid_str = str(data_item_uuid)
         try:
             for storage_handler in storage_handlers:
                 storage_handler_properties = storage_handler.read_properties()
@@ -1116,10 +1126,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         migration_stage = typing.cast(FileProjectStorageSystemMigrationStage, migration_stage)
         return self.__find_storage_handlers(migration_stage.library_folder)
 
-    def __get_base_path(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> pathlib.Path:
-        data_item_uuid = storage_handler_attributes.uuid
-        created_local = storage_handler_attributes.created_local
-        session_id = storage_handler_attributes.session_id
+    @staticmethod
+    def __get_data_file_stem(data_item_uuid: uuid.UUID) -> str:
         # data_item_uuid.bytes.encode('base64').rstrip('=\n').replace('/', '_')
         # and back: data_item_uuid = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
         # also:
@@ -1132,11 +1140,15 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 result += alphabet[digit]
             return result
 
+        return "data_" + encode(data_item_uuid, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
+
+    def __get_base_path(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> pathlib.Path:
+        created_local = storage_handler_attributes.created_local
+        session_id = storage_handler_attributes.session_id
         path_components = created_local.strftime("%Y-%m-%d").split('-')
         session_id = session_id if session_id else created_local.strftime("%Y%m%d-000000")
         path_components.append(session_id)
-        encoded_base_path = "data_" + encode(data_item_uuid, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
-        path_components.append(encoded_base_path)
+        path_components.append(self.__get_data_file_stem(storage_handler_attributes.uuid))
         return pathlib.Path(*path_components)
 
     def __get_file_handler_factory_for_file(self, path: str) -> typing.Optional[StorageHandler.StorageHandlerFactoryLike]:
@@ -1146,23 +1158,27 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return None
 
     def __find_storage_handlers(self, directory: typing.Optional[pathlib.Path], *, skip_trash: bool = True) -> typing.Sequence[StorageHandler.StorageHandler]:
-        storage_handlers = list()
+        absolute_file_paths = set()
         if directory and directory.exists():
-            absolute_file_paths = set()
             for file_path in directory.rglob("*"):
                 if not skip_trash or file_path.parent.name != "trash":
                     if not file_path.name.startswith("."):
                         absolute_file_paths.add(str(file_path))
-            for file_handler_factory in self._file_handler_factories:
-                for data_file in filter(file_handler_factory.is_matching, absolute_file_paths):
-                    try:
-                        storage_handler = file_handler_factory.make(pathlib.Path(data_file))
-                        assert storage_handler.is_valid
-                        storage_handlers.append(storage_handler)
-                    except Exception as e:
-                        logging.error("Exception reading file: %s", data_file)
-                        logging.error(str(e))
-                        raise
+        return self.__make_storage_handlers(absolute_file_paths)
+
+    def __make_storage_handlers(self, absolute_file_paths: typing.AbstractSet[str]) -> typing.Sequence[StorageHandler.StorageHandler]:
+        # make a storage handler for each of the files which is a data file.
+        storage_handlers = list()
+        for file_handler_factory in self._file_handler_factories:
+            for data_file in filter(file_handler_factory.is_matching, absolute_file_paths):
+                try:
+                    storage_handler = file_handler_factory.make(pathlib.Path(data_file))
+                    assert storage_handler.is_valid
+                    storage_handlers.append(storage_handler)
+                except Exception as e:
+                    logging.error("Exception reading file: %s", data_file)
+                    logging.error(str(e))
+                    raise
         return storage_handlers
 
 
