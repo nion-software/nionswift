@@ -962,7 +962,8 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 properties.setdefault("uuid", str(project_uuid))
                 properties.setdefault("version", PROJECT_VERSION)
                 properties["project_data_folders"] = [str(project_data_path) for project_data_path in project_data_paths]
-                json.dump(properties, fp)
+                # json.dumps uses the C encoder, whereas json.dump always uses the much slower pure Python encoder.
+                fp.write(json.dumps(properties))
 
     def get_identifier(self) -> str:
         return str(self.__project_path)
