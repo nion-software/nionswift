@@ -271,6 +271,15 @@ class TestStorageClass(unittest.TestCase):
             source_specifier_properties = project_storage_system.get_item_properties(computation)["variables"][0]["specifier"]
             self.assertEqual(str(display_item.display_data_channels[0].uuid), source_specifier_properties.get("reference_uuid"))
 
+    def test_appending_data_item_writes_its_properties_once(self) -> None:
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            project_storage_system = typing.cast(FileStorageSystem.MemoryProjectStorageSystem, document_model._project.project_storage_system)
+            storage_handler = typing.cast(FileStorageSystem.MemoryStorageHandler, project_storage_system._data_properties_map[data_item.uuid].storage_handler)
+            self.assertEqual(1, storage_handler._write_properties_count)
+
     def test_save_document(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller()

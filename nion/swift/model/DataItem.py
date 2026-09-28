@@ -506,9 +506,12 @@ class DataItem(Persistence.PersistentObject):
 
     def write_data_if_not_delayed(self) -> None:
         if not self.is_write_delayed:
-            # write the uuid and version explicitly
+            # write the uuid and version explicitly, delaying the write so the properties are written once.
+            self.enter_write_delay()
             self.property_changed("uuid", str(self.uuid))
             self.property_changed("version", DataItem.writer_version)
+            self.exit_write_delay()
+            self.rewrite()
             self.__write_data()
             self.__pending_write = False
 
