@@ -2320,6 +2320,8 @@ class DisplayItem(Persistence.PersistentObject):
 
         self._display_relay_stream = RelayStream[DisplayDataAndCalibrationInfo]()
         self._display_executor = ComputedValueStreamExecutor[DisplayDataChannelsAndCalibrationStyle]()
+        # the main thread event loop, set by the document model when this display item is inserted.
+        self._event_loop: asyncio.AbstractEventLoop | None = None
 
         # configure the graphic selection changes listener.
 

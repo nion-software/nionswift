@@ -33,7 +33,14 @@ _NDArray = numpy.typing.NDArray[typing.Any]
 
 
 class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
-    """Produce a thumbnail for a display."""
+    """Produce a thumbnail for a display.
+
+    The thumbnail is computed on a thread, but the value is always sent to listeners on the main thread, so a listener
+    may update the user interface directly.
+
+    Sending on the main thread avoids listeners updating canvas items while the main thread changes them, such as the
+    data panel grid removing items.
+    """
     _executor = concurrent.futures.ThreadPoolExecutor()
 
     # minimum seconds between the starts of successive recomputes for one display item. a live display item changes
@@ -68,6 +75,12 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         self.__cache_properties_known = False
         self.__cache_thumbnail_data: typing.Optional[_NDArray] = None
         self.__cache_is_dirty = False
+        # the event loop of the document model, used to send the value to listeners on the main thread. the pending
+        # flag, protected by the recompute lock, sends one value for any number of thumbnails computed on other threads
+        # before the event loop runs.
+        assert display_item._event_loop
+        self.__event_loop = display_item._event_loop
+        self.__is_send_thumbnail_pending = False
 
         self.thumbnail_dirty_event = Event.Event()  # for testing
 
@@ -83,7 +96,30 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
             self.__cache_thumbnail_data = typing.cast(typing.Optional[_NDArray], self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)) if self.__display_item else None
             self.__cache_is_dirty = self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name) if self.__display_item else False
             self.__cache_properties_known = True
+            self.__send_thumbnail()
+
+    def __send_thumbnail(self) -> None:
+        # called on any thread. send the thumbnail directly on the main thread; otherwise queue it for the main thread.
+        if threading.current_thread() == threading.main_thread():
             self.value = Bitmap.Bitmap(rgba_bitmap_data=self.thumbnail_data)
+            return
+        with self.__recompute_lock:
+            if self.__is_send_thumbnail_pending:
+                return
+            self.__is_send_thumbnail_pending = True
+        try:
+            self.__event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(ThumbnailSource.__send_pending_thumbnail, self))
+        except RuntimeError:
+            # the event loop is closed during shutdown, so there is no user interface left to show the thumbnail.
+            with self.__recompute_lock:
+                self.__is_send_thumbnail_pending = False
+
+    def __send_pending_thumbnail(self) -> None:
+        # called on the main thread. clear the pending flag before reading the thumbnail so that a thumbnail computed
+        # after the read is queued again rather than dropped.
+        with self.__recompute_lock:
+            self.__is_send_thumbnail_pending = False
+        self.value = Bitmap.Bitmap(rgba_bitmap_data=self.thumbnail_data)
 
     def __display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
         self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
@@ -181,6 +217,7 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         This method is thread safe and may take a long time to return. It should not be called from
          the UI thread. Upon return, the results will be calculated with the latest data available
          and the cache will not be marked dirty, unless the display item changed during the computation.
+         When called from a thread, listeners receive the new value later, on the main thread.
         """
         ui = self._ui
         with self.__recompute_lock:
@@ -216,7 +253,7 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
             self.__cache_is_dirty = is_dirty
             self.__cache_properties_known = True
             self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data, dirty=is_dirty)
-        self.value = Bitmap.Bitmap(rgba_bitmap_data=self.thumbnail_data)
+        self.__send_thumbnail()
 
     @property
     def _is_thumbnail_dirty(self) -> bool:

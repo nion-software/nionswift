@@ -89,6 +89,7 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__font_metrics_fn = font_metrics_fn
         self.__thumbnail: Bitmap.Bitmap | None = None
 
+        # called on the main thread; the thumbnail source sends its value there.
         def thumbnail_updated(canvas_item: typing.Self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
             self.__thumbnail = thumbnail_bitmap
             self.update()
