@@ -1098,7 +1098,30 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 self._project.mapped_items = mapped_items
         return r_var
 
-    def __build_cascade(self, item: Persistence.PersistentObject, items: typing.List[Persistence.PersistentObject], dependencies: typing.List[typing.Tuple[Persistence.PersistentObject, Persistence.PersistentObject]]) -> None:
+    def __build_source_dependents(self) -> typing.Mapping[Persistence.PersistentObject, typing.Sequence[Persistence.PersistentObject]]:
+        """Return a map from each item to the data items, graphics, connections, and data structures which it sources.
+
+        Building this once per cascade avoids scanning every item in the project for each item being deleted. The
+        dependents of each source are ordered data items, graphics, connections, then data structures, each in project
+        order, which is the order the cascade visits them.
+        """
+        source_dependents: dict[Persistence.PersistentObject, list[Persistence.PersistentObject]] = dict()
+        for data_item in self.data_items:
+            if data_item_source := data_item.source:
+                source_dependents.setdefault(data_item_source, list()).append(data_item)
+        for display_item in self.display_items:
+            for graphic in display_item.graphics:
+                if graphic_source := graphic.source:
+                    source_dependents.setdefault(graphic_source, list()).append(graphic)
+        for connection in self.connections:
+            if connection_parent := connection.parent:
+                source_dependents.setdefault(connection_parent, list()).append(connection)
+        for data_structure in self.data_structures:
+            if data_structure_source := data_structure.source:
+                source_dependents.setdefault(data_structure_source, list()).append(data_structure)
+        return source_dependents
+
+    def __build_cascade(self, item: Persistence.PersistentObject, items: typing.List[Persistence.PersistentObject], dependencies: typing.List[typing.Tuple[Persistence.PersistentObject, Persistence.PersistentObject]], source_dependents: typing.Mapping[Persistence.PersistentObject, typing.Sequence[Persistence.PersistentObject]]) -> None:
         # build a list of items to delete using item as the base. put the leafs at the end of the list.
         # store associated dependencies in the form source -> target into dependencies.
         # print(f"build {item}")
@@ -1112,28 +1135,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     if isinstance(source, Graphics.Graphic):
                         source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
                         if len(source_targets) == 1 and source_targets[0] == item:
-                            self.__build_cascade(source, items, dependencies)
+                            self.__build_cascade(source, items, dependencies, source_dependents)
                 # delete display items whose only data item is being deleted
                 for display_item in self.get_display_items_for_data_item(item):
                     display_item_alive = False
                     for display_data_channel in display_item.display_data_channels:
                         if display_data_channel.data_item == item:
-                            self.__build_cascade(display_data_channel, items, dependencies)
+                            self.__build_cascade(display_data_channel, items, dependencies, source_dependents)
                         elif not display_data_channel.data_item in items:
                             display_item_alive = True
                     if not display_item_alive:
-                        self.__build_cascade(display_item, items, dependencies)
+                        self.__build_cascade(display_item, items, dependencies, source_dependents)
             elif isinstance(item, DisplayItem.DisplayItem):
                 # graphics on a display item are deleted.
                 for graphic in item.graphics:
-                    self.__build_cascade(graphic, items, dependencies)
+                    self.__build_cascade(graphic, items, dependencies, source_dependents)
                 # display data channels are deleted.
                 for display_data_channel in item.display_data_channels:
-                    self.__build_cascade(display_data_channel, items, dependencies)
+                    self.__build_cascade(display_data_channel, items, dependencies, source_dependents)
                 # delete data items whose only display item is being deleted
                 for data_item in item.data_items:
                     if data_item and len(self.get_display_items_for_data_item(data_item)) == 1:
-                        self.__build_cascade(data_item, items, dependencies)
+                        self.__build_cascade(data_item, items, dependencies, source_dependents)
             elif isinstance(item, DisplayItem.DisplayDataChannel):
                 # delete data items whose only display item channel is being deleted
                 display_item = typing.cast(DisplayItem.DisplayItem, item.container)
@@ -1145,10 +1168,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         if display_data_channel.data_item == display_channel_data_item:
                             display_data_channels_referring_to_data_item += 1
                     if display_data_channels_referring_to_data_item == 1:
-                        self.__build_cascade(display_channel_data_item, items, dependencies)
+                        self.__build_cascade(display_channel_data_item, items, dependencies, source_dependents)
                 for display_layer in display_item.display_layers:
                     if display_layer.display_data_channel == item:
-                        self.__build_cascade(typing.cast(Persistence.PersistentObject, display_layer), items, dependencies)
+                        self.__build_cascade(typing.cast(Persistence.PersistentObject, display_layer), items, dependencies, source_dependents)
             elif isinstance(item, DisplayItem.DisplayLayer):
                 # delete display data channels whose only referencing display layer is being deleted
                 display_layer = typing.cast(DisplayItem.DisplayLayer, item)
@@ -1156,11 +1179,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 display_item = typing.cast(DisplayItem.DisplayItem, item.container)
                 reference_count = display_item.get_display_data_channel_layer_use_count(display_layer.display_data_channel)
                 if reference_count == 1:
-                    self.__build_cascade(display_data_channel, items, dependencies)
+                    self.__build_cascade(display_data_channel, items, dependencies, source_dependents)
             # outputs of a computation are deleted.
             elif isinstance(item, Symbolic.Computation):
                 for output in item._outputs:
-                    self.__build_cascade(output, items, dependencies)
+                    self.__build_cascade(output, items, dependencies, source_dependents)
             # dependencies are deleted
             # in order to be able to have finer control over how dependencies of input lists are handled,
             # enumerate the computations and match up dependencies instead of using the dependency tree.
@@ -1173,7 +1196,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                         for target in targets:
                             if (item, target) not in dependencies:
                                 dependencies.append((item, target))
-                            self.__build_cascade(target, items, dependencies)
+                            self.__build_cascade(target, items, dependencies, source_dependents)
             # dependencies are deleted
             # see note above
             # targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
@@ -1181,44 +1204,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             #     if (item, target) not in dependencies:
             #         dependencies.append((item, target))
             #     self.__build_cascade(target, items, dependencies)
-            # data items whose source is the item are deleted
-            for data_item in self.data_items:
-                if data_item.source == item:
-                    if (item, data_item) not in dependencies:
-                        dependencies.append((item, data_item))
-                    self.__build_cascade(data_item, items, dependencies)
-            # display items whose source is the item are deleted
-            for display_item in self.display_items:
-                pass
-                # if display_item.source == item:
-                #     if (item, display_item) not in dependencies:
-                #         dependencies.append((item, display_item))
-                #     self.__build_cascade(display_item, items, dependencies)
-            # graphics whose source is the item are deleted
-            for display_item in self.display_items:
-                for graphic in display_item.graphics:
-                    if graphic.source == item:
-                        if (item, graphic) not in dependencies:
-                            dependencies.append((item, graphic))
-                        self.__build_cascade(graphic, items, dependencies)
-            # connections whose source is the item are deleted
-            for connection in self.connections:
-                if connection.parent == item:
-                    if (item, connection) not in dependencies:
-                        dependencies.append((item, connection))
-                    self.__build_cascade(connection, items, dependencies)
-            # data structures whose source is the item are deleted
-            for data_structure in self.data_structures:
-                if data_structure.source == item:
-                    if (item, data_structure) not in dependencies:
-                        dependencies.append((item, data_structure))
-                    self.__build_cascade(data_structure, items, dependencies)
+            # data items, graphics, connections, and data structures whose source is the item are deleted
+            for source_dependent in source_dependents.get(item, list()):
+                if (item, source_dependent) not in dependencies:
+                    dependencies.append((item, source_dependent))
+                self.__build_cascade(source_dependent, items, dependencies, source_dependents)
             # computations whose source is the item are deleted
             for computation in self.computations:
                 if computation.source == item or not computation.is_valid_with_removals(set(items)):
                     if (item, computation) not in dependencies:
                         dependencies.append((item, computation))
-                    self.__build_cascade(computation, items, dependencies)
+                    self.__build_cascade(computation, items, dependencies, source_dependents)
             # item is being removed; so remove any dependency from any source to this item
             for source in sources:
                 if (source, item) not in dependencies:
@@ -1255,7 +1251,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
         try:
             items: typing.List[Persistence.PersistentObject] = list()
             dependencies: typing.List[typing.Tuple[Persistence.PersistentObject, Persistence.PersistentObject]] = list()
-            self.__build_cascade(master_item, items, dependencies)
+            source_dependents = self.__build_source_dependents()
+            self.__build_cascade(master_item, items, dependencies, source_dependents)
             cascaded = True
             while cascaded:
                 cascaded = False
@@ -1277,7 +1274,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                                     # TODO: undo behavior is adversely affected during soft delete.
                                     computation.soft_delete()
                             else:
-                                self.__build_cascade(computation, items, dependencies)
+                                self.__build_cascade(computation, items, dependencies, source_dependents)
                                 cascaded = True
             # print(list(reversed(items)))
             # print(list(reversed(dependencies)))
