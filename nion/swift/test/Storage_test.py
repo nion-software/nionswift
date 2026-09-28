@@ -253,6 +253,24 @@ class TestStorageClass(unittest.TestCase):
                 data_item.set_data(numpy.ones((2, 2)))
                 self.assertTrue(numpy.array_equal(data_item.data, numpy.ones((2, 2))))
 
+    def test_writing_project_does_not_modify_live_project_properties(self) -> None:
+        # writing the project transforms the properties for backward compatibility. the transform must not modify the
+        # live properties. adding items writes the project, so the live properties are checked after those writes.
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            line_profile_data_item = document_model.get_line_profile_new(display_item, display_item.data_item)
+            computation = document_model.get_data_item_computation(line_profile_data_item)
+            project_storage_system = document_model._project.project_storage_system
+            display_layer_properties = project_storage_system.get_item_properties(display_item)["display_layers"][0]
+            self.assertEqual(str(display_item.display_data_channels[0].uuid), display_layer_properties.get("display_data_channel"))
+            self.assertEqual("display_layer", display_layer_properties.get("type"))
+            self.assertNotIn("data_index", display_layer_properties)
+            source_specifier_properties = project_storage_system.get_item_properties(computation)["variables"][0]["specifier"]
+            self.assertEqual(str(display_item.display_data_channels[0].uuid), source_specifier_properties.get("reference_uuid"))
+
     def test_save_document(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller()
