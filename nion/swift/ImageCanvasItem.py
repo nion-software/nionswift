@@ -297,7 +297,8 @@ class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
             with drawing_context.saver():
                 drawing_context.translate(canvas_bounds.left + origin_x, canvas_bounds.top)
                 baseline = canvas_bounds.height
-                total_text_height = text_height * 2
+                # the info text line is only drawn, and only takes up space, when it is non-empty
+                total_text_height = text_height * 2 if text2 else text_height
                 total_height = scale_marker_height + padding + total_text_height
                 background_top = baseline - total_height
                 if self.__scale_marker_background_color:
