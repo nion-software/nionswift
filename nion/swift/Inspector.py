@@ -33,7 +33,6 @@ from nion.swift.model import DataStructure
 from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Feature
 from nion.swift.model import Graphics
 from nion.swift.model import Observer
 from nion.swift.model import Schema
@@ -2080,9 +2079,8 @@ class ImageDisplayInspectorSection(InspectorSection):
 
         self.add_widget_to_content(widget)
 
-        if Feature.FeatureManager().is_feature_enabled("feature.scale_marker_customization"):
-            scale_marker_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ScaleMarkerOptionsHandler(display_item, document_controller))
-            self.add_widget_to_content(scale_marker_widget)
+        scale_marker_widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ScaleMarkerOptionsHandler(display_item, document_controller))
+        self.add_widget_to_content(scale_marker_widget)
 
 
 class LegendPositionChooserHandler(Declarative.Handler):
@@ -2971,9 +2969,6 @@ class DeclarativeColorChooserConstructor:
             return widget
 
         return None
-
-
-Feature.FeatureManager().add_feature(Feature.Feature("feature.scale_marker_customization", "Scale marker customization (position, color, background).", False))
 
 
 # Temporary backward compatibility aliases.
