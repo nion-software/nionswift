@@ -68,6 +68,20 @@ class TestDisplayItemClass(unittest.TestCase):
             display_item_snapshot.close()
             self.assertEqual(1, len(data_item.display_data_channels))
 
+    def test_display_info_includes_data_before_main_event_loop_runs_with_threaded_display(self):
+        # a thumbnail is drawn on a thread from the display info. it must include the data even before the main thread
+        # runs, otherwise the thumbnail is drawn without the data.
+        with TestContext.MemoryProfileContext(threaded_display=True) as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    display_info = executor.submit(lambda: display_item.display_info).result()
+                self.assertIsNotNone(display_info.display_calibration_info)
+                self.assertIsNotNone(display_info.display_data_info_list[0])
+
     def test_display_item_snapshot_and_copy_preserve_display_type(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
