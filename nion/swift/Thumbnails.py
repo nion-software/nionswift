@@ -6,6 +6,8 @@ from __future__ import annotations
 
 # standard libraries
 import concurrent.futures
+import hashlib
+import json
 import threading
 import time
 import typing
@@ -17,7 +19,6 @@ import numpy.typing
 
 # local libraries
 from nion.swift import DisplayPanel
-from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
@@ -30,6 +31,25 @@ from nion.utils import ReferenceCounting
 from nion.utils import Stream
 
 _NDArray = numpy.typing.NDArray[typing.Any]
+
+# increment when the thumbnail drawing changes, so that thumbnails cached by an earlier version are redrawn.
+_THUMBNAIL_DRAWING_VERSION = 1
+
+
+def _make_thumbnail_signature(display_item: DisplayItem.DisplayItem, width: int, height: int) -> str:
+    """Return a signature of the display item contents which determine its thumbnail.
+
+    A cached thumbnail is valid when its signature matches the signature of the display item. Call on the main thread.
+    """
+    display_item_properties = display_item.write_to_dict()
+    # the display layer uuid and modified timestamp do not affect the thumbnail, and are not saved, so they differ each
+    # time the project is loaded.
+    for display_layer_properties in display_item_properties.get("display_layers", list()):
+        display_layer_properties.pop("uuid", None)
+        display_layer_properties.pop("modified", None)
+    data_item_properties = [(str(data_item.uuid), str(data_item.modified), str(data_item.data_modified)) for data_item in display_item.data_items if data_item]
+    signature_properties = [_THUMBNAIL_DRAWING_VERSION, width, height, display_item_properties, data_item_properties]
+    return hashlib.sha256(json.dumps(signature_properties, sort_keys=True, default=str).encode()).hexdigest()
 
 
 class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
@@ -72,9 +92,14 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         # to minimize calling it and instead use the cached value in this class.
         self.__cache = self.__display_item._display_cache
         self.__cache_property_name = "thumbnail_data"
+        # the signature of the display item when the cached thumbnail was drawn. it is stored in addition to the dirty
+        # flag since the display item can change while no thumbnail source is listening to it.
+        self.__cache_signature_property_name = "thumbnail_signature"
         self.__cache_properties_known = False
         self.__cache_thumbnail_data: typing.Optional[_NDArray] = None
         self.__cache_is_dirty = False
+        # the signature of the display item as last seen on the main thread; protected by the recompute lock.
+        self.__target_signature = _make_thumbnail_signature(display_item, self.width, self.height)
         # the event loop of the document model, used to send the value to listeners on the main thread. the pending
         # flag, protected by the recompute lock, sends one value for any number of thumbnails computed on other threads
         # before the event loop runs.
@@ -84,7 +109,9 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
 
         self.thumbnail_dirty_event = Event.Event()  # for testing
 
-        self.__display_info_stream_action = Stream.ValueStreamAction(self.__display_item.display_info_stream, ReferenceCounting.weak_partial(self.__class__.__display_info_changed, self))
+        # listen to the inputs of the display info rather than the display info itself, since computing the display info
+        # loads the data, which is not needed while the cached thumbnail is valid.
+        self.__display_info_inputs_stream_action = Stream.ValueStreamAction(display_item.display_info_inputs_stream, ReferenceCounting.weak_partial(self.__class__.__display_info_inputs_changed, self))
 
         # initial recompute, if required
         self.__recompute_on_thread()
@@ -92,10 +119,17 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         self.__display_will_close_listener = display_item.display_item_will_close_event.listen(ReferenceCounting.weak_partial(ThumbnailSource.__display_item_will_close, self))
 
     def __read_cache_properties(self) -> None:
-        if not self.__cache_properties_known:
-            self.__cache_thumbnail_data = typing.cast(typing.Optional[_NDArray], self.__cache.get_cached_value(self.__display_item, self.__cache_property_name)) if self.__display_item else None
-            self.__cache_is_dirty = self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name) if self.__display_item else False
-            self.__cache_properties_known = True
+        # called on an executor thread. a change to the display item which arrived before the cache was read keeps the
+        # thumbnail dirty, but the cached thumbnail is still shown until the new one is drawn.
+        if not self.__cache_properties_known and self.__display_item:
+            cache_thumbnail_data = typing.cast(typing.Optional[_NDArray], self.__cache.get_cached_value(self.__display_item, self.__cache_property_name))
+            is_cache_dirty = self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name)
+            cache_signature = self.__cache.get_cached_value(self.__display_item, self.__cache_signature_property_name)
+            with self.__recompute_lock:
+                if not self.__cache_properties_known:
+                    self.__cache_thumbnail_data = cache_thumbnail_data
+                    self.__cache_is_dirty = self.__cache_is_dirty or is_cache_dirty or cache_thumbnail_data is None or cache_signature != self.__target_signature
+                    self.__cache_properties_known = True
             self.__send_thumbnail()
 
     def __send_thumbnail(self) -> None:
@@ -121,13 +155,30 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
             self.__is_send_thumbnail_pending = False
         self.value = Bitmap.Bitmap(rgba_bitmap_data=self.thumbnail_data)
 
-    def __display_info_changed(self, display_info: DisplayInfo.DisplayInfo | None) -> None:
+    def __display_info_inputs_changed(self, display_info_inputs: object | None) -> None:
+        # called on any thread. the signature reads the display item, so it is handled on the main thread.
+        if threading.current_thread() == threading.main_thread():
+            self.__handle_display_info_inputs_changed()
+            return
+        try:
+            self.__event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(ThumbnailSource.__handle_display_info_inputs_changed, self))
+        except RuntimeError:
+            # the event loop is closed during shutdown, so there is no user interface left to show the thumbnail.
+            pass
+
+    def __handle_display_info_inputs_changed(self) -> None:
+        if not self.__display_item or self.__is_closing:
+            return
+        signature = _make_thumbnail_signature(self.__display_item, self.width, self.height)
+        with self.__recompute_lock:
+            self.__target_signature = signature
+        # a change which does not change the signature, such as a partial data update, still changes the thumbnail, so
+        # any change marks the thumbnail dirty.
         self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
         self.thumbnail_dirty_event.fire()
         with self.__recompute_lock:
             self.__dirty_generation += 1
             self.__cache_is_dirty = True
-            self.__cache_properties_known = True
             self.__recompute_on_thread()
 
     def __recompute_on_thread(self) -> None:
@@ -167,7 +218,7 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
     def __display_item_will_close(self) -> None:
         # the display item is closing, so these messages should not be triggered, but just in case...
         self.__display_item_about_to_close_listener = typing.cast(typing.Any, None)
-        self.__display_info_stream_action = typing.cast(typing.Any, None)
+        self.__display_info_inputs_stream_action = typing.cast(typing.Any, None)
         # shut down the thread, if any. avoid deadlock.
         # note: the __display_item still has to be valid to shut down the thread, in case it is still running.
         # clear the display item after shutting down the thread.
@@ -222,6 +273,7 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         ui = self._ui
         with self.__recompute_lock:
             dirty_generation = self.__dirty_generation
+            signature = self.__target_signature
         try:
             display_item = self.__display_item
             display_info = display_item.display_info
@@ -253,6 +305,8 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
             self.__cache_is_dirty = is_dirty
             self.__cache_properties_known = True
             self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data, dirty=is_dirty)
+            # the signature is written after the thumbnail so that an interrupted write leaves an invalid thumbnail.
+            self.__cache.set_cached_value(self.__display_item, self.__cache_signature_property_name, signature)
         self.__send_thumbnail()
 
     @property
