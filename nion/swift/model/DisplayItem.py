@@ -2316,7 +2316,6 @@ class DisplayItem(Persistence.PersistentObject):
         self.__display_info_stream_count = 0
         self.__display_data_channels_and_calibration_style_stream = DisplayDataChannelsAndCalibrationStyleStream(self)
         self.__display_properties_layers_graphics_stream = DisplayPropertiesLayersGraphicsStream(self)
-        self.__display_data_rank_stream = Stream.MapStream(self.__display_data_channels_and_calibration_style_stream, compute_display_data_rank)
 
         self._display_relay_stream = RelayStream[DisplayDataAndCalibrationInfo]()
         self._display_executor = ComputedValueStreamExecutor[DisplayDataChannelsAndCalibrationStyle]()
@@ -2348,7 +2347,6 @@ class DisplayItem(Persistence.PersistentObject):
             self.__display_data_and_calibration_info_computed_value_stream = None
         self.__display_data_channels_and_calibration_style_stream = typing.cast(typing.Any, None)
         self.__display_properties_layers_graphics_stream = typing.cast(typing.Any, None)
-        self.__display_data_rank_stream = typing.cast(typing.Any, None)
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = typing.cast(typing.Any, None)
         for display_data_channel in copy.copy(self.display_data_channels):
@@ -2543,7 +2541,8 @@ class DisplayItem(Persistence.PersistentObject):
         self.display_changed_event.fire()
         self.graphics_changed_event.fire(self.graphic_selection)
         if self.used_display_type == "line_plot":
-            if self.__display_data_rank_stream.value == 2:
+            # the rank is computed only here since computing it loads the data.
+            if compute_display_data_rank(self.__display_data_channels_and_calibration_style_stream.value) == 2:
                 for display_layer in self.display_layers:
                     # use the version of remove that does not cascade
                     self.remove_item("display_layers", typing.cast(Persistence.PersistentObject, display_layer))
