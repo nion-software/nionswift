@@ -4,6 +4,7 @@ from __future__ import annotations
 import gettext
 import operator
 import pkgutil
+import threading
 import typing
 
 # third party libraries
@@ -88,16 +89,14 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__ui = ui
         self.__font_metrics_fn = font_metrics_fn
         self.__thumbnail: Bitmap.Bitmap | None = None
+        self.__thumbnail_source: Thumbnails.ThumbnailSource | None = None
+        self.__thumbnail_source_action: Stream.ValueStreamAction[Bitmap.Bitmap] | None = None
 
-        # called on the main thread; the thumbnail source sends its value there.
-        def thumbnail_updated(canvas_item: typing.Self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
-            self.__thumbnail = thumbnail_bitmap
-            self.update()
-
-        self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item)
-        self.__thumbnail_source_action = Stream.ValueStreamAction(self.__thumbnail_source, ReferenceCounting.weak_partial(thumbnail_updated, self))
-
-        thumbnail_updated(self, self.__thumbnail_source.value)
+        # the data panel creates the thumbnail source once the item is in view, so that the thumbnails of items which
+        # are never shown are not read or drawn. an item which is recreated, such as when it moves in a sorted list,
+        # shows the thumbnail of its existing source immediately rather than blank until the data panel shows it.
+        if thumbnail_source := Thumbnails.ThumbnailManager().existing_thumbnail_source_for_display_item(display_item):
+            self.__attach_thumbnail_source(thumbnail_source)
 
         self.__item_changed_listener = display_item.item_changed_event.listen(ReferenceCounting.weak_partial(DataPanelListItem.__item_changed, self))
 
@@ -105,13 +104,33 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         raise NotImplementedError()
 
     def close(self) -> None:
-        self.__thumbnail_source_action = typing.cast(typing.Any, None)
-        self.__thumbnail_source = typing.cast(typing.Any, None)
+        self.__thumbnail_source_action = None
+        self.__thumbnail_source = None
         super().close()
 
     @property
     def _thumbnail(self) -> typing.Optional[Bitmap.Bitmap]:
         return self.__thumbnail
+
+    @property
+    def _has_thumbnail_source(self) -> bool:
+        # for testing.
+        return self.__thumbnail_source is not None
+
+    def _show_thumbnail(self) -> None:
+        """Show the thumbnail of the display item, creating its thumbnail source if needed. Call on the main thread."""
+        if not self.__thumbnail_source:
+            self.__attach_thumbnail_source(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item))
+
+    def __attach_thumbnail_source(self, thumbnail_source: Thumbnails.ThumbnailSource) -> None:
+        self.__thumbnail_source = thumbnail_source
+        self.__thumbnail_source_action = Stream.ValueStreamAction(thumbnail_source, ReferenceCounting.weak_partial(DataPanelItemBaseCanvasItem.__handle_thumbnail_updated, self))
+        self.__handle_thumbnail_updated(thumbnail_source.value)
+
+    def __handle_thumbnail_updated(self, thumbnail_bitmap: Bitmap.Bitmap | None) -> None:
+        # called on the main thread; the thumbnail source sends its value there.
+        self.__thumbnail = thumbnail_bitmap
+        self.update()
 
     @property
     def display_item(self) -> DisplayItem.DisplayItem:
@@ -317,6 +336,13 @@ class DataPanel(Panel.Panel):
         self.__browser_view_items: dict[str, GridFlowCanvasItem.GridFlowCanvasItem | None] = {"list": None, "grid": None}
         self.__browser_wrapper_items: dict[str, CanvasItem.CanvasItemComposition | None] = {"list": None, "grid": None}
         self.__browser_focus_listeners: dict[str, Event.EventListener | None] = {"list": None, "grid": None}
+        self.__browser_items_in_view_changed_listeners: dict[str, Event.EventListener | None] = {"list": None, "grid": None}
+        # the data panel shows the thumbnails of only the items in view, so that the thumbnails of items which are never
+        # shown are not read or drawn. the items in view change on render threads during layout, so showing their
+        # thumbnails is queued to the main thread. the lock protects the pending flag.
+        self.__show_thumbnails_in_view_lock = threading.Lock()
+        self.__is_show_thumbnails_in_view_pending = False
+        self.__is_closed = False
         # extra test-only hooks specific to the list view's internal layout (no grid equivalent exists yet).
         self.__list_scroll_area_canvas_item: CanvasItem.ScrollAreaCanvasItem | None = None
         self.__list_scroll_bar_canvas_item: CanvasItem.ScrollBarCanvasItem | None = None
@@ -502,6 +528,7 @@ class DataPanel(Panel.Panel):
         self.__filter_description_combo_box.on_current_item_changed = on_current_collection_changed
 
     def close(self) -> None:
+        self.__is_closed = True
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(Event.EventListener, None)
         self.__filter_description_action = typing.cast(typing.Any, None)
@@ -519,8 +546,33 @@ class DataPanel(Panel.Panel):
         # they're first needed, the canvas item's position in the stack is looked up rather than assumed.
         canvas_item = self.__browser_type_ensure_fns[browser_type_id]()
         self.__stack_canvas_item.current_index = list(self.__stack_canvas_item.canvas_items).index(canvas_item)
+        # the items of the browser type shown are now in view.
+        self.__items_in_view_changed()
         if persist:
             self.document_controller.ui.set_persistent_string(self.BROWSER_TYPE_PREFERENCE_KEY, browser_type_id)
+
+    def __items_in_view_changed(self) -> None:
+        # called on any thread.
+        with self.__show_thumbnails_in_view_lock:
+            if self.__is_show_thumbnails_in_view_pending:
+                return
+            self.__is_show_thumbnails_in_view_pending = True
+        try:
+            self.document_controller.event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(DataPanel.__show_thumbnails_in_view, self))
+        except RuntimeError:
+            # the event loop is closed during shutdown, so there is no data panel left to show.
+            pass
+
+    def __show_thumbnails_in_view(self) -> None:
+        with self.__show_thumbnails_in_view_lock:
+            self.__is_show_thumbnails_in_view_pending = False
+        if self.__is_closed:
+            return
+        for browser_view_item in self.__browser_view_items.values():
+            if browser_view_item:
+                for item_canvas_item in browser_view_item.item_canvas_items_in_view:
+                    if isinstance(item_canvas_item, DataPanelItemBaseCanvasItem):
+                        item_canvas_item._show_thumbnail()
 
     def __ensure_list_canvas_item(self) -> CanvasItem.CanvasItemComposition:
         # build the list canvas item and its wrapper the first time it's needed. mirrors
@@ -545,6 +597,7 @@ class DataPanel(Panel.Panel):
             list_scroll_group_canvas_item.add_canvas_item(list_scroll_bar_canvas_item)
             self.__stack_canvas_item.add_canvas_item(list_scroll_group_canvas_item)
             self.__browser_focus_listeners["list"] = list_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
+            self.__browser_items_in_view_changed_listeners["list"] = list_canvas_item.items_in_view_changed_event.listen(ReferenceCounting.weak_partial(DataPanel.__items_in_view_changed, self))
             self.__browser_view_items["list"] = list_canvas_item
             self.__browser_wrapper_items["list"] = list_scroll_group_canvas_item
             self.__list_scroll_area_canvas_item = list_scroll_area_canvas_item
@@ -577,6 +630,7 @@ class DataPanel(Panel.Panel):
             grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
             self.__stack_canvas_item.add_canvas_item(grid_scroll_group_canvas_item)
             self.__browser_focus_listeners["grid"] = grid_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
+            self.__browser_items_in_view_changed_listeners["grid"] = grid_canvas_item.items_in_view_changed_event.listen(ReferenceCounting.weak_partial(DataPanel.__items_in_view_changed, self))
             self.__browser_view_items["grid"] = grid_canvas_item
             self.__browser_wrapper_items["grid"] = grid_scroll_group_canvas_item
         return grid_scroll_group_canvas_item

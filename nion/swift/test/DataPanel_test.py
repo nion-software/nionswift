@@ -2,6 +2,7 @@
 import contextlib
 import logging
 import pathlib
+import time
 import typing
 import unittest
 
@@ -641,6 +642,52 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel._scroll_bar_canvas_item.simulate_drag((8, 8), (24, 8))
             self.assertEqual(data_panel._scroll_area_canvas_item.content_origin, Geometry.IntPoint(-80, 0))
             self.assertEqual(data_panel._scroll_area_canvas_item.content_size, Geometry.IntSize(800, 304))
+
+    def test_data_panel_draws_thumbnails_only_for_items_scrolled_into_view(self):
+        # drawing the thumbnail of every item when a large project loads is slow and uses memory.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(10):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            document_controller.periodic()
+            data_panel = document_controller.find_dock_panel("data-panel")
+            canvas_size = Geometry.IntSize(width=320, height=160)
+            data_panel._data_list_canvas_item.layout_immediate(canvas_size)
+            document_controller.periodic()
+            item_canvas_items = [grid_flow_item_canvas_item._canvas_item for grid_flow_item_canvas_item in data_panel._list_canvas_item.canvas_items]
+            self.assertTrue(item_canvas_items[0]._has_thumbnail_source)
+            self.assertFalse(item_canvas_items[-1]._has_thumbnail_source)
+            data_panel._scroll_area_canvas_item.update_content_origin(Geometry.IntPoint(y=-10000))
+            document_controller.periodic()
+            self.assertTrue(item_canvas_items[-1]._has_thumbnail_source)
+            end_time = time.monotonic() + 5.0
+            while item_canvas_items[-1]._thumbnail is None and time.monotonic() < end_time:
+                document_controller.periodic()
+                time.sleep(0.01)
+            self.assertIsNotNone(item_canvas_items[-1]._thumbnail)
+
+    def test_data_panel_item_moved_by_sorting_keeps_showing_its_thumbnail(self):
+        # updating the data of an item moves it to the top, which recreates its canvas item. it should not show blank.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            document_controller.periodic()
+            data_panel = document_controller.find_dock_panel("data-panel")
+            canvas_size = Geometry.IntSize(width=320, height=480)
+            data_panel._data_list_canvas_item.layout_immediate(canvas_size)
+            item_canvas_items = [grid_flow_item_canvas_item._canvas_item for grid_flow_item_canvas_item in data_panel._list_canvas_item.canvas_items]
+            end_time = time.monotonic() + 5.0
+            while any(item_canvas_item._thumbnail is None for item_canvas_item in item_canvas_items) and time.monotonic() < end_time:
+                document_controller.periodic()
+                time.sleep(0.01)
+            bottom_display_item = item_canvas_items[-1].display_item
+            bottom_display_item.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
+            top_canvas_item = data_panel._list_canvas_item.canvas_items[0]._canvas_item
+            self.assertEqual(bottom_display_item, top_canvas_item.display_item)
+            self.assertIsNotNone(top_canvas_item._thumbnail)
 
     def test_data_panel_grid_contents_resize_properly(self):
         with TestContext.create_memory_context() as test_context:
