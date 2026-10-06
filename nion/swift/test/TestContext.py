@@ -27,7 +27,7 @@ from nion.utils import ReferenceCounting
 
 
 def begin_leaks() -> None:
-    Cache.DbStorageCache.count = 0
+    Cache.ThumbnailCache.count = 0
     NDataHandler.NDataHandler.count = 0
     HDF5Handler.HDF5Handler.count = 0
     HDF5Handler._file_manager._clear()
@@ -43,7 +43,7 @@ def begin_leaks() -> None:
 def end_leaks(test_case: unittest.TestCase) -> None:
     gc.collect()  # force garbage collection before checking counts
     test_case.assertEqual(0, Symbolic.BoundItemBase.count)
-    test_case.assertEqual(0, Cache.DbStorageCache.count)
+    test_case.assertEqual(0, Cache.ThumbnailCache.count)
     test_case.assertEqual(0, NDataHandler.NDataHandler.count)
     test_case.assertEqual(0, HDF5Handler.HDF5Handler.count)
     test_case.assertEqual(0, HDF5Handler._file_manager._open_count)
