@@ -300,12 +300,6 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
                 self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
 
-    def test_storage_cache_closing_twice_throws_exception(self):
-        storage_cache = Cache.DbStorageCache(":memory:")
-        with self.assertRaises(AssertionError):
-            storage_cache.close()
-            storage_cache.close()
-
     def test_storage_cache_validates_data_range_upon_reading(self):
         with create_temp_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
@@ -371,23 +365,6 @@ class TestStorageClass(unittest.TestCase):
             with document_model.ref():
                 display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
                 self.assertIsNotNone(display_item.display_data_channels[0].display_values.data_range)
-
-    # @unittest.expectedFailure
-    def future_test_reload_data_item_does_not_recalculate_display_data_range(self):
-        with create_memory_profile_context() as profile_context:
-            storage_cache = profile_context.storage_cache
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-                document_model.append_data_item(data_item)
-                display_item_uuid = document_model.get_display_item_for_data_item(document_model.data_items[0]).uuid
-            # read it back
-            data_range = 1, 4
-            storage_cache.cache[display_item_uuid]["data_range"] = data_range
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                display_item = document_model.get_display_item_for_data_item(document_model.data_items[0])
-                self.assertEqual(display_item.display_data_channels[0].display_values.data_range, data_range)
 
     def test_reload_data_item_does_not_load_actual_data(self):
         # reloading data from disk should not have to load the data, otherwise bad performance ensues
@@ -803,7 +780,6 @@ class TestStorageClass(unittest.TestCase):
                 document_model.remove_data_item(document_model.data_items[0])
                 self.assertFalse(os.path.exists(data_file_path))
             document_model = None
-            storage_cache = None
 
     def test_data_rewrites_to_same_file(self):
         with create_temp_profile_context() as profile_context:
@@ -1077,7 +1053,6 @@ class TestStorageClass(unittest.TestCase):
                 self.assertIsNone(display_item.data_item.data_dtype)
                 self.assertIsNotNone(reference)
             document_model = None
-            storage_cache = None
 
     def test_writing_data_item_with_no_data_sources_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:
@@ -1089,7 +1064,6 @@ class TestStorageClass(unittest.TestCase):
                 reference = data_item._test_get_file_path()
                 self.assertIsNotNone(reference)
             document_model = None
-            storage_cache = None
 
     def test_data_writes_to_file_after_transaction(self):
         with create_temp_profile_context() as profile_context:
@@ -1109,7 +1083,6 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(os.path.isfile(data_file_path))
                 self.assertIsNotNone(data_item.read_external_data("data"))
             document_model = None
-            storage_cache = None
 
     def test_begin_end_transaction_with_no_change_should_not_write(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
@@ -1213,7 +1186,6 @@ class TestStorageClass(unittest.TestCase):
                 # make sure it get removed from disk
                 self.assertFalse(os.path.exists(data_file_path))
             document_model = None
-            storage_cache = None
 
     def test_reloading_data_item_with_display_builds_graphics_properly(self):
         with create_memory_profile_context() as profile_context:
@@ -3670,51 +3642,6 @@ class TestStorageClass(unittest.TestCase):
             new_project_reference = profile.upgrade(project_reference)
             profile.read_project(new_project_reference)
             self.assertEqual("loaded", new_project_reference.project_state)
-
-    # @unittest.expectedFailure
-    def future_test_storage_cache_disabled_during_transaction(self):
-        with create_memory_profile_context() as profile_context:
-            storage_cache = profile_context.storage_cache
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                display_data_channel = display_item.display_data_channels[0]
-                display_data_channel.display_values.data_range  # trigger storage
-                cached_data_range = storage_cache.cache[display_item.uuid]["data_range"]
-                self.assertEqual(cached_data_range, (1, 1))
-                self.assertEqual(display_data_channel.display_values.data_range, (1, 1))
-                with document_model.data_item_transaction(data_item):
-                    data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
-                    self.assertEqual(display_data_channel.display_values.data_range, (0, 0))
-                    self.assertEqual(cached_data_range, storage_cache.cache[display_item.uuid]["data_range"])
-                    self.assertEqual(cached_data_range, (1, 1))
-                self.assertEqual(storage_cache.cache[display_item.uuid]["data_range"], (0, 0))
-
-    def test_suspendable_storage_cache_caches_removes(self):
-        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-        with contextlib.closing(data_item):
-            storage_cache = Cache.DictStorageCache()
-            suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-            suspendable_storage_cache.set_cached_value(data_item, "key", 1.0)
-            self.assertEqual(storage_cache.cache[data_item.uuid]["key"], 1.0)
-            suspendable_storage_cache.suspend_cache()
-            suspendable_storage_cache.remove_cached_value(data_item, "key")
-            self.assertEqual(storage_cache.cache[data_item.uuid]["key"], 1.0)
-            suspendable_storage_cache.spill_cache()
-            self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
-
-    def test_suspendable_storage_cache_is_null_for_add_followed_by_remove(self):
-        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-        with contextlib.closing(data_item):
-            storage_cache = Cache.DictStorageCache()
-            suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-            suspendable_storage_cache.suspend_cache()
-            suspendable_storage_cache.set_cached_value(data_item, "key", 1.0)
-            suspendable_storage_cache.remove_cached_value(data_item, "key")
-            suspendable_storage_cache.spill_cache()
-            self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
 
     def test_writing_properties_with_numpy_float32_succeeds(self):
         with create_temp_profile_context() as profile_context:
