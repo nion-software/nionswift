@@ -70,7 +70,7 @@ class TestThumbnailsClass(unittest.TestCase):
             thumbnail_source.recompute_data()
             thumbnail_source.thumbnail_data
             # here the data should be computed and the thumbnail should not be dirty
-            self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            self.assertFalse(thumbnail_source._is_thumbnail_dirty)
             # now the source data changes and the inverted data needs computing.
             # the thumbnail should also be dirty.
             thumbnail_dirty = False

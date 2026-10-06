@@ -88,13 +88,9 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         # incremented each time the thumbnail is marked dirty so that a recompute which started before the change does
         # not mark the result clean, and so that a trailing recompute is scheduled.
         self.__dirty_generation = 0
-        # the cache is used to store the thumbnail data persistently. for performance, it is ideal
-        # to minimize calling it and instead use the cached value in this class.
-        self.__cache = self.__display_item._display_cache
-        self.__cache_property_name = "thumbnail_data"
-        # the signature of the display item when the cached thumbnail was drawn. it is stored in addition to the dirty
-        # flag since the display item can change while no thumbnail source is listening to it.
-        self.__cache_signature_property_name = "thumbnail_signature"
+        # the thumbnail cache stores the thumbnail persistently with the signature of the display item it was drawn from.
+        project = display_item.project
+        self.__thumbnail_cache = project.thumbnail_cache if project else None
         self.__cache_properties_known = False
         self.__cache_thumbnail_data: typing.Optional[_NDArray] = None
         self.__cache_is_dirty = False
@@ -122,13 +118,12 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         # called on an executor thread. a change to the display item which arrived before the cache was read keeps the
         # thumbnail dirty, but the cached thumbnail is still shown until the new one is drawn.
         if not self.__cache_properties_known and self.__display_item:
-            cache_thumbnail_data = typing.cast(typing.Optional[_NDArray], self.__cache.get_cached_value(self.__display_item, self.__cache_property_name))
-            is_cache_dirty = self.__cache.is_cached_value_dirty(self.__display_item, self.__cache_property_name)
-            cache_signature = self.__cache.get_cached_value(self.__display_item, self.__cache_signature_property_name)
+            thumbnail = self.__thumbnail_cache.get_thumbnail(self.__display_item.uuid) if self.__thumbnail_cache else None
+            cache_signature, cache_thumbnail_data = thumbnail if thumbnail else (None, None)
             with self.__recompute_lock:
                 if not self.__cache_properties_known:
                     self.__cache_thumbnail_data = cache_thumbnail_data
-                    self.__cache_is_dirty = self.__cache_is_dirty or is_cache_dirty or cache_thumbnail_data is None or cache_signature != self.__target_signature
+                    self.__cache_is_dirty = self.__cache_is_dirty or cache_thumbnail_data is None or cache_signature != self.__target_signature
                     self.__cache_properties_known = True
             self.__send_thumbnail()
 
@@ -172,11 +167,12 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         signature = _make_thumbnail_signature(self.__display_item, self.width, self.height)
         with self.__recompute_lock:
             self.__target_signature = signature
-        # a change which does not change the signature, such as a partial data update, still changes the thumbnail, so
-        # any change marks the thumbnail dirty.
-        self.__cache.set_cached_value_dirty(self.__display_item, self.__cache_property_name)
         self.thumbnail_dirty_event.fire()
+        # a change which does not change the signature, such as a partial data update, still changes the thumbnail, so
+        # any change marks the thumbnail dirty and removes the stored thumbnail.
         with self.__recompute_lock:
+            if self.__thumbnail_cache:
+                self.__thumbnail_cache.remove_thumbnail(self.__display_item.uuid)
             self.__dirty_generation += 1
             self.__cache_is_dirty = True
             self.__recompute_on_thread()
@@ -306,9 +302,8 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
             self.__cache_thumbnail_data = calculated_data
             self.__cache_is_dirty = is_dirty
             self.__cache_properties_known = True
-            self.__cache.set_cached_value(self.__display_item, self.__cache_property_name, calculated_data, dirty=is_dirty)
-            # the signature is written after the thumbnail so that an interrupted write leaves an invalid thumbnail.
-            self.__cache.set_cached_value(self.__display_item, self.__cache_signature_property_name, signature)
+            if self.__thumbnail_cache and not is_dirty:
+                self.__thumbnail_cache.set_thumbnail(self.__display_item.uuid, signature, calculated_data)
         self.__send_thumbnail()
 
     @property

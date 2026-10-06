@@ -86,7 +86,8 @@ class MemoryProfileContext:
     # used for testing
 
     def __init__(self, *, threaded_display: bool = False) -> None:
-        self.storage_cache = Cache.DictStorageCache()
+        # the thumbnail cache is shared by each project loaded from this context, so it persists across reloads.
+        self.thumbnail_cache = Cache.ThumbnailCache(None)
         self.__threaded_display = threaded_display
 
         self.profile_properties = dict()
@@ -109,7 +110,7 @@ class MemoryProfileContext:
         self._test_data_read_event = Event.Event()
         self.__profile = None
 
-        self.__items_exit = list()
+        self.__items_exit: list[typing.Callable[[], None]] = [self.thumbnail_cache.close]
 
         self.__ui = TestUI.UserInterface()
 
@@ -140,20 +141,20 @@ class MemoryProfileContext:
 
     def create_profile(self, add_project: bool = True) -> Profile.Profile:
         class CacheFactory(Cache.CacheFactory):
-            def __init__(self, cache: Cache.CacheLike) -> None:
+            def __init__(self, cache: Cache.ThumbnailCache) -> None:
                 self.cache = cache
 
-            def create_cache(self) -> Cache.CacheLike:
+            def create_cache(self) -> Cache.ThumbnailCache:
                 return self.cache
 
-            def release_cache(self, cache: Cache.CacheLike) -> None:
+            def release_cache(self, cache: Cache.ThumbnailCache) -> None:
                 pass
 
         if not self.__profile:
             library_properties = {"version": FileStorageSystem.PROFILE_VERSION}
             storage_system = self.__storage_system
             storage_system.set_library_properties(library_properties)
-            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache), threaded_display=self.__threaded_display)
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.thumbnail_cache), threaded_display=self.__threaded_display)
             profile.storage_system = storage_system
             profile.profile_context = self
             if add_project:
@@ -164,7 +165,7 @@ class MemoryProfileContext:
         else:
             storage_system = self.__storage_system
             storage_system.load_properties()
-            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.storage_cache), threaded_display=self.__threaded_display)
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=CacheFactory(self.thumbnail_cache), threaded_display=self.__threaded_display)
             profile.storage_system = storage_system
             profile.profile_context = self
             self.__items_exit.append(profile.close)

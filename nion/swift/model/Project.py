@@ -80,13 +80,14 @@ class Project(Persistence.PersistentObject):
         self.handle_insert_model_item = None
         self.handle_remove_model_item = None
         self.handle_finish_read = None
-        if self.__cache_factory:
-            self.__cache_factory.release_cache(typing.cast(Cache.CacheLike, self.__cache))
-            self.__cache_factory = None
-            self.__cache = None
         self.__storage_system.close()
         self.__storage_system = typing.cast(typing.Any, None)
         super().close()
+        # released last, so that thumbnails changed while closing the items are written.
+        if self.__cache_factory:
+            self.__cache_factory.release_cache(typing.cast(Cache.ThumbnailCache, self.__cache))
+            self.__cache_factory = None
+            self.__cache = None
 
     @property
     def title(self) -> str:
@@ -195,8 +196,7 @@ class Project(Persistence.PersistentObject):
         return self.__storage_system.get_identifier()
 
     @property
-    def storage_cache(self) -> Cache.CacheLike:
-        assert self.__cache
+    def thumbnail_cache(self) -> Cache.ThumbnailCache | None:
         return self.__cache
 
     @property
@@ -321,6 +321,8 @@ class Project(Persistence.PersistentObject):
                 self._get_persistent_property("data_item_references").set_value(properties.get("data_item_references", dict()))
                 self._get_persistent_property("mapped_items").set_value(properties.get("mapped_items", list()))
                 self.__has_been_read = True
+                if self.__cache:
+                    self.__cache.retain_thumbnails({display_item.uuid for display_item in self.display_items})
         if callable(self.handle_finish_read):
             self.handle_finish_read()
         elapsed_s = int(time.time() - self.__project_load_start_time)

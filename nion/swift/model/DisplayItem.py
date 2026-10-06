@@ -38,7 +38,6 @@ from nion.data import Calibration
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
-from nion.swift.model import Cache
 from nion.swift.model import Changes
 from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
@@ -2264,9 +2263,6 @@ class DisplayItem(Persistence.PersistentObject):
         self.display_changed_event = Event.Event()
         self.display_item_will_close_event = Event.Event()  # used to shut down thumbnail
 
-        self.__cache = Cache.ShadowCache()
-        self.__suspendable_storage_cache: typing.Optional[Cache.CacheLike] = None
-
         self.__in_transaction_state = False
         self.__write_delay_modified_count = 0
 
@@ -2611,19 +2607,6 @@ class DisplayItem(Persistence.PersistentObject):
             display_item.add_display_layer_for_display_data_channel(display_item.display_data_channels[data_index], **self.get_display_layer_properties(i))
         return display_item
 
-    def set_storage_cache(self, storage_cache: typing.Optional[Cache.CacheLike]) -> None:
-        if storage_cache:
-            self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-            self.__cache.set_storage_cache(self._suspendable_storage_cache, self)
-
-    @property
-    def _suspendable_storage_cache(self) -> typing.Optional[Cache.CacheLike]:
-        return self.__suspendable_storage_cache
-
-    @property
-    def _display_cache(self) -> Cache.CacheLike:
-        return self.__cache
-
     def read_from_dict(self, properties: Persistence.PersistentDictType) -> None:
         super().read_from_dict(properties)
         if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
@@ -2652,16 +2635,9 @@ class DisplayItem(Persistence.PersistentObject):
         self.__in_transaction_state = True
         # first enter the write delay state.
         self.__enter_write_delay_state()
-        # suspend disk caching
-        if self.__suspendable_storage_cache:
-            self.__suspendable_storage_cache.suspend_cache()
 
     def _transaction_state_exited(self) -> None:
         self.__in_transaction_state = False
-        # being in the transaction state has the side effect of delaying the cache too.
-        # spill whatever was into the local cache into the persistent cache.
-        if self.__suspendable_storage_cache:
-            self.__suspendable_storage_cache.spill_cache()
         # exit the write delay state.
         self.__exit_write_delay_state()
 

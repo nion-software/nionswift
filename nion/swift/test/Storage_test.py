@@ -10,6 +10,7 @@ import os
 import pathlib
 import shutil
 import threading
+import time
 import typing
 import unittest
 import uuid
@@ -38,6 +39,7 @@ from nion.swift.model import Persistence
 from nion.swift.model import Profile
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
+from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.utils import DateTime
 from nion.utils import Geometry
@@ -318,48 +320,42 @@ class TestStorageClass(unittest.TestCase):
                 read_display_item = document_model.get_display_item_for_data_item(read_data_item)
                 self.assertEqual(read_display_item.display_data_channels[0].display_values.data_range, data_range)
 
-    def test_thumbnail_does_not_get_invalidated_upon_reading(self):
-        # tests caching on display
+    def test_thumbnail_is_shown_from_cache_file_after_reload_without_drawing(self):
+
+        class DrawCountingUserInterface(TestUI.UserInterface):
+            """A user interface which counts the thumbnails it draws."""
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.draw_count = 0
+
+            def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> DrawingContext.RGBA32Type | None:
+                self.draw_count += 1
+                return numpy.full((height, width), 7, dtype=numpy.uint32)
+
+        def wait_for_thumbnail(thumbnail_source: Thumbnails.ThumbnailSource) -> None:
+            end_time = time.monotonic() + 5.0
+            while (thumbnail_source.thumbnail_data is None or thumbnail_source._is_thumbnail_dirty) and time.monotonic() < end_time:
+                time.sleep(0.01)
+
+        ui = DrawCountingUserInterface()
         with create_temp_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_item = document_model.get_display_item_for_data_item(data_item)
-                display_item._display_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
-                self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
-            # read it back
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                read_data_item = document_model.data_items[0]
-                read_display_item = document_model.get_display_item_for_data_item(read_data_item)
-                # thumbnail data should still be valid
-                self.assertFalse(read_display_item._display_cache.is_cached_value_dirty(read_display_item, "thumbnail_data"))
-
-    def test_reloading_thumbnail_from_cache_does_not_mark_it_as_dirty(self):
-        # tests caching on display
-        with create_memory_profile_context() as profile_context:
-            storage_cache = profile_context.storage_cache
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                storage_cache.set_cached_value(display_item, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
-                self.assertFalse(storage_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
-                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, display_item)
-                thumbnail_source.recompute_data()
+                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(ui, display_item)
+                wait_for_thumbnail(thumbnail_source)
                 thumbnail_source = None
-            # read it back
             Thumbnails.ThumbnailManager().reset()
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
-                read_data_item = document_model.data_items[0]
-                read_display_item = document_model.get_display_item_for_data_item(read_data_item)
-                # thumbnail data should still be valid
-                self.assertFalse(storage_cache.is_cached_value_dirty(read_display_item, "thumbnail_data"))
-                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, read_display_item)
-                self.assertFalse(thumbnail_source._is_thumbnail_dirty)
+                read_display_item = document_model.display_items[0]
+                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(ui, read_display_item)
+                wait_for_thumbnail(thumbnail_source)
+                self.assertEqual(1, ui.draw_count)
+                self.assertEqual(7, int(thumbnail_source.thumbnail_data[0, 0]))
                 thumbnail_source = None
 
     def test_reload_data_item_initializes_display_data_range(self):
@@ -1474,22 +1470,6 @@ class TestStorageClass(unittest.TestCase):
                 file_size = os.path.getsize(data_file_path)
                 data_item.set_data(numpy.zeros((16, 16)))
                 self.assertLess(os.path.getsize(data_file_path), file_size)
-
-    def test_reloaded_display_has_correct_storage_cache(self):
-        with create_memory_profile_context() as profile_context:
-            document_controller = profile_context.create_document_controller(auto_close=False)
-            document_model = document_controller.document_model
-            with contextlib.closing(document_controller):
-                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-                document_model.append_data_item(data_item)
-            # read it back
-            document_controller = profile_context.create_document_controller(auto_close=False)
-            document_model = document_controller.document_model
-            with contextlib.closing(document_controller):
-                read_data_item = document_model.data_items[0]
-                read_display_item = document_model.get_display_item_for_data_item(read_data_item)
-                # check storage caches
-                self.assertEqual(read_display_item._display_cache.storage_cache, read_display_item._suspendable_storage_cache)
 
     def test_data_items_written_with_newer_version_get_ignored(self):
         with create_memory_profile_context() as profile_context:

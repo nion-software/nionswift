@@ -286,11 +286,11 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
-            self.assertTrue(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            self.assertIsNone(display_item.project.thumbnail_cache.get_thumbnail(display_item.uuid))
             thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, display_item)
             thumbnail_source.recompute_data()
             self.assertIsNotNone(thumbnail_source.thumbnail_data)
-            self.assertFalse(display_item._display_cache.is_cached_value_dirty(display_item, "thumbnail_data"))
+            self.assertFalse(thumbnail_source._is_thumbnail_dirty)
             with display_item.data_item.data_ref() as data_ref:
                 data_ref.data = numpy.zeros((8, 8), numpy.uint32)
             self.assertTrue(thumbnail_source._is_thumbnail_dirty)
@@ -384,7 +384,7 @@ class TestDataItemClass(unittest.TestCase):
             thumbnail_source.recompute_data()
             thumbnail_source.thumbnail_data
             # here the data should be computed and the thumbnail should not be dirty
-            self.assertFalse(inverted_display_item._display_cache.is_cached_value_dirty(inverted_display_item, "thumbnail_data"))
+            self.assertFalse(thumbnail_source._is_thumbnail_dirty)
             # now the source data changes and the inverted data needs computing.
             # the thumbnail should also be dirty.
             with data_item.data_ref() as data_ref:
