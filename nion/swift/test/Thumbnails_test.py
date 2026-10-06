@@ -250,6 +250,38 @@ class TestThumbnailsClass(unittest.TestCase):
                 thumbnail_source = None
             data_read_listener = None
 
+    def test_thumbnail_drawn_after_reload_reads_data_once(self):
+        # drawing a thumbnail which is not cached reads the data once, since reading it is slow.
+
+        def run_event_loop_until(document_model: DocumentModel.DocumentModel, condition: typing.Callable[[], bool]) -> None:
+            end_time = time.monotonic() + 5.0
+            while not condition() and time.monotonic() < end_time:
+                document_model.event_loop.stop()
+                document_model.event_loop.run_forever()
+                time.sleep(0.01)
+
+        ui = TestUI.UserInterface()
+        with TestContext.MemoryProfileContext(threaded_display=True) as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                document_model.append_data_item(DataItem.DataItem(numpy.full((8, 8), 1, dtype=numpy.float32)))
+            data_read_count = 0
+
+            def handle_data_read(data_item_uuid: uuid.UUID) -> None:
+                nonlocal data_read_count
+                data_read_count += 1
+
+            data_read_listener = profile_context._test_data_read_event.listen(handle_data_read)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                display_item = document_model.display_items[0]
+                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(ui, display_item)
+                run_event_loop_until(document_model, lambda: thumbnail_source.thumbnail_data is not None and not thumbnail_source._is_thumbnail_dirty)
+                self.assertFalse(thumbnail_source._is_thumbnail_dirty)
+                self.assertEqual(1, data_read_count)
+                thumbnail_source = None
+            data_read_listener = None
+
     def test_thumbnail_is_redrawn_after_reload_when_data_changed_without_thumbnail(self):
         # data changed while its thumbnail is not shown, such as by a script, shows the new data after a reload.
 

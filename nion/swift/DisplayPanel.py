@@ -3492,12 +3492,17 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
 
 def preview(drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle,
-            display_item: DisplayItem.DisplayItem, pixel_shape: Geometry.IntSize) -> DrawingContext.DrawingContext:
+            display_item: DisplayItem.DisplayItem, pixel_shape: Geometry.IntSize, *,
+            display_info: DisplayInfo.DisplayInfo | None = None) -> DrawingContext.DrawingContext:
+    """Return a drawing context with the display item drawn into the pixel shape.
+
+    Pass the display info if the caller already has it, since computing it may load the data.
+    """
     drawing_context = DrawingContext.DrawingContext()
     display_canvas_item = create_display_canvas_item(display_item, drawing_metrics, display_style, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            display_info = display_item.display_info
+            display_info = display_info or display_item.display_info
             display_canvas_item.update_display_info(display_info)
             with drawing_context.saver():
                 display_canvas_item.update_canvas_items()

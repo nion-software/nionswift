@@ -285,7 +285,9 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
                 pixel_shape = Geometry.IntSize(height=308, width=512)
             drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.DisplayPanelUISettings(ui), ppi=96.0)
             display_style = UISettings.DisplayStyle()
-            drawing_context = DisplayPanel.preview(drawing_metrics, display_style, display_item, pixel_shape)
+            # pass the display info to the preview so it does not get it again. nothing holds the display info stream
+            # between reads, so each read computes the display data again, which loads the data.
+            drawing_context = DisplayPanel.preview(drawing_metrics, display_style, display_item, pixel_shape, display_info=display_info)
             thumbnail_drawing_context = DrawingContext.DrawingContext()
             thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
             thumbnail_drawing_context.translate(0, (pixel_shape.width - pixel_shape.height) * 0.5)
