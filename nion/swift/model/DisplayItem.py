@@ -2264,6 +2264,8 @@ class DisplayItem(Persistence.PersistentObject):
         self.display_item_will_close_event = Event.Event()  # used to shut down thumbnail
 
         self.__in_transaction_state = False
+        # the date for sorting when the transaction began, or None when not in a transaction.
+        self.__transaction_date_for_sorting: datetime.datetime | None = None
         self.__write_delay_modified_count = 0
 
         # configure the title logic
@@ -2302,6 +2304,10 @@ class DisplayItem(Persistence.PersistentObject):
         self.graphic_selection_changed_event = Event.Event()
         self.graphics_changed_event = Event.Event()
         self.item_changed_event = Event.Event()
+        # fired with the new transaction state when the display item enters or leaves a transaction, such as while the
+        # mouse drags a graphic or during acquisition. fired on any thread while the transaction lock is held, so
+        # listeners should only queue work.
+        self.transaction_state_changed_event = Event.Event()
 
         # configure the display info stream and controller.
 
@@ -2632,14 +2638,18 @@ class DisplayItem(Persistence.PersistentObject):
             self.rewrite()
 
     def _transaction_state_entered(self) -> None:
+        self.__transaction_date_for_sorting = self.date_for_sorting
         self.__in_transaction_state = True
         # first enter the write delay state.
         self.__enter_write_delay_state()
+        self.transaction_state_changed_event.fire(True)
 
     def _transaction_state_exited(self) -> None:
         self.__in_transaction_state = False
+        self.__transaction_date_for_sorting = None
         # exit the write delay state.
         self.__exit_write_delay_state()
+        self.transaction_state_changed_event.fire(False)
 
     def persistent_object_context_changed(self) -> None:
         # handle case where persistent object context is set on an item that is already under transaction.
@@ -3245,6 +3255,16 @@ class DisplayItem(Persistence.PersistentObject):
         return self.created
 
     @property
+    def stable_date_for_sorting(self) -> datetime.datetime:
+        """Return the date for sorting, which does not advance while the display item is in a transaction.
+
+        A display item changed continuously, such as by a mouse drag, keeps its place in a list sorted by this date until
+        the change finishes. The transaction state changed event signals when the date may advance.
+        """
+        transaction_date_for_sorting = self.__transaction_date_for_sorting
+        return transaction_date_for_sorting if transaction_date_for_sorting is not None else self.date_for_sorting
+
+    @property
     def date_for_sorting_local_as_string(self) -> str:
         data_item = self.data_item
         if data_item:
@@ -3568,4 +3588,4 @@ def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[
     """A sort key for display items. The sort by uuid makes it determinate."""
     assert not display_item._closed
     display_item_uuid = display_item.uuid
-    return display_item.title + str(display_item_uuid) if display_item.is_live else str(), display_item.date_for_sorting, str(display_item_uuid)
+    return display_item.title + str(display_item_uuid) if display_item.is_live else str(), display_item.stable_date_for_sorting, str(display_item_uuid)
