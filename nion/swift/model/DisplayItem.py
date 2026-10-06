@@ -1882,7 +1882,7 @@ def compute_display_data_and_calibration_info(display_data_channels_and_calibrat
     return None
 
 
-def compute_display_info(display_data_and_calibration_info: DisplayDataAndCalibrationInfo, display_properties_layers_graphics: DisplayPropertiesLayersGraphics | None) -> DisplayInfo.DisplayInfo | None:
+def compute_display_info(display_data_and_calibration_info: DisplayDataAndCalibrationInfo | None, display_properties_layers_graphics: DisplayPropertiesLayersGraphics | None) -> DisplayInfo.DisplayInfo | None:
     if display_properties_layers_graphics:
         return DisplayInfo.DisplayInfo(display_data_and_calibration_info.display_calibration_info if display_data_and_calibration_info else None,
                                        display_properties_layers_graphics.display_properties,
@@ -2448,10 +2448,11 @@ class DisplayItem(Persistence.PersistentObject):
     @property
     def display_info(self) -> DisplayInfo.DisplayInfo:
         """Return computed display info. Wait for it to be computed if necessary."""
-        display_info_stream = self.display_info_stream
+        display_info_stream = self.display_info_stream  # hold reference to ensure thread is started
         assert self.__display_data_and_calibration_info_computed_value_stream
-        self.__display_data_and_calibration_info_computed_value_stream.wait_value()
-        display_info = display_info_stream.value
+        # use the computed value directly, since the display info stream may receive it later on the main thread.
+        display_data_and_calibration_info = self.__display_data_and_calibration_info_computed_value_stream.wait_value()
+        display_info = compute_display_info(display_data_and_calibration_info, self.__display_properties_layers_graphics_stream.value)
         assert display_info
         return display_info
 
