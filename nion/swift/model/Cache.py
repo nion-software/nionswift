@@ -116,6 +116,19 @@ class ThumbnailCache:
             else:
                 self.__pending_changes.pop(uuid_str, None)
 
+    def discard_pending_thumbnail(self, uuid_: uuid.UUID) -> bool:
+        """Discard the thumbnail waiting to be written for the uuid, so that it is not written.
+
+        Return whether a thumbnail was discarded. A removal is kept, and a write already started still finishes.
+        """
+        uuid_str = str(uuid_)
+        with self.__condition:
+            pending_change = self.__pending_changes.get(uuid_str)
+            if pending_change and pending_change[1] is not None:
+                del self.__pending_changes[uuid_str]
+                return True
+            return False
+
     def retain_thumbnails(self, uuids: typing.AbstractSet[uuid.UUID]) -> None:
         """Remove the thumbnails of all uuids not in the set, such as those of deleted display items."""
         retained_uuid_strs = {str(uuid_) for uuid_ in uuids}

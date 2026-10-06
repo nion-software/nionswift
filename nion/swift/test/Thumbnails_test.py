@@ -315,6 +315,36 @@ class TestThumbnailsClass(unittest.TestCase):
                 thumbnail_dirty_listener = None
                 thumbnail_source = None
 
+    def test_thumbnail_is_stored_only_when_transaction_ends(self):
+        # dragging the mouse or acquiring changes thumbnails continuously; writing them would slow those down.
+
+        def run_event_loop_until(document_model: DocumentModel.DocumentModel, condition: typing.Callable[[], bool]) -> None:
+            end_time = time.monotonic() + 5.0
+            while not condition() and time.monotonic() < end_time:
+                document_model.event_loop.stop()
+                document_model.event_loop.run_forever()
+                time.sleep(0.01)
+
+        ui = TestUI.UserInterface()
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), dtype=numpy.float32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            thumbnail_cache = display_item.project.thumbnail_cache
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(ui, display_item)
+            run_event_loop_until(document_model, lambda: thumbnail_cache.get_thumbnail(display_item.uuid) is not None)
+            self.assertIsNotNone(thumbnail_cache.get_thumbnail(display_item.uuid))
+            with document_model.begin_display_item_transaction(display_item):
+                # the thumbnail drawn just before the transaction is waiting to be written; it is not written during it.
+                self.assertIsNone(thumbnail_cache.get_thumbnail(display_item.uuid))
+                old_thumbnail_data = thumbnail_source.thumbnail_data
+                data_item.set_data(numpy.ones((8, 8), dtype=numpy.float32))
+                run_event_loop_until(document_model, lambda: thumbnail_source.thumbnail_data is not old_thumbnail_data and not thumbnail_source._is_thumbnail_dirty)
+                self.assertIsNot(old_thumbnail_data, thumbnail_source.thumbnail_data)
+                self.assertIsNone(thumbnail_cache.get_thumbnail(display_item.uuid))
+            self.assertIs(thumbnail_source.thumbnail_data, thumbnail_cache.get_thumbnail(display_item.uuid)[1])
+
     def test_thumbnail_is_redrawn_after_reload_when_data_changed_without_thumbnail(self):
         # data changed while its thumbnail is not shown, such as by a script, shows the new data after a reload.
 
