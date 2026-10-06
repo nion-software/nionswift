@@ -341,6 +341,11 @@ class ThumbnailManager(metaclass=Utility.Singleton):
                 assert thumbnail_source._ui == ui
             return thumbnail_source
 
+    def existing_thumbnail_source_for_display_item(self, display_item: DisplayItem.DisplayItem) -> ThumbnailSource | None:
+        """Return the shared ThumbnailSource for the display item if one exists, without creating one."""
+        with self.__lock:
+            return self.__thumbnail_sources.get(display_item.uuid)
+
     def thumbnail_data_for_display_item(self, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[_NDArray]:
         with self.__lock:
             thumbnail_source = self.__thumbnail_sources.get(display_item.uuid) if display_item else None
