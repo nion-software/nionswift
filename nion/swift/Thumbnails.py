@@ -95,6 +95,14 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         self.__cache_properties_known = False
         self.__cache_thumbnail_data: typing.Optional[_NDArray] = None
         self.__cache_is_dirty = False
+        # while the display item is in a transaction, such as during acquisition or while the mouse drags a graphic or
+        # slider which drives a computation, the thumbnail changes on every update. the thumbnail cache is not changed
+        # then, to avoid writing to disk continually for thumbnails which are immediately replaced, matching the data,
+        # which is also not written until the transaction ends. the pending flag records that the cache needs updating
+        # when the transaction ends. both are protected by the recompute lock, which the transaction state change also
+        # takes, so that the cache is never changed after the transaction begins.
+        self.__is_in_transaction = False
+        self.__is_cache_update_pending = False
         # the signature of the display item as last seen on the main thread; protected by the recompute lock.
         self.__target_signature = _make_thumbnail_signature(display_item, self.width, self.height)
         # the event loop of the document model, used to send the value to listeners on the main thread. the pending
@@ -109,6 +117,9 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         # listen to the inputs of the display info rather than the display info itself, since computing the display info
         # loads the data, which is not needed while the cached thumbnail is valid.
         self.__display_info_inputs_stream_action = Stream.ValueStreamAction(display_item.display_info_inputs_stream, ReferenceCounting.weak_partial(self.__class__.__display_info_inputs_changed, self))
+        self.__transaction_state_changed_listener = display_item.transaction_state_changed_event.listen(ReferenceCounting.weak_partial(ThumbnailSource.__transaction_state_changed, self))
+        with self.__recompute_lock:
+            self.__is_in_transaction = display_item.in_transaction_state
 
         # initial recompute, if required
         self.__recompute_on_thread()
@@ -172,11 +183,35 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         # a change which does not change the signature, such as a partial data update, still changes the thumbnail, so
         # any change marks the thumbnail dirty and removes the stored thumbnail.
         with self.__recompute_lock:
-            if self.__thumbnail_cache:
+            if self.__is_in_transaction:
+                self.__is_cache_update_pending = True
+            elif self.__thumbnail_cache:
                 self.__thumbnail_cache.remove_thumbnail(self.__display_item.uuid)
             self.__dirty_generation += 1
             self.__cache_is_dirty = True
             self.__recompute_on_thread()
+
+    def __transaction_state_changed(self, in_transaction_state: bool) -> None:
+        # called on any thread while the transaction lock is held.
+        display_item = self.__display_item
+        if not display_item:
+            return
+        with self.__recompute_lock:
+            self.__is_in_transaction = in_transaction_state
+            if not self.__thumbnail_cache or self.__is_closing:
+                return
+            if in_transaction_state:
+                # a thumbnail drawn just before the transaction would otherwise be written during it.
+                if self.__thumbnail_cache.discard_pending_thumbnail(display_item.uuid):
+                    self.__is_cache_update_pending = True
+            elif self.__is_cache_update_pending:
+                # store the thumbnail if it is up to date, or remove the stored one, which no longer matches the display
+                # item. a thumbnail still being drawn is stored when it is finished.
+                self.__is_cache_update_pending = False
+                if not self.__cache_is_dirty and self.__cache_thumbnail_data is not None:
+                    self.__thumbnail_cache.set_thumbnail(display_item.uuid, self.__target_signature, self.__cache_thumbnail_data)
+                else:
+                    self.__thumbnail_cache.remove_thumbnail(display_item.uuid)
 
     def __recompute_on_thread(self) -> None:
         """Request a recompute on a thread.
@@ -216,6 +251,7 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         # the display item is closing, so these messages should not be triggered, but just in case...
         self.__display_item_about_to_close_listener = typing.cast(typing.Any, None)
         self.__display_info_inputs_stream_action = typing.cast(typing.Any, None)
+        self.__transaction_state_changed_listener = typing.cast(typing.Any, None)
         # shut down the thread, if any. avoid deadlock.
         # note: the __display_item still has to be valid to shut down the thread, in case it is still running.
         # clear the display item after shutting down the thread.
@@ -304,7 +340,10 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
             self.__cache_is_dirty = is_dirty
             self.__cache_properties_known = True
             if self.__thumbnail_cache and not is_dirty:
-                self.__thumbnail_cache.set_thumbnail(self.__display_item.uuid, signature, calculated_data)
+                if self.__is_in_transaction:
+                    self.__is_cache_update_pending = True
+                else:
+                    self.__thumbnail_cache.set_thumbnail(self.__display_item.uuid, signature, calculated_data)
         self.__send_thumbnail()
 
     @property
