@@ -1429,4 +1429,5 @@ def make_memory_project_storage_system(profile_context: typing.Any, _uuid: uuid.
         profile_context.data_map = data_map
     if profile_context.trash_map is None:
         profile_context.trash_map = trash_map
-    return MemoryProjectStorageSystem(library_properties=library_properties, data_properties_map=data_properties_map, data_map=data_map, trash_map=trash_map)
+    # data reads are reported to the profile context so that tests can check which actions read data.
+    return MemoryProjectStorageSystem(library_properties=library_properties, data_properties_map=data_properties_map, data_map=data_map, trash_map=trash_map, data_read_event=profile_context._test_data_read_event)
