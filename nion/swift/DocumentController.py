@@ -1818,7 +1818,7 @@ class DocumentController(Window.Window):
                 display_shape = Geometry.IntSize(height=600, width=800)
 
             drawing_metrics = UISettings.DrawingMetrics(ui_settings=DisplayPanel.FixedUISettings(), ppi=96.0)
-            drawing_context = DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item, display_shape)
+            drawing_context = DisplayPanel.preview(drawing_metrics, UISettings.DisplayStyle(), display_item, display_shape, display_info=display_info)
 
             view_box = Geometry.IntRect(Geometry.IntPoint(), display_shape)
 
