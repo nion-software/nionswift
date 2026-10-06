@@ -75,8 +75,9 @@ class ThumbnailSource(Stream.ValueStream[Bitmap.Bitmap]):
         self.__will_close_fn = will_close_fn
         self.__suppress_recompute = _suppress_recompute
 
-        self.width = 256
-        self.height = 256
+        # thumbnails are typically shown at 80 to 96 pixels, so this is sharp on a high resolution display.
+        self.width = 192
+        self.height = 192
 
         self.__display_item = display_item
         # the recompute lock protects the recompute scheduling fields and the cache fields below.
