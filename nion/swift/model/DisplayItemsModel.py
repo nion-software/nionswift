@@ -67,6 +67,7 @@ class DisplayItemsModel:
         self.__items: list[DisplayItem.DisplayItem] = list()
         self.__included: set[DisplayItem.DisplayItem] = set()  # mirrors self.__items for O(1) membership tests
         self.__item_changed_listeners: dict[DisplayItem.DisplayItem, Event.EventListener | None] = dict()
+        self.__transaction_state_changed_listeners: dict[DisplayItem.DisplayItem, Event.EventListener] = dict()
         self.__item_inserted_listener: Event.EventListener | None = None
         self.__item_removed_listener: Event.EventListener | None = None
         self.__selections: list[Selection.IndexedSelection] = list()
@@ -128,6 +129,7 @@ class DisplayItemsModel:
                 if listener:
                     listener.close()
             self.__item_changed_listeners.clear()
+            self.__transaction_state_changed_listeners.clear()
 
             for index in reversed(range(len(self.__items))):
                 self.__remove_item_at_index(index)
@@ -144,8 +146,7 @@ class DisplayItemsModel:
                 # search for each one, which would make populating the whole list O(n^2).
                 display_items = list(container.display_items)
                 for item in display_items:
-                    item_changed_listener = item.item_changed_event.listen(weak_partial(DisplayItemsModel.__item_changed, self, item)) if hasattr(item, "item_changed_event") else None
-                    self.__item_changed_listeners[item] = item_changed_listener
+                    self.__listen_to_item(item)
                 matched_items = [item for item in display_items if filter_.matches(item)]
                 if sort_key is not None:
                     matched_items.sort(key=sort_key, reverse=sort_reverse)
@@ -158,11 +159,16 @@ class DisplayItemsModel:
         finally:
             self.end_changes_event.fire("display_items")
 
+    def __listen_to_item(self, item: DisplayItem.DisplayItem) -> None:
+        item_changed_listener = item.item_changed_event.listen(weak_partial(DisplayItemsModel.__item_changed, self, item)) if hasattr(item, "item_changed_event") else None
+        self.__item_changed_listeners[item] = item_changed_listener
+        if transaction_state_changed_event := getattr(item, "transaction_state_changed_event", None):
+            self.__transaction_state_changed_listeners[item] = transaction_state_changed_event.listen(weak_partial(DisplayItemsModel.__item_transaction_state_changed, self, item))
+
     def __container_item_inserted(self, key: str, item: DisplayItem.DisplayItem, before_index: int) -> None:
         if key != "display_items":
             return
-        item_changed_listener = item.item_changed_event.listen(weak_partial(DisplayItemsModel.__item_changed, self, item)) if hasattr(item, "item_changed_event") else None
-        self.__item_changed_listeners[item] = item_changed_listener
+        self.__listen_to_item(item)
         if self.__filter.matches(item):
             self.__insert_item(item, before_index)
 
@@ -172,8 +178,20 @@ class DisplayItemsModel:
         listener = self.__item_changed_listeners.pop(item, None)
         if listener:
             listener.close()
+        self.__transaction_state_changed_listeners.pop(item, None)
         if item in self.__included:
             self.__remove_item_at_index(self.__items.index(item))
+
+    def __item_transaction_state_changed(self, item: DisplayItem.DisplayItem, in_transaction_state: bool) -> None:
+        # called on any thread while the transaction lock is held. the sort date of an item does not advance during a
+        # transaction, so sort the item on the main thread when the transaction ends.
+        if not in_transaction_state and (event_loop := item._event_loop):
+            event_loop.call_soon_threadsafe(weak_partial(DisplayItemsModel.__handle_item_transaction_ended, self, item))
+
+    def __handle_item_transaction_ended(self, item: DisplayItem.DisplayItem) -> None:
+        # the item may have been removed from the container since the transaction ended.
+        if item in self.__item_changed_listeners:
+            self.__item_changed(item)
 
     def __item_changed(self, item: DisplayItem.DisplayItem) -> None:
         # item changed, so it might need to be added, removed, or re-sorted. this fires on every

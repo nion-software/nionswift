@@ -689,6 +689,35 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(bottom_display_item, top_canvas_item.display_item)
             self.assertIsNotNone(top_canvas_item._thumbnail)
 
+    def test_data_panel_item_changed_during_transaction_moves_only_when_transaction_ends(self):
+        # items must not move around in the data panel while a mouse drag or acquisition is changing them.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_items_model = document_controller.display_items_model
+            bottom_display_item = display_items_model.items[-1]
+            with document_model.begin_display_item_transaction(bottom_display_item):
+                bottom_display_item.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
+                document_controller.periodic()
+                self.assertEqual(bottom_display_item, display_items_model.items[-1])
+            document_controller.periodic()
+            self.assertEqual(bottom_display_item, display_items_model.items[0])
+
+    def test_data_panel_item_becoming_live_during_transaction_moves_to_top(self):
+        # acquisition starts a transaction before the item becomes live; live items are shown at the top.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_items_model = document_controller.display_items_model
+            bottom_display_item = display_items_model.items[-1]
+            with document_model.item_transaction(bottom_display_item.data_item), document_model.data_item_live(bottom_display_item.data_item):
+                document_controller.periodic()
+                self.assertEqual(bottom_display_item, display_items_model.items[0])
+
     def test_data_panel_grid_contents_resize_properly(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
