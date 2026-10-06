@@ -282,6 +282,39 @@ class TestThumbnailsClass(unittest.TestCase):
                 thumbnail_source = None
             data_read_listener = None
 
+    def test_thumbnail_is_redrawn_when_display_type_changes(self):
+        # changing a line plot to an image shows the image in the thumbnail.
+
+        def run_event_loop_until(document_model: DocumentModel.DocumentModel, condition: typing.Callable[[], bool]) -> None:
+            end_time = time.monotonic() + 5.0
+            while not condition() and time.monotonic() < end_time:
+                document_model.event_loop.stop()
+                document_model.event_loop.run_forever()
+                time.sleep(0.01)
+
+        ui = TestUI.UserInterface()
+        with TestContext.MemoryProfileContext(threaded_display=True) as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.full((8,), 1, dtype=numpy.float32))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(ui, display_item)
+                run_event_loop_until(document_model, lambda: thumbnail_source.thumbnail_data is not None and not thumbnail_source._is_thumbnail_dirty)
+                dirty_count = 0
+
+                def handle_thumbnail_dirty() -> None:
+                    nonlocal dirty_count
+                    dirty_count += 1
+
+                thumbnail_dirty_listener = thumbnail_source.thumbnail_dirty_event.listen(handle_thumbnail_dirty)
+                display_item.display_type = "image"
+                run_event_loop_until(document_model, lambda: dirty_count > 0 and not thumbnail_source._is_thumbnail_dirty)
+                self.assertLess(0, dirty_count)
+                self.assertFalse(thumbnail_source._is_thumbnail_dirty)
+                thumbnail_dirty_listener = None
+                thumbnail_source = None
+
     def test_thumbnail_is_redrawn_after_reload_when_data_changed_without_thumbnail(self):
         # data changed while its thumbnail is not shown, such as by a script, shows the new data after a reload.
 
