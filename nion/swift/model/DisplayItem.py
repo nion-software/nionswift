@@ -2316,7 +2316,9 @@ class DisplayItem(Persistence.PersistentObject):
         self.__display_info_stream_count = 0
         self.__display_data_channels_and_calibration_style_stream = DisplayDataChannelsAndCalibrationStyleStream(self)
         self.__display_properties_layers_graphics_stream = DisplayPropertiesLayersGraphicsStream(self)
-        self.__display_info_inputs_stream = Stream.CombineLatestStream[object, tuple[object, ...]]([self.__display_data_channels_and_calibration_style_stream, self.__display_properties_layers_graphics_stream])
+        # the display type is not part of the display info, but it determines how the display info is drawn.
+        self.__display_type_stream = Stream.PropertyChangedEventStream[str](self, "display_type")
+        self.__display_info_inputs_stream = Stream.CombineLatestStream[object, tuple[object, ...]]([self.__display_data_channels_and_calibration_style_stream, self.__display_properties_layers_graphics_stream, self.__display_type_stream])
 
         self._display_relay_stream = RelayStream[DisplayDataAndCalibrationInfo]()
         self._display_executor = ComputedValueStreamExecutor[DisplayDataChannelsAndCalibrationStyle]()
@@ -2349,6 +2351,7 @@ class DisplayItem(Persistence.PersistentObject):
         self.__display_data_channels_and_calibration_style_stream = typing.cast(typing.Any, None)
         self.__display_properties_layers_graphics_stream = typing.cast(typing.Any, None)
         self.__display_info_inputs_stream = typing.cast(typing.Any, None)
+        self.__display_type_stream = typing.cast(typing.Any, None)
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = typing.cast(typing.Any, None)
         for display_data_channel in copy.copy(self.display_data_channels):
@@ -2449,7 +2452,7 @@ class DisplayItem(Persistence.PersistentObject):
 
     @property
     def display_info_inputs_stream(self) -> Stream.AbstractStream[object]:
-        """Return a stream which sends a value whenever an input of the display info changes.
+        """Return a stream which sends a value whenever an input of the display info or the display type changes.
 
         Unlike the display info stream, listening to this stream does not compute the display data, so it does not load
         the data. The value is opaque and is sent on the thread making the change.
