@@ -287,7 +287,9 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_item = document_model.get_display_item_for_data_item(data_item)
             self.assertIsNone(display_item.project.thumbnail_cache.get_thumbnail(display_item.uuid))
-            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, display_item)
+            # recompute only when the test asks, so that a background recompute cannot clean the thumbnail before the
+            # dirty state is checked.
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self._test_setup.app.ui, display_item, _suppress_recompute=True)
             thumbnail_source.recompute_data()
             self.assertIsNotNone(thumbnail_source.thumbnail_data)
             self.assertFalse(thumbnail_source._is_thumbnail_dirty)
