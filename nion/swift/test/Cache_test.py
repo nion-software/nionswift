@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import logging
+import os
 import pathlib
 import sqlite3
 import tempfile
@@ -111,6 +112,23 @@ class TestThumbnailCacheClass(unittest.TestCase):
             self.assertFalse(earlier_cache_path.exists())
             self.assertTrue(other_earlier_cache_path.exists())
             self.assertTrue((cache_dir_path / "proj_X.nsthumbs").exists())
+
+    def test_cache_factory_keeps_thumbnails_of_project_opened_recently_without_changes(self):
+        # a project which is opened often but not changed must not lose its thumbnails to the purge of unused projects.
+        with tempfile.TemporaryDirectory() as directory_str:
+            cache_dir_path = pathlib.Path(directory_str)
+            cache_path = cache_dir_path / "proj_X.nsthumbs"
+            uuid_ = uuid.uuid4()
+            with contextlib.closing(Cache.ThumbnailCache(cache_path)) as thumbnail_cache:
+                thumbnail_cache.set_thumbnail(uuid_, "signature", numpy.zeros((4, 4), dtype=numpy.uint32))
+            last_written_time = time.time() - 40 * 24 * 60 * 60
+            os.utime(cache_path, (last_written_time, last_written_time))
+            cache_factory = Cache.DbCacheFactory(cache_dir_path, "proj_X")
+            cache_factory.release_cache(cache_factory.create_cache())
+            other_cache_factory = Cache.DbCacheFactory(cache_dir_path, "proj_Y")
+            other_cache_factory.release_cache(other_cache_factory.create_cache())
+            with contextlib.closing(Cache.ThumbnailCache(cache_path)) as thumbnail_cache:
+                self.assertIsNotNone(thumbnail_cache.get_thumbnail(uuid_))
 
 
 if __name__ == '__main__':

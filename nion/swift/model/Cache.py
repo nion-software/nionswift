@@ -29,7 +29,7 @@ class ThumbnailCache:
     delay, since it keeps a thumbnail which is no longer valid from being read after a crash.
 
     The project removes the thumbnails of deleted display items when it is loaded, and the cache factory removes the cache
-    file of a project not changed for 30 days.
+    file of a project not opened for 30 days.
 
     The path is the database file, or None to keep the database in memory.
 
@@ -235,6 +235,9 @@ class DbCacheFactory(CacheFactory):
         self.__purge(cache_path)
         logging.getLogger("loader").info(f"Using cache {cache_path}")
         cache_path.parent.mkdir(parents=True, exist_ok=True)
+        # mark the cache file as opened now, since the purge goes by modification time and opening a project whose
+        # thumbnails are all valid writes nothing.
+        cache_path.touch()
         return ThumbnailCache(cache_path)
 
     def release_cache(self, cache: ThumbnailCache) -> None:
