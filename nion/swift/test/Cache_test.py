@@ -130,6 +130,32 @@ class TestThumbnailCacheClass(unittest.TestCase):
             with contextlib.closing(Cache.ThumbnailCache(cache_path)) as thumbnail_cache:
                 self.assertIsNotNone(thumbnail_cache.get_thumbnail(uuid_))
 
+    def test_cache_factory_replaces_damaged_cache_file(self):
+        # a damaged cache file must not keep the project from opening or from storing its thumbnails.
+        with tempfile.TemporaryDirectory() as directory_str:
+            cache_dir_path = pathlib.Path(directory_str)
+            cache_path = cache_dir_path / "proj_X.nsthumbs"
+            cache_path.write_bytes(b"damaged" * 100)
+            uuid_ = uuid.uuid4()
+            cache_factory = Cache.DbCacheFactory(cache_dir_path, "proj_X")
+            thumbnail_cache = cache_factory.create_cache()
+            thumbnail_cache.set_thumbnail(uuid_, "signature", numpy.zeros((4, 4), dtype=numpy.uint32))
+            cache_factory.release_cache(thumbnail_cache)
+            with contextlib.closing(Cache.ThumbnailCache(cache_path)) as thumbnail_cache:
+                self.assertIsNotNone(thumbnail_cache.get_thumbnail(uuid_))
+
+    def test_cache_factory_keeps_thumbnails_in_memory_when_cache_directory_is_unusable(self):
+        # an unusable cache directory must not keep the project from opening.
+        with tempfile.TemporaryDirectory() as directory_str:
+            cache_dir_path = pathlib.Path(directory_str) / "not_a_directory"
+            cache_dir_path.write_bytes(b"file")
+            uuid_ = uuid.uuid4()
+            cache_factory = Cache.DbCacheFactory(cache_dir_path, "proj_X")
+            thumbnail_cache = cache_factory.create_cache()
+            thumbnail_cache.set_thumbnail(uuid_, "signature", numpy.zeros((4, 4), dtype=numpy.uint32))
+            self.assertIsNotNone(thumbnail_cache.get_thumbnail(uuid_))
+            cache_factory.release_cache(thumbnail_cache)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
