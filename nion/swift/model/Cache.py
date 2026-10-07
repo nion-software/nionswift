@@ -41,16 +41,26 @@ class ThumbnailCache:
     count = 0  # used to detect caches which are not closed in tests
 
     def __init__(self, path: pathlib.Path | None) -> None:
+        """Open the database, creating it if needed.
+
+        Raises sqlite3.Error if the file cannot be opened or is not a thumbnail database.
+        """
+        connection = sqlite3.connect(str(path) if path else ":memory:", check_same_thread=False, isolation_level=None)
+        try:
+            if path:
+                # write-ahead logging lets an interrupted write roll back without syncing on every write.
+                connection.execute("PRAGMA journal_mode = WAL")
+                connection.execute("PRAGMA synchronous = NORMAL")
+            connection.execute("CREATE TABLE IF NOT EXISTS thumbnails (uuid TEXT PRIMARY KEY, signature TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, data BLOB NOT NULL)")
+            stored_uuid_strs = {row[0] for row in connection.execute("SELECT uuid FROM thumbnails")}
+        except sqlite3.Error:
+            connection.close()
+            raise
         ThumbnailCache.count += 1
         self.__connection_lock = threading.Lock()
         self.__condition = threading.Condition()
-        self.__connection: sqlite3.Connection | None = sqlite3.connect(str(path) if path else ":memory:", check_same_thread=False, isolation_level=None)
-        if path:
-            # write-ahead logging lets an interrupted write roll back without syncing on every write.
-            self.__connection.execute("PRAGMA journal_mode = WAL")
-            self.__connection.execute("PRAGMA synchronous = NORMAL")
-        self.__connection.execute("CREATE TABLE IF NOT EXISTS thumbnails (uuid TEXT PRIMARY KEY, signature TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, data BLOB NOT NULL)")
-        self.__stored_uuid_strs = {row[0] for row in self.__connection.execute("SELECT uuid FROM thumbnails")}
+        self.__connection: sqlite3.Connection | None = connection
+        self.__stored_uuid_strs = stored_uuid_strs
         self.__writing_uuid_strs: set[str] = set()
         # maps a uuid to the time of the change and the thumbnail, or None for a removal.
         self.__pending_changes: dict[str, tuple[float, tuple[str, numpy.typing.NDArray[numpy.uint32]] | None]] = dict()
@@ -207,6 +217,26 @@ def db_make_directory_if_needed(directory_path: str) -> None:
         os.makedirs(directory_path)
 
 
+def remove_cache_file(cache_path: pathlib.Path) -> None:
+    """Remove a cache file and its write-ahead log files, which SQLite on macOS keeps after closing."""
+    cache_path.unlink(True)
+    cache_path.with_name(cache_path.name + "-wal").unlink(True)
+    cache_path.with_name(cache_path.name + "-shm").unlink(True)
+
+
+def open_cache_file(cache_path: pathlib.Path) -> ThumbnailCache:
+    """Open the cache file, creating it and its directory if needed, and mark it as opened now.
+
+    The purge goes by modification time, and opening a project whose thumbnails are all valid writes nothing, so the
+    file is marked as opened explicitly.
+
+    Raises OSError or sqlite3.Error if the file cannot be used.
+    """
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.touch()
+    return ThumbnailCache(cache_path)
+
+
 class DbCacheFactory(CacheFactory):
     def __init__(self, cache_dir_path: pathlib.Path, identifier: str) -> None:
         self.__cache_dir_path = cache_dir_path
@@ -222,10 +252,7 @@ class DbCacheFactory(CacheFactory):
                     time_delta = datetime.datetime.now() - datetime.datetime.fromtimestamp(file_path.stat().st_mtime)
                     if time_delta.days > 30 or file_path == cache_path.with_suffix(".nscache"):
                         logging.getLogger("loader").info(f"Purging cache file {file_path}")
-                        file_path.unlink(True)
-                        # the write-ahead log files, which SQLite on macOS keeps after closing.
-                        file_path.with_name(file_path.name + "-wal").unlink(True)
-                        file_path.with_name(file_path.name + "-shm").unlink(True)
+                        remove_cache_file(file_path)
         except OSError:
             # a cache file which cannot be removed now is removed on a later attempt.
             pass
@@ -234,11 +261,19 @@ class DbCacheFactory(CacheFactory):
         cache_path = (self.__cache_dir_path / (self.__identifier)).with_suffix(".nsthumbs")
         self.__purge(cache_path)
         logging.getLogger("loader").info(f"Using cache {cache_path}")
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        # mark the cache file as opened now, since the purge goes by modification time and opening a project whose
-        # thumbnails are all valid writes nothing.
-        cache_path.touch()
-        return ThumbnailCache(cache_path)
+        try:
+            return open_cache_file(cache_path)
+        except (OSError, sqlite3.Error):
+            # the thumbnails can always be drawn again, so a damaged cache file is replaced rather than keeping the
+            # project from opening.
+            traceback.print_exc()
+        try:
+            remove_cache_file(cache_path)
+            return open_cache_file(cache_path)
+        except (OSError, sqlite3.Error):
+            # the thumbnails are kept in memory when no cache file can be used.
+            traceback.print_exc()
+        return ThumbnailCache(None)
 
     def release_cache(self, cache: ThumbnailCache) -> None:
         cache.close()
