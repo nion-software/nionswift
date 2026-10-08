@@ -2487,6 +2487,97 @@ class TestSymbolicClass(unittest.TestCase):
         finally:
             Symbolic.ComputationProcessor.unregister("_test")
 
+    def test_window_of_each_spectrum_of_a_sequence_is_a_sequence_of_spectra(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            dimensional_calibrations = [Calibration.Calibration(1.0, 2.0, "s"), Calibration.Calibration(3.0, 4.0, "eV")]
+            xdata = DataAndMetadata.new_data_and_metadata(numpy.random.rand(4, 16), dimensional_calibrations=dimensional_calibrations,
+                                                          data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
+            data_item = DataItem.new_data_item(xdata)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            target_data_item = DataItem.new_data_item()
+            document_model.append_data_item(target_data_item)
+            computation = document_model.create_computation()
+            computation.processing_id = "hamming-window"
+            computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel), input_operation=Symbolic.ComputationInputOperation.from_operation_id("axes:datum"))
+            computation.create_output_item("target", Symbolic.make_item(target_data_item))
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertIsNone(computation.error_text)
+            self.assertEqual(DataAndMetadata.DataDescriptor(True, 0, 1), target_data_item.xdata.data_descriptor)
+            self.assertEqual(dimensional_calibrations, list(target_data_item.xdata.dimensional_calibrations))
+
+    def test_identity_of_each_image_of_a_sequence_is_a_sequence_of_images(self) -> None:
+        p = Symbolic.ComputationProcessor(
+            expression="target = src",
+            title="Test identity",
+            inputs=[Symbolic.ComputationProcessorDataInput("src", "Source", "xdata", list(), list(), False)],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("target", None, "xdata")]
+        )
+        Symbolic.ComputationProcessor.register("_test_identity", p)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_model = test_context.create_document_model()
+                dimensional_calibrations = [Calibration.Calibration(1.0, 2.0, "s"), Calibration.Calibration(3.0, 4.0, "nm"), Calibration.Calibration(5.0, 6.0, "nm")]
+                xdata = DataAndMetadata.new_data_and_metadata(numpy.random.rand(4, 6, 8), dimensional_calibrations=dimensional_calibrations,
+                                                              data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+                data_item = DataItem.new_data_item(xdata)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                target_data_item = DataItem.new_data_item()
+                document_model.append_data_item(target_data_item)
+                computation = document_model.create_computation()
+                computation.processing_id = "_test_identity"
+                computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel), input_operation=Symbolic.ComputationInputOperation.from_operation_id("axes:datum"))
+                computation.create_output_item("target", Symbolic.make_item(target_data_item))
+                document_model.append_computation(computation)
+                document_model.recompute_all()
+                self.assertIsNone(computation.error_text)
+                self.assertEqual(DataAndMetadata.DataDescriptor(True, 0, 2), target_data_item.xdata.data_descriptor)
+                self.assertEqual(dimensional_calibrations, list(target_data_item.xdata.dimensional_calibrations))
+                self.assertTrue(numpy.array_equal(xdata.data, target_data_item.data))
+        finally:
+            Symbolic.ComputationProcessor.unregister("_test_identity")
+
+    def test_sum_of_each_spectrum_of_a_sequence_of_spectrum_images_is_a_sequence_of_images(self) -> None:
+        p = Symbolic.ComputationProcessor(
+            expression="target = float(numpy.sum(src.data))",
+            title="Test sum",
+            inputs=[Symbolic.ComputationProcessorDataInput("src", "Source", "xdata", list(), list(), False)],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("target", None, "xdata")]
+        )
+        Symbolic.ComputationProcessor.register("_test_sum", p)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_model = test_context.create_document_model()
+                dimensional_calibrations = [Calibration.Calibration(1.0, 2.0, "s"), Calibration.Calibration(3.0, 4.0, "nm"),
+                                            Calibration.Calibration(5.0, 6.0, "nm"), Calibration.Calibration(7.0, 8.0, "eV")]
+                xdata = DataAndMetadata.new_data_and_metadata(numpy.random.rand(4, 3, 5, 16), dimensional_calibrations=dimensional_calibrations,
+                                                              data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 1))
+                data_item = DataItem.new_data_item(xdata)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                target_data_item = DataItem.new_data_item()
+                document_model.append_data_item(target_data_item)
+                computation = document_model.create_computation()
+                computation.processing_id = "_test_sum"
+                computation.create_input_item("src", Symbolic.make_item(display_item.display_data_channel), input_operation=Symbolic.ComputationInputOperation.from_operation_id("axes:datum"))
+                computation.create_output_item("target", Symbolic.make_item(target_data_item))
+                document_model.append_computation(computation)
+                document_model.recompute_all()
+                self.assertIsNone(computation.error_text)
+                # each spectrum gives a scalar, so the collection it was taken from becomes the datum.
+                self.assertEqual(DataAndMetadata.DataDescriptor(True, 0, 2), target_data_item.xdata.data_descriptor)
+                self.assertEqual(dimensional_calibrations[:3], list(target_data_item.xdata.dimensional_calibrations))
+                self.assertTrue(numpy.allclose(numpy.sum(xdata.data, axis=-1), target_data_item.data))
+        finally:
+            Symbolic.ComputationProcessor.unregister("_test_sum")
+
     def test_parameters_typed_extraction(self) -> None:
         region = Graphics.EmptyRegion()
         scalar_and_metadata = DataAndMetadata.ScalarAndMetadata.from_value(4.5, Calibration.Calibration(units="e"))
