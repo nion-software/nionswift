@@ -4328,6 +4328,8 @@ class IterationPlanResult:
     error_message: str | None
     axis_group_list: tuple[annotated_array.AxisGroup, ...] | None = None
     axis_index_selector_list_map: typing.Mapping[str, typing.Sequence[bool] | None] | None = None
+    # for each axis group the iteration goes over, store whether it is the sequence, the collection, or the datum of its source.
+    axis_group_roles: tuple[str, ...] = tuple()
 
     @property
     def iteration_shape_list(self) -> tuple[tuple[int, ...], ...]:
@@ -4403,10 +4405,12 @@ def compute_iteration_plan(computation_processor: ComputationProcessor, paramete
     # it matches the last dimensions of the overall iteration shape.
 
     axis_group_list = list[annotated_array.AxisGroup]()
+    axis_group_roles = list[str]()
     axis_index_selector_list_map = dict[str, typing.Sequence[bool] | None]()
 
     for source in computation_processor.sources:
         source_axis_group_list = list[annotated_array.AxisGroup]()
+        source_axis_group_roles = list[str]()
         data_source = parameters.get_data_source(source.name)
         input_operation = parameters.get_input_operation(source.name)
         if input_operation.is_display_operation:
@@ -4428,6 +4432,7 @@ def compute_iteration_plan(computation_processor: ComputationProcessor, paramete
                 return IterationPlanResult("Data does not meet computation requirements.")
             data_source_axis_group_list, axis_index_selector_list = axis_selection_info
             source_axis_group_list.extend(data_source_axis_group_list)
+            source_axis_group_roles = [role for role, is_iterated in zip(get_axis_set_data_metadata_list(data_metadata).keys(), axis_index_selector_list) if is_iterated]
             axis_index_selector_list_map[source.name] = axis_index_selector_list
         else:
             # handle the case where the selected axis set is not specified.
@@ -4446,6 +4451,7 @@ def compute_iteration_plan(computation_processor: ComputationProcessor, paramete
                 if axis_selection_info is not None:
                     data_source_axis_group_list, axis_index_selector_list = axis_selection_info
                     source_axis_group_list.extend(data_source_axis_group_list)
+                    source_axis_group_roles = [role for role, is_iterated in zip(get_axis_set_data_metadata_list(data_metadata).keys(), axis_index_selector_list) if is_iterated]
                     axis_index_selector_list_map[source.name] = axis_index_selector_list
                     accepted = True
             # fail
@@ -4454,9 +4460,11 @@ def compute_iteration_plan(computation_processor: ComputationProcessor, paramete
         # if no iteration shape is established, establish it first.
         if not axis_group_list:
             axis_group_list.extend(source_axis_group_list)
+            axis_group_roles.extend(source_axis_group_roles)
         # if the source is longer, but otherwise matches, it becomes the new iteration shape
         if len(source_axis_group_list) > len(axis_group_list) and source_axis_group_list[-len(axis_group_list):] == axis_group_list:
             axis_group_list = source_axis_group_list
+            axis_group_roles = source_axis_group_roles
         # if the source is shorter, but otherwise matches, it is compatible, and we keep the existing iteration shape
         elif len(axis_group_list) >= len(source_axis_group_list) and axis_group_list[-len(source_axis_group_list):] == source_axis_group_list:
             pass
@@ -4464,7 +4472,7 @@ def compute_iteration_plan(computation_processor: ComputationProcessor, paramete
         else:
             return IterationPlanResult("Mismatched iteration shapes between sources.")
 
-    return IterationPlanResult(None, tuple(axis_group_list), axis_index_selector_list_map)
+    return IterationPlanResult(None, tuple(axis_group_list), axis_index_selector_list_map, axis_group_roles=tuple(axis_group_roles))
 
 
 _ProcessedScalarType: typing.TypeAlias = bool | int | float | complex | str
@@ -4650,8 +4658,11 @@ def _run_iterated_processing(computation_processor: ComputationProcessor,
                              parameters: ComputationParameters,
                              execution_context: ComputationExecutorContext,
                              process_fn: typing.Callable[[ComputationParameters], _ProcessedDataMapType],
-                             filter_xdata_map: dict[str, DataAndMetadata.DataAndMetadata | None]) -> dict[str, annotated_array.AnnotatedArray]:
-    """Run iterated processing across the computed iteration shape and return accumulated outputs."""
+                             filter_xdata_map: dict[str, DataAndMetadata.DataAndMetadata | None]) -> tuple[dict[str, annotated_array.AnnotatedArray], tuple[str, ...]]:
+    """Run iterated processing across the computed iteration shape.
+
+    Return the accumulated outputs, and the role of each iterated axis group in its source.
+    """
     iteration_plan = compute_iteration_plan(computation_processor, parameters)
     if iteration_plan.error_message:
         raise ValueError(iteration_plan.error_message)
@@ -4670,7 +4681,32 @@ def _run_iterated_processing(computation_processor: ComputationProcessor,
         # don't starve other threads. 10us average sleep.
         if i % 100 == 0:
             time.sleep(0.001)
-    return accumulator.annotated_array_map
+    return accumulator.annotated_array_map, iteration_plan.axis_group_roles
+
+
+def _iterated_result_to_xdata(output_annotated_array: annotated_array.AnnotatedArray, axis_group_roles: typing.Sequence[str]) -> DataAndMetadata.DataAndMetadata:
+    """Return an iterated result as data and metadata, keeping it a sequence when its source was a sequence.
+
+    An iterated result is an annotated array, and its axis groups do not say which is the sequence, the collection, or the datum.
+    Converting a result with two axis groups to data and metadata makes the first a collection and the second the datum. Without
+    this function, applying a window to each spectrum of a sequence of spectra gives a collection of spectra rather than a
+    sequence of spectra.
+
+    axis_group_roles lists what each iterated axis group was in the source data: "sequence", "collection", or "datum". If the
+    first is "sequence", the result is made a sequence: its first axis is the sequence, its last axis group is the datum, and
+    any axis groups between them are the collection.
+    """
+    xdata = annotated_array.to_data_and_metadata(output_annotated_array)
+    axis_groups = output_annotated_array.descriptor.axis_groups
+    # this is needed only while the computation system produces data and metadata rather than annotated arrays.
+    if axis_group_roles and axis_group_roles[0] == "sequence" and len(axis_groups) >= 2 and not xdata.is_sequence:
+        collection_rank = sum(axis_group.rank for axis_group in axis_groups[1:-1])
+        data_descriptor = DataAndMetadata.DataDescriptor(True, collection_rank, axis_groups[-1].rank)
+        return DataAndMetadata.new_data_and_metadata(xdata.data, intensity_calibration=xdata.intensity_calibration,
+                                                     dimensional_calibrations=xdata.dimensional_calibrations, metadata=xdata.metadata,
+                                                     timestamp=xdata.timestamp, data_descriptor=data_descriptor,
+                                                     timezone=xdata.timezone, timezone_offset=xdata.timezone_offset)
+    return xdata
 
 
 class ComputationProcessorExecutor:
@@ -4678,6 +4714,7 @@ class ComputationProcessorExecutor:
         self.__computation = computation
         self.__computation_processor = computation_processor
         self.__annotated_array_map = dict[str, annotated_array.AnnotatedArray]()
+        self.__axis_group_roles = tuple[str, ...]()
         self.__filter_xdata_map = dict[str, DataAndMetadata.DataAndMetadata | None]()
 
     def __process(self, parameters: ComputationParameters) -> _ProcessedDataMapType:
@@ -4705,7 +4742,7 @@ class ComputationProcessorExecutor:
         return result
 
     def execute_task(self, execution_context: ComputationExecutorContext) -> None:
-        self.__annotated_array_map = _run_iterated_processing(
+        self.__annotated_array_map, self.__axis_group_roles = _run_iterated_processing(
             self.__computation_processor,
             execution_context.parameters,
             execution_context,
@@ -4719,7 +4756,7 @@ class ComputationProcessorExecutor:
             key = output.name
             output_annotated_array = self.__annotated_array_map.get(key, None)
             if output_annotated_array:
-                xdata = annotated_array.to_data_and_metadata(output_annotated_array)
+                xdata = _iterated_result_to_xdata(output_annotated_array, self.__axis_group_roles)
                 self.__computation.set_referenced_xdata(key, xdata)
 
 
@@ -4729,6 +4766,7 @@ class _ComputationAPIV1ExecutorHandler:
         self.__executor = executor
         self.__computation_processor = computation_processor
         self.__annotated_array_map = dict[str, annotated_array.AnnotatedArray]()
+        self.__axis_group_roles = tuple[str, ...]()
         self.__filter_xdata_map = dict[str, DataAndMetadata.DataAndMetadata | None]()
 
     def __execute_component(self, component_parameters: ComputationParameters) -> _ProcessedDataMapType:
@@ -4736,7 +4774,7 @@ class _ComputationAPIV1ExecutorHandler:
         return self.__executor.execute(packed)
 
     def execute_task(self, context: ComputationExecutorContext) -> None:
-        self.__annotated_array_map = _run_iterated_processing(
+        self.__annotated_array_map, self.__axis_group_roles = _run_iterated_processing(
             self.__computation_processor,
             context.parameters,
             context,
@@ -4746,7 +4784,7 @@ class _ComputationAPIV1ExecutorHandler:
 
     def commit(self) -> None:
         for key, output_annotated_array in self.__annotated_array_map.items():
-            xdata = annotated_array.to_data_and_metadata(output_annotated_array)
+            xdata = _iterated_result_to_xdata(output_annotated_array, self.__axis_group_roles)
             self.__computation.set_referenced_xdata(key, xdata)
 
 
