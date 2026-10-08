@@ -4352,7 +4352,7 @@ class IterationPlanResult:
         for axis_group in self.axis_group_list:
             for axis_index, _axis in enumerate(axis_group.axes):
                 affine_calibration = axis_group.get_calibration(axis_index)
-                calibration = Calibration.Calibration(affine_calibration.scale, affine_calibration.offset, affine_calibration.unit) if isinstance(affine_calibration, annotated_array.AffineCalibration) else Calibration.Calibration()
+                calibration = Calibration.Calibration(offset=affine_calibration.offset, scale=affine_calibration.scale, units=affine_calibration.unit) if isinstance(affine_calibration, annotated_array.AffineCalibration) else Calibration.Calibration()
                 calibrations.append(calibration)
         return tuple(calibrations)
 
