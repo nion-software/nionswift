@@ -7,6 +7,7 @@ or extend the computation API itself.
 
 from __future__ import annotations
 
+import dataclasses
 import typing
 
 import numpy
@@ -17,11 +18,25 @@ from nion.swift.model import Symbolic
 from nion.swift.model.computation_api import v1 as computation_api
 
 
+def _rgb_to_fft_grey(source: annotated_array.AnnotatedArray) -> annotated_array.AnnotatedArray:
+    """Return RGB or RGBA data as the double precision grey values the FFT of the colour data transforms.
+
+    The weights 0.2126, 0.7152 and 0.0722 are applied to the blue, green and red channels, with no weight for alpha. This
+    is the reverse of the usual luminance weights, but it gives the same FFT as earlier versions.
+    """
+    data = numpy.asarray(source.data)
+    grey_data = data["b"] * 0.2126 + data["g"] * 0.7152 + data["r"] * 0.0722
+    grey_descriptor = dataclasses.replace(source.descriptor, value_type=annotated_array.ValueType.SCALAR)
+    return annotated_array.AnnotatedArray(data=grey_data, descriptor=grey_descriptor, metadata=source.metadata)
+
+
 class FFTExecutor(computation_api.Executor):
-    """Execute the built-in FFT computation."""
+    """Execute the built-in FFT computation. The FFT of RGB or RGBA data is the FFT of its grey values."""
 
     def execute(self, parameters: computation_api.Parameters) -> typing.Mapping[str, typing.Any]:
         source = parameters.get_annotated_array("src")
+        if source.descriptor.value_type in (annotated_array.ValueType.RGB, annotated_array.ValueType.RGBA):
+            source = _rgb_to_fft_grey(source)
         return {"target": primitives.fft(source)}
 
 
