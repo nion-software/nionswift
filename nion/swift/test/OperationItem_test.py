@@ -485,6 +485,24 @@ class TestProcessingClass(unittest.TestCase):
                     self.assertEqual(numpy.dtype(numpy.complex128), fft_data_item.xdata.data.dtype)
                     numpy.testing.assert_allclose(expected_data, fft_data_item.xdata.data, atol=1e-9)
 
+    def test_window_functions_and_fourier_filter_refuse_rgb_source(self):
+        processing_functions = {
+            "gaussian window": lambda document_model: document_model.get_gaussian_window_new,
+            "hamming window": lambda document_model: document_model.get_hamming_window_new,
+            "hann window": lambda document_model: document_model.get_hann_window_new,
+            "fourier filter": lambda document_model: document_model.get_fourier_filter_new,
+        }
+        for name, get_processing_function in processing_functions.items():
+            with self.subTest(name=name):
+                with TestContext.create_memory_context() as test_context:
+                    document_model = test_context.create_document_model()
+                    data_item = DataItem.DataItem(numpy.zeros((6, 10, 3), numpy.uint8))
+                    document_model.append_data_item(data_item)
+                    display_item = document_model.get_display_item_for_data_item(data_item)
+                    self.assertIsNone(get_processing_function(document_model)(display_item, display_item.data_item))
+                    self.assertEqual(0, len(document_model.computations))
+                    self.assertEqual(1, len(document_model.data_items))
+
     def test_convert_complex128_to_scalar_results_in_float64(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
