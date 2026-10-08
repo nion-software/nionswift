@@ -2740,7 +2740,7 @@ class Computation(Persistence.PersistentObject):
                 api_object = api._new_api_object(resolved_object) if resolved_object else None
                 computation_parameter_value = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
                 computation_parameter_dict[variable.name] = ComputationParameter(computation_parameter_value, variable.input_operation)
-                is_resolved = resolved_object is not None
+                is_resolved = is_resolved and resolved_object is not None
             else:
                 is_resolved = False
         for result in self.results:
