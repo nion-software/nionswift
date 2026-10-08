@@ -1132,6 +1132,22 @@ class TestProcessingClass(unittest.TestCase):
             document_model.get_mapped_sum_new(display_item, display_item.data_item, crop_region)
             document_model.recompute_all()
 
+    def test_mapped_sum_and_mapped_average_refuse_rgb_source(self):
+        processing_functions = {
+            "mapped sum": lambda document_model: document_model.get_mapped_sum_new,
+            "mapped average": lambda document_model: document_model.get_mapped_average_new,
+        }
+        for name, get_processing_function in processing_functions.items():
+            with self.subTest(name=name):
+                with TestContext.create_memory_context() as test_context:
+                    document_model = test_context.create_document_model()
+                    data_item = DataItem.DataItem(numpy.zeros((16, 16, 3), numpy.uint8))
+                    document_model.append_data_item(data_item)
+                    display_item = document_model.get_display_item_for_data_item(data_item)
+                    self.assertIsNone(get_processing_function(document_model)(display_item, display_item.data_item))
+                    self.assertEqual(0, len(document_model.computations))
+                    self.assertEqual(1, len(document_model.data_items))
+
     def test_line_profile_on_sequence_works(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
