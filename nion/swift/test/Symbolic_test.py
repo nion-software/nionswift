@@ -1954,6 +1954,28 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(evaluation_count, computation._evaluation_count_for_test)
 
+    def test_computation_with_an_unresolved_input_before_a_resolved_one_does_not_run(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.random.rand(16, 16)))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            # the first input refers to a graphic the project does not have; the last input, src, resolves.
+            missing_specifier = Symbolic.read_specifier({"type": "graphic-specifier", "version": 1, "reference_uuid": str(uuid.uuid4())})
+            unresolved_variable = Symbolic.ComputationVariable("region", specifier=missing_specifier)
+            computation.add_variable(unresolved_variable)
+            src_variable = computation.create_input_item("src", Symbolic.make_item(data_item))
+            computation.processing_id = "fft"
+            target_data_item = DataItem.new_data_item()
+            document_model.append_data_item(target_data_item)
+            computation.create_output_item("target", Symbolic.make_item(target_data_item))
+            document_model.append_computation(computation)
+            self.assertFalse(unresolved_variable.is_resolved)
+            self.assertTrue(src_variable.is_resolved)
+            document_model.recompute_all()
+            self.assertEqual("Missing parameters.", computation.error_text)
+            self.assertIsNone(target_data_item.data)
+
     class SlowComputation:
         def __init__(self, started_event: threading.Event, continue_event: threading.Event, computation, **kwargs):
             self.computation = computation
