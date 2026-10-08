@@ -1966,6 +1966,21 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_item1, document_model.data_items[0])
             self.assertEqual(0, len(document_model.computations))
 
+    def test_deleting_an_unrelated_item_keeps_a_computation_without_inputs(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            target_data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(target_data_item)
+            computation = document_model.create_computation()
+            computation.create_variable("x", value_type=Symbolic.ComputationVariableType.REAL, value=1.0)
+            computation.create_output_item("dst", Symbolic.make_item(target_data_item))
+            document_model.append_computation(computation)
+            other_data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(other_data_item)
+            document_model.remove_data_item(other_data_item)
+            self.assertEqual([computation], list(document_model.computations))
+            self.assertEqual([target_data_item], list(document_model.data_items))
+
     def test_new_computation_with_missing_processor_fails_gracefully(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

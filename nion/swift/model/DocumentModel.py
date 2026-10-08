@@ -1195,11 +1195,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 for computation in copy.copy(self.computations):
                     input_deleted = not items_set.isdisjoint(computation.direct_input_items)
                     output_deleted = not items_set.isdisjoint(computation.output_items)
+                    # a computation that never had inputs, such as one fed only by literals, has none to lose.
+                    all_inputs_deleted = bool(computation._inputs) and computation._inputs <= items_set
                     computation._inputs -= items_set
                     computation._outputs -= items_set
                     if computation not in items:
                         # computations are auto deleted if any input or output is deleted.
-                        if output_deleted or not computation._inputs or input_deleted:
+                        if output_deleted or all_inputs_deleted or input_deleted:
                             # if the computation is running and not committing, use soft_delete to delete it when finished.
                             if computation.is_running:
                                 # if the computation is committing, the computation soft delete is not triggered since
