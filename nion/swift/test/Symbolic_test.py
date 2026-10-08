@@ -2413,6 +2413,22 @@ class TestSymbolicClass(unittest.TestCase):
         self.assertEqual((2, 2), annotated_array_out.data.shape)
         numpy.testing.assert_array_equal(numpy.asarray([[1, 2], [3, 4]], dtype=numpy.int32), annotated_array_out.data)
 
+    def test_mapped_sum_keeps_the_offset_and_scale_of_the_navigation_axes(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            navigation_calibrations = [Calibration.Calibration(offset=-3.0, scale=0.5, units="nm"), Calibration.Calibration(offset=2.0, scale=0.25, units="nm")]
+            xdata = DataAndMetadata.new_data_and_metadata(numpy.ones((3, 4, 8)),
+                                                          dimensional_calibrations=navigation_calibrations + [Calibration.Calibration(offset=1.0, scale=2.0, units="eV")],
+                                                          data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1))
+            data_item = DataItem.new_data_item(xdata)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            mapped_data_item = document_model.get_mapped_sum_new(display_item, data_item)
+            document_model.recompute_all()
+            self.assertIsNone(document_model.computations[-1].error_text)
+            self.assertEqual((3, 4), mapped_data_item.data_shape)
+            self.assertEqual(navigation_calibrations, list(mapped_data_item.dimensional_calibrations))
+
     def test_compute_on_iterable_item_with_no_selected_axis(self):
         p = Symbolic.ComputationProcessor(
             expression="output = numpy.sum(input)",
