@@ -467,6 +467,24 @@ class TestProcessingClass(unittest.TestCase):
                 self.assertEqual(fft_data_ref.data.shape, (16, 16))
                 self.assertEqual(fft_data_ref.data.dtype, numpy.dtype(numpy.complex128))
 
+    def test_fft_of_rgb_and_rgba_data_is_the_fft_of_grey_values_weighted_in_stored_channel_order(self):
+        # the weights 0.2126, 0.7152 and 0.0722 apply to the stored blue, green and red channels, as in earlier versions.
+        for channel_count in (3, 4):
+            with self.subTest(channel_count=channel_count):
+                with TestContext.create_memory_context() as test_context:
+                    document_model = test_context.create_document_model()
+                    data = numpy.random.default_rng(0).integers(0, 256, (6, 10, channel_count)).astype(numpy.uint8)
+                    data_item = DataItem.DataItem(data)
+                    document_model.append_data_item(data_item)
+                    display_item = document_model.get_display_item_for_data_item(data_item)
+                    fft_data_item = document_model.get_fft_new(display_item, display_item.data_item)
+                    document_model.recompute_all()
+                    self.assertIsNone(document_model.computations[0].error_text)
+                    grey_data = 0.2126 * data[..., 0] + 0.7152 * data[..., 1] + 0.0722 * data[..., 2]
+                    expected_data = numpy.fft.fftshift(numpy.fft.fft2(grey_data)) / numpy.sqrt(6 * 10)
+                    self.assertEqual(numpy.dtype(numpy.complex128), fft_data_item.xdata.data.dtype)
+                    numpy.testing.assert_allclose(expected_data, fft_data_item.xdata.data, atol=1e-9)
+
     def test_convert_complex128_to_scalar_results_in_float64(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
