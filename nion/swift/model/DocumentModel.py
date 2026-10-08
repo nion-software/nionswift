@@ -2378,6 +2378,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             requirement_is_sequence = {"type": "is_sequence"}
             requirement_is_navigable = {"type": "is_navigable"}
             requirement_is_not_sequence = {"type": "bool", "operator": "not", "operands": [requirement_is_sequence]}
+            requirement_is_not_rgb_type = {"type": "bool", "operator": "not", "operands": [requirement_is_rgb_type]}
             requirement_4d_if_sequence_else_3d = {"type": "bool", "operator": "or",
                                                   "operands": [{"type": "bool", "operator": "and",
                                                                 "operands": [requirement_is_not_sequence, requirement_3d]},
@@ -2479,8 +2480,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True, "requirements": [requirement_2d]}]}
             vs["power-spectrum"] = {"title": _("Radial Power Spectrum"), "expression": "xd.radial_profile(xd.power(xd.absolute(xd.fft({src}.cropped_display_xdata)), 2))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "cropped_display_xdata", "croppable": True, "requirements": [requirement_2d]}]}
+            # the filter of RGB data has no meaning, so it is refused.
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}.filtered_xdata))",
-                "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [requirement_2d]}]}
+                "sources": [{"name": "src", "label": _("Source"), "data_type": "filtered_xdata", "requirements": [requirement_2d, requirement_is_not_rgb_type]}]}
             vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_squeeze_measurement(xd.sequence_measure_relative_translation({src}.xdata, {src}.xdata[numpy.unravel_index(0, {src}.xdata.navigation_dimension_shape)], 100))",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata", "requirements": [requirement_2d_to_3d]}]}
             vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}.xdata)",
