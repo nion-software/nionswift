@@ -1798,7 +1798,7 @@ def get_position_and_value_text(display_data_channel: DisplayItem.DisplayDataCha
     intensity_calibration = display_calibration_info.displayed_intensity_calibration if display_calibration_info else Calibration.Calibration()
 
     if not all(map(operator.attrgetter("is_valid"), dimensional_calibrations)):
-        dimensional_calibrations = [Calibration.Calibration() for _ in dimensional_calibrations]
+        dimensional_calibrations = [Calibration.Calibration() for _calibration in dimensional_calibrations]
 
     if not intensity_calibration.is_valid:
         intensity_calibration = Calibration.Calibration()
