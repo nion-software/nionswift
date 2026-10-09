@@ -565,8 +565,8 @@ class Workspace:
                 self._remove_display_panel(display_panel, None)
         self.document_controller.push_undo_command(command)
 
-    def clear_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> None:
-        command = ChangeWorkspaceContentsCommand(self, _("Clear Display Panel Contents"))
+    def clear_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel], title: str) -> None:
+        command = ChangeWorkspaceContentsCommand(self, title)
         d = {"type": "image", "display-panel-type": "empty-display-panel"}
         for display_panel in display_panels:
             display_panel.change_display_panel_content(d)

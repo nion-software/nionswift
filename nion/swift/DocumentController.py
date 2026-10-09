@@ -3960,7 +3960,7 @@ class DisplayPanelCenterGraphicsAction(Window.Action):
 
 class DisplayPanelClearAction(Window.Action):
     action_id = "display_panel.clear"
-    action_name = _("Clear Display Panel Contents")
+    action_name = _("Clear Display Panel Content")
     action_command_icon_png = pkgutil.get_data(__name__, "resources/workspace_clear.png")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
@@ -3968,15 +3968,22 @@ class DisplayPanelClearAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         workspace_controller = window.workspace_controller
         assert  workspace_controller
+        title = self.get_action_name(context)
         if context.display_panel:
-            workspace_controller.clear_display_panels([context.display_panel])
+            workspace_controller.clear_display_panels([context.display_panel], title)
         else:
-            workspace_controller.clear_display_panels(context.display_panels)
+            workspace_controller.clear_display_panels(context.display_panels, title)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
         return len(context.display_items) > 0 or context.display_item is not None
+
+    def get_action_name(self, context: Window.ActionContext) -> str:
+        context = typing.cast(DocumentController.ActionContext, context)
+        if context.display_panel or len(context.display_panels) <= 1:
+            return _("Clear Display Panel Content")
+        return _("Clear Display Panels Content")
 
 
 class DisplayPanelCloseAction(Window.Action):
