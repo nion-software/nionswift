@@ -41,6 +41,7 @@ from nion.swift.model import Activity
 from nion.swift.model import DataItem
 from nion.swift.model import DataStructure
 from nion.swift.model import DisplayItem
+from nion.swift.model import Feature
 from nion.swift.model import Graphics
 from nion.swift.model import Model
 from nion.swift.model import Notification
@@ -4321,6 +4322,18 @@ class VariantGroup:
     @classmethod
     def group_for_processing_id(cls, processing_id: typing.Optional[str]) -> typing.Optional["VariantGroup"]:
         return cls._group_by_processing_id.get(processing_id) if processing_id else None
+
+
+# the optional feature which lets new computations and the inspector use the executor path's input operations and iteration.
+# it decides only what new computations are and what the inspector offers; a stored computation computes the same either way.
+computation_executors_feature_id = "feature.computation_executors"
+
+Feature.FeatureManager().add_feature(Feature.Feature(computation_executors_feature_id, _("Computation input operations and iteration over axis groups."), False))
+
+
+# return whether the computation executors feature is enabled.
+def is_computation_executors_feature_enabled() -> bool:
+    return Feature.FeatureManager().is_feature_enabled(computation_executors_feature_id)
 
 
 @dataclasses.dataclass
