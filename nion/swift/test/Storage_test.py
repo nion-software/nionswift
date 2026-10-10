@@ -4540,12 +4540,11 @@ class TestStorageClass(unittest.TestCase):
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_item._set_persistent_property_value("title", "ABC")
             # read it back
-            computation_d = profile_context.project_properties["computations"][0]
-            computation_d["processing_id"] = "hamming_window"
-            computation_d["variables"].append({"type": "variable", "uuid": "b4629983-e972-42cd-9fb7-1d0b455fbc2c", "name": "mapping", "value_type": "string", "value": "mapped"})
-            computation_d = profile_context.project_properties["computations"][1]
-            computation_d["processing_id"] = "hamming_window"
-            computation_d["variables"].append({"type": "variable", "uuid": "b4629983-e972-42cd-9fb7-1d0b455fbc2c", "name": "mapping", "value_type": "string", "value": "none"})
+            # write both computations in the form of an earlier version: variables src and mapping.
+            for computation_d, mapping in zip(profile_context.project_properties["computations"], ("mapped", "none")):
+                computation_d["processing_id"] = "hamming_window"
+                computation_d["variables"] = [variable_d for variable_d in computation_d["variables"] if variable_d["name"] != "mapping"]
+                computation_d["variables"].append({"type": "variable", "uuid": "b4629983-e972-42cd-9fb7-1d0b455fbc2c", "name": "mapping", "value_type": "string", "value": mapping})
             profile_context.project_properties = None  # ensure the project properties are reloaded from project reference
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
@@ -4584,6 +4583,20 @@ class TestStorageClass(unittest.TestCase):
             computation_d = profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"][0]
             variables_d = {variable_d["name"]: variable_d for variable_d in computation_d["variables"]}
             self.assertEqual({"src", "sigma", "mapping"}, set(variables_d))
+            self.assertEqual("none", variables_d["mapping"]["value"])
+
+    def test_new_window_computes_the_displayed_element_and_saves_it_as_not_mapped(self) -> None:
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_and_metadata = DataAndMetadata.new_data_and_metadata(data=numpy.ones((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1))
+                data_item = DataItem.new_data_item(data_and_metadata)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                window_data_item = document_model.get_hann_window_new(display_item, data_item)
+                document_model.recompute_all()
+                self.assertEqual((4, 6), window_data_item.data.shape)
+            variables_d = {variable_d["name"]: variable_d for variable_d in profile_context.project_properties["computations"][0]["variables"]}
             self.assertEqual("none", variables_d["mapping"]["value"])
 
     def test_migrate_scalar_functions(self):

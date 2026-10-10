@@ -417,11 +417,10 @@ class DataSourceVariableHandler(Declarative.Handler):
         # the input operation choices include the data shape, so they can be wider than the compact layout allows.
         input_operation_combo_box = u.create_combo_box(items_ref="input_operation_items", current_index="@binding(input_operation_index)", max_width=COMPACT_FIELD_MAX_WIDTH) if compact else u.create_combo_box(items_ref="input_operation_items", current_index="@binding(input_operation_index)")
         axis_set_chooser = u.create_column(
-            u.create_label(text=_("Input Operation")),
+            u.create_label(text="@binding(input_operation_label)"),
             input_operation_combo_box,
             u.create_stretch(),
-            # Show input operation choices only when this source can iterate across axis sets.
-            visible = "@binding(variable.is_iterable)"
+            visible="@binding(is_input_operation_visible)"
         )
         self.ui_view = u.create_column(label, data_source_chooser, axis_set_chooser, spacing=8)
         self.__property_changed_listener = variable.property_changed_event.listen(self.__property_changed)
@@ -433,6 +432,7 @@ class DataSourceVariableHandler(Declarative.Handler):
     def __property_changed(self, property_name: str) -> None:
         if property_name in ("specified_object", "secondary_specified_object"):
             self.property_changed_event.fire("display_item")
+            self.property_changed_event.fire("is_input_operation_visible")
         if property_name in ("secondary_specified_object",):
             self.property_changed_event.fire("crop_enabled")
 
@@ -555,10 +555,31 @@ class DataSourceVariableHandler(Declarative.Handler):
         pass
 
     @property
+    def is_input_operation_visible(self) -> bool:
+        """Return whether the input operation choice is shown: only when the source can iterate across axis sets.
+
+        A mapped sum or average always computes each datum, so it offers no choice.
+        """
+        return self.variable.is_iterable and not self.computation.is_always_mapped
+
+    @property
+    def input_operation_label(self) -> str:
+        """Return the label above the input operation choice, which names the mapping choice of a window."""
+        return _("Sequence/Collection Mapping") if self.computation.has_mapping_choice else _("Input Operation")
+
+    @property
     def input_operation_items_state(self) -> tuple[typing.Sequence[tuple[Symbolic.ComputationInputOperation, str]], int | None]:
-        """Build selectable input operation choices and current selection for iterable data-source inputs."""
+        """Build selectable input operation choices and current selection for iterable data-source inputs.
+
+        A window offers only to compute the displayed element (not mapped) or each datum (mapped), the two choices an
+        earlier version can read from the saved project.
+        """
         display_item = self.display_item
         choices = list[tuple[Symbolic.ComputationInputOperation, str]]()
+        if self.computation.has_mapping_choice:
+            choices.append((Symbolic.ComputationInputOperation.create_display_operation(), _("Not mapped")))
+            choices.append((Symbolic.ComputationInputOperation.create_axis_set_operation("datum"), _("Mapped")))
+            return tuple(choices), 1 if self.variable.input_operation.axis_set_id == "datum" else 0
         computation_processor = self.computation.computation_processor
         processor_data_input = computation_processor.get_source(self.variable.name) if computation_processor else None
         display_info = display_item.display_info_stream.value if display_item else None
