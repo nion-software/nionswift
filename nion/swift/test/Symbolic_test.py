@@ -2625,6 +2625,27 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(Utility.get_local_timezone(), window_data_item.timezone)
             self.assertEqual(Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), window_data_item.timezone_offset)
 
+    def test_window_and_mapped_sum_results_record_their_computation_as_an_earlier_version_did(self) -> None:
+        # an earlier version records its own processing id and, for a window, the mapping between the source and sigma.
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            unmapped_data_item = document_model.get_gaussian_window_new(display_item, data_item)
+            mapped_data_item = document_model.get_gaussian_window_new(display_item, data_item)
+            document_model.computations[-1].variables[0].input_operation = Symbolic.ComputationInputOperation.create_axis_set_operation("datum")
+            sum_data_item = document_model.get_mapped_sum_new(display_item, data_item)
+            document_model.recompute_all()
+            for window_data_item, mapping in ((unmapped_data_item, "none"), (mapped_data_item, "mapped")):
+                computation_d = window_data_item.metadata["computation"]
+                self.assertEqual("gaussian_window", computation_d["computation_id"])
+                self.assertEqual(["src", "mapping", "sigma"], [parameter_d["name"] for parameter_d in computation_d["parameters"]])
+                self.assertEqual({"parameter_type": "value", "name": "mapping", "value_type": "string", "value": mapping}, computation_d["parameters"][1])
+            computation_d = sum_data_item.metadata["computation"]
+            self.assertEqual("mapped_sum", computation_d["computation_id"])
+            self.assertEqual(["src"], [parameter_d["name"] for parameter_d in computation_d["parameters"]])
+
     # TODO: test broadcasting, including using display data
 
     # TODO: test multuiple output shapes
