@@ -25,6 +25,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
+from nion.utils import Geometry
 from nion.utils import Recorder
 
 
@@ -2612,6 +2613,71 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertIsNotNone(document_model.get_processing_new("_test_identity", display_item, data_item))
         finally:
             Symbolic.ComputationProcessor.unregister("_test_identity")
+
+    def test_processing_description_from_earlier_version_computes_its_expression_from_the_data_source(self):
+        # a plug-in description written for an earlier version gives a source no data type and reads src.xdata.
+        DocumentModel.DocumentModel.register_processing_descriptions({
+            "_test_description_expression": {"title": "Test", "expression": "src.xdata * 2", "sources": [{"name": "src", "label": "Source"}]}
+        })
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_model = test_context.create_document_model()
+                data = numpy.random.randn(6, 10)
+                data_item = DataItem.DataItem(data)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                new_data_item = document_model.get_processing_new("_test_description_expression", display_item, data_item)
+                document_model.recompute_all()
+                self.assertTrue(numpy.array_equal(data * 2, new_data_item.data))
+        finally:
+            DocumentModel.DocumentModel.unregister_processing_descriptions(["_test_description_expression"])
+
+    class SumDatums:
+        attributes = {"connection_type": "map"}
+
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+            self.__data = None
+
+        def execute(self, *, src, map_threshold, **kwargs):
+            self.__data = numpy.sum(src.xdata.data, axis=(2, 3)) * map_threshold
+
+        def commit(self):
+            self.computation.set_referenced_data("target", self.__data)
+
+    def test_processing_description_without_attributes_uses_those_of_its_computation_class(self):
+        # a 4d map plug-in registers a description with no attributes and any source names, and declares the map
+        # connection on its computation class. the result's pick then follows the source's collection index.
+        Symbolic.register_computation_type("_test_sum_datums", self.SumDatums)
+        DocumentModel.DocumentModel.register_processing_descriptions({
+            "_test_sum_datums": {"title": "Test", "sources": [{"name": "src", "label": "Source", "data_type": "xdata"}, {"name": "map_threshold", "label": "Threshold"}]}
+        })
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_model = test_context.create_document_model()
+                data = numpy.random.randn(4, 5, 6, 7)
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(data, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                display_data_channel = display_item.display_data_channel
+                map_data_item = DataItem.DataItem(numpy.zeros((4, 5)))
+                document_model.append_data_item(map_data_item)
+                computation = document_model.create_computation()
+                computation.create_input_item("src", Symbolic.make_item(display_data_channel))
+                computation.create_variable("map_threshold", value_type="real", value=2.0)
+                computation.processing_id = "_test_sum_datums"
+                document_model.set_data_item_computation(map_data_item, computation)
+                map_display_item = document_model.get_display_item_for_data_item(map_data_item)
+                pick_graphic = Graphics.PointGraphic()
+                pick_graphic.role = "collection_index"
+                map_display_item.add_graphic(pick_graphic)
+                document_model.recompute_all()
+                self.assertTrue(numpy.allclose(numpy.sum(data, axis=(2, 3)) * 2.0, map_data_item.data))
+                display_data_channel.collection_index = (3, 1)
+                self.assertEqual(Geometry.FloatPoint(y=3 / 4, x=1 / 5), pick_graphic.position)
+        finally:
+            DocumentModel.DocumentModel.unregister_processing_descriptions(["_test_sum_datums"])
+            Symbolic._computation_types.pop("_test_sum_datums")
 
     def test_mapped_sum_connector_on_invalid_data(self):
         with TestContext.create_memory_context() as test_context:

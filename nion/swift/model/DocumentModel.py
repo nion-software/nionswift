@@ -2358,8 +2358,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
 
     @classmethod
     def register_processing_descriptions(cls, processing_descriptions: typing.Dict[str, typing.Any]) -> None:
+        # a registered description runs as an earlier version ran it: its expression as a script, or else its
+        # computation class.
         for processing_id, d in processing_descriptions.items():
-            Symbolic.ComputationProcessor.register(processing_id, Symbolic.ComputationProcessor.from_dict(d))
+            computation_processor = Symbolic.ComputationProcessor.from_dict(d)
+            computation_processor.old_built_in = True
+            Symbolic.ComputationProcessor.register(processing_id, computation_processor)
 
     @classmethod
     def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]) -> None:
