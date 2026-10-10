@@ -2295,9 +2295,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 secondary_item = graphic
             display_data_channel = in_display_item.get_display_data_channel_for_data_item(data_item) if data_item else None
             input_operation: Symbolic.ComputationInputOperation | None = None
-            if src.name in Model.display_data_processors.get(processing_id, []):
-                # Backward compatibility: these legacy sources default to display-based input semantics.
-                input_operation = Symbolic.ComputationInputOperation.create_display_operation()
             if processing_id in Model.window_processing_ids:
                 # a new window computes the displayed element until it is set to be mapped.
                 input_operation = Symbolic.ComputationInputOperation.create_display_operation()

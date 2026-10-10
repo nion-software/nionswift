@@ -346,43 +346,6 @@ reverse_processing_id_update_map = {v: k for k, v in processing_id_update_map.it
 window_processing_ids = ("gaussian-window", "hamming-window", "hann-window")
 mapped_processing_ids = ("mapped-sum", "mapped-average")
 
-# Backward-compatibility map for processing IDs whose listed sources default to display-based input semantics.
-display_data_processors = {
-    "add": ["src1", "src2"],
-    "auto-correlate": ["src"],
-    "convert-to-scalar": ["src"],
-    "crop": ["src"],
-    "cross-correlate": ["src1", "src2"],
-    "divide": ["src1", "src2"],
-    "extract-luminance": ["src"],
-    "extract-red": ["src"],
-    "extract-green": ["src"],
-    "extract-blue": ["src"],
-    "extract-alpha": ["src"],
-    "fft": ["src"],
-    "gaussian-blur": ["src"],
-    "histogram": ["src"],
-    "invert": ["src"],
-    "laplace": ["src"],
-    "line-profile": ["src"],
-    "make-rgb": ["src_red", "src_green", "src_blue"],
-    "median-filter": ["src"],
-    "multiply": ["src1", "src2"],
-    "power-spectrum": ["src"],
-    "radial-profile": ["src"],
-    "rebin": ["src"],
-    "rebin_factor": ["src"],
-    "rebin_factor_1d": ["src"],
-    "resample": ["src"],
-    "resize": ["src"],
-    "slice": ["src"],
-    "sobel": ["src"],
-    "subtract": ["src1", "src2"],
-    "sum": ["src"],
-    "transpose-flip": ["src"],
-    "uniform-filter": ["src"],
-}
-
 
 def transform_forward(d: PersistentDictType) -> PersistentDictType:
     # ensure the display_layer has a uuid and modified and looks like a regular entity.
@@ -443,12 +406,7 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
         if processing_id:
             variables_l = computation_d.get("variables", None)
             if variables_l is not None:
-                # ensure input operation is set if display
                 variable_map = {variable_d["name"]: variable_d for variable_d in variables_l}
-                for name in display_data_processors.get(processing_id, list()):
-                    variable_d = variable_map.get(name, None)
-                    if variable_d is not None and "input_operation" not in variable_d:
-                        variable_d["input_operation"] = "display"
                 # a window or mapped computation of an earlier version has a src and a mapping variable. other variables,
                 # such as the sigma of a Gaussian window, are parameters of the operation and stay as they are.
                 src_variable_d = variable_map.get("src", None)

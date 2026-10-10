@@ -1896,7 +1896,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(computation.processing_id, "fft")
                 self.assertEqual(len(computation.variables), 1)
                 self.assertEqual(computation.get_input_data_item("src"), document_model.data_items[0])
-                self.assertEqual("display", computation._get_variable("src").input_operation.operation_id)
+                self.assertIsNone(computation._get_variable("src").input_operation.operation_id)
                 self.assertEqual(computation.get_output("target"), document_model.data_items[1])
                 data = numpy.arange(64).reshape((8, 8))
                 document_model.data_items[0].set_data(data)
@@ -4598,6 +4598,27 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual((4, 6), window_data_item.data.shape)
             variables_d = {variable_d["name"]: variable_d for variable_d in profile_context.project_properties["computations"][0]["variables"]}
             self.assertEqual("none", variables_d["mapping"]["value"])
+
+    def test_built_in_running_as_a_script_is_saved_without_an_input_operation_also_after_reload(self) -> None:
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_and_metadata = DataAndMetadata.new_data_and_metadata(data=numpy.ones((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1))
+                data_item = DataItem.new_data_item(data_and_metadata)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_invert_new(display_item, data_item)
+                document_model.get_fft_new(display_item, data_item)
+                document_model.recompute_all()
+            for computation_d in profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"]:
+                self.assertNotIn("input_operation", computation_d["variables"][0])
+            profile_context.project_properties = None  # ensure the project properties are reloaded from project reference
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                for computation in document_model.computations:
+                    computation.label = computation.label + " changed"  # an edit, so the computation is written again
+            for computation_d in profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"]:
+                self.assertNotIn("input_operation", computation_d["variables"][0])
 
     def test_mapped_sum_is_saved_without_a_script_also_after_reload(self) -> None:
         with create_memory_profile_context() as profile_context:
