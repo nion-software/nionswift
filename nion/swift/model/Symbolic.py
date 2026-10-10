@@ -2383,6 +2383,12 @@ class Computation(Persistence.PersistentObject):
         return self.processing_id in Model.mapped_processing_ids
 
     @property
+    def is_on_executor_path(self) -> bool:
+        """Return whether the computation runs on the executor path: its processor exists and is not an old built-in."""
+        computation_processor = self.computation_processor
+        return computation_processor is not None and not computation_processor.old_built_in
+
+    @property
     def label(self) -> typing.Optional[str]:
         """Return the label for this computation.
 

@@ -558,9 +558,15 @@ class DataSourceVariableHandler(Declarative.Handler):
     def is_input_operation_visible(self) -> bool:
         """Return whether the input operation choice is shown: only when the source can iterate across axis sets.
 
-        A mapped sum or average always computes each datum, so it offers no choice.
+        A window offers its mapping choice. A mapped sum or average always computes each datum, so it offers no choice.
+        Other computations offer the choice only with the computation executors feature, and only on the executor path,
+        since a script does not iterate.
         """
-        return self.variable.is_iterable and not self.computation.is_always_mapped
+        if self.computation.is_always_mapped:
+            return False
+        if self.computation.has_mapping_choice:
+            return self.variable.is_iterable
+        return Symbolic.is_computation_executors_feature_enabled() and self.computation.is_on_executor_path and self.variable.is_iterable
 
     @property
     def input_operation_label(self) -> str:
@@ -1451,6 +1457,7 @@ class ComputationInspectorModel(Observable.Observable):
     - is_custom: a boolean indicating whether the computation is custom (has a script expression)
     - variant_group: the VariantGroup that the computation's processing id belongs to, or None
     - has_variant_group: whether the computation's processing id belongs to a variant group
+    - is_variant_choice_visible: whether the variant choice is shown, which needs the computation executors feature
     - variant_group_title: the title of the variant group, or an empty string
     - variant_titles: the display titles of the variant group's member processing ids
 
@@ -1554,6 +1561,10 @@ class ComputationInspectorModel(Observable.Observable):
     @property
     def has_variant_group(self) -> bool:
         return self.variant_group is not None
+
+    @property
+    def is_variant_choice_visible(self) -> bool:
+        return self.has_variant_group and Symbolic.is_computation_executors_feature_enabled()
 
     @property
     def update_button_enabled(self) -> bool:
@@ -1706,7 +1717,7 @@ class ComputationInspectorHandler(Declarative.Handler):
             u.create_combo_box(items=self.model.variant_titles, current_index="@binding(model.variant_current_index_model.value)", on_current_index_changed="variant_selected"),
             u.create_stretch(),
             spacing=12,
-            visible="@binding(model.has_variant_group)"
+            visible="@binding(model.is_variant_choice_visible)"
         )
         parameters = u.create_column(items="model.computation_parameters_model.items", item_component_id="variable", spacing=8)
         # the script editing note is omitted in the compact layout: it applies to every built-in computation,
