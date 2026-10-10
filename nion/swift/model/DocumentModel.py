@@ -2386,7 +2386,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                                                                 "operands": [requirement_is_sequence, requirement_4d]}]}
 
             # old style built-ins
-            # vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "cropped_display_xdata"}]}
+            vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src}.cropped_display_xdata)", "sources": [{"name": "src", "label": _("Source"), "croppable": True, "data_type": "cropped_display_xdata"}]}
             vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src}.xdata)",
                 "sources": [{"name": "src", "label": _("Source"), "data_type": "xdata"}]}
             vs["auto-correlate"] = {"title": _("Auto Correlate"), "expression": "xd.autocorrelate({src}.cropped_display_xdata)",
@@ -3007,7 +3007,6 @@ def load_computation_resource(resource_path: str) -> None:
 
 load_computation_resource("resources/computations/scalar_functions.json")
 load_computation_resource("resources/computations/window_functions.json")
-load_computation_resource("resources/computations/fft.json")
 
 from nion.swift.model import builtin_computations
 
