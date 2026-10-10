@@ -4599,6 +4599,26 @@ class TestStorageClass(unittest.TestCase):
             variables_d = {variable_d["name"]: variable_d for variable_d in profile_context.project_properties["computations"][0]["variables"]}
             self.assertEqual("none", variables_d["mapping"]["value"])
 
+    def test_mapped_sum_is_saved_without_a_script_also_after_reload(self) -> None:
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_and_metadata = DataAndMetadata.new_data_and_metadata(data=numpy.ones((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1))
+                data_item = DataItem.new_data_item(data_and_metadata)
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_mapped_sum_new(display_item, data_item)
+                document_model.get_mapped_average_new(display_item, data_item)
+                document_model.recompute_all()
+            for computation_d in profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"]:
+                self.assertNotIn("original_expression", computation_d)
+            profile_context.project_properties = None  # ensure the project properties are reloaded from project reference
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                document_model.computations[0].label = "Sum"  # an edit, so the computation is written again
+            for computation_d in profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"]:
+                self.assertNotIn("original_expression", computation_d)
+
     def test_migrate_scalar_functions(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)

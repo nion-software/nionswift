@@ -2963,7 +2963,9 @@ class Computation(Persistence.PersistentObject):
             self.needs_update = True
 
     def update_script(self) -> None:
-        if computation_processor := self.computation_processor:
+        # only an old built-in runs as a script, so only it saves one. an earlier version computes a mapped sum or average
+        # with its own code and fails on a saved script.
+        if (computation_processor := self.computation_processor) and computation_processor.old_built_in:
             if expression := computation_processor.expression:
                 src_names = [processing_description_source.name for processing_description_source in computation_processor.sources]
                 script = xdata_expression(expression)
