@@ -900,15 +900,16 @@ class ComputationVariable(Persistence.PersistentObject):
     def _remove_item_from_list(self, index: int) -> None:
         self.remove_item("object_specifiers", typing.cast(Persistence.PersistentObject, self.object_specifiers[index]))
 
-    def save_properties(self) -> typing.Tuple[typing.Any, typing.Optional[Specifier], typing.Optional[Specifier]]:
+    def save_properties(self) -> tuple[typing.Any, Specifier | None, Specifier | None, ComputationInputOperation]:
         # used for undo
-        return self.value, copy.deepcopy(self.specifier), copy.deepcopy(self.secondary_specifier)
+        return self.value, copy.deepcopy(self.specifier), copy.deepcopy(self.secondary_specifier), self.input_operation
 
-    def restore_properties(self, properties: typing.Tuple[typing.Any, typing.Optional[Specifier], typing.Optional[Specifier]]) -> None:
+    def restore_properties(self, properties: tuple[typing.Any, Specifier | None, Specifier | None, ComputationInputOperation]) -> None:
         # used for undo
         self.value = properties[0]
         self.specifier = properties[1]
         self.secondary_specifier = properties[2]
+        self.input_operation = properties[3]
 
     def __value_reader(self, persistent_property: Persistence.PersistentProperty, properties: Persistence.PersistentDictType) -> typing.Any:
         value_type = self.value_type

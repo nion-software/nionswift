@@ -1864,6 +1864,32 @@ class TestInspectorClass(unittest.TestCase):
             finally:
                 handler.close()
 
+    def test_undo_of_mapped_window_makes_it_not_mapped_again(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            window_data_item = document_model.get_hann_window_new(display_item, data_item)
+            computation = document_model.computations[-1]
+            variable = computation._get_variable("src")
+            handler = ComputationInspector.DataSourceVariableHandler(document_controller, computation, variable, ComputationInspector.VariableValueModel(document_controller, computation, variable))
+            try:
+                handler.input_operation_index = 1
+                document_model.recompute_all()
+                self.assertEqual((4, 6, 16), window_data_item.data.shape)
+                document_controller.handle_undo()
+                document_model.recompute_all()
+                self.assertEqual(0, handler.input_operation_index)
+                self.assertEqual((4, 6), window_data_item.data.shape)
+                document_controller.handle_redo()
+                document_model.recompute_all()
+                self.assertEqual(1, handler.input_operation_index)
+                self.assertEqual((4, 6, 16), window_data_item.data.shape)
+            finally:
+                handler.close()
+
     def test_mapped_sum_offers_no_input_operation_choice(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
