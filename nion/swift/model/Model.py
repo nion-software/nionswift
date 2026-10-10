@@ -444,14 +444,28 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
                     variable_d = variable_map.get(name, None)
                     if variable_d is not None and "input_operation" not in variable_d:
                         variable_d["input_operation"] = "display"
-                if tuple(variable_map.keys()) == ("src", "mapping"):
+                # a window or mapped computation of an earlier version has a src and a mapping variable. other variables,
+                # such as the sigma of a Gaussian window, are parameters of the operation and stay as they are.
+                src_variable_d = variable_map.get("src", None)
+                mapping_variable_d = variable_map.get("mapping", None)
+                if processing_id in reverse_processing_id_update_map and src_variable_d is not None and mapping_variable_d is not None:
                     if processing_id in ("mapped-sum", "mapped-average"):
-                        variables_l[0]["input_operation"] = "axes:datum"
+                        src_variable_d["input_operation"] = "axes:datum"
                     else:
-                        variables_l[0]["input_operation"] = "axes:datum" if variables_l[1].get("value", None) == "mapped" else "display"
-                    del variables_l[1]
+                        src_variable_d["input_operation"] = "axes:datum" if mapping_variable_d.get("value", None) == "mapped" else "display"
+                    variables_l.remove(mapping_variable_d)
 
     return d
+
+
+# the mapping value an earlier version saves for a window whose source has the input operation id, or None if the
+# input operation has no mapping value.
+def get_mapping_for_input_operation(input_operation_id: str | None) -> str | None:
+    if input_operation_id == "display":
+        return "none"
+    if input_operation_id == "axes:datum":
+        return "mapped"
+    return None
 
 
 def transform_backward(d: PersistentDictType) -> PersistentDictType:
@@ -512,15 +526,10 @@ def transform_backward(d: PersistentDictType) -> PersistentDictType:
         processing_id = computation_d.get("processing_id")
         if processing_id in processing_id_update_map.keys():
             variables_l = computation_d.get("variables", None)
-            if variables_l is not None and len(variables_l) == 1:
-                variable_d = variables_l[0]
-                if variable_d.get("name") == "src":
-                    if variable_d.get("input_operation") == "display":
-                        variable_d.pop("input_operation", None)
-                        variables_l.append({"type": "variable", "uuid": str(uuid.uuid4()), "name": "mapping", "label": "Mapping", "value_type": "string", "value": "none"})
-                    elif variable_d.get("input_operation") == "axes:datum":
-                        variable_d.pop("input_operation", None)
-                        variables_l.append({"type": "variable", "uuid": str(uuid.uuid4()), "name": "mapping", "label": "Mapping", "value_type": "string", "value": "mapped"})
+            if variables_l is not None and (variable_d := next((variable_d for variable_d in variables_l if variable_d.get("name") == "src"), None)) is not None:
+                if (mapping := get_mapping_for_input_operation(variable_d.get("input_operation"))) is not None:
+                    variable_d.pop("input_operation", None)
+                    variables_l.append({"type": "variable", "uuid": str(uuid.uuid4()), "name": "mapping", "label": "Mapping", "value_type": "string", "value": mapping})
 
     return d
 
