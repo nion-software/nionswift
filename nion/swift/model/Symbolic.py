@@ -2418,11 +2418,12 @@ class Computation(Persistence.PersistentObject):
         """Return an attribute for this computation.
 
         The attribute is determined in the following preferred order:
-            - using the processor description if it exists
+            - using the processor description if it exists and has the attribute
             - using the computation handler if it exists
         """
-        if computation_processor := self.computation_processor:
-            return computation_processor.attributes.get(attribute, default)
+        computation_processor = self.computation_processor
+        if computation_processor and attribute in computation_processor.attributes:
+            return computation_processor.attributes[attribute]
         processing_id = self.processing_id
         compute_class = _computation_types.get(processing_id) if processing_id else None
         if compute_class:
@@ -4221,7 +4222,8 @@ class ComputationProcessor:
             return ComputationProcessorValueInput(ComputationProcessorVariableType.REAL, input_name, input_label)
         if "vector" in input_name:
             return ComputationProcessorValueInput(ComputationProcessorVariableType.COMPLEX, input_name, input_label)
-        raise NotImplementedError(f"{input_name} is not handled")
+        # a name that matches no guess is read as a data input; a description with such sources only runs its script or class.
+        return ComputationProcessorDataInput(input_name, input_label, "xdata", tuple(), tuple(), False)
 
     @classmethod
     def from_dict(cls, d: PersistentDictType) -> ComputationProcessor:
