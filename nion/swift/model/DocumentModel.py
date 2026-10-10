@@ -2273,10 +2273,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                             display_item.add_graphic(channel_region)
                     regions.append((region_name, channel_region, region_label))
 
-        # now extract the script (full script) or expression (implied imports and return statement)
+        # now extract the script (full script) or expression (implied imports and return statement). only an old
+        # built-in runs as a script, so only it saves one; an earlier version fails on the script of a mapped sum or average.
         script = None
         expression = processor.expression
-        if expression:
+        if expression and processor.old_built_in:
             script = Symbolic.xdata_expression(expression)
             src_names = [src.name for src in sources]
             script = script.format(**dict(zip(src_names, src_names)))
