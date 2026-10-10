@@ -20,6 +20,7 @@ from nion.swift import Inspector
 from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
+from nion.swift.model import Feature
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
@@ -1905,6 +1906,66 @@ class TestInspectorClass(unittest.TestCase):
                 self.assertFalse(handler.is_input_operation_visible)
             finally:
                 handler.close()
+
+    def test_window_variant_choice_is_shown_only_with_the_computation_executors_feature(self):
+        feature = Feature.FeatureManager().get_feature(Symbolic.computation_executors_feature_id)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data_item = DataItem.DataItem(numpy.zeros((8, 10)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_hann_window_new(display_item, data_item)
+                model = ComputationInspector.ComputationInspectorModel(document_model.computations[-1], document_controller.event_loop)
+                try:
+                    self.assertFalse(model.is_variant_choice_visible)
+                    feature.enabled = True
+                    self.assertTrue(model.is_variant_choice_visible)
+                finally:
+                    model.close()
+        finally:
+            feature.enabled = False
+
+    def test_input_operation_choice_is_shown_only_with_the_computation_executors_feature_and_not_for_scripts(self):
+        # each spectrum of a spectrum image meets the 1d requirement; its 2d collection meets the 2d to 4d one of the sum.
+        spectrum_requirement = Symbolic.create_computation_processor_requirement({"type": "dimensionality", "min": 1, "max": 1})
+        p = Symbolic.ComputationProcessor(
+            expression="target = src",
+            title="Test identity",
+            inputs=[Symbolic.ComputationProcessorDataInput("src", "Source", "xdata", [spectrum_requirement], list(), False)],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("target", None, "xdata")]
+        )
+        Symbolic.ComputationProcessor.register("_test_identity", p)
+        feature = Feature.FeatureManager().get_feature(Symbolic.computation_executors_feature_id)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                document_model.get_processing_new("_test_identity", display_item, data_item)
+                document_model.get_projection_new(display_item, data_item)
+                handlers = list()
+                for computation in document_model.computations:
+                    variable = computation._get_variable("src")
+                    handlers.append(ComputationInspector.DataSourceVariableHandler(document_controller, computation, variable, ComputationInspector.VariableValueModel(document_controller, computation, variable)))
+                try:
+                    executor_handler, script_handler = handlers
+                    self.assertFalse(executor_handler.is_input_operation_visible)
+                    self.assertFalse(script_handler.is_input_operation_visible)
+                    feature.enabled = True
+                    self.assertTrue(executor_handler.is_input_operation_visible)
+                    self.assertFalse(script_handler.is_input_operation_visible)
+                finally:
+                    for handler in handlers:
+                        handler.close()
+        finally:
+            feature.enabled = False
+            Symbolic.ComputationProcessor.unregister("_test_identity")
 
     def test_variant_switch_removes_and_adds_variant_specific_parameters(self):
         with TestContext.create_memory_context() as test_context:
