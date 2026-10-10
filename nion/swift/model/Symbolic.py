@@ -4607,7 +4607,8 @@ class _IteratedProcessingAccumulator:
         return tuple(axis_groups)
 
     def __make_result_metadata(self) -> annotated_array.ArrayMetadata:
-        return annotated_array.ArrayMetadata(created=DateTime.utcnow().replace(tzinfo=datetime.timezone.utc))
+        # the result is created now, in the local time zone, as the result of any other computation is.
+        return annotated_array.ArrayMetadata()
 
     def __clone_datum_axis_group(self, array_data: annotated_array.AnnotatedArray) -> annotated_array.AxisGroup:
         datum_axis_group = array_data.descriptor.axis_groups[-1]

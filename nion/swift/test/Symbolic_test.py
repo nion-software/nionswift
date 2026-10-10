@@ -2614,6 +2614,17 @@ class TestSymbolicClass(unittest.TestCase):
         with self.assertRaises(TypeError):
             parameters.get_scalar_and_metadata("region_value")
 
+    def test_window_result_has_the_local_time_zone(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            window_data_item = document_model.get_hann_window_new(display_item, data_item)
+            document_model.recompute_all()
+            self.assertEqual(Utility.get_local_timezone(), window_data_item.timezone)
+            self.assertEqual(Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), window_data_item.timezone_offset)
+
     # TODO: test broadcasting, including using display data
 
     # TODO: test multuiple output shapes
