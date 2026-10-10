@@ -1844,6 +1844,42 @@ class TestInspectorClass(unittest.TestCase):
             Registry.unregister_component(calibration_provider, {"calibration-provider"})
 
 
+    def test_window_offers_not_mapped_by_default_and_mapped(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_hann_window_new(display_item, data_item)
+            computation = document_model.computations[-1]
+            variable = computation._get_variable("src")
+            handler = ComputationInspector.DataSourceVariableHandler(document_controller, computation, variable, ComputationInspector.VariableValueModel(document_controller, computation, variable))
+            try:
+                self.assertTrue(handler.is_input_operation_visible)
+                self.assertEqual(["Not mapped", "Mapped"], list(handler.input_operation_items))
+                self.assertEqual(0, handler.input_operation_index)
+                handler.input_operation_index = 1
+                self.assertEqual(Symbolic.ComputationInputOperation.create_axis_set_operation("datum"), variable.input_operation)
+            finally:
+                handler.close()
+
+    def test_mapped_sum_offers_no_input_operation_choice(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 6, 16)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_model.get_mapped_sum_new(display_item, data_item)
+            computation = document_model.computations[-1]
+            variable = computation._get_variable("src")
+            handler = ComputationInspector.DataSourceVariableHandler(document_controller, computation, variable, ComputationInspector.VariableValueModel(document_controller, computation, variable))
+            try:
+                self.assertFalse(handler.is_input_operation_visible)
+            finally:
+                handler.close()
+
     def test_variant_switch_removes_and_adds_variant_specific_parameters(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

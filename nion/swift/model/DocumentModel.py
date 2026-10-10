@@ -2297,6 +2297,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             if src.name in Model.display_data_processors.get(processing_id, []):
                 # Backward compatibility: these legacy sources default to display-based input semantics.
                 input_operation = Symbolic.ComputationInputOperation.create_display_operation()
+            if processing_id in Model.window_processing_ids:
+                # a new window computes the displayed element until it is set to be mapped.
+                input_operation = Symbolic.ComputationInputOperation.create_display_operation()
             computation.create_input_item(src.name, Symbolic.make_item(display_data_channel, secondary_item=secondary_item), label=src.label, input_operation=input_operation)
         # process the regions
         for region_name, region, region_label in regions:

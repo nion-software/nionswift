@@ -2372,6 +2372,16 @@ class Computation(Persistence.PersistentObject):
         self._set_persistent_property_value("processing_id", value)
 
     @property
+    def has_mapping_choice(self) -> bool:
+        """Return whether the source can either compute the displayed element (not mapped) or each datum (mapped)."""
+        return self.processing_id in Model.window_processing_ids
+
+    @property
+    def is_always_mapped(self) -> bool:
+        """Return whether the source always computes each datum, leaving no choice of input operation."""
+        return self.processing_id in Model.mapped_processing_ids
+
+    @property
     def label(self) -> typing.Optional[str]:
         """Return the label for this computation.
 

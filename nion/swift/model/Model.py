@@ -341,6 +341,11 @@ processing_id_update_map = {
 
 reverse_processing_id_update_map = {v: k for k, v in processing_id_update_map.items()}
 
+# a window computes the displayed element (input operation display) or each datum (axes:datum), which is saved as the
+# mapping variable an earlier version reads. mapped sums and averages always compute each datum.
+window_processing_ids = ("gaussian-window", "hamming-window", "hann-window")
+mapped_processing_ids = ("mapped-sum", "mapped-average")
+
 # Backward-compatibility map for processing IDs whose listed sources default to display-based input semantics.
 display_data_processors = {
     "add": ["src1", "src2"],
@@ -449,7 +454,7 @@ def transform_forward(d: PersistentDictType) -> PersistentDictType:
                 src_variable_d = variable_map.get("src", None)
                 mapping_variable_d = variable_map.get("mapping", None)
                 if processing_id in reverse_processing_id_update_map and src_variable_d is not None and mapping_variable_d is not None:
-                    if processing_id in ("mapped-sum", "mapped-average"):
+                    if processing_id in mapped_processing_ids:
                         src_variable_d["input_operation"] = "axes:datum"
                     else:
                         src_variable_d["input_operation"] = "axes:datum" if mapping_variable_d.get("value", None) == "mapped" else "display"
