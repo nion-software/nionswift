@@ -3231,7 +3231,14 @@ class Computation(Persistence.PersistentObject):
                                 computation_parameters.append(ComputationRecordObjectParameter(variable.name, ComputationRecordObject(variable_specifier.entity_type.entity_id, variable_bound_item)))
                         elif variable.value_type:
                             computation_parameters.append(ComputationRecordValueParameter(variable.name, variable.value_type, variable.value))
-                    computation_record = ComputationRecord(self.processing_id, self.uuid, self.label, result.name, computation_parameters)
+                        # a window's record holds the mapping that an earlier version records, directly after the source.
+                        if variable.name == "src" and self.processing_id in Model.window_processing_ids:
+                            if (mapping := Model.get_mapping_for_input_operation(variable.input_operation.operation_id)) is not None:
+                                computation_parameters.append(ComputationRecordValueParameter("mapping", ComputationVariableType.STRING, mapping))
+                    # the record has the processing id of an earlier version, so it is the same whichever version computed.
+                    processing_id = self.processing_id
+                    computation_id = Model.reverse_processing_id_update_map.get(processing_id, processing_id) if processing_id else None
+                    computation_record = ComputationRecord(computation_id, self.uuid, self.label, result.name, computation_parameters)
                     return computation_record.to_dict()
         return None
 
