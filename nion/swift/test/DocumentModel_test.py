@@ -2589,6 +2589,30 @@ class TestDocumentModelClass(unittest.TestCase):
                 self.assertEqual("test (Duplicate)", display_copy.data_item.title)
                 self.assertEqual("test (Duplicate)", display_copy.displayed_title)
 
+    def test_radial_profile_refuses_a_sequence_of_images_which_an_executor_accepts(self):
+        # radial profile requires 2d data; a sequence of images is 3d, though each image meets the requirement. a
+        # processor on the executor path with the same requirement iterates over the images, so it accepts it.
+        image_requirement = Symbolic.create_computation_processor_requirement({"type": "dimensionality", "min": 2, "max": 2})
+        p = Symbolic.ComputationProcessor(
+            expression="target = src",
+            title="Test identity",
+            inputs=[Symbolic.ComputationProcessorDataInput("src", "Source", "xdata", [image_requirement], list(), False)],
+            attributes=dict(),
+            out_regions=list(),
+            outputs=[Symbolic.ComputationProcessorOutput("target", None, "xdata")]
+        )
+        Symbolic.ComputationProcessor.register("_test_identity", p)
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_model = test_context.create_document_model()
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((3, 8, 10)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2)))
+                document_model.append_data_item(data_item)
+                display_item = document_model.get_display_item_for_data_item(data_item)
+                self.assertIsNone(document_model.get_radial_profile_new(display_item, data_item))
+                self.assertIsNotNone(document_model.get_processing_new("_test_identity", display_item, data_item))
+        finally:
+            Symbolic.ComputationProcessor.unregister("_test_identity")
+
     def test_mapped_sum_connector_on_invalid_data(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()

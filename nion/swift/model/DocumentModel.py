@@ -2174,10 +2174,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # each source can have a list of requirements, check through them
             # implicit "and" connection between the requirements in the list. Could be changed to use the new
             # boolean options, but leave it like this for backwards compatibility for now.
+            # a processor on the executor path also accepts data whose datum, sequence or collection meets the
+            # requirements, since it iterates over the rest, as windows and mapped sums do. a script can't iterate.
             requirements = src.requirements
             data_metadata = data_item.data_metadata
+            accepts_iterable = not processor.old_built_in
             for requirement in requirements:
-                if not data_metadata or not (requirement.is_data_metadata_valid(data_metadata) or Symbolic.is_iterable(src, data_metadata)):
+                if not data_metadata or not (requirement.is_data_metadata_valid(data_metadata) or (accepts_iterable and Symbolic.is_iterable(src, data_metadata))):
                     return None
 
             # each source can have a list of regions to be matched to arguments or created on the source
