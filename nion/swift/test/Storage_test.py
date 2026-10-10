@@ -4563,6 +4563,29 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual("mapping", computation_d["variables"][1]["name"])
             self.assertEqual("none", computation_d["variables"][1]["value"])
 
+    def test_migrate_gaussian_window_keeps_sigma(self) -> None:
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((16, 16)))
+                document_model.append_data_item(data_item)
+                document_model.get_gaussian_window_new(document_model.get_display_item_for_data_item(data_item), data_item)
+            # write the computation in the form of an earlier version: variables src, mapping and sigma.
+            computation_d = profile_context.project_properties["computations"][0]
+            computation_d["processing_id"] = "gaussian_window"
+            computation_d["variables"] = [variable_d for variable_d in computation_d["variables"] if variable_d["name"] != "mapping"]
+            computation_d["variables"].insert(1, {"type": "variable", "uuid": str(uuid.uuid4()), "name": "mapping", "value_type": "string", "value": "none"})
+            profile_context.project_properties = None  # ensure the project properties are reloaded from project reference
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                computation = document_model.computations[0]
+                self.assertEqual(["src", "sigma"], [variable.name for variable in computation.variables])
+                self.assertEqual(Symbolic.ComputationInputOperation.create_display_operation(), computation.variables[0].input_operation)
+            computation_d = profile_context.x_project_properties[list(profile_context.x_project_properties.keys())[0]]["computations"][0]
+            variables_d = {variable_d["name"]: variable_d for variable_d in computation_d["variables"]}
+            self.assertEqual({"src", "sigma", "mapping"}, set(variables_d))
+            self.assertEqual("none", variables_d["mapping"]["value"])
+
     def test_migrate_scalar_functions(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
