@@ -914,6 +914,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.handle_undo()
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(data_item, document_model.data_items[0])
             self.assertEqual(None, display_panel.data_item)
             # redo and verify
             document_controller.handle_redo()
@@ -925,6 +926,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.handle_undo()
             self.assertEqual(1, len(document_model.data_items))
             self.assertEqual(1, len(document_model.display_items))
+            self.assertEqual(data_item, document_model.data_items[0])
             self.assertEqual(None, display_panel.data_item)
             # redo again and verify
             document_controller.handle_redo()

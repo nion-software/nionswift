@@ -2372,7 +2372,8 @@ class DocumentController(Window.Window):
             request_focus = not display_item.is_live
             snapshot_display_item = self.__display_item_fn(display_item)
             document_controller.show_display_item(snapshot_display_item, source_display_item=snapshot_display_item, request_focus=request_focus)
-            self.__display_item_proxy = display_item.create_proxy() if display_item else None
+            # the undo removes the new display item, not the one it was made from.
+            self.__display_item_proxy = snapshot_display_item.create_proxy()
 
         def _get_modified_state(self) -> typing.Any:
             return self.__document_controller.document_model.modified_state
