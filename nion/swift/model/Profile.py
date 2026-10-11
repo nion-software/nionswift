@@ -130,13 +130,13 @@ class ProjectReference(Persistence.PersistentObject):
     def project_reference_id(self) -> str:
         return ".".join(self.project_reference_parts)
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext], project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         raise NotImplementedError()
 
-    def read_project_info(self, profile_context: typing.Optional[ProfileContext]) -> None:
+    def read_project_info(self, profile_context: typing.Optional[ProfileContext], project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> None:
         if not self.__has_project_info_been_read:
             try:
-                project_storage_system = self.make_storage(profile_context)
+                project_storage_system = self.make_storage(profile_context, project_storage_settings)
                 if project_storage_system:
                     project_storage_system.load_properties()
                     project_storage_system.normalize_project_data_path()
@@ -156,16 +156,17 @@ class ProjectReference(Persistence.PersistentObject):
                     self.__project_state = project.project_state
             self.__has_project_info_been_read = True
 
-    def load_project(self, profile_context: typing.Optional[ProfileContext], event_loop: asyncio.AbstractEventLoop, cache_dir_path: typing.Optional[pathlib.Path], *, cache_factory: typing.Optional[Cache.CacheFactory], threaded_display: bool = True) -> None:
+    def load_project(self, profile_context: typing.Optional[ProfileContext], event_loop: asyncio.AbstractEventLoop, cache_dir_path: typing.Optional[pathlib.Path], *, cache_factory: typing.Optional[Cache.CacheFactory], threaded_display: bool = True, project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> None:
         """Read project.
 
-        The profile context is used during testing.
+        The profile context is used during testing. The project storage settings, if any, are given to the project's
+        storage.
         """
         if not self.project:  # the project from the document model
             project: typing.Optional[Project.Project] = None
 
             # create project if it doesn't exist
-            project_storage_system = self.make_storage(profile_context)
+            project_storage_system = self.make_storage(profile_context, project_storage_settings)
             if project_storage_system:
                 project_storage_system.load_properties()
                 project_storage_system.normalize_project_data_path()
@@ -209,9 +210,9 @@ class ProjectReference(Persistence.PersistentObject):
             self.__document_model = None
             self.notify_property_changed("project")
 
-    def read_project_uuid(self, profile_context: typing.Optional[ProfileContext] = None) -> typing.Optional[uuid.UUID]:
+    def read_project_uuid(self, profile_context: typing.Optional[ProfileContext] = None, project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> typing.Optional[uuid.UUID]:
         """Read the project UUID without loading entire project."""
-        project_storage_system = self.make_storage(profile_context)
+        project_storage_system = self.make_storage(profile_context, project_storage_settings)
         if project_storage_system:
             project_storage_system.load_properties()
             project_storage_system.normalize_project_data_path()
@@ -220,9 +221,9 @@ class ProjectReference(Persistence.PersistentObject):
                 return project.uuid
         return None
 
-    def upgrade(self, profile_context: typing.Optional[ProfileContext] = None) -> typing.Optional[ProjectReference]:
+    def upgrade(self, profile_context: typing.Optional[ProfileContext] = None, project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> typing.Optional[ProjectReference]:
         if self.project_state == "needs_upgrade":
-            project_storage_system = self.make_storage(profile_context)
+            project_storage_system = self.make_storage(profile_context, project_storage_settings)
             if project_storage_system:
                 return self._upgrade_project_storage_system(project_storage_system)
         return None
@@ -256,10 +257,11 @@ class IndexProjectReference(ProjectReference):
         project_path = self.project_path
         return project_path.parts if project_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext], project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         project_path = self.project_path
         if project_path:
-            return FileStorageSystem.make_index_project_storage_system(project_path)
+            settings = project_storage_settings or FileStorageSystem.ProjectStorageSettings()
+            return FileStorageSystem.make_index_project_storage_system(project_path, large_format_size=settings.large_format_size)
         return None
 
     def _get_last_used(self) -> datetime.datetime:
@@ -302,7 +304,7 @@ class FolderProjectReference(ProjectReference):
     def project_reference_parts(self) -> typing.Sequence[str]:
         return self.project_folder_path.parts if self.project_folder_path else tuple()
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext], project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         if self.project_folder_path:
             return FileStorageSystem.make_folder_project_storage_system(self.project_folder_path)
         return None
@@ -354,7 +356,7 @@ class PlaceholderProjectReference(ProjectReference):
     def project_reference_parts(self) -> typing.Sequence[str]:
         return (self.type, str(self.project_uuid or uuid.UUID()))
 
-    def make_storage(self, profile_context: typing.Optional[ProfileContext]) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
+    def make_storage(self, profile_context: typing.Optional[ProfileContext], project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> typing.Optional[FileStorageSystem.ProjectStorageSystem]:
         return None
 
 
@@ -455,12 +457,15 @@ class Profile(Persistence.PersistentObject):
                  cache_dir_path: typing.Optional[pathlib.Path] = None, *,
                  cache_factory: typing.Optional[Cache.CacheFactory] = None,
                  profile_context: typing.Optional[ProfileContext] = None,
-                 threaded_display: bool = True) -> None:
+                 threaded_display: bool = True,
+                 project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> None:
         super().__init__()
         self.__class__.count += 1
 
         self.__event_loop = event_loop
         self.__threaded_display = threaded_display
+        # the settings given to the storage of each project this profile reads, or None for the default settings.
+        self.__project_storage_settings = project_storage_settings
 
         self.define_root_context()
         self.define_type("profile")
@@ -564,7 +569,7 @@ class Profile(Persistence.PersistentObject):
         self.notify_property_changed(name)
 
     def __insert_project_reference(self, name: str, before_index: int, project_reference: ProjectReference) -> None:
-        project_reference.read_project_info(self.profile_context)
+        project_reference.read_project_info(self.profile_context, self.__project_storage_settings)
         self.notify_insert_item("project_references", project_reference, before_index)
 
     def __remove_project_reference(self, name: str, index: int, project_reference: ProjectReference) -> None:
@@ -613,7 +618,7 @@ class Profile(Persistence.PersistentObject):
             self.storage_system.set_property(self, "version", FileStorageSystem.PROFILE_VERSION)
 
     def read_project(self, project_reference: ProjectReference) -> None:
-        project_reference.load_project(self.profile_context, self.__event_loop, self.__cache_dir_path, cache_factory=self.__cache_factory, threaded_display=self.__threaded_display)
+        project_reference.load_project(self.profile_context, self.__event_loop, self.__cache_dir_path, cache_factory=self.__cache_factory, threaded_display=self.__threaded_display, project_storage_settings=self.__project_storage_settings)
 
     def create_project(self, project_dir: pathlib.Path, library_name: str) -> typing.Optional[ProjectReference]:
         # the library name may contain multiple periods. be careful with using `with_suffix` which will treat
@@ -674,20 +679,20 @@ class Profile(Persistence.PersistentObject):
         else:
             project_reference.close()
             if load:
-                existing_project_reference.load_project(self.profile_context, self.__event_loop, self.__cache_dir_path, cache_factory=self.__cache_factory)
+                existing_project_reference.load_project(self.profile_context, self.__event_loop, self.__cache_dir_path, cache_factory=self.__cache_factory, project_storage_settings=self.__project_storage_settings)
             return existing_project_reference
 
     def add_project_index(self, project_path: pathlib.Path, load: bool = True) -> ProjectReference:
         project_reference = IndexProjectReference()
         project_reference.project_path = project_path
-        project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
+        project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context, self.__project_storage_settings)
         project_reference.establish_last_used()
         return self.add_project_reference(project_reference, load)
 
     def add_project_folder(self, project_folder_path: pathlib.Path, load: bool = True) -> ProjectReference:
         project_reference = FolderProjectReference()
         project_reference.project_folder_path = project_folder_path
-        project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context)
+        project_reference.project_uuid = project_reference.read_project_uuid(self.profile_context, self.__project_storage_settings)
         project_reference.establish_last_used()
         return self.add_project_reference(project_reference, load)
 
@@ -700,7 +705,7 @@ class Profile(Persistence.PersistentObject):
         return self.add_project_reference(project_reference, load)
 
     def upgrade(self, project_reference: ProjectReference) -> typing.Optional[ProjectReference]:
-        new_project_reference = project_reference.upgrade(self.profile_context)
+        new_project_reference = project_reference.upgrade(self.profile_context, self.__project_storage_settings)
         if new_project_reference:
             self.remove_project_reference(project_reference)
             return self.add_project_reference(new_project_reference, load=False)

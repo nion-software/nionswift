@@ -257,7 +257,7 @@ class MemoryProjectReference(Profile.ProjectReference):
     def project_reference_parts(self) -> typing.Tuple[str]:
         return ("memory", self._path)
 
-    def make_storage(self, profile_context: typing.Optional[MemoryProfileContext]) -> typing.Optional[Persistence.PersistentStorageInterface]:
+    def make_storage(self, profile_context: typing.Optional[MemoryProfileContext], project_storage_settings: FileStorageSystem.ProjectStorageSettings | None = None) -> typing.Optional[Persistence.PersistentStorageInterface]:
         if self.__make_storage_error:
             raise Exception("make_storage_error")
         return FileStorageSystem.make_memory_project_storage_system(profile_context, self.project_uuid, self.__d)

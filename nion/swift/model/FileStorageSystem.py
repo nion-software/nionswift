@@ -43,7 +43,19 @@ _NDArray = numpy.typing.NDArray[typing.Any]
 _CreateStorageHandlerFn = typing.Type[StorageHandler.StorageHandler]
 
 
-_g_large_format_size = 16 * 1024 * 1024
+# data above this many bytes is stored in HDF5, and otherwise in ndata.
+DEFAULT_LARGE_FORMAT_SIZE = 16 * 1024 * 1024
+
+
+@dataclasses.dataclass(frozen=True)
+class ProjectStorageSettings:
+    """How a project's file storage chooses where to store data.
+
+    The settings apply to index projects only, not to legacy folder projects or to the project an upgrade writes.
+    """
+
+    large_format_size: int = DEFAULT_LARGE_FORMAT_SIZE
+    """The number of bytes above which data is stored in HDF5, and otherwise in ndata."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -900,10 +912,11 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
     _file_handler_factories: typing.List[StorageHandler.StorageHandlerFactoryLike] = [NDataHandler.NDataHandlerFactory(), HDF5Handler.HDF5HandlerFactory()]
 
-    def __init__(self, project_path: pathlib.Path, project_data_path: typing.Optional[pathlib.Path] = None) -> None:
+    def __init__(self, project_path: pathlib.Path, project_data_path: pathlib.Path | None = None, *, large_format_size: int = DEFAULT_LARGE_FORMAT_SIZE) -> None:
         super().__init__()
         self.__project_path = project_path
         self.__project_data_path = project_data_path
+        self.__large_format_size = large_format_size
 
     def normalize_project_data_path(self) -> None:
         # in order to be resilient to name changes, first make a list of folders in project_data_folders which
@@ -972,7 +985,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
     def _get_storage_handler_factory(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandlerFactoryLike:
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
-        is_large_format = storage_handler_attributes.n_bytes > _g_large_format_size
+        is_large_format = storage_handler_attributes.n_bytes > self.__large_format_size
         return self._file_handler_factories[-1] if is_large_format else self._file_handler_factories[0]
 
     def _make_storage_handler(self, storage_handler_attributes: StorageHandler.StorageHandlerAttributes, file_handler_factory: typing.Optional[StorageHandler.StorageHandlerFactoryLike] = None) -> StorageHandler.StorageHandler:
@@ -1397,8 +1410,8 @@ def make_memory_persistent_storage_system() -> Persistence.PersistentStorageInte
     return MemoryPersistentStorageSystem()
 
 
-def make_index_project_storage_system(project_path: pathlib.Path) -> ProjectStorageSystem:
-    return FileProjectStorageSystem(project_path)
+def make_index_project_storage_system(project_path: pathlib.Path, *, large_format_size: int = DEFAULT_LARGE_FORMAT_SIZE) -> ProjectStorageSystem:
+    return FileProjectStorageSystem(project_path, large_format_size=large_format_size)
 
 
 def make_folder_project_storage_system(project_folder_path: pathlib.Path) -> typing.Optional[ProjectStorageSystem]:

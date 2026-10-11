@@ -62,7 +62,9 @@ def memory_usage_resource():
 
 class TempProfileContext:
 
-    def __init__(self, base_directory: pathlib.Path, no_remove: bool = False):
+    def __init__(self, base_directory: pathlib.Path, no_remove: bool = False, *, large_format_size: int = FileStorageSystem.DEFAULT_LARGE_FORMAT_SIZE):
+        # projects read through this context store data above large_format_size bytes in HDF5.
+        self.project_storage_settings = FileStorageSystem.ProjectStorageSettings(large_format_size=large_format_size)
         self.workspace_dir = base_directory / "__Test"
         self.profiles_dir = base_directory / "__Test" / "Profiles"
         self.projects_dir = base_directory / "__Test" / "Projects"
@@ -87,7 +89,7 @@ class TempProfileContext:
             project_path.write_text(project_data_json, "utf-8")
             storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
             storage_system.load_properties()
-            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"), project_storage_settings=self.project_storage_settings)
             profile.storage_system = storage_system
             profile.profile_context = self
             profile.add_project_index(project_path)
@@ -98,7 +100,7 @@ class TempProfileContext:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
             storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
             storage_system.load_properties()
-            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"))
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"), project_storage_settings=self.project_storage_settings)
             profile.storage_system = storage_system
             profile.profile_context = self
             self.__items_to_close.append(profile)
@@ -147,8 +149,8 @@ class TempProfileContext:
             shutil.rmtree(self.workspace_dir)
 
 
-def create_temp_profile_context(no_remove: bool = False) -> TempProfileContext:
-    return TempProfileContext(pathlib.Path.cwd(), no_remove=no_remove)
+def create_temp_profile_context(no_remove: bool = False, *, large_format_size: int = FileStorageSystem.DEFAULT_LARGE_FORMAT_SIZE) -> TempProfileContext:
+    return TempProfileContext(pathlib.Path.cwd(), no_remove=no_remove, large_format_size=large_format_size)
 
 
 def create_memory_profile_context() -> TestContext.MemoryProfileContext:
@@ -909,61 +911,74 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
     def test_file_format_adjusts_to_data_size(self):
-        with create_temp_profile_context() as profile_context:
+        with create_temp_profile_context(large_format_size=256) as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             data4 = numpy.random.randn(4,4)
             data16 = numpy.random.randn(16, 16)
             with document_model.ref():
-                old_large_format_size = FileStorageSystem._g_large_format_size
-                FileStorageSystem._g_large_format_size = 256
-                try:
-                    xdata = DataAndMetadata.new_data_and_metadata(data4, metadata={"a": 99})
-                    data_item = DataItem.new_data_item(xdata)
-                    document_model.append_data_item(data_item)
-                    ndata_file_path = pathlib.Path(data_item._test_get_file_path())
-                    self.assertEqual(".ndata", ndata_file_path.suffix)
-                    self.assertTrue(ndata_file_path.exists())
-                    data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data16, metadata={"a": 99}))
-                    h5_file_path = pathlib.Path(data_item._test_get_file_path())
-                    self.assertEqual(".h5", h5_file_path.suffix)
-                    self.assertTrue(h5_file_path.exists())
-                    self.assertFalse(ndata_file_path.exists())
-                finally:
-                    FileStorageSystem._g_large_format_size = old_large_format_size
+                xdata = DataAndMetadata.new_data_and_metadata(data4, metadata={"a": 99})
+                data_item = DataItem.new_data_item(xdata)
+                document_model.append_data_item(data_item)
+                ndata_file_path = pathlib.Path(data_item._test_get_file_path())
+                self.assertEqual(".ndata", ndata_file_path.suffix)
+                self.assertTrue(ndata_file_path.exists())
+                data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data16, metadata={"a": 99}))
+                h5_file_path = pathlib.Path(data_item._test_get_file_path())
+                self.assertEqual(".h5", h5_file_path.suffix)
+                self.assertTrue(h5_file_path.exists())
+                self.assertFalse(ndata_file_path.exists())
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, data16))
                 self.assertEqual(99, document_model.data_items[0].metadata["a"])
 
     def test_file_format_adjusts_to_data_size_when_reserved(self):
-        with create_temp_profile_context() as profile_context:
+        with create_temp_profile_context(large_format_size=256) as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
             data16 = numpy.random.randn(16, 16)
             with document_model.ref():
-                old_large_format_size = FileStorageSystem._g_large_format_size
-                FileStorageSystem._g_large_format_size = 256
-                try:
-                    data_item = DataItem.DataItem()
-                    document_model.append_data_item(data_item)
-                    # check intermediate state
-                    ndata_file_path = pathlib.Path(data_item._test_get_file_path())
-                    self.assertEqual(".ndata", ndata_file_path.suffix)
-                    self.assertTrue(ndata_file_path.exists())
-                    # reserve and ensure file is h5
-                    data_item.reserve_data(data_shape=data16.shape, data_dtype=data16.dtype, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
-                    data_item.set_data_and_metadata_partial(data_item.xdata.data_metadata,
-                                                            DataAndMetadata.new_data_and_metadata(data16),
-                                                            (slice(0, 16), slice(0, 16)),
-                                                            (slice(0, 16), slice(0, 16)))
-                    h5_file_path = pathlib.Path(data_item._test_get_file_path())
-                    self.assertEqual(".h5", h5_file_path.suffix)
-                    self.assertTrue(os.path.exists(h5_file_path))
-                    self.assertFalse(ndata_file_path.exists())
-                finally:
-                    FileStorageSystem._g_large_format_size = old_large_format_size
+                data_item = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                # check intermediate state
+                ndata_file_path = pathlib.Path(data_item._test_get_file_path())
+                self.assertEqual(".ndata", ndata_file_path.suffix)
+                self.assertTrue(ndata_file_path.exists())
+                # reserve and ensure file is h5
+                data_item.reserve_data(data_shape=data16.shape, data_dtype=data16.dtype, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+                data_item.set_data_and_metadata_partial(data_item.xdata.data_metadata,
+                                                        DataAndMetadata.new_data_and_metadata(data16),
+                                                        (slice(0, 16), slice(0, 16)),
+                                                        (slice(0, 16), slice(0, 16)))
+                h5_file_path = pathlib.Path(data_item._test_get_file_path())
+                self.assertEqual(".h5", h5_file_path.suffix)
+                self.assertTrue(os.path.exists(h5_file_path))
+                self.assertFalse(ndata_file_path.exists())
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 self.assertTrue(numpy.array_equal(document_model.data_items[0].data, data16))
+
+    def test_data_above_large_format_size_is_stored_in_hdf5(self):
+        small_data = numpy.random.default_rng(42).random((3, 5, 7)).astype(numpy.float32)
+        large_data = numpy.zeros((65, 257, 255), numpy.float32)  # above the default large format size
+        with create_temp_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                small_data_item = DataItem.DataItem(small_data)
+                large_data_item = DataItem.DataItem(large_data)
+                document_model.append_data_item(small_data_item)
+                document_model.append_data_item(large_data_item)
+                self.assertEqual(".ndata", pathlib.Path(small_data_item._test_get_file_path()).suffix)
+                self.assertEqual(".h5", pathlib.Path(large_data_item._test_get_file_path()).suffix)
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                small_data_item = DataItem.DataItem(small_data)
+                document_model.append_data_item(small_data_item)
+                self.assertEqual(".h5", pathlib.Path(small_data_item._test_get_file_path()).suffix)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = document_model.data_items[0]
+                self.assertTrue(numpy.array_equal(small_data, data_item.data))
 
     def test_metadata_works_in_reserved_data(self):
         with create_temp_profile_context() as profile_context:
@@ -996,25 +1011,27 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(numpy.array_equal(numpy.ones((8, 8)), data_item.data))
 
     def test_data_large_format_does_not_rewrite_partial_updates(self):
-        with create_temp_profile_context() as profile_context:
-            zeros = DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8), numpy.uint32))
-            ones = DataAndMetadata.new_data_and_metadata(numpy.ones((8, 8), numpy.uint32))
+        # a large format size of 0 stores any data in HDF5.
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            zeros = DataAndMetadata.new_data_and_metadata(numpy.zeros((6, 8), numpy.uint32))
+            ones = DataAndMetadata.new_data_and_metadata(numpy.ones((6, 8), numpy.uint32))
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
-                data_item = DataItem.DataItem(large_format=True)
+                data_item = DataItem.DataItem()
                 document_model.append_data_item(data_item)
                 data_item.set_data_and_metadata_partial(ones.data_metadata,
-                                                  ones, (slice(0,8), slice(0, 8)),
-                                                  (slice(0,8), slice(0, 8)))
+                                                  ones, (slice(0,6), slice(0, 8)),
+                                                  (slice(0,6), slice(0, 8)))
                 self.assertTrue(numpy.array_equal(ones.data, data_item.data))
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 data_item = document_model.data_items[0]
                 write_count = data_item._get_persistence_write_count()
+                self.assertIsNotNone(write_count)  # only HDF5 storage counts its data writes
                 self.assertTrue(numpy.array_equal(ones.data, data_item.data))
                 data_item.set_data_and_metadata_partial(zeros.data_metadata,
-                                                  zeros, (slice(0,8), slice(0, 8)),
-                                                  (slice(0,8), slice(0, 8)))
+                                                  zeros, (slice(0,6), slice(0, 8)),
+                                                  (slice(0,6), slice(0, 8)))
                 self.assertTrue(numpy.array_equal(zeros.data, data_item.data))
                 # ensure no explicit writes took place. the data copy will be memory mapped.
                 self.assertEqual(write_count, data_item._get_persistence_write_count())
@@ -1024,21 +1041,35 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(numpy.array_equal(zeros.data, data_item.data))
 
     def test_line_plot_display_calculation_with_large_format_after_reload(self):
-        with create_temp_profile_context() as profile_context:
+        # a large format size of 0 stores any data in HDF5.
+        stored = numpy.linspace(-2.0, 3.0, 11)
+        with create_temp_profile_context(large_format_size=0) as profile_context:
             document_controller = profile_context.create_document_controller(auto_close=False)
             with contextlib.closing(document_controller):
-                document_model = document_controller.document_model
-                data_item = DataItem.DataItem(numpy.random.randn(10), large_format=True)
-                document_model.append_data_item(data_item)
-            # reload to ensure data_item.data is a h5py dataset, which is how the original failure occurred
+                document_controller.document_model.append_data_item(DataItem.DataItem(stored))
+            # reload, so that the line plot computes from data read from the HDF5 file, which is how the original
+            # failure occurred.
             document_controller = profile_context.create_document_controller(auto_close=False)
             document_model = document_controller.document_model
             with contextlib.closing(document_controller):
                 data_item = document_model.data_items[0]
+                self.assertEqual(".h5", pathlib.Path(data_item._test_get_file_path()).suffix)
                 display_panel = document_controller.workspace_controller.display_panels[0]
                 display_item = document_model.get_display_item_for_data_item(data_item)
                 display_panel.set_display_panel_display_item(display_item)
-                display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(w=200, h=50))
+                line_plot_canvas_item = display_panel.display_canvas_item
+                line_plot_canvas_item.layout_immediate(Geometry.IntSize(w=200, h=50))
+                # the display data is computed on a thread here. wait for it, and pass it to the line plot as the
+                # display panel does, then let the line plot compute its layers and axes from it.
+                line_plot_canvas_item.update_display_info(display_item.display_info)
+                line_plot_canvas_item.update_canvas_items()
+                line_graph_layers_canvas_item = line_plot_canvas_item.line_graph_layers_canvas_item
+                xdata = line_graph_layers_canvas_item._xdata_for_testing
+                self.assertIsInstance(xdata.data, numpy.ndarray)
+                self.assertTrue(numpy.array_equal(stored, xdata.data))
+                axes = line_graph_layers_canvas_item._axes_for_testing
+                self.assertEqual((-2.0, 3.0), (axes.uncalibrated_data_min, axes.uncalibrated_data_max))
+                self.assertEqual((0, 11), (axes.drawn_left_channel, axes.drawn_right_channel))
 
     def test_writing_empty_data_item_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:
