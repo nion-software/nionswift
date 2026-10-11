@@ -9,6 +9,7 @@ import logging
 import os
 import pathlib
 import shutil
+import sys
 import threading
 import time
 import typing
@@ -16,6 +17,7 @@ import unittest
 import uuid
 
 # third party libraries
+import h5py
 import numpy
 
 # local libraries
@@ -4183,6 +4185,246 @@ class TestStorageClass(unittest.TestCase):
             document_model = profile_context.create_document_model(auto_close=False)
             with document_model.ref():
                 self.assertEqual(len(document_model.data_items), 1)
+
+    @unittest.skipIf(sys.platform == "win32", "Windows doesn't make a folder read-only with chmod.")
+    def test_loading_two_hdf5_files_for_one_data_item_while_the_folder_refuses_the_delete_keeps_the_other_file_and_takes_the_newer_file(self):
+        item_data = numpy.random.default_rng(56).random((5, 6, 7)).astype(numpy.float32)
+        copy_data = item_data + 100.0
+        # a large format size of 0 stores any data in HDF5.
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            data_folder = profile_context.projects_dir / "Project Data"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(item_data, metadata={"source": "item"}))
+                document_model.append_data_item(data_item)
+                data_item.title = "item"
+                item_file_path = pathlib.Path(data_item._test_get_file_path())
+            # make an older copy of the item's file holding other properties and data.
+            copy_file_path = item_file_path.with_name(item_file_path.stem + " copy.h5")
+            shutil.copyfile(item_file_path, copy_file_path)
+            with h5py.File(copy_file_path, "r+") as f:
+                dataset = f["data"]
+                dataset[...] = copy_data
+                properties = json.loads(dataset.attrs["properties"])
+                properties["title"] = "copy"
+                properties["metadata"] = {"source": "copy"}
+                properties["modified"] = (datetime.datetime.fromisoformat(properties["modified"]) - datetime.timedelta(days=1)).isoformat()
+                dataset.attrs["properties"] = json.dumps(properties)
+            item_file_path.parent.chmod(0o555)
+            try:
+                for _ in range(2):
+                    document_model = profile_context.create_document_model(auto_close=False)
+                    with document_model.ref():
+                        self.assertEqual(1, len(document_model.data_items))
+                        data_item = document_model.data_items[0]
+                        self.assertEqual("item", data_item.title)
+                        self.assertEqual({"source": "item"}, data_item.metadata)
+                        self.assertTrue(numpy.array_equal(item_data, data_item.data))
+                        self.assertEqual(item_file_path, pathlib.Path(data_item._test_get_file_path()))
+                        data_file_paths = {file_path for file_path in data_folder.rglob("*") if file_path.is_file()}
+                        self.assertEqual({item_file_path, copy_file_path}, data_file_paths)
+            finally:
+                item_file_path.parent.chmod(0o755)
+
+    def test_loading_two_hdf5_files_for_one_data_item_takes_properties_and_data_from_newer_copy(self):
+        item_data = numpy.random.default_rng(51).random((5, 6, 7)).astype(numpy.float32)
+        copy_data = item_data + 100.0
+        # a large format size of 0 stores any data in HDF5.
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            data_folder = profile_context.projects_dir / "Project Data"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(item_data, metadata={"source": "item"}))
+                document_model.append_data_item(data_item)
+                data_item.title = "item"
+                item_file_path = pathlib.Path(data_item._test_get_file_path())
+            # make a newer copy of the item's file holding other properties and data.
+            copy_file_path = item_file_path.with_name(item_file_path.stem + " copy.h5")
+            shutil.copyfile(item_file_path, copy_file_path)
+            with h5py.File(copy_file_path, "r+") as f:
+                dataset = f["data"]
+                dataset[...] = copy_data
+                properties = json.loads(dataset.attrs["properties"])
+                properties["title"] = "copy"
+                properties["metadata"] = {"source": "copy"}
+                properties["modified"] = (datetime.datetime.fromisoformat(properties["modified"]) + datetime.timedelta(days=1)).isoformat()
+                dataset.attrs["properties"] = json.dumps(properties)
+            for _ in range(2):
+                document_model = profile_context.create_document_model(auto_close=False)
+                with document_model.ref():
+                    self.assertEqual(1, len(document_model.data_items))
+                    data_item = document_model.data_items[0]
+                    self.assertEqual("copy", data_item.title)
+                    self.assertEqual({"source": "copy"}, data_item.metadata)
+                    self.assertTrue(numpy.array_equal(copy_data, data_item.data))
+                    self.assertEqual(copy_file_path, pathlib.Path(data_item._test_get_file_path()))
+                    data_file_paths = {file_path for file_path in data_folder.rglob("*") if file_path.is_file()}
+                    self.assertEqual({copy_file_path}, data_file_paths)
+
+    def test_loading_ndata_and_hdf5_files_for_one_data_item_takes_properties_and_data_from_newer_hdf5_file(self):
+        small_data = numpy.random.default_rng(52).random((3, 5)).astype(numpy.float32)
+        large_data = numpy.random.default_rng(53).random((6, 5, 7)).astype(numpy.float32)
+        # the small data is stored in ndata and the large data in HDF5.
+        with create_temp_profile_context(large_format_size=256) as profile_context:
+            data_folder = profile_context.projects_dir / "Project Data"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(small_data, metadata={"source": "ndata"}))
+                document_model.append_data_item(data_item)
+                data_item.title = "ndata"
+                ndata_file_path = pathlib.Path(data_item._test_get_file_path())
+                self.assertEqual(".ndata", ndata_file_path.suffix)
+            # keep the ndata file, then grow the item into an HDF5 file and put the ndata file back beside it.
+            saved_ndata_file_path = profile_context.workspace_dir / "saved.ndata"
+            shutil.copyfile(ndata_file_path, saved_ndata_file_path)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = document_model.data_items[0]
+                data_item.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(large_data, metadata={"source": "h5"}))
+                data_item.title = "h5"
+                h5_file_path = pathlib.Path(data_item._test_get_file_path())
+                self.assertEqual(".h5", h5_file_path.suffix)
+            self.assertFalse(ndata_file_path.exists())
+            shutil.copyfile(saved_ndata_file_path, ndata_file_path)
+            for _ in range(2):
+                document_model = profile_context.create_document_model(auto_close=False)
+                with document_model.ref():
+                    self.assertEqual(1, len(document_model.data_items))
+                    data_item = document_model.data_items[0]
+                    self.assertEqual("h5", data_item.title)
+                    self.assertEqual({"source": "h5"}, data_item.metadata)
+                    self.assertEqual(large_data.shape, data_item.dimensional_shape)
+                    self.assertTrue(numpy.array_equal(large_data, data_item.data))
+                    data_file_paths = {file_path for file_path in data_folder.rglob("*") if file_path.is_file()}
+                    self.assertEqual({h5_file_path}, data_file_paths)
+
+    def test_loading_identical_copy_of_data_item_file_keeps_file_named_for_data_item(self):
+        item_data = numpy.random.default_rng(54).random((5, 6, 7)).astype(numpy.float32)
+        # a large format size of 0 stores any data in HDF5.
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            data_folder = profile_context.projects_dir / "Project Data"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(item_data, metadata={"source": "item"}))
+                document_model.append_data_item(data_item)
+                data_item.title = "item"
+                item_file_path = pathlib.Path(data_item._test_get_file_path())
+            # the copy's path sorts before the item's file path, so only the name decides between them.
+            copy_file_path = item_file_path.with_name(item_file_path.stem + " copy.h5")
+            self.assertLess(str(copy_file_path), str(item_file_path))
+            shutil.copyfile(item_file_path, copy_file_path)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertEqual(1, len(document_model.data_items))
+                data_item = document_model.data_items[0]
+                self.assertEqual("item", data_item.title)
+                self.assertTrue(numpy.array_equal(item_data, data_item.data))
+                self.assertEqual(item_file_path, pathlib.Path(data_item._test_get_file_path()))
+                data_file_paths = {file_path for file_path in data_folder.rglob("*") if file_path.is_file()}
+                self.assertEqual({item_file_path}, data_file_paths)
+
+    def test_restoring_data_item_after_loading_two_files_for_it_does_not_restore_other_file(self):
+        item_data = numpy.random.default_rng(55).random((5, 6, 7)).astype(numpy.float32)
+        copy_data = item_data + 100.0
+        # a large format size of 0 stores any data in HDF5.
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            data_folder = profile_context.projects_dir / "Project Data"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(item_data, metadata={"source": "item"}))
+                document_model.append_data_item(data_item)
+                data_item.title = "item"
+                data_item_uuid = data_item.uuid
+                item_file_path = pathlib.Path(data_item._test_get_file_path())
+            # make an older copy of the item's file holding other properties and data.
+            copy_file_path = item_file_path.with_name(item_file_path.stem + " copy.h5")
+            shutil.copyfile(item_file_path, copy_file_path)
+            with h5py.File(copy_file_path, "r+") as f:
+                dataset = f["data"]
+                dataset[...] = copy_data
+                properties = json.loads(dataset.attrs["properties"])
+                properties["title"] = "copy"
+                properties["metadata"] = {"source": "copy"}
+                properties["modified"] = (datetime.datetime.fromisoformat(properties["modified"]) - datetime.timedelta(days=1)).isoformat()
+                dataset.attrs["properties"] = json.dumps(properties)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                document_model.remove_data_item(document_model.data_items[0], safe=True)
+                self.assertEqual(0, len(document_model.data_items))
+                document_model.restore_data_item(data_item_uuid)
+                self.assertEqual(1, len(document_model.data_items))
+                data_item = document_model.data_items[0]
+                self.assertEqual("item", data_item.title)
+                self.assertEqual({"source": "item"}, data_item.metadata)
+                self.assertTrue(numpy.array_equal(item_data, data_item.data))
+                data_file_paths = {file_path for file_path in data_folder.rglob("*") if file_path.is_file()}
+                self.assertEqual({item_file_path}, data_file_paths)
+
+    def test_loading_data_item_file_beside_newer_file_of_another_version_takes_the_file_of_this_version_and_keeps_the_other(self):
+        item_data = numpy.random.default_rng(60).random((5, 6, 7)).astype(numpy.float32)
+        other_data = item_data + 100.0
+        # a large format size of 0 stores any data in HDF5.
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            data_folder = profile_context.projects_dir / "Project Data"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(item_data, metadata={"source": "item"}))
+                document_model.append_data_item(data_item)
+                data_item.title = "item"
+                item_file_path = pathlib.Path(data_item._test_get_file_path())
+            # make a newer copy of the item's file, as another version writes it, holding other properties and data.
+            other_file_path = item_file_path.with_name(item_file_path.stem + " other.h5")
+            shutil.copyfile(item_file_path, other_file_path)
+            with h5py.File(other_file_path, "r+") as f:
+                dataset = f["data"]
+                dataset[...] = other_data
+                properties = json.loads(dataset.attrs["properties"])
+                properties["version"] = DataItem.DataItem.writer_version + 1
+                properties["title"] = "other"
+                properties["metadata"] = {"source": "other"}
+                properties["modified"] = (datetime.datetime.fromisoformat(properties["modified"]) + datetime.timedelta(days=1)).isoformat()
+                dataset.attrs["properties"] = json.dumps(properties)
+            for _ in range(2):
+                document_model = profile_context.create_document_model(auto_close=False)
+                with document_model.ref():
+                    self.assertEqual(1, len(document_model.data_items))
+                    data_item = document_model.data_items[0]
+                    self.assertEqual("item", data_item.title)
+                    self.assertEqual({"source": "item"}, data_item.metadata)
+                    self.assertTrue(numpy.array_equal(item_data, data_item.data))
+                    self.assertEqual(item_file_path, pathlib.Path(data_item._test_get_file_path()))
+                    data_file_paths = {file_path for file_path in data_folder.rglob("*") if file_path.is_file()}
+                    self.assertEqual({item_file_path, other_file_path}, data_file_paths)
+
+    def test_loading_data_item_file_beside_file_with_malformed_uuid_loads_the_data_item_and_reports_the_other_file(self):
+        item_data = numpy.random.default_rng(61).random((5, 6, 7)).astype(numpy.float32)
+        # a large format size of 0 stores any data in HDF5.
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(item_data))
+                document_model.append_data_item(data_item)
+                data_item_uuid = data_item.uuid
+                item_file_path = pathlib.Path(data_item._test_get_file_path())
+            # make a copy of the item's file whose uuid is malformed.
+            malformed_file_path = item_file_path.with_name(item_file_path.stem + " malformed.h5")
+            shutil.copyfile(item_file_path, malformed_file_path)
+            with h5py.File(malformed_file_path, "r+") as f:
+                dataset = f["data"]
+                properties = json.loads(dataset.attrs["properties"])
+                properties["uuid"] = "not a uuid"
+                dataset.attrs["properties"] = json.dumps(properties)
+            storage_system = FileStorageSystem.make_index_project_storage_system(profile_context.projects_dir / "Project.nsproj", large_format_size=0)
+            with contextlib.closing(storage_system):
+                storage_system.load_properties()
+                storage_system.normalize_project_data_path()
+                properties, reader_errors = storage_system.get_combined_properties()
+                self.assertEqual([str(data_item_uuid)], [data_item_properties["uuid"] for data_item_properties in properties.get("data_items", list())])
+                self.assertEqual([str(malformed_file_path)], [reader_error.identifier for reader_error in reader_errors])
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                self.assertEqual([data_item_uuid], [data_item.uuid for data_item in document_model.data_items])
+                self.assertTrue(numpy.array_equal(item_data, document_model.data_items[0].data))
 
     def test_pending_data_on_new_data_item_updates_properly(self):
         with create_temp_profile_context() as profile_context:
