@@ -33,6 +33,11 @@ _NDArray = numpy.typing.NDArray[typing.Any]
 # https://issues.apache.org/jira/browse/COMPRESS-210
 # http://proger.i-forge.net/MS-DOS_date_and_time_format/OFz
 
+# the log of data file management: data files created, written, moved and deleted. its records are at DEBUG, so it is off
+# by default. turn it on with logging.getLogger("nion.swift.data_files").setLevel(logging.DEBUG), for example from the
+# console or a debugger. its records then go to the app's stderr, not to the Output panel.
+data_files_logger = logging.getLogger("nion.swift.data_files")
+
 
 def make_directory_if_needed(directory_path: str) -> None:
     """
@@ -425,19 +430,29 @@ class NDataHandler(StorageHandler.StorageHandler):
         """
         with self.__lock:
             assert data is not None
-            absolute_file_path = self.__file_path
-            #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-            make_directory_if_needed(os.path.dirname(absolute_file_path))
-            properties = self.read_properties() if os.path.exists(absolute_file_path) else dict()
-            if properties is not None:
-                write_zip(absolute_file_path, data, properties)
-            # convert to utc time.
-            tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
-            timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
-            os.utime(absolute_file_path, (time.time(), timestamp))
+            self.__write_data(data, file_datetime)
+            data_files_logger.debug("data written: %s, file type ndata, shape %s, dtype %s", self.__file_path, data.shape, data.dtype)
 
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
-        self.write_data(numpy.zeros(data_shape, data_dtype), data_descriptor, file_datetime)
+        with self.__lock:
+            self.__write_data(numpy.zeros(data_shape, data_dtype), file_datetime)
+            if data_files_logger.isEnabledFor(logging.DEBUG):
+                data_files_logger.debug("data reserved: %s, file type ndata, shape %s, dtype %s", self.__file_path, data_shape, numpy.dtype(data_dtype))
+
+    # write the whole file with the data and the properties it has, if any. under the lock.
+    def __write_data(self, data: _NDArray, file_datetime: datetime.datetime) -> None:
+        absolute_file_path = self.__file_path
+        make_directory_if_needed(os.path.dirname(absolute_file_path))
+        exists = os.path.exists(absolute_file_path)
+        properties = self.read_properties() if exists else dict()
+        if properties is not None:
+            write_zip(absolute_file_path, data, properties)
+            if not exists:
+                data_files_logger.debug("data file created: %s, file type ndata, shape %s, dtype %s", absolute_file_path, data.shape, data.dtype)
+        # convert to utc time.
+        tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
+        timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
+        os.utime(absolute_file_path, (time.time(), timestamp))
 
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
         """
@@ -452,13 +467,14 @@ class NDataHandler(StorageHandler.StorageHandler):
         """
         with self.__lock:
             absolute_file_path = self.__file_path
-            #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
             make_directory_if_needed(os.path.dirname(absolute_file_path))
             exists = os.path.exists(absolute_file_path)
             if exists:
                 rewrite_zip(absolute_file_path, Utility.clean_dict(properties))
+                data_files_logger.debug("properties rewritten: %s, file type ndata", absolute_file_path)
             else:
                 write_zip(absolute_file_path, None, Utility.clean_dict(properties))
+                data_files_logger.debug("data file created: %s, file type ndata", absolute_file_path)
             # convert to utc time.
             tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
             timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
@@ -487,7 +503,7 @@ class NDataHandler(StorageHandler.StorageHandler):
         """
         with self.__lock:
             absolute_file_path = self.__file_path
-            #logging.debug("READ data file %s", absolute_file_path)
+            data_files_logger.debug("data read: %s, file type ndata", absolute_file_path)
             with open(absolute_file_path, "rb") as fp:
                 local_files, dir_files, eocd = parse_zip(fp)
                 return read_data(fp, local_files, dir_files, b"data.npy")
@@ -500,9 +516,9 @@ class NDataHandler(StorageHandler.StorageHandler):
         """
         with self.__lock:
             absolute_file_path = self.__file_path
-            #logging.debug("DELETE data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
                 os.remove(absolute_file_path)
+                data_files_logger.debug("data file deleted: %s, file type ndata", absolute_file_path)
 
 
 class NDataHandlerFactory(StorageHandler.StorageHandlerFactoryLike):
