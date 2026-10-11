@@ -942,19 +942,24 @@ class DataItem(Persistence.PersistentObject):
 
     @property
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        self.increment_data_ref_count()
+        # load the data, and take the data and its metadata together under the mutex, so that a reader on another thread
+        # gets both from the same set or reserve.
+        with self.__data_ref_count_mutex:
+            self.increment_data_ref_count()
+            data = self.__data
+            data_metadata = self.__data_metadata
         try:
-            if self.__data_metadata and self.__data is not None:
+            if data_metadata and data is not None:
                 data_and_metadata = DataAndMetadata.DataAndMetadata(
-                    data=self.__data,
-                    data_shape_and_dtype=self.__data_metadata.data_shape_and_dtype,
-                    intensity_calibration=self.__data_metadata.intensity_calibration,
-                    dimensional_calibrations=self.__data_metadata.dimensional_calibrations,
-                    metadata=self.__data_metadata.metadata,
-                    timestamp=self.__data_metadata.timestamp,
-                    data_descriptor=self.__data_metadata.data_descriptor,
-                    timezone=self.__data_metadata.timezone,
-                    timezone_offset=self.__data_metadata.timezone_offset
+                    data=data,
+                    data_shape_and_dtype=data_metadata.data_shape_and_dtype,
+                    intensity_calibration=data_metadata.intensity_calibration,
+                    dimensional_calibrations=data_metadata.dimensional_calibrations,
+                    metadata=data_metadata.metadata,
+                    timestamp=data_metadata.timestamp,
+                    data_descriptor=data_metadata.data_descriptor,
+                    timezone=data_metadata.timezone,
+                    timezone_offset=data_metadata.timezone_offset
                 )
 
                 DataItem._data_count += 1
@@ -1199,16 +1204,23 @@ class DataItem(Persistence.PersistentObject):
     def _force_unload(self) -> None:
         self.__data = None
 
-    def __set_data_metadata_direct(self, data_metadata: DataAndMetadata.DataMetadata,
-                                   data_modified: typing.Optional[datetime.datetime] = None) -> None:
-        assert self.__data_ref_count > 0
-        # set the data modified directly
+    # set the data modified time on the data metadata, now if it is not given, and return the time.
+    def __stamp_data_metadata(self, data_metadata: DataAndMetadata.DataMetadata, data_modified: datetime.datetime | None) -> datetime.datetime:
         data_modified = data_modified if data_modified else DateTime.utcnow()
         data_metadata._set_timestamp(data_modified)
-        # save the data_metadata. this must go before setting the persistent properties below because
-        # of how the recorder works (grabs the attribute from data item).
-        self.__data_metadata = copy.deepcopy(data_metadata)
-        # set the persistent values for the data_metadata
+        return data_modified
+
+    # set the data metadata on the item, under the mutex, so that a reader on another thread takes it whole with the
+    # data. this must go before setting the persistent properties because of how the recorder works (grabs the attribute
+    # from data item).
+    def __assign_data_metadata(self, data_metadata: DataAndMetadata.DataMetadata) -> None:
+        assert self.__data_ref_count > 0
+        data_metadata = copy.deepcopy(data_metadata)
+        with self.__data_ref_count_mutex:
+            self.__data_metadata = data_metadata
+
+    # set the persistent values for the data metadata, once the item holds it.
+    def __write_data_metadata_properties(self, data_metadata: DataAndMetadata.DataMetadata, data_modified: datetime.datetime) -> None:
         self._set_persistent_property_value("data_shape", data_metadata.data_shape)
         self._set_persistent_property_value("data_dtype", DtypeToStringConverter().convert(data_metadata.data_dtype))
         self._set_persistent_property_value("is_sequence", data_metadata.is_sequence)
@@ -1228,12 +1240,30 @@ class DataItem(Persistence.PersistentObject):
         self._set_persistent_property_value("metadata", self.__metadata)
         self._set_persistent_property_value("data_modified", data_modified)
 
+    # set the data metadata on the item, and the persistent values which describe it.
+    def __set_data_metadata_direct(self, data_metadata: DataAndMetadata.DataMetadata,
+                                   data_modified: typing.Optional[datetime.datetime] = None) -> None:
+        data_modified = self.__stamp_data_metadata(data_metadata, data_modified)
+        self.__assign_data_metadata(data_metadata)
+        self.__write_data_metadata_properties(data_metadata, data_modified)
+
+    # set the data and its metadata on the item and the persistent values which describe them, mark them changed, and
+    # record the session. the data and its metadata are set together under the mutex, so that a reader on another
+    # thread takes the new data with its metadata, never with the metadata it replaces.
     def __set_data_and_metadata_direct(self, data_and_metadata: typing.Optional[DataAndMetadata.DataAndMetadata],
                                        data_modified: typing.Optional[datetime.datetime] = None) -> None:
         assert self.__data_ref_count > 0
-        self.__data = data_and_metadata.data if data_and_metadata else None
         if data_and_metadata:
-            self.__set_data_metadata_direct(data_and_metadata.data_metadata, data_modified)
+            data_metadata = data_and_metadata.data_metadata
+            data_modified = self.__stamp_data_metadata(data_metadata, data_modified)
+            item_data_metadata = copy.deepcopy(data_metadata)
+            with self.__data_ref_count_mutex:
+                self.__data = data_and_metadata.data
+                self.__data_metadata = item_data_metadata
+            self.__write_data_metadata_properties(data_metadata, data_modified)
+        else:
+            with self.__data_ref_count_mutex:
+                self.__data = None
         self.__change_changed = True
         self.__change_data_changed = True
         if self._session_manager:
@@ -1276,13 +1306,22 @@ class DataItem(Persistence.PersistentObject):
         self.increment_data_ref_count()
         try:
             if self.persistent_object_context:
-                self.reserve_external_data("data", data_shape, data_dtype, (data_descriptor.is_sequence, data_descriptor.collection_dimension_count, data_descriptor.datum_dimension_count))
                 data_shape_and_dtype = data_shape, data_dtype
                 timezone = Utility.get_local_timezone()
                 timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
                 data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype=data_shape_and_dtype, data_descriptor=data_descriptor, metadata=self.metadata, timezone=timezone, timezone_offset=timezone_offset)
-                self.__set_data_metadata_direct(data_metadata, data_modified)
-                self.__load_data()
+                data_modified = self.__stamp_data_metadata(data_metadata, data_modified)
+                item_data_metadata = copy.deepcopy(data_metadata)
+                # the reserved data replaces the stored data. drop the loaded data, which may be the stored data, reserve,
+                # and load the reserved data with its metadata, all under the mutex, so that a reader on another thread
+                # waits for the reserve and then takes the reserved data with its metadata, never the data of one with
+                # the metadata of the other. the persistent properties follow, outside the mutex.
+                with self.__data_ref_count_mutex:
+                    self.__data = None
+                    self.reserve_external_data("data", data_shape, data_dtype, (data_descriptor.is_sequence, data_descriptor.collection_dimension_count, data_descriptor.datum_dimension_count))
+                    self.__data_metadata = item_data_metadata
+                    self.__load_data()
+                self.__write_data_metadata_properties(data_metadata, data_modified)
                 self.__data_and_metadata_unloadable = True
                 self.__data_and_metadata_first_update_after_reserve = True
         finally:
