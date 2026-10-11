@@ -30,6 +30,11 @@ from nion.swift.model import StorageHandler
 from nion.swift.model import Utility
 from nion.utils import Event
 
+# the log of data file management: data files created, written, moved and deleted. its records are at DEBUG, so it is off
+# by default. turn it on with logging.getLogger("nion.swift.data_files").setLevel(logging.DEBUG), for example from the
+# console or a debugger. its records then go to the app's stderr, not to the Output panel.
+data_files_logger = logging.getLogger("nion.swift.data_files")
+
 _ = gettext.gettext
 
 # define the versions that get stored in the JSON files
@@ -849,6 +854,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
             assert item.uuid in self.__storage_adapter_map
             storage = self.__storage_adapter_map.get(item.uuid)
             assert storage
+            data_files_logger.debug("data item removed: %s, data item %s", storage.storage_handler.reference, item.uuid)
             self._remove_storage_handler(storage.storage_handler, safe=True)
             self.__storage_adapter_map.pop(item.uuid).close()
         else:
@@ -926,6 +932,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         if storage_handler_type != storage_handler.storage_handler_type:
             properties = storage_adapter.properties
             new_storage_handler = self._replace_storage_handler(storage_handler, storage_handler_attributes)
+            data_files_logger.debug("data file storage type changed: %s, data item %s, previous file %s", new_storage_handler.reference, data_item.uuid, storage_handler.reference)
             storage_handler.close()
             new_storage_adapter = DataItemStorageAdapter(new_storage_handler, properties)
             self.__storage_adapter_map[data_item.uuid] = new_storage_adapter
@@ -1060,6 +1067,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         if safe and not os.path.exists(new_file_path):
             trash_dir.mkdir(exist_ok=True)
             shutil.move(str(file_path), new_file_path)
+            data_files_logger.debug("data file moved: %s, to %s, reason data item removed", file_path, new_file_path)
         storage_handler.remove()
 
     def _replace_storage_handler(self, storage_handler: StorageHandler.StorageHandler, storage_handler_attributes: StorageHandler.StorageHandlerAttributes) -> StorageHandler.StorageHandler:
@@ -1099,6 +1107,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                             os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
                             storage_handler.prepare_move()  # moving files in the storage handler requires it to be closed.
                             shutil.move(old_file_path, new_file_path)
+                            data_files_logger.debug("data file moved: %s, data item %s, to %s, reason data item restored", old_file_path, data_item_uuid, new_file_path)
                         self._make_storage_handler(make_storage_handler_attributes(data_item)).close()  # what's this line for?
                         return properties
         finally:
@@ -1115,6 +1124,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 # tracking items in the trash. when items are again retained in the trash, update the disabled
                 # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
                 file_path.unlink()
+                data_files_logger.debug("trash file deleted at load: %s", file_path)
 
     def _is_storage_handler_named_for_data_item(self, storage_handler: StorageHandler.StorageHandler, data_item_uuid: uuid.UUID) -> bool:
         return pathlib.Path(storage_handler.reference).stem == self.__get_data_file_stem(data_item_uuid)
@@ -1125,8 +1135,10 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         file_path = pathlib.Path(storage_handler.reference)
         try:
             file_path.unlink(missing_ok=True)
+            data_files_logger.debug("data file deleted: %s, reason another file of data item %s chosen, at load", file_path, data_item_uuid)
         except OSError as e:
             logging.getLogger("loader").warning(f"Unable to delete data file {file_path} ({e}).")
+            data_files_logger.debug("duplicate data file delete at load refused: %s, data item %s, error %s", file_path, data_item_uuid, e)
 
     @property
     def _trash_dir(self) -> pathlib.Path:

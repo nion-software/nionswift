@@ -1088,6 +1088,24 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual((-2.0, 3.0), (axes.uncalibrated_data_min, axes.uncalibrated_data_max))
                 self.assertEqual((0, 11), (axes.drawn_left_channel, axes.drawn_right_channel))
 
+    def test_data_files_log_is_off_by_default_and_records_a_data_file_created_and_deleted_once_on(self):
+        logger = logging.getLogger("nion.swift.data_files")
+        # a large format size of 256 stores (2, 3) float32 data in ndata and (3, 5, 7) float32 data in HDF5.
+        with create_temp_profile_context(large_format_size=256) as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                # off by default.
+                self.assertFalse(logger.isEnabledFor(logging.DEBUG))
+                # once on, creating an ndata file and deleting it as the data moves to HDF5 are recorded. assertLogs puts
+                # the logger at DEBUG and restores its level afterwards.
+                with self.assertLogs(logger, logging.DEBUG) as captured:
+                    data_item = DataItem.DataItem(numpy.zeros((2, 3), numpy.float32))
+                    document_model.append_data_item(data_item)
+                    ndata_file_path = data_item._test_get_file_path()
+                    data_item.set_data(numpy.ones((3, 5, 7), numpy.float32))
+                self.assertTrue(any("data file created" in message and ndata_file_path in message for message in captured.output))
+                self.assertTrue(any("data file deleted" in message and ndata_file_path in message for message in captured.output))
+
     def test_writing_empty_data_item_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)

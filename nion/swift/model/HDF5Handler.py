@@ -6,6 +6,7 @@ from __future__ import annotations
 import datetime
 import io
 import json
+import logging
 import os
 import pathlib
 import threading
@@ -29,6 +30,11 @@ if typing.TYPE_CHECKING:
 
 PersistentDictType = typing.Dict[str, typing.Any]
 _NDArray = numpy.typing.NDArray[typing.Any]
+
+# the log of data file management: data files created, written, moved and deleted. its records are at DEBUG, so it is off
+# by default. turn it on with logging.getLogger("nion.swift.data_files").setLevel(logging.DEBUG), for example from the
+# console or a debugger. its records then go to the app's stderr, not to the Output panel.
+data_files_logger = logging.getLogger("nion.swift.data_files")
 
 
 def make_directory_if_needed(directory_path: str) -> None:
@@ -237,6 +243,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                     self.__dataset = self.__file.fp["data"]
                 else:
                     self.__dataset = self.__file.fp.create_dataset("data", data=numpy.empty((0,)))
+                    data_files_logger.debug("data file created: %s, file type HDF5, shape %s, dtype %s", self.__file_path, self.__dataset.shape, self.__dataset.dtype)
 
     def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         with self.__lock:
@@ -250,6 +257,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 # case 1
                 chunks = get_write_chunk_shape_for_data(data.shape, data.dtype, data_descriptor)
                 self.__dataset = self.__file.fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
+                data_files_logger.debug("data file created: %s, file type HDF5, shape %s, dtype %s", self.__file_path, data.shape, data.dtype)
             else:
                 if self.__dataset is None:
                     self.__dataset = self.__file.fp["data"]
@@ -258,9 +266,18 @@ class HDF5Handler(StorageHandler.StorageHandler):
                     json_properties = self.__dataset.attrs.get("properties", "")
                     self.__close_fp()
                     os.remove(self.__file_path)
+                    data_files_logger.debug("data file deleted: %s, file type HDF5, reason data of another shape or dtype written", self.__file_path)
                     chunks = get_write_chunk_shape_for_data(data.shape, data.dtype, data_descriptor)
                     self.__dataset = self.__file.fp.require_dataset("data", shape=data.shape, dtype=data.dtype, chunks=chunks)
-            self.__copy_data(data)
+                    data_files_logger.debug("data file created: %s, file type HDF5, shape %s, dtype %s", self.__file_path, data.shape, data.dtype)
+            if id(data) == id(self.__dataset):
+                # the dataset already holds the data, written into the file through it, as a partial update is. this is
+                # on the path of each partial update, so it adds no more than the logger's own level check.
+                data_files_logger.debug("data written through its dataset: %s, file type HDF5", self.__file_path)
+            else:
+                self.__dataset[:] = data
+                self._write_count += 1
+                data_files_logger.debug("data written: %s, file type HDF5, shape %s, dtype %s", self.__file_path, data.shape, data.dtype)
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
             self.__file.fp.flush()
@@ -276,6 +293,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 json_properties = self.__dataset.attrs.get("properties", "")
                 self.__close_fp()
                 os.remove(self.__file_path)
+                data_files_logger.debug("data file deleted: %s, file type HDF5, reason data reserved", self.__file_path)
                 self.__file.open()
             # reserve the data
             chunks = get_write_chunk_shape_for_data(data_shape, data_dtype, data_descriptor)
@@ -283,11 +301,10 @@ class HDF5Handler(StorageHandler.StorageHandler):
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
             self.__file.fp.flush()
-
-    def __copy_data(self, data: _NDArray) -> None:
-        if id(data) != id(self.__dataset):
-            self.__dataset[:] = data
-            self._write_count += 1
+            if data_files_logger.isEnabledFor(logging.DEBUG):
+                dtype = numpy.dtype(data_dtype)
+                data_files_logger.debug("data file created: %s, file type HDF5, shape %s, dtype %s", self.__file_path, data_shape, dtype)
+                data_files_logger.debug("data reserved: %s, file type HDF5, shape %s, dtype %s", self.__file_path, data_shape, dtype)
 
     def write_properties(self, properties: PersistentDictType, file_datetime: datetime.datetime) -> None:
         with self.__lock:
@@ -312,6 +329,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
         self.__close_fp()
         if os.path.isfile(self.__file_path):
             os.remove(self.__file_path)
+            data_files_logger.debug("data file deleted: %s, file type HDF5", self.__file_path)
 
     def __close_fp(self) -> None:
         self.__dataset = None
