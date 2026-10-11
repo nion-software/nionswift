@@ -620,6 +620,17 @@ def make_storage_handler_attributes(data_item: DataItem.DataItem, n_bytes_overri
     return StorageHandler.StorageHandlerAttributes(data_item.uuid, data_item.created_local, data_item.session_id, n_bytes)
 
 
+def _get_modified_datetime(properties: PersistentDictType) -> datetime.datetime:
+    # the modified time in the properties as a naive utc datetime. a missing or unparseable value counts as earliest.
+    try:
+        modified = datetime.datetime.fromisoformat(properties["modified"])
+    except (KeyError, TypeError, ValueError):
+        return datetime.datetime.min
+    if modified.tzinfo is not None:
+        modified = modified.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return modified
+
+
 class ProjectStorageSystem(PersistentStorageSystem):
     """Persistent storage system to provide special handling of data items."""
 
@@ -652,6 +663,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
     @abc.abstractmethod
     def _prune(self) -> None: ...
+
+    @abc.abstractmethod
+    def _is_storage_handler_named_for_data_item(self, storage_handler: StorageHandler.StorageHandler, data_item_uuid: uuid.UUID) -> bool: ...
+
+    @abc.abstractmethod
+    def _delete_duplicate_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item_uuid: uuid.UUID) -> None: ...
 
     # for migration
 
@@ -710,6 +727,9 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
         reader_info_list = list()
         reader_error_list = list()
+        # the data item uuid of each file read, parsed with the rest of the file so that a malformed uuid is an error for
+        # that file.
+        data_item_uuids: dict[ReaderInfo, uuid.UUID] = dict()
         for storage_handler in storage_handlers:
             try:
                 storage_handler_properties = storage_handler.read_properties()
@@ -717,16 +737,43 @@ class ProjectStorageSystem(PersistentStorageSystem):
                 assert storage_handler_properties is not None
                 combined_properties = Migration.transform_to_latest(storage_handler_properties)
                 assert combined_properties.get("uuid")
+                data_item_uuid = uuid.UUID(combined_properties["uuid"])
                 reader_info = ReaderInfo(combined_properties, [False], storage_handler, storage_handler.reference)
                 reader_info_list.append(reader_info)
+                data_item_uuids[reader_info] = data_item_uuid
             except Exception as e:
+                # a file which cannot be read is closed and left in place.
+                storage_handler.close()
                 reader_error_list.append(Persistence.ReaderError(storage_handler.reference, e, traceback.extract_stack()))
+
+        # a data item with more than one file of the version this reads takes its properties and its data from one of
+        # them; the others are closed and deleted. a file of another version is never chosen over one of this version,
+        # and never deleted.
+        reader_infos_by_uuid: dict[uuid.UUID, list[ReaderInfo]] = dict()
+        for reader_info in reader_info_list:
+            if reader_info.properties.get("version", 0) == DataItem.DataItem.writer_version:
+                reader_infos_by_uuid.setdefault(data_item_uuids[reader_info], list()).append(reader_info)
+        chosen_reader_infos = set[ReaderInfo]()
+        for data_item_uuid, data_item_reader_infos in reader_infos_by_uuid.items():
+            chosen_reader_info = self.__choose_reader_info(data_item_uuid, data_item_reader_infos)
+            chosen_reader_infos.add(chosen_reader_info)
+            for reader_info in data_item_reader_infos:
+                if reader_info is not chosen_reader_info:
+                    logging.getLogger("loader").warning(f"Data item {data_item_uuid} has another data file {reader_info.identifier}; using {chosen_reader_info.identifier}.")
+                    reader_info.storage_handler.close()
+                    self._delete_duplicate_storage_handler(reader_info.storage_handler, data_item_uuid)
+        # a file of another version stays associated with its data item, as before, unless the data item has a file of
+        # this version. then it is closed and left in place.
+        for reader_info in reader_info_list:
+            if reader_info.properties.get("version", 0) != DataItem.DataItem.writer_version and data_item_uuids[reader_info] in reader_infos_by_uuid:
+                reader_info.storage_handler.close()
+        reader_info_list = [reader_info for reader_info in reader_info_list if reader_info in chosen_reader_infos or data_item_uuids[reader_info] not in reader_infos_by_uuid]
 
         # to allow later writing back to storage, associate the data items with their storage adapters
         for reader_info in reader_info_list:
             storage_handler = reader_info.storage_handler
             combined_properties = reader_info.properties
-            data_item_uuid = uuid.UUID(combined_properties["uuid"])
+            data_item_uuid = data_item_uuids[reader_info]
             storage_adapter = DataItemStorageAdapter(storage_handler, combined_properties)
             old_storage_adapter = self.__storage_adapter_map.pop(data_item_uuid, None)
             if old_storage_adapter:
@@ -760,6 +807,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
             combined_properties["data_items"] = data_items_copy
 
         return combined_properties, reader_error_list
+
+    def __choose_reader_info(self, data_item_uuid: uuid.UUID, reader_infos: typing.Sequence[ReaderInfo]) -> ReaderInfo:
+        # choose the file with the newest modified time. on a tie, prefer the file named for the data item, then the
+        # lexically first path.
+        reader_infos_by_path = sorted(reader_infos, key=lambda reader_info: reader_info.identifier)
+        return max(reader_infos_by_path, key=lambda reader_info: (_get_modified_datetime(reader_info.properties), self._is_storage_handler_named_for_data_item(reader_info.storage_handler, data_item_uuid)))
 
     # override
     def _write_item_properties(self, item: typing.Optional[Persistence.PersistentObject]) -> None:
@@ -1063,6 +1116,18 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 # test_delete_and_undelete_from_file_storage_system_restores_data_item_after_reload
                 file_path.unlink()
 
+    def _is_storage_handler_named_for_data_item(self, storage_handler: StorageHandler.StorageHandler, data_item_uuid: uuid.UUID) -> bool:
+        return pathlib.Path(storage_handler.reference).stem == self.__get_data_file_stem(data_item_uuid)
+
+    def _delete_duplicate_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item_uuid: uuid.UUID) -> None:
+        # delete the closed file. a file which cannot be deleted stays in place; the next load chooses the same file over
+        # it again.
+        file_path = pathlib.Path(storage_handler.reference)
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError as e:
+            logging.getLogger("loader").warning(f"Unable to delete data file {file_path} ({e}).")
+
     @property
     def _trash_dir(self) -> pathlib.Path:
         assert self.__project_data_path is not None
@@ -1360,6 +1425,13 @@ class MemoryProjectStorageSystem(ProjectStorageSystem):
 
     def _prune(self) -> None:
         pass  # disabled for testing self.__trash_map = dict()
+
+    def _is_storage_handler_named_for_data_item(self, storage_handler: StorageHandler.StorageHandler, data_item_uuid: uuid.UUID) -> bool:
+        return storage_handler.reference == str(data_item_uuid)
+
+    def _delete_duplicate_storage_handler(self, storage_handler: StorageHandler.StorageHandler, data_item_uuid: uuid.UUID) -> None:
+        # memory storage keeps the duplicate entry; each load chooses the same entry over it.
+        pass
 
     def _migrate_data_item(self, reader_info: ReaderInfo, index: int, count: int) -> typing.Optional[ReaderInfo]:
         storage_handler = reader_info.storage_handler
