@@ -861,6 +861,21 @@ class TestStorageClass(unittest.TestCase):
                 self.assertEqual(1, len(document_model.data_items))
                 self.assertEqual(data_item_uuid, document_model.data_items[0].uuid)
 
+    def test_delete_and_undelete_from_file_storage_system_restores_hdf5_data_item_with_its_data(self) -> None:
+        # a large format size of 0 stores any data in HDF5.
+        with create_temp_profile_context(large_format_size=0) as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data = numpy.random.default_rng(57).random((16, 16)).astype(numpy.float32)
+                data_item = DataItem.DataItem(data)
+                document_model.append_data_item(data_item)
+                data_item_uuid = data_item.uuid
+                document_model.remove_data_item(data_item, safe=True)
+                self.assertEqual(0, len(document_model.data_items))
+                document_model.restore_data_item(data_item_uuid)
+                self.assertEqual(1, len(document_model.data_items))
+                self.assertTrue(numpy.array_equal(data, document_model.data_items[0].data))
+
     def test_delete_and_undelete_from_file_storage_system_restores_data_item_whose_file_was_renamed(self) -> None:
         # a data file in the trash which is not named for its data item is still found when restoring.
         with create_temp_profile_context() as profile_context:
