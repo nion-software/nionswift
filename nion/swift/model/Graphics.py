@@ -578,11 +578,6 @@ def draw_ellipse_graphic(
             ctx.translate(-center.x, -center.y)
         ctx.line_width = stroke_width
         draw_ellipse(ctx, origin + size / 2, size, stroke_style, fill_style)
-        ctx.line_width = stroke_width
-        ctx.stroke_style = stroke_style
-        ctx.stroke()
-        ctx.fill_style = fill_style
-        ctx.fill()
         # Orientation indicator arrow is a UI affordance: draw it with one-pixel-scaled stroke.
         ctx.begin_path()
         ctx.move_to(center.x, rect.top + orientation_arrow_outer_offset + (.5 * int(stroke_width)))
