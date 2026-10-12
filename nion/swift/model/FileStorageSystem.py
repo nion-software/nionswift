@@ -1044,6 +1044,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                         new_file_path = storage_handler.factory.make_path(self.__project_data_path / self.__get_base_path(make_storage_handler_attributes(data_item)))
                         if not os.path.exists(new_file_path):
                             os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
+                            storage_handler.prepare_move()  # moving files in the storage handler requires it to be closed.
                             shutil.move(old_file_path, new_file_path)
                         self._make_storage_handler(make_storage_handler_attributes(data_item)).close()  # what's this line for?
                         return properties
