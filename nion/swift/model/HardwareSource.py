@@ -37,10 +37,10 @@ class RecordTaskLike(typing.Protocol):
     def is_finished(self) -> bool:
         raise NotImplementedError()
 
-    def wait_started(self, *, timeout: typing.Optional[float] = None) -> None:
+    def wait_started(self, *, timeout: float) -> None:
         raise NotImplementedError()
 
-    def wait_finished(self, *, timeout: typing.Optional[float] = None) -> None:
+    def wait_finished(self, *, timeout: float) -> None:
         raise NotImplementedError()
 
     def grab_xdatas(self, *, timeout: typing.Optional[float] = None) -> typing.Sequence[typing.Optional[DataAndMetadata.DataAndMetadata]]:
