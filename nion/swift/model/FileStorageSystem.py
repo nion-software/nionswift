@@ -67,12 +67,12 @@ class ProjectStorageSettings:
 class ProjectNameResult:
     """Result of checking a project name is available or of renaming a project.
 
-    project_path will be None when the project path does not change otherwise it will be the new project path.
+    project_path is the resulting path that was checked or renamed.
     error_messages will be empty when there are no errors, otherwise it is a sequence of error messages.
     The success property is True when there are no errors and False when there are errors.
     """
     error_messages: typing.Sequence[str]
-    project_path: pathlib.Path | None
+    project_path: pathlib.Path
 
     @property
     def success(self) -> bool:
@@ -700,10 +700,10 @@ class ProjectStorageSystem(PersistentStorageSystem):
 
         Returns a ProjectNameResult.
         ProjectNameResult.project_path will be the new project path or the original if the project path did not change.
-        ProjectNameResult.error_message will be empty when there are no errors, otherwise it will be an error message.
+        ProjectNameResult.error_messages will be empty when there are no errors, otherwise it will contain any error messages.
         The project path changing names does not indicate success, only the ProjectNameResult.success should be used to check success.
         """
-        return ProjectNameResult([_("Project renaming is not supported for this storage system.")], None)
+        ...
 
     @property
     def _data_properties_map(self) -> typing.Dict[uuid.UUID, DataItemStorageAdapter]:
@@ -1283,12 +1283,12 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         return storage_handlers
 
     def rename_project(self, name: str) -> ProjectNameResult:
-        """Renames the project file with the given name. See ProjectStorageSystem.rename_project.
+        """Renames the project file and data folder. See ProjectStorageSystem.rename_project.
 
-        The returned ProjectRenameResult.project_path will be the new project path.
-        ProjectRenameResult.error_message will be empty when the rename was successful otherwise it will contain error message for the user, the exception is written separately to the logger.
+        The returned ProjectNameResult.project_path will be the new project path.
+        ProjectNameResult.error_messages will be empty when the rename was successful otherwise it will contain error message for the user, the exception is written separately to the logger.
         The project file and data folder (if the data folder exists) are attempted to be renamed.
-        If the data folder did exist but failed be renamed then this will attempt to undo the renaming of the project file.
+        If the data folder did exist but failed be renamed then this will attempt to undo the renaming of the project file and return an error message.
         If undoing the renaming of the project file fails then the project file's name will have changed, but there will still be an error message.
         """
         self.load_properties()
@@ -1322,14 +1322,15 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                 error_messages.append(_("WARNING: Project File and Data Folder names have diverged"))
                 logging.exception(_("Failed to undo Data Folder rename. Renaming project file gave exception:\n") + str(e2))
 
-        self._write_untransformed_properties(self._untransform_properties(self.get_properties()))  # Trigger the writing of the project_data_folders in the project file
+        # Trigger the writing of the project_data_folders in the project file
+        self._write_untransformed_properties(self._untransform_properties(self.get_properties()))
         return ProjectNameResult(error_messages, self.__project_path)
 
 
 def check_file_project_name_is_available(name: str, directory: str) -> ProjectNameResult:
-    """Check if the provided project name is available for use.
+    """Check if the provided project name is available for use as a FileProjectStorageSystem project.
 
-    Checks the directory exists then checks that no existing project file or data folder is in that directory with the same name.
+    Checks the base directory exists then checks that no existing project file or data folder is in that directory with the same name.
     Returns ProjectNameResult with the calculated project_path and error_messages.
     """
     error_messages: list[str] = []
