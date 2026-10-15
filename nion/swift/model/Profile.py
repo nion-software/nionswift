@@ -657,8 +657,6 @@ class Profile(Persistence.PersistentObject):
             project_storage_system = project.project_storage_system
         assert project_storage_system is not None
 
-        if project_reference.project_state == "loaded":
-            project_reference.unload_project()  # Defensively ensure the project is unloaded to avoid a traceback when removing the project reference
         self.remove_project_reference(project_reference)
 
         rename_result = project_storage_system.rename_project(name)

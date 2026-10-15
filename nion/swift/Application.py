@@ -998,9 +998,6 @@ class Application(UIApplication.BaseApplication):
                 # Reopen the project only when renaming the current project and when the project reference is returned
                 if renaming_current_project and new_project_reference is not None:
                     self.switch_project_reference(new_project_reference)
-                    assert new_project_reference.project is not None
-                    new_project_reference.project.title = name
-                    self.profile.last_project_reference = new_project_reference.uuid
 
                 if error_message:
                     self.__show_project_error_dialog(_("Error Renaming Project"), error_message)
@@ -1270,7 +1267,7 @@ class NameProjectViewModel:
         if check_name_available_fn:
             name_available_result = check_name_available_fn(project_name, base_directory)
             errors.extend(name_available_result.error_messages or [])
-            if name_available_result.success and name_available_result.project_path:
+            if name_available_result.success:
                 # Check if an orphaned project reference exists, it would need to be removed manually by the user as there is no way to do that automatically
                 project_reference = profile.get_project_reference_by_path(name_available_result.project_path)
                 if project_reference is not None:
