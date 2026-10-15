@@ -664,7 +664,7 @@ class Profile(Persistence.PersistentObject):
         rename_result = project_storage_system.rename_project(name)
 
         project_path = project_reference.path  # Load the old path unless the returned project path exists
-        if rename_result.project_path is not None and rename_result.project_path.exists():
+        if rename_result.project_path.exists():
             project_path = rename_result.project_path
 
         # Open project creates and adds the project to the profile, but does not read/load the project.
