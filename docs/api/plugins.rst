@@ -45,19 +45,23 @@ method.
 You should avoid executing code that depends on other extensions or on Swift during extension module loading.
 
 When the package is loaded, the class will be instantiated and an ``api_broker`` object will be passed to
-``__init__``. The ``api_broker`` can be used to get an ``api`` object. ::
+``__init__``. The ``api_broker`` can be used to get an ``api`` object. Annotating ``api_broker`` with
+``Facade.APIBroker`` gives the ``api`` object the type ``Facade.API_1``, so that a type checker such as mypy can check
+its use. ::
+
+    from nion.swift import Facade
 
     class MyExtension:
 
         # required for Swift to recognize this as an extension class.
         extension_id = "my.extension.identifier"
 
-        def __init__(self, api_broker):
+        def __init__(self, api_broker: Facade.APIBroker) -> None:
             # grab the api object.
             api = api_broker.get_api(version='~1.0', ui_version='~1.0')
             # api can be used to access Nion Swift...
 
-        def close(self):
+        def close(self) -> None:
             pass  # perform any shutdown activities
 
 Organizing Your Python Package
