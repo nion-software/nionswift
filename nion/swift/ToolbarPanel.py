@@ -132,7 +132,7 @@ class ActionTableToolbarWidget(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         perform_function = "perform_" + action_identifier
         def perform_action(widget: UserInterface.Widget) -> None:
-            self.__document_controller.perform_action(action_id)
+            self.__document_controller.perform_action(action_id, invoked_from=Window.ActionOrigin.TOOLBAR)
         setattr(self, perform_function, perform_action)
         return u.create_image(image=f"@binding({icon_property})", height=24, width=32, on_clicked=f"{perform_function}", tool_tip=tool_tip)
 

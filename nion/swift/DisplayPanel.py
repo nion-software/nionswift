@@ -2090,7 +2090,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         def key_pressed(key: UserInterface.Key) -> bool:
             action = Window.get_action_for_key(["display_panel_browser"], key)
             if action:
-                document_controller.perform_action(action)
+                document_controller.perform_action(action, invoked_from=Window.ActionOrigin.KEY)
                 return True
             return False
 
@@ -2879,7 +2879,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 last_selected_graphic_index = max(display_item.graphic_selection.indexes)
                 display_item.graphic_selection.set((last_selected_graphic_index + 1) % len(display_item.graphics))
             else:
-                self.document_controller.perform_action(Window.actions["display_panel.focus_next"])
+                self.document_controller.perform_action(Window.actions["display_panel.focus_next"], invoked_from=Window.ActionOrigin.KEY)
             return True
         elif key.is_backtab:
             display_item = self.display_item
@@ -2889,7 +2889,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 last_selected_graphic_index = min(display_item.graphic_selection.indexes)
                 display_item.graphic_selection.set((last_selected_graphic_index - 1) % len(display_item.graphics))
             else:
-                self.document_controller.perform_action(Window.actions["display_panel.focus_previous"])
+                self.document_controller.perform_action(Window.actions["display_panel.focus_previous"], invoked_from=Window.ActionOrigin.KEY)
             return True
 
         display_canvas_item = self.display_canvas_item
@@ -2905,7 +2905,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             else:
                 action = Window.get_action_for_key(["display_panel_browser"] + list(display_canvas_item.key_contexts), key)
             if action:
-                self.document_controller.perform_action(action)
+                self.document_controller.perform_action(action, invoked_from=Window.ActionOrigin.KEY)
                 return True
             if display_canvas_item.key_pressed(key):
                 return True
@@ -2913,7 +2913,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             # handle case of empty display panel
             action = Window.get_action_for_key(["display_panel_browser"], key)
             if action:
-                self.document_controller.perform_action(action)
+                self.document_controller.perform_action(action, invoked_from=Window.ActionOrigin.KEY)
                 return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
