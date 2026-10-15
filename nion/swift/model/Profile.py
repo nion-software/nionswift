@@ -649,6 +649,7 @@ class Profile(Persistence.PersistentObject):
 
         Returns the newly loaded project reference and the rename result as a tuple to be unpacked.
         """
+        assert isinstance(project_reference, IndexProjectReference)
         project = project_reference.project
 
         if project is None:
@@ -668,7 +669,7 @@ class Profile(Persistence.PersistentObject):
         # Open project creates and adds the project to the profile, but does not read/load the project.
         # The project reference should be added even when the renaming fails
         new_project_reference = self.open_project(project_path)
-        assert new_project_reference is not None
+        assert new_project_reference is not None  # This assert should not be reachable if the project is an IndexProjectReference
         return new_project_reference, rename_result
 
     def get_project_reference(self, uuid_: uuid.UUID) -> typing.Optional[ProjectReference]:
