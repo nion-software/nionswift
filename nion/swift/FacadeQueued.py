@@ -10,6 +10,7 @@ all_classes = {
     "API",
     "Application",
     "DataGroup",
+    "DataRef",
     "DataItem",
     "Display",
     "DisplayPanel",
@@ -204,6 +205,14 @@ class Graphic:
         set_property(self, 'label', value)
 
     @property
+    def line_width(self):
+        return get_property(self, 'line_width')
+
+    @line_width.setter
+    def line_width(self, value):
+        set_property(self, 'line_width', value)
+
+    @property
     def position(self):
         return get_property(self, 'position')
 
@@ -278,6 +287,9 @@ class DataItem:
 
     def add_rectangle_region(self, center_y, center_x, height, width):
         return call_method(self, 'add_rectangle_region', center_y, center_x, height, width)
+
+    def data_item_to_svg(self):
+        return call_method(self, 'data_item_to_svg')
 
     def delete_metadata_value(self, key):
         call_method(self, 'delete_metadata_value', key)
@@ -409,8 +421,18 @@ class Display:
     def _item(self):
         return self._proxy._item
 
+    def add_graphic(self, graphic_description):
+        return call_method(self, 'add_graphic', graphic_description)
+
+    def add_point_graphic(self, y, x):
+        return call_method(self, 'add_point_graphic', y, x)
+
     def get_graphic_by_id(self, graphic_id):
         return call_method(self, 'get_graphic_by_id', graphic_id)
+
+    @property
+    def data(self):
+        return get_property(self, 'data')
 
     @property
     def data_item(self):
@@ -433,12 +455,20 @@ class Display:
         return get_property(self, 'graphics')
 
     @property
+    def metadata(self):
+        return get_property(self, 'metadata')
+
+    @property
     def selected_graphics(self):
         return get_property(self, 'selected_graphics')
 
     @property
     def uuid(self):
         return get_property(self, 'uuid')
+
+    @property
+    def xdata(self):
+        return get_property(self, 'xdata')
 
 
 class DataGroup:
@@ -454,9 +484,44 @@ class DataGroup:
     def add_data_item(self, data_item):
         call_method(self, 'add_data_item', data_item)
 
+    def remove_all_data_items(self):
+        call_method(self, 'remove_all_data_items')
+
+    def remove_data_item(self, data_item):
+        call_method(self, 'remove_data_item', data_item)
+
+    @property
+    def data_items(self):
+        return get_property(self, 'data_items')
+
     @property
     def uuid(self):
         return get_property(self, 'uuid')
+
+
+class DataRef:
+
+    def __init__(self, proxy, specifier):
+        self._proxy = proxy
+        self.specifier = specifier
+
+    def __enter__(self):
+        call_method(self, '__enter__')
+        return self
+
+    def __exit__(self, exception_type, value, traceback):
+        return call_method(self, '__exit__', exception_type, value, traceback)
+
+    def __setitem__(self, key, value):
+        call_method(self, '__setitem__', key, value)
+
+    @property
+    def data(self):
+        return get_property(self, 'data')
+
+    @data.setter
+    def data(self, value):
+        set_property(self, 'data', value)
 
 
 class Library:
@@ -562,6 +627,9 @@ class DocumentWindow:
     def create_data_item_from_data_and_metadata(self, data_and_metadata, title=None):
         return call_method(self, 'create_data_item_from_data_and_metadata', data_and_metadata, title=title)
 
+    def create_task_context_manager(self, title, task_type):
+        return call_method(self, 'create_task_context_manager', title, task_type)
+
     def display_data_item(self, data_item, source_display_panel=None, source_data_item=None):
         return call_method(self, 'display_data_item', data_item, source_display_panel=source_display_panel, source_data_item=source_data_item)
 
@@ -573,6 +641,9 @@ class DocumentWindow:
 
     def queue_task(self, fn):
         call_method(self, 'queue_task', fn)
+
+    def run_interactive_script(self, *, script_path):
+        call_method(self, 'run_interactive_script', script_path=script_path)
 
     def show_confirmation_message_box(self, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=False):
         call_method(self, 'show_confirmation_message_box', caption, accepted_fn, rejected_fn=rejected_fn, accepted_text=accepted_text, rejected_text=rejected_text, display_rejected=display_rejected)
@@ -599,6 +670,10 @@ class DocumentWindow:
     def target_display(self):
         return get_property(self, 'target_display')
 
+    @property
+    def target_display_panel(self):
+        return get_property(self, 'target_display_panel')
+
 
 class Application:
 
@@ -607,8 +682,20 @@ class Application:
         self.specifier = specifier
 
     @property
+    def configuration_location(self):
+        return get_property(self, 'configuration_location')
+
+    @property
+    def data_location(self):
+        return get_property(self, 'data_location')
+
+    @property
     def document_controllers(self):
         return get_property(self, 'document_controllers')
+
+    @property
+    def document_location(self):
+        return get_property(self, 'document_location')
 
     @property
     def document_windows(self):
@@ -659,6 +746,9 @@ class API:
     def create_specifier(self, item_uuid, context_uuid):
         return call_method(self, 'create_specifier', item_uuid, context_uuid)
 
+    def create_unary_operation(self, unary_operation_delegate):
+        return call_method(self, 'create_unary_operation', unary_operation_delegate)
+
     def get_all_hardware_source_ids(self):
         return call_method(self, 'get_all_hardware_source_ids')
 
@@ -673,6 +763,15 @@ class API:
 
     def queue_task(self, fn):
         call_method(self, 'queue_task', fn)
+
+    def raise_requirements_exception(self, reason):
+        call_threadsafe_method(self, 'raise_requirements_exception', reason)
+
+    def run_script(self, *, file_path, stdout=None):
+        call_method(self, 'run_script', file_path=file_path, stdout=stdout)
+
+    def show(self, item, *parameters):
+        call_method(self, 'show', item, *parameters)
 
     @property
     def application(self):
@@ -708,6 +807,9 @@ class HardwareSource:
     def create_view_task(self, frame_parameters=None, channels_enabled=None, buffer_size=1):
         return call_method(self, 'create_view_task', frame_parameters=frame_parameters, channels_enabled=channels_enabled, buffer_size=buffer_size)
 
+    def execute_command(self, command, args_str, kwargs_str):
+        return call_method(self, 'execute_command', command, args_str, kwargs_str)
+
     def get_default_frame_parameters(self):
         return call_method(self, 'get_default_frame_parameters')
 
@@ -732,6 +834,9 @@ class HardwareSource:
     def get_property_as_str(self, name):
         return call_method(self, 'get_property_as_str', name)
 
+    def get_record_frame_parameters(self):
+        return call_method(self, 'get_record_frame_parameters')
+
     def grab_next_to_finish(self, timeout=None):
         return call_threadsafe_method(self, 'grab_next_to_finish', timeout=timeout)
 
@@ -746,6 +851,9 @@ class HardwareSource:
 
     def set_frame_parameters_for_profile_by_index(self, profile_index, frame_parameters):
         call_method(self, 'set_frame_parameters_for_profile_by_index', profile_index, frame_parameters)
+
+    def set_record_frame_parameters(self, frame_parameters):
+        call_method(self, 'set_record_frame_parameters', frame_parameters)
 
     def set_property_as_bool(self, name, value):
         call_threadsafe_method(self, 'set_property_as_bool', name, value)
@@ -801,11 +909,17 @@ class Instrument:
     def close(self) -> None:
         call_method(self, 'close')
 
+    def execute_command(self, command, args_str, kwargs_str):
+        return call_method(self, 'execute_command', command, args_str, kwargs_str)
+
     def get_control_output(self, name):
         return call_method(self, 'get_control_output', name)
 
     def get_control_state(self, name):
         return call_method(self, 'get_control_state', name)
+
+    def get_property(self, name):
+        return call_method(self, 'get_property', name)
 
     def get_property_as_bool(self, name):
         return call_method(self, 'get_property_as_bool', name)
@@ -824,6 +938,9 @@ class Instrument:
 
     def set_control_output(self, name, value, *, options=None):
         call_method(self, 'set_control_output', name, value, options=options)
+
+    def set_property(self, name, value):
+        call_method(self, 'set_property', name, value)
 
     def set_property_as_bool(self, name, value):
         call_method(self, 'set_property_as_bool', name, value)
