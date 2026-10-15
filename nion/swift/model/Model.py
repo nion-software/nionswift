@@ -109,6 +109,7 @@ DisplayLayer = Schema.entity("display_layer", None, None, {
     "label": Schema.prop(Schema.STRING),
     "display_data_channel": Schema.reference(DisplayDataChannel),
     "stroke_width": Schema.prop(Schema.FLOAT),
+    "graph_style": Schema.prop(Schema.STRING),  # "bar" | "line"
 })
 
 Graphic = Schema.entity("graphic", None, None, {
