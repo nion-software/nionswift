@@ -1294,13 +1294,18 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         self.load_properties()
         self.normalize_project_data_path()
         # normalize_project_data_path can set the data path to a non-existent directory instead of None, so if it doesn't exist we set it to None
-        if self.__project_data_path is None or not self.__project_data_path.is_dir():
-            self.__project_data_path = None
-
         old_data_path = self.__project_data_path
+        if old_data_path is None or not old_data_path.is_dir():
+            old_data_path = None
         old_project_path = self.__project_path
         new_project_path = old_project_path.parent / f"{name}.nsproj"
-        new_data_path = old_data_path.parent / f"{name} Data" if old_data_path else ""
+        new_data_path = old_data_path.parent / f"{name} Data" if old_data_path else None
+
+        if new_project_path.exists():
+            return ProjectNameResult([_("Failed to rename project. Project file with target name already exists.")], self.__project_path)
+        if new_data_path and new_data_path.is_dir():
+            return ProjectNameResult([_("Failed to rename project. Project data folder with target name already exists.")], self.__project_path)
+
         try:
             self.__project_path = old_project_path.rename(new_project_path)
         except Exception as e:
@@ -1310,7 +1315,7 @@ class FileProjectStorageSystem(ProjectStorageSystem):
         error_messages = []
         try:
             # If the directory doesn't exist then don't try renaming it
-            if old_data_path is not None:
+            if old_data_path is not None and new_data_path is not None:
                 self.__project_data_path = old_data_path.rename(new_data_path)
         except Exception as e:
             error_messages.append(_("Exception while renaming the Data Folder"))
@@ -1335,7 +1340,9 @@ def check_file_project_name_is_available(name: str, directory: str) -> ProjectNa
     """
     error_messages: list[str] = []
     directory_path = pathlib.Path(directory)
-    new_project_path = pathlib.Path(directory, name).with_suffix(".nsproj")
+    if name.endswith(".nsproj"):  # Ensure that the case of .nsproj already being in the name is removed so appending bellow doesn't cause .nsproj.nsproj
+        name = name.rstrip(".nsproj")
+    new_project_path = pathlib.Path(directory) / f"{name}.nsproj"
     if not directory_path.is_dir():
         error_messages.append(_("Base Directory") + f" \"{directory_path}\" " + _("doesn't exist"))
         return ProjectNameResult(error_messages, new_project_path)
