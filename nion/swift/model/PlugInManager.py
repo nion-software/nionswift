@@ -21,6 +21,9 @@ import unittest
 from nion.swift.model import Utility
 from nion.ui import Declarative
 
+if typing.TYPE_CHECKING:
+    from nion.swift import Facade
+
 PersistentDictType = typing.Dict[str, typing.Any]
 _ModuleInfoType = typing.Any
 
@@ -44,7 +47,8 @@ class RequirementsException(Exception):
         self.reason = reason
 
 
-ApiBrokerFn = typing.Callable[..., typing.Any]
+# the function registered by Facade which returns the API object for a version and an optional ui_version.
+ApiBrokerFn = typing.Callable[[str, str | None], "Facade.API_1"]
 api_broker_fn = typing.cast(ApiBrokerFn, None)
 
 
@@ -54,9 +58,9 @@ def register_api_broker_fn(new_api_broker_fn: ApiBrokerFn) -> None:
 
 
 class APIBroker:
-    def get_api(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    def get_api(self, version: str, ui_version: str | None = None) -> Facade.API_1:
         global api_broker_fn
-        return api_broker_fn(*args, **kwargs)
+        return api_broker_fn(version, ui_version)
 
     def get_ui(self, version: str) -> Declarative.DeclarativeUI:
         actual_version = "1.0.0"
