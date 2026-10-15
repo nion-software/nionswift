@@ -3497,12 +3497,12 @@ class API_1:
 
             stdout = StdoutCatcher()
 
-        class APIBroker:
-            def get_api(self, version: str, ui_version: typing.Optional[str] = None) -> typing.Any:
+        class ScriptAPIBroker:
+            def get_api(self, version: str, ui_version: str | None = None) -> API_1:
                 ui_version = ui_version if ui_version else "~1.0"
                 return PlugInManager.api_broker_fn(version, ui_version)
 
-            def get_ui(self, version: str) -> typing.Any:
+            def get_ui(self, version: str) -> Declarative.DeclarativeUI:
                 actual_version = "1.0.0"
                 if Utility.compare_versions(version, actual_version) > 0:
                     raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
@@ -3510,7 +3510,8 @@ class API_1:
 
         with contextlib.redirect_stdout(typing.cast(typing.Any, stdout)), contextlib.redirect_stderr(typing.cast(typing.Any, stdout)):
             g: typing.Dict[str, typing.Any] = dict()
-            g["api_broker"] = APIBroker()
+            api_broker: APIBroker = ScriptAPIBroker()
+            g["api_broker"] = api_broker
             g["print"] = stdout.write
             exec(compiled, g)
 
@@ -3555,6 +3556,28 @@ def _get_api_with_app(version: str, ui_version: typing.Optional[str], app: Appli
     if Utility.compare_versions(version, actual_version) > 0:
         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
     return API_1(ui_version, app)
+
+
+class APIBroker(typing.Protocol):
+    """The object from which a plug-in extension, or a script run with API_1.run_script, gets the API.
+
+    Swift passes it to the extension's constructor, or to the script's script_main function, as api_broker. Annotate the
+    api_broker parameter with this type so that the API returned by get_api is typed.
+    """
+
+    def get_api(self, version: str, ui_version: str | None = None) -> API_1:
+        """Return the API matching version and ui_version, which are strings in the form "1.0.2" or "~1.0".
+
+        Raises NotImplementedError if the requested version is newer than the API.
+        """
+        ...
+
+    def get_ui(self, version: str) -> Declarative.DeclarativeUI:
+        """Return the declarative UI builder matching version.
+
+        Raises NotImplementedError if the requested version is newer than the declarative UI.
+        """
+        ...
 
 
 def get_api(version: str, ui_version: typing.Optional[str]=None) -> API_1:
