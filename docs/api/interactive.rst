@@ -40,18 +40,20 @@ See :ref:`interactive-guide` to learn more specifics about the Interactive API.
 More Examples
 +++++++++++++
 
-Basic interactive script::
+Basic interactive script. Annotating ``api_broker`` with ``Facade.InteractiveAPIBroker`` gives ``interactive`` the type
+``Facade.InteractiveSession`` and ``api`` the type ``Facade.API_1``, so that a type checker such as mypy can check their
+use. ::
 
-    from nion.typeshed import Interactive_1_0 as Interactive
-    from nion.typeshed import API_1_0 as API
-    from nion.typeshed import UI_1_0 as UI
+    import numpy
 
-    def do_something(interactive: Interactive, api: API):
-        library = api.library
+    from nion.swift import Facade
+
+    def do_something(interactive: Facade.InteractiveSession, api: Facade.API_1) -> None:
         target_data_item = api.application.document_windows[0].target_data_item
-        print('Sum of target image: ', numpy.sum(target_data_item.data))
+        if target_data_item:
+            interactive.print(f"Sum of target image: {numpy.sum(target_data_item.data)}")
 
-    def script_main(api_broker):
-        interactive = api_broker.get_interactive(Interactive.version)  # type: Interactive
-        api = api_broker.get_api(API.version, UI.version)  # type: API
+    def script_main(api_broker: Facade.InteractiveAPIBroker) -> None:
+        interactive = api_broker.get_interactive(version='~1.0')
+        api = api_broker.get_api(version='~1.0', ui_version='~1.0')
         do_something(interactive, api)

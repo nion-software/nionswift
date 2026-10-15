@@ -3580,6 +3580,85 @@ class APIBroker(typing.Protocol):
         ...
 
 
+class InteractiveSession(typing.Protocol):
+    """The object an interactive script uses to exchange text and choices with the user in the Scripts dialog.
+
+    The methods which wait for the user raise an exception which ends the script if the user cancels it or closes the
+    dialog.
+    """
+
+    @property
+    def cancelled(self) -> bool:
+        """Return whether the user has cancelled the script."""
+        raise NotImplementedError()
+
+    def print(self, text: str) -> None:
+        """Print the text in the Scripts dialog."""
+        ...
+
+    def print_debug(self, text: str) -> None:
+        """Print the text in the Scripts dialog as a debug message."""
+        ...
+
+    def print_info(self, text: str) -> None:
+        """Print the text in the Scripts dialog as an informational message."""
+        ...
+
+    def print_warn(self, text: str) -> None:
+        """Print the text in the Scripts dialog as a warning."""
+        ...
+
+    def get_string(self, prompt: str, default_str: str | None = None) -> str:
+        """Return a string the user enters after seeing the prompt, starting from the optional default_str."""
+        ...
+
+    def get_integer(self, prompt: str, default_value: int = 0) -> int:
+        """Return an integer the user enters after seeing the prompt, or 0 if the entry is not an integer."""
+        ...
+
+    def get_float(self, prompt: str, default_value: float = 0, format_str: str | None = None) -> float:
+        """Return a float the user enters after seeing the prompt, or 0.0 if the entry is not a number.
+
+        The default value is shown using the optional format_str.
+        """
+        ...
+
+    def show_ndarray(self, data: NDArray, title: str | None = None) -> None:
+        """Show the data as a new data item with the optional title in the next result display panel."""
+        ...
+
+    def confirm_ok_cancel(self, prompt: str) -> bool:
+        """Return True if the user chooses OK and False if the user chooses Cancel after seeing the prompt."""
+        ...
+
+    def confirm_yes_no(self, prompt: str) -> bool:
+        """Return True if the user chooses Yes and False if the user chooses No after seeing the prompt."""
+        ...
+
+    def confirm(self, prompt: str, accepted_text: str, rejected_text: str) -> bool:
+        """Return True if the user chooses the button labeled accepted_text and False for the one labeled rejected_text."""
+        ...
+
+    def alert(self, prompt: str, button_label: str | None = None) -> None:
+        """Show the prompt and wait for the user to acknowledge it with the button labeled button_label."""
+        ...
+
+
+class InteractiveAPIBroker(APIBroker, typing.Protocol):
+    """The object passed to the script_main function of an interactive script.
+
+    Annotate the script_main api_broker parameter with this type so that the API and the interactive session are typed.
+    The API runs each call on the main thread, since the script runs on its own thread.
+    """
+
+    def get_interactive(self, version: str | None = None) -> InteractiveSession:
+        """Return the interactive session matching version, a string in the form "1.0.2" or "~1.0".
+
+        Raises NotImplementedError if the requested version is newer than the interactive session.
+        """
+        ...
+
+
 def get_api(version: str, ui_version: typing.Optional[str]=None) -> API_1:
     """Get a versioned interface matching the given version and ui_version.
 

@@ -38,6 +38,7 @@ from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
     from nion.swift import DocumentController
+    from nion.swift import Facade
     from nion.ui import DrawingContext
     from nion.ui import UserInterface
 
@@ -357,21 +358,25 @@ class InteractiveScriptAPIBroker:
     The API it returns runs each call on the main thread, since the script runs on its own thread.
     """
 
-    def __init__(self, interactive_session: typing.Any) -> None:
+    def __init__(self, interactive_session: Facade.InteractiveSession) -> None:
         self.__interactive_session = interactive_session
 
-    def get_interactive(self, version: typing.Optional[str] = None) -> typing.Any:
+    def get_interactive(self, version: str | None = None) -> Facade.InteractiveSession:
         actual_version = "1.0.0"
         if Utility.compare_versions(version or str(), actual_version) > 0:
             raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
         return self.__interactive_session
 
-    def get_api(self, version: str, ui_version: typing.Optional[str] = None) -> typing.Any:
+    def get_api(self, version: str, ui_version: str | None = None) -> Facade.API_1:
         ui_version = ui_version if ui_version else "~1.0"
         api = PlugInManager.api_broker_fn(version, ui_version)
         queued_api = FacadeQueued.API(api, None)  # type: ignore
         queued_api._queue_task = api.queue_task
-        return queued_api
+        # the queued API proxies the public members of the API onto the main thread, so it presents the API interface.
+        # members which are not public yet, such as computations and their registration, are not proxied. neither are
+        # the type declarations nested in the API, such as MenuItemReference. the proxies are not instances of the
+        # Facade classes, so an isinstance check against a Facade class is False for them.
+        return typing.cast("Facade.API_1", queued_api)
 
     def get_ui(self, version: str) -> Declarative.DeclarativeUI:
         actual_version = "1.0.0"
@@ -716,10 +721,11 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         compiled = compile(script_ast, script_name, 'exec')
 
-        def run_it(compiled: typing.Any, interactive_session: typing.Any) -> None:
+        def run_it(compiled: typing.Any, interactive_session: RunScriptDialog) -> None:
             try:
                 g: typing.Dict[str, typing.Any] = dict()
-                g["api_broker"] = InteractiveScriptAPIBroker(interactive_session)
+                api_broker: Facade.InteractiveAPIBroker = InteractiveScriptAPIBroker(interactive_session)
+                g["api_broker"] = api_broker
                 g["print"] = self.print
                 g["input"] = self.get_string
 
@@ -817,7 +823,7 @@ class RunScriptDialog(Dialog.ActionDialog):
     def print_warn(self, text: typing.Any) -> None:
         self.print(text)
 
-    def get_string(self, prompt: str, default_str: typing.Optional[str] = None) -> typing.Optional[str]:
+    def get_string(self, prompt: str, default_str: typing.Optional[str] = None) -> str:
         """Return a string value that the user enters. Raises exception for cancel."""
         with self.sync_event() as accept_event:
             result = None
