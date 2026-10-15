@@ -980,10 +980,10 @@ class Application(UIApplication.BaseApplication):
         with self.prevent_close():
             old_title = project_reference.title
             renaming_current_project = self.profile.last_project_reference == project_reference.uuid
-            document_controller = self.document_controllers[0]
-            assert document_controller is not None
             if renaming_current_project:
-                document_controller.request_close()
+                for window in self.windows:
+                    if isinstance(window, DocumentController.DocumentController):
+                        window.request_close()
             error_message: str | None = None
             new_project_reference: Profile.ProjectReference | None = None
             try:
