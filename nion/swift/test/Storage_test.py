@@ -5160,6 +5160,50 @@ class TestStorageClass(unittest.TestCase):
                 properties = json.load(fp)
                 self.assertEqual(["new_name Data"], properties["project_data_folders"])
 
+    def test_file_project_storage_system_fails_rename_if_existing(self) -> None:
+        """Test that the FileProjectStorageSystem rename_project does not rename the project file if the target name is already a file."""
+        with create_temp_profile_context() as profile_context:
+            Cache.db_make_directory_if_needed(str(profile_context.projects_dir))
+            project_path = profile_context.projects_dir / pathlib.Path("ExistingProject").with_suffix(".nsproj")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": []})
+            project_path.write_text(project_data_json, "utf-8")
+            storage_system = FileStorageSystem.make_index_project_storage_system(project_path)
+
+            # Create the conflicting target project
+            target_project_path = profile_context.projects_dir / pathlib.Path("new_name").with_suffix(".nsproj")
+            target_project_uuid = uuid.uuid4()
+            target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid), "project_data_folders": []})
+            target_project_path.write_text(target_project_data_json, "utf-8")
+
+            result = storage_system.rename_project("new_name")
+
+            self.assertFalse(result.success)  # The result should have failed
+            self.assertTrue((profile_context.projects_dir / "ExistingProject.nsproj").exists())  # Both the original and target should still exist
+            self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
+
+    def test_file_project_storage_system_reverts_rename(self) -> None:
+        """Test that the FileProjectStorageSystem rename_project reverts the project file name if the data folder could not be renamed."""
+        with create_temp_profile_context() as profile_context:
+            Cache.db_make_directory_if_needed(str(profile_context.projects_dir))
+            pathlib.Path.mkdir(profile_context.projects_dir / "ExistingProject Data")
+            project_path = profile_context.projects_dir / pathlib.Path("ExistingProject").with_suffix(".nsproj")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": ["ExistingProject Data"]})
+            project_path.write_text(project_data_json, "utf-8")
+            storage_system = FileStorageSystem.make_index_project_storage_system(project_path)
+            storage_system.load_properties()  # No actual data is saved so the project storage data path has to be populated by manually calling this
+
+            target_data_path = profile_context.projects_dir / "new_name Data"
+            pathlib.Path.mkdir(profile_context.projects_dir / "new_name Data")  # Create a data folder at the target name
+
+            result = storage_system.rename_project("new_name")
+            self.assertFalse(result.success)  # The rename should have failed
+            target_project_path = profile_context.projects_dir / "new_name.nsproj"
+
+            self.assertFalse(target_project_path.exists())  # The target project path should not exist as the rename should fail
+            self.assertTrue(target_data_path.is_dir())  # Both the original and target data folders should exist
+            self.assertTrue((profile_context.projects_dir / "ExistingProject Data").is_dir())
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
