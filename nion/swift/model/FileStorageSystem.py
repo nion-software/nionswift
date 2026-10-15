@@ -703,7 +703,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         ProjectNameResult.error_messages will be empty when there are no errors, otherwise it will contain any error messages.
         The project path changing names does not indicate success, only the ProjectNameResult.success should be used to check success.
         """
-        ...
+        raise NotImplementedError("rename_project not implemented")
 
     @property
     def _data_properties_map(self) -> typing.Dict[uuid.UUID, DataItemStorageAdapter]:
