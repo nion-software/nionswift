@@ -1221,7 +1221,11 @@ class RenameProjectAction(UIWindow.Action):
         project_reference = self.__get_project_reference(context, application)
 
         if project_reference is None:
-            application.show_ok_dialog(_("Rename Project Error"), message="Unable to rename project. No project reference could be found.")
+            application.show_ok_dialog(_("Rename Project Error"), message=_("Unable to rename project. No project reference could be found."))
+            return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
+
+        if not isinstance(project_reference, Profile.IndexProjectReference):
+            application.show_ok_dialog(_("Rename Project Error"), message=_("Unable to rename project. Project does not support renaming."))
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
 
         directory = project_reference.path.parent.as_posix()
