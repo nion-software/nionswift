@@ -1146,11 +1146,11 @@ class RenameProjectAction(UIWindow.Action):
 
     def __get_project_reference(self, context: UIWindow.ActionContext, application: Application) -> Profile.ProjectReference | None:
         project_uuid_str = self.get_string_property(context, "project_reference_uuid")
-        if project_uuid_str:
-            project_uuid = uuid.UUID(project_uuid_str)
-        else:
+        if not project_uuid_str:
             # If the project reference is not set then use the current project reference
-            project_uuid = application.profile.last_project_reference
+            project_uuid: uuid.UUID | None = application.profile.last_project_reference
+        else:
+            project_uuid = uuid.UUID(project_uuid_str)
 
         return application.profile.get_project_reference(project_uuid) if project_uuid is not None else None
 
