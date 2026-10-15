@@ -351,6 +351,35 @@ class ScriptCancelException(Exception):
     pass
 
 
+class InteractiveScriptAPIBroker:
+    """The api_broker passed to the script_main function of an interactive script.
+
+    The API it returns runs each call on the main thread, since the script runs on its own thread.
+    """
+
+    def __init__(self, interactive_session: typing.Any) -> None:
+        self.__interactive_session = interactive_session
+
+    def get_interactive(self, version: typing.Optional[str] = None) -> typing.Any:
+        actual_version = "1.0.0"
+        if Utility.compare_versions(version or str(), actual_version) > 0:
+            raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
+        return self.__interactive_session
+
+    def get_api(self, version: str, ui_version: typing.Optional[str] = None) -> typing.Any:
+        ui_version = ui_version if ui_version else "~1.0"
+        api = PlugInManager.api_broker_fn(version, ui_version)
+        queued_api = FacadeQueued.API(api, None)  # type: ignore
+        queued_api._queue_task = api.queue_task
+        return queued_api
+
+    def get_ui(self, version: str) -> Declarative.DeclarativeUI:
+        actual_version = "1.0.0"
+        if Utility.compare_versions(version, actual_version) > 0:
+            raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
+        return Declarative.DeclarativeUI()
+
+
 class RunScriptDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller: "DocumentController.DocumentController"):
@@ -688,28 +717,9 @@ class RunScriptDialog(Dialog.ActionDialog):
         compiled = compile(script_ast, script_name, 'exec')
 
         def run_it(compiled: typing.Any, interactive_session: typing.Any) -> None:
-            class APIBroker:
-                def get_interactive(self, version: typing.Optional[str] = None) -> typing.Any:
-                    actual_version = "1.0.0"
-                    if Utility.compare_versions(version or str(), actual_version) > 0:
-                        raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
-                    return interactive_session
-
-                def get_api(self, version: str, ui_version: typing.Optional[str] = None) -> typing.Any:
-                    ui_version = ui_version if ui_version else "~1.0"
-                    api = PlugInManager.api_broker_fn(version, ui_version)
-                    queued_api = FacadeQueued.API(api, None)  # type: ignore
-                    queued_api._queue_task = api.queue_task
-                    return queued_api
-
-                def get_ui(self, version: str) -> Declarative.DeclarativeUI:
-                    actual_version = "1.0.0"
-                    if Utility.compare_versions(version, actual_version) > 0:
-                        raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
-                    return Declarative.DeclarativeUI()
             try:
                 g: typing.Dict[str, typing.Any] = dict()
-                g["api_broker"] = APIBroker()
+                g["api_broker"] = InteractiveScriptAPIBroker(interactive_session)
                 g["print"] = self.print
                 g["input"] = self.get_string
 
