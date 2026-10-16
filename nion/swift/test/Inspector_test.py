@@ -105,6 +105,19 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()  # needed to build the inspector
             self.assertFalse(document_controller.get_undo_menu_item_state().enabled)
 
+    def test_showing_image_in_inspector_leaves_its_display_properties_unchanged(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_properties = dict(display_item.display_properties)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            self.assertEqual(display_properties, display_item.display_properties)
+
     def test_display_limits_inspector_should_bind_to_display_without_errors(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

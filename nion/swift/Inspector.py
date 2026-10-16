@@ -1912,15 +1912,6 @@ class ScaleMarkerOptionsHandler(Declarative.Handler):
         self._scale_marker_location_items = (_("Bottom Left"), _("Bottom Right"))
         self._scale_marker_location_reverse_map = {"bottom-left": 0, "bottom-right": 1}
         self._scale_marker_location_flags = ("bottom-left", "bottom-right")
-        if display_item.get_display_property("show_scale_info_text") is None:
-            display_item.set_display_property("show_scale_info_text", True)
-
-        self._show_info_text_model = DisplayItemDisplayPropertyCommandModel(
-            document_controller,
-            display_item,
-            "show_scale_info_text"
-        )
-        self.notify_property_changed("show_scale_info_text")
 
         self._scale_marker_position_model = DisplayItemDisplayPropertyCommandModel(
             document_controller,
