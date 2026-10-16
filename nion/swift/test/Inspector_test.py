@@ -76,6 +76,35 @@ class TestInspectorClass(unittest.TestCase):
                 inspector_section.info_title_label.editing_finished("Title2")
                 self.assertEqual("Title2", display_item.title)
 
+    def test_redo_restores_rectangle_after_inspector_updates_for_undo(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            document_controller.add_rectangle_graphic()
+            document_controller.periodic()
+            document_controller.handle_undo()
+            document_controller.periodic()  # the inspector rebuilds for the changed graphic selection
+            document_controller.handle_redo()
+            self.assertEqual(1, len(display_item.graphics))
+
+    def test_selecting_image_shown_in_inspector_leaves_undo_disabled(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            document_controller.selected_display_panel = None  # this would occur when user clicks in data panel
+            document_controller.select_display_items_in_data_panel([display_item])
+            document_controller.periodic()  # needed to build the inspector
+            self.assertFalse(document_controller.get_undo_menu_item_state().enabled)
+
     def test_display_limits_inspector_should_bind_to_display_without_errors(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
