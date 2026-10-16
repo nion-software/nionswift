@@ -388,7 +388,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
             delegate = self.delegate
             assert delegate
-            command = delegate.create_change_display_command()
+            command = delegate.create_change_display_command(command_id="zoom_line_plot_to_intervals")
             delegate.update_display_properties({"left_channel": display_left_channel,
                                                 "right_channel": display_right_channel,
                                                 "y_min": y_min,
@@ -441,12 +441,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             h_axis_canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
             v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
             if h_axis_canvas_bounds and h_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
-                command = delegate.create_change_display_command()
+                command = delegate.create_change_display_command(command_id="reset_line_plot_horizontal_range")
                 delegate.update_display_properties({"left_channel": None, "right_channel": None})
                 delegate.push_undo_command(command)
                 return True
             elif v_axis_canvas_bounds and v_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
-                command = delegate.create_change_display_command()
+                command = delegate.create_change_display_command(command_id="reset_line_plot_vertical_range")
                 delegate.update_display_properties({"y_min": None, "y_max": None})
                 delegate.push_undo_command(command)
                 return True
@@ -752,7 +752,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 self.__line_graph_regions_canvas_item.update()
         elif self.__tracking_horizontal:
             if not self.__undo_command:
-                self.__undo_command = delegate.create_change_display_command()
+                self.__undo_command = delegate.create_change_display_command(command_id="change_line_plot_horizontal_range")
             h_axis_canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
             if h_axis_canvas_bounds and self.__tracking_rescale:
                 plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
@@ -772,7 +772,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 return True
         elif self.__tracking_vertical:
             if not self.__undo_command:
-                self.__undo_command = delegate.create_change_display_command()
+                self.__undo_command = delegate.create_change_display_command(command_id="change_line_plot_vertical_range")
             v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
             axes = self.__last_axes
             if axes:

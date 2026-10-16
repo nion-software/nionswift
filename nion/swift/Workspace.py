@@ -65,8 +65,8 @@ def _swap_orientation(orientation: typing.Optional[str]) -> typing.Optional[str]
 
 
 class CreateWorkspaceCommand(Undo.UndoableCommand):
-    def __init__(self, workspace_controller: Workspace, name: str) -> None:
-        super().__init__("Create Workspace")
+    def __init__(self, workspace_controller: Workspace, name: str, *, command_id: str = "create_workspace") -> None:
+        super().__init__("Create Workspace", command_id=command_id)
         self.__workspace_controller = workspace_controller
         self.__workspace_layout_uuid = workspace_controller._workspace.uuid
         self.__new_name = name
@@ -104,7 +104,7 @@ class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
     """Create a workspace, then split the panels and insert the selected display items."""
     def __init__(self, workspace_controller: Workspace, name: str,
                  selection: list[DisplayItem.DisplayItem], layout_shape: tuple[int, int]) -> None:
-        super().__init__(workspace_controller, name)
+        super().__init__(workspace_controller, name, command_id="create_workspace_from_selection")
         self.__selection = selection
         self.__layout_shape = layout_shape
         self.__workspace_controller = workspace_controller
@@ -124,7 +124,7 @@ class CreateWorkspaceFromSelectionCommand(CreateWorkspaceCommand):
 
 class RemoveWorkspaceCommand(Undo.UndoableCommand):
     def __init__(self, workspace_controller: Workspace):
-        super().__init__("Remove Workspace")
+        super().__init__("Remove Workspace", command_id="remove_workspace")
         self.__workspace_controller = workspace_controller
         self.__old_workspace_dict = workspace_controller._workspace.write_to_dict()
         self.__old_workspace_index = workspace_controller._project.workspaces.index(workspace_controller._workspace)
@@ -159,7 +159,7 @@ class RemoveWorkspaceCommand(Undo.UndoableCommand):
 
 class RenameWorkspaceCommand(Undo.UndoableCommand):
     def __init__(self, workspace_controller: Workspace, name: str):
-        super().__init__("Rename Workspace")
+        super().__init__("Rename Workspace", command_id="rename_workspace")
         self.__workspace_controller = workspace_controller
         self.__old_name = workspace_controller._workspace.name
         self.__new_name = name
@@ -183,7 +183,7 @@ class RenameWorkspaceCommand(Undo.UndoableCommand):
 
 class CloneWorkspaceCommand(Undo.UndoableCommand):
     def __init__(self, workspace_controller: Workspace, name: str):
-        super().__init__("Clone Workspace")
+        super().__init__("Clone Workspace", command_id="clone_workspace")
         self.__workspace_controller = workspace_controller
         self.__workspace_layout_uuid = workspace_controller._workspace.uuid
         self.__new_name = name
@@ -226,8 +226,8 @@ class CloneWorkspaceCommand(Undo.UndoableCommand):
 
 
 class ChangeWorkspaceContentsCommand(Undo.UndoableCommand):
-    def __init__(self, workspace_controller: Workspace, title: str, old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None):
-        super().__init__(title)
+    def __init__(self, workspace_controller: Workspace, title: str, old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None, *, command_id: str | None = None):
+        super().__init__(title, command_id=command_id)
         self.__workspace_controller = workspace_controller
         self.__old_workspace_layout = old_workspace_layout if old_workspace_layout else workspace_controller.deconstruct()
         self.__new_workspace_layout: typing.Optional[Persistence.PersistentDictType] = None
@@ -559,14 +559,14 @@ class Workspace:
         return self.deconstruct()
 
     def close_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel]) -> None:
-        command = ChangeWorkspaceContentsCommand(self, _("Close Display Panel"))
+        command = ChangeWorkspaceContentsCommand(self, _("Close Display Panel"), command_id="close_display_panel")
         for display_panel in display_panels:
             if len(self.__display_panels) > 1:
                 self._remove_display_panel(display_panel, None)
         self.document_controller.push_undo_command(command)
 
     def clear_display_panels(self, display_panels: typing.Sequence[DisplayPanel.DisplayPanel], title: str) -> None:
-        command = ChangeWorkspaceContentsCommand(self, title)
+        command = ChangeWorkspaceContentsCommand(self, title, command_id="clear_display_panel")
         d = {"type": "image", "display-panel-type": "empty-display-panel"}
         for display_panel in display_panels:
             display_panel.change_display_panel_content(d)
@@ -609,12 +609,12 @@ class Workspace:
         d: Persistence.PersistentDictType = {"type": "image", "display-panel-type": display_panel_type}
         if display_item and display_panel_type != "empty-display-panel":
             d["display_item_specifier"] = Persistence.write_persistent_specifier(display_item.uuid)
-        command = ChangeWorkspaceContentsCommand(self, _("Replace Display Panel"))
+        command = ChangeWorkspaceContentsCommand(self, _("Replace Display Panel"), command_id="replace_display_panel")
         display_panel.change_display_panel_content(d)
         self.document_controller.push_undo_command(command)
 
     def change_workspace(self, workspace_layout: WorkspaceLayout.WorkspaceLayout) -> None:
-        command = ChangeWorkspaceContentsCommand(self, _("Change Workspace"))
+        command = ChangeWorkspaceContentsCommand(self, _("Change Workspace"), command_id="change_workspace")
         self._change_workspace(workspace_layout)
         self.document_controller.push_undo_command(command)
 
@@ -885,7 +885,7 @@ class Workspace:
         """ Used in drag/drop support. """
         if self.document_controller.replaced_display_panel_content_flag:
             self.document_controller.replaced_display_panel_content = display_panel.save_contents()
-        command = ChangeWorkspaceContentsCommand(self, _("Replace Display Panel"))
+        command = ChangeWorkspaceContentsCommand(self, _("Replace Display Panel"), command_id="replace_display_panel")
         if display_item:
             display_panel.set_display_panel_display_item(display_item, detect_controller=True)
         elif d is not None:
@@ -904,7 +904,7 @@ class Workspace:
         assert self.__workspace
         if self.document_controller.replaced_display_panel_content_flag:
             self.document_controller.replaced_display_panel_content = {"uuid": display_panel.uuid, "identifier": display_panel.identifier}
-        command = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
+        command = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"), command_id="split_display_panel")
         self._insert_display_panel(display_panel, region, display_item, d, new_uuid, new_splits)
         return command
 
@@ -960,7 +960,7 @@ class Workspace:
     def remove_display_panel(self, display_panel: DisplayPanel.DisplayPanel,
                              splits: typing.Optional[typing.List[float]] = None) -> Undo.UndoableCommand:
         assert self.__workspace
-        command = ChangeWorkspaceContentsCommand(self, _("Remove Display Panel"))
+        command = ChangeWorkspaceContentsCommand(self, _("Remove Display Panel"), command_id="remove_display_panel")
         self._remove_display_panel(display_panel, splits)
         return command
 
@@ -1067,7 +1067,7 @@ class Workspace:
 
     def _splits_will_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         self.__change_splitter_splits = list(splitter_canvas_item.splits)
-        self.__change_splitter_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"))
+        self.__change_splitter_command = ChangeWorkspaceContentsCommand(self, _("Change Workspace Contents"), command_id="change_workspace_splits")
 
     def _splits_did_change(self, splitter_canvas_item: CanvasItem.SplitterCanvasItem) -> None:
         # if the canvas item splits change by way of the user dragging the splitter, write the layout to persistent storage.

@@ -1047,7 +1047,7 @@ class InsertGraphicsCommand(Undo.UndoableCommand):
                  existing_graphics: typing.Optional[typing.Sequence[Graphics.Graphic]] = None,
                  display_item_modified_state: typing.Any = None,
                  allow_secondary_copy: bool = False) -> None:
-        super().__init__(_("Insert Graphics"))
+        super().__init__(_("Insert Graphics"), command_id="insert_graphics")
         self.__document_controller = document_controller
         self.__display_item_proxy = display_item.create_proxy()
         self.__graphics = graphics  # only used for perform
@@ -1713,7 +1713,7 @@ class ChangeDisplayPropertiesInteractiveTask(DisplayCanvasItem.InteractiveTask):
         assert display_item
         self.__display_item = display_item
         self.__display_properties = copy.copy(display_item.display_properties)
-        self.__undo_command: typing.Optional[Undo.UndoableCommand] = self.__display_panel.create_change_display_command()
+        self.__undo_command: typing.Optional[Undo.UndoableCommand] = self.__display_panel.create_change_display_command(command_id="change_image_position")
         self.__display_panel.begin_mouse_tracking()
 
     def _close(self) -> None:
@@ -3143,7 +3143,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def handle_auto_display(self) -> bool:
         if self.__display_item:
-            command = ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item)
+            command = ChangeDisplayCommand(self.__document_controller.document_model, self.__display_item, command_id="auto_display")
             if self.display_canvas_item:
                 result = self.display_canvas_item.handle_auto_display()
                 if result:
@@ -3236,13 +3236,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
     def create_move_display_layer_command(self, display_item: DisplayItem.DisplayItem, src_index: int, target_index: int) -> MoveDisplayLayerCommand:
         assert self.__display_item
-        return MoveDisplayLayerCommand(self.__document_controller.document_model, display_item, src_index, self.__display_item, target_index)
+        return MoveDisplayLayerCommand(self.__document_controller.document_model, display_item, src_index, self.__display_item, target_index, command_id="move_display_layer")
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
         assert self.__display_item
         all_graphics = self.__display_item.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display_item.graphic_selection.contains(graphic_index)]
-        return ChangeGraphicsCommand(self.__document_controller.document_model, self.__display_item, graphics)
+        return ChangeGraphicsCommand(self.__document_controller.document_model, self.__display_item, graphics, command_id="drag_graphics")
 
     def push_undo_command(self, command: Undo.UndoableCommand) -> None:
         self.__document_controller.push_undo_command(command)

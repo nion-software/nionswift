@@ -1534,7 +1534,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def __apply_display_properties_command(self, display_properties: Persistence.PersistentDictType) -> None:
         delegate = self.delegate
         if delegate:
-            command = delegate.create_change_display_command()
+            command = delegate.create_change_display_command(command_id="change_image_zoom")
             delegate.update_display_properties(display_properties)
             delegate.push_undo_command(command)
 
