@@ -109,7 +109,7 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertEqual(panel._text_edit_for_testing.text, expression)
             self.assertIsNone(panel._error_label_for_testing.text)
 
-    def test_undo_of_expression_change_is_available_after_computation_runs(self):
+    def test_undo_and_redo_of_expression_change_restore_expression_and_result(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -127,7 +127,16 @@ class TestComputationPanelClass(unittest.TestCase):
             panel._update_button.on_clicked()
             document_model.recompute_all()
             document_controller.periodic()
-            self.assertTrue(document_controller.get_undo_menu_item_state().enabled)
+            document_controller.handle_undo()
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertEqual("target.xdata = -a.xdata", panel._text_edit_for_testing.text)
+            self.assertTrue(numpy.array_equal(-numpy.ones((10, 10)), data_item2.data))
+            document_controller.handle_redo()
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertEqual("target.xdata = -a.xdata + 3", panel._text_edit_for_testing.text)
+            self.assertTrue(numpy.array_equal(numpy.full((10, 10), 2.0), data_item2.data))
             panel.close()
 
     def test_error_text_cleared_after_invalid_script_becomes_valid(self):

@@ -216,7 +216,11 @@ class ChangeComputationCommand(Undo.UndoableCommand):
         super().__init__(title if title else _("Change Computation"), command_id=command_id, is_mergeable=is_mergeable)
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
-        self.__properties = {key: getattr(computation, key) for key in kwargs.keys()}
+
+        # the persistent properties which performing the command changed, by key, with the values to restore on undo
+        # or redo. setting one attribute can change several properties, e.g. a new expression clears the processing id.
+        self.__properties: Persistence.PersistentDictType = dict()
+
         self.__value_dict = kwargs
         self.initialize()
 
@@ -230,8 +234,18 @@ class ChangeComputationCommand(Undo.UndoableCommand):
     def _perform(self) -> None:
         computation = self.__computation_proxy.item
         if computation:
+            properties_before = self.__read_properties(computation)
             for key, value in self.__value_dict.items():
                 setattr(computation, key, value)
+            properties_after = self.__read_properties(computation)
+            self.__properties = {key: value for key, value in properties_before.items() if properties_after[key] != value}
+
+    @staticmethod
+    def __read_properties(computation: Symbolic.Computation) -> Persistence.PersistentDictType:
+        # read every persistent property of the computation by key. write_to_dict leaves out a property whose value is
+        # None, so a missing key is read as None.
+        properties = computation.write_to_dict()
+        return {key: properties.get(key) for key in computation.key_names}
 
     def _get_modified_state(self) -> typing.Any:
         computation = self.__computation_proxy.item
@@ -251,13 +265,21 @@ class ChangeComputationCommand(Undo.UndoableCommand):
     def _undo(self) -> None:
         computation = self.__computation_proxy.item
         if computation:
+            # restore the changed properties, and keep their current values for redo, or for undo after a redo.
             properties = self.__properties
-            self.__properties = computation.write_to_dict()
+            current_properties = self.__read_properties(computation)
+            self.__properties = {key: current_properties[key] for key in properties.keys()}
             # NOTE: use read_properties_from_dict (read properties only), not read_from_dict (used for initialization).
             computation.read_properties_from_dict(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
         return super().can_merge(command) and isinstance(command, ChangeComputationCommand) and self.__computation_proxy.item == command.__computation_proxy.item
+
+    def _merge(self, command: Undo.UndoableCommand) -> None:
+        # undo restores each property to its value before the first of the merged commands which changed it.
+        assert isinstance(command, ChangeComputationCommand)
+        for key, value in command.__properties.items():
+            self.__properties.setdefault(key, value)
 
 
 def select_computation(document_model: DocumentModel.DocumentModel, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[Symbolic.Computation]:
