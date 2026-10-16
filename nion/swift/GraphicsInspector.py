@@ -544,7 +544,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self._width_model = DisplayItemCalibratedDimensionValueModel(size_model, self.__display_item, dimension_index=1, is_size=True)
         self._height_model = DisplayItemCalibratedDimensionValueModel(size_model, self.__display_item, dimension_index=0, is_size=True)
 
-        self._rotation_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "rotation", title=_("Change {graphic_type} Rotation").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_size")
+        self._rotation_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "rotation", title=_("Change {graphic_type} Rotation").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_rotation")
 
         self._radian_to_degrees_string_converter = RadianToDegreeStringConverter()
 
