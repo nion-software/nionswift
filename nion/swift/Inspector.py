@@ -879,7 +879,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                            self._line_plot_display_layer_model.display_item,
                                                            index,
                                                            self._line_plot_display_layer_model.display_item,
-                                                           index - 1)
+                                                           index - 1, command_id="move_display_layer_forward")
             command.perform()
             self._line_plot_display_layer_model.document_controller.push_undo_command(command)
 
@@ -890,7 +890,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                            self._line_plot_display_layer_model.display_item,
                                                            index,
                                                            self._line_plot_display_layer_model.display_item,
-                                                           index + 1)
+                                                           index + 1, command_id="move_display_layer_backward")
             command.perform()
             self._line_plot_display_layer_model.document_controller.push_undo_command(command)
 
@@ -899,7 +899,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer) + 1
         command = DisplayPanel.AddDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
                                                       self._line_plot_display_layer_model.display_item,
-                                                      index)
+                                                      index, command_id="add_display_layer")
         command.perform()
         self._line_plot_display_layer_model.document_controller.push_undo_command(command)
 
@@ -907,7 +907,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
         index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
         command = DisplayPanel.RemoveDisplayLayerCommand(self._line_plot_display_layer_model.document_controller.document_model,
                                                          self._line_plot_display_layer_model.display_item,
-                                                         index)
+                                                         index, command_id="remove_display_layer")
         command.perform()
         self._line_plot_display_layer_model.document_controller.push_undo_command(command)
 
@@ -974,7 +974,7 @@ class LinePlotDisplayLayerModel(Observable.Observable):
             assert self.display_layer.display_data_channel
             command = DisplayPanel.ChangeDisplayDataChannelCommand(self.document_controller.document_model,
                                                                    self.display_layer.display_data_channel,
-                                                                   complex_display_type=new_type)
+                                                                   complex_display_type=new_type, command_id="change_complex_display_type")
             command.perform()
             self.document_controller.push_undo_command(command)
 
@@ -1014,7 +1014,7 @@ class LinePlotDisplayLayersSectionHandler(Declarative.Handler):
     def add_layer(self) -> None:
         command = DisplayPanel.AddDisplayLayerCommand(self.__document_controller.document_model,
                                                       self.__display_item,
-                                                      0)
+                                                      0, command_id="add_display_layer")
         command.perform()
         self.__document_controller.push_undo_command(command)
 
@@ -1164,7 +1164,7 @@ class ImageDataInspectorModel(Observable.Observable):
         if self.get_current_adjustment_id() != adjustment_option:
             adjustments = list() if adjustment_option is None else [{"type": adjustment_option, "uuid": str(uuid.uuid4())}]
             command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
-                                                                   self._display_data_channel, adjustments=adjustments)
+                                                                   self._display_data_channel, adjustments=adjustments, command_id="change_display_adjustments")
             command.perform()
             self._document_controller.push_undo_command(command)
             self._update_gamma_visibility()
@@ -1279,7 +1279,7 @@ class ComplexDisplayTypeChooserHandler(Declarative.Handler):
         current_display_type = self._display_type_flags[current_index]
         if self._display_data_channel.complex_display_type != current_display_type:
             command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
-                                                                   self._display_data_channel, complex_display_type=current_display_type)
+                                                                   self._display_data_channel, complex_display_type=current_display_type, command_id="change_complex_display_type")
             command.perform()
             self._document_controller.push_undo_command(command)
 
@@ -2459,7 +2459,7 @@ class ComputationInspectorSection(InspectorSection):
 class RemoveDisplayDataChannelCommand(Undo.UndoableCommand):
 
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, display_data_channel: DisplayItem.DisplayDataChannel) -> None:
-        super().__init__(_("Remove Data Item"))
+        super().__init__(_("Remove Data Item"), command_id="remove_display_data_channel")
         self.__document_controller = document_controller
         self.__display_item_proxy = display_item.create_proxy()
         workspace_controller = self.__document_controller.workspace_controller

@@ -112,7 +112,7 @@ class ChangeComputationVariantCommand(Undo.UndoableCommand):
     """
 
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, new_processing_id: str) -> None:
-        super().__init__(_("Change Computation Variant"))
+        super().__init__(_("Change Computation Variant"), command_id="change_computation_variant")
         document_model = document_controller.document_model
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
@@ -250,7 +250,7 @@ class VariableValueModel(Observable.Observable):
         computation = self.__computation
         variable = self.__variable
         if value != variable.value:
-            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, value=value)
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, command_id="change_computation_variable_value", value=value)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -484,7 +484,7 @@ class DataSourceVariableHandler(Declarative.Handler):
             properties = {"variable_type": "data_source", "secondary_specified_object": None,
                           "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
             command = ChangeComputationVariableCommand(document_controller.document_model, computation,
-                                                       variable, title=_("Set Input Data Source"),
+                                                       variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
             document_controller.push_undo_command(command)
@@ -505,7 +505,7 @@ class DataSourceVariableHandler(Declarative.Handler):
             properties = {"variable_type": "data_source", "secondary_specified_object": graphic,
                           "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
             command = ChangeComputationVariableCommand(document_controller.document_model, computation,
-                                                       variable, title=_("Set Input Data Source"),
+                                                       variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
             document_controller.push_undo_command(command)
@@ -520,7 +520,7 @@ class DataSourceVariableHandler(Declarative.Handler):
             properties = {"variable_type": "data_source", "secondary_specified_object": crop_graphic,
                           "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
             command = ChangeComputationVariableCommand(document_controller.document_model, computation,
-                                                       variable, title=_("Set Input Data Source"),
+                                                       variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
             document_controller.push_undo_command(command)
@@ -645,7 +645,7 @@ class DataSourceVariableHandler(Declarative.Handler):
             document_controller = self.document_controller
             computation = self.computation
             variable = self.variable
-            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Change Input Operation"), input_operation=input_operation)
+            command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Change Input Operation"), command_id="change_input_operation", input_operation=input_operation)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -660,7 +660,7 @@ class DataSourceVariableHandler(Declarative.Handler):
             properties = {"variable_type": "data_source", "secondary_specified_object": graphic,
                           "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
             command = ChangeComputationVariableCommand(document_controller.document_model, computation,
-                                                       variable, title=_("Set Input Data Source"),
+                                                       variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
             document_controller.push_undo_command(command)
@@ -671,7 +671,7 @@ class DataSourceVariableHandler(Declarative.Handler):
             properties = {"variable_type": "data_source", "secondary_specified_object": None,
                           "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
             command = ChangeComputationVariableCommand(document_controller.document_model, computation,
-                                                       variable, title=_("Set Input Data Source"),
+                                                       variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
             document_controller.push_undo_command(command)
@@ -683,7 +683,7 @@ class DataSourceVariableHandler(Declarative.Handler):
         computation = self.computation
         variable = self.variable
         command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable,
-                                                   title=_("Remove Input Data Source"), specified_object=None)
+                                                   title=_("Remove Input Data Source"), command_id="remove_input_data_source", specified_object=None)
         command.perform()
         document_controller.push_undo_command(command)
 

@@ -60,7 +60,7 @@ class AddVariableCommand(Undo.UndoableCommand):
                  control_type: typing.Optional[str] = None,
                  specified_item: typing.Optional[Persistence.PersistentObject] = None,
                  label: typing.Optional[str] = None):
-        super().__init__(_("Add Computation Variable"))
+        super().__init__(_("Add Computation Variable"), command_id="add_computation_variable")
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
         self.__name = name
@@ -124,7 +124,7 @@ class AddVariableCommand(Undo.UndoableCommand):
 class RemoveVariableCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model: DocumentModel.DocumentModel, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
-        super().__init__(_("Remove Computation Variable"))
+        super().__init__(_("Remove Computation Variable"), command_id="remove_computation_variable")
         self.__document_model = document_model
         self.__computation_proxy = computation.create_proxy()
         self.__variable_index = computation.variables.index(variable)
@@ -176,7 +176,7 @@ class RemoveVariableCommand(Undo.UndoableCommand):
 class CreateComputationCommand(Undo.UndoableCommand):
 
     def __init__(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem) -> None:
-        super().__init__(_("Create Computation"))
+        super().__init__(_("Create Computation"), command_id="create_computation")
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
 
@@ -493,7 +493,7 @@ class ChangeVariableBinding(Binding.PropertyBinding):
 
     def __set_value(self, value: typing.Any) -> None:
         if value != getattr(self.__variable, self.__property_name):
-            command = ComputationInspector.ChangeComputationVariableCommand(self.__document_controller.document_model, self.__computation, typing.cast(Symbolic.ComputationVariable, self.source), **{self.__property_name: value})
+            command = ComputationInspector.ChangeComputationVariableCommand(self.__document_controller.document_model, self.__computation, typing.cast(Symbolic.ComputationVariable, self.source), command_id="change_computation_variable_" + self.__property_name, **{self.__property_name: value})
             command.perform()
             self.__document_controller.push_undo_command(command)
 
@@ -719,7 +719,7 @@ class ComputationPanelSection:
         twist_down_canvas_item.on_button_clicked = toggle
 
         def change_type(variable_type: str) -> None:
-            command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), variable_type=variable_type)
+            command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Item"), command_id="change_computation_variable_type", variable_type=variable_type)
             command.perform()
             document_controller.push_undo_command(command)
 
@@ -763,7 +763,7 @@ def drop_mime_data(document_controller: DocumentController.DocumentController, c
     data_item = display_item.data_item if display_item else None
     if data_item and display_item:
         properties = {"variable_type": "data_source", "secondary_specified_object": graphic, "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
-        command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)  # type: ignore
+        command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), command_id="set_input_data_source", **properties)  # type: ignore
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
@@ -771,7 +771,7 @@ def drop_mime_data(document_controller: DocumentController.DocumentController, c
     data_item = display_item.data_item if display_item else None
     if data_item and display_item:
         properties = {"variable_type": "data_source", "secondary_specified_object": None, "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
-        command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), **properties)  # type: ignore
+        command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Set Input Data Source"), command_id="set_input_data_source", **properties)  # type: ignore
         command.perform()
         document_controller.push_undo_command(command)
         return "copy"
@@ -779,7 +779,7 @@ def drop_mime_data(document_controller: DocumentController.DocumentController, c
 
 
 def data_item_delete(document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
-    command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Source"), specified_object=None)
+    command = ComputationInspector.ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Remove Input Data Source"), command_id="remove_input_data_source", specified_object=None)
     command.perform()
     document_controller.push_undo_command(command)
 
@@ -1061,7 +1061,7 @@ class EditComputationDialog(Dialog.ToolDialog):
 class RemoveComputationCommand(Undo.UndoableCommand):
 
     def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation):
-        super().__init__(_("Remove Computation"))
+        super().__init__(_("Remove Computation"), command_id="remove_computation")
         self.__document_controller = document_controller
         workspace_controller = self.__document_controller.workspace_controller
         assert workspace_controller

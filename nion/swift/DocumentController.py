@@ -882,7 +882,7 @@ class DocumentController(Window.Window):
                 assert workspace_controller
                 command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller,
                                                                    _("Replace Display Panel"),
-                                                                   last_command._old_workspace_layout)
+                                                                   last_command._old_workspace_layout, command_id="replace_display_panel")
                 self.pop_undo_command()
                 self.push_undo_command(command)
         self.replaced_display_panel_content_flag = False
@@ -1184,7 +1184,7 @@ class DocumentController(Window.Window):
             display_item_to_paste = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
             data_item_to_paste = display_item_to_paste.data_item if display_item_to_paste else None
             if display_item_to_paste and data_item_to_paste:
-                append_command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste, display_item_to_paste.display_layers[0])
+                append_command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste, display_item_to_paste.display_layers[0], command_id="append_display_data_channel")
                 append_command.perform()
                 self.push_undo_command(append_command)
         return False
@@ -1200,7 +1200,7 @@ class DocumentController(Window.Window):
         # returns True if success else False.
         data_item = display_item.data_item if display_item else None
         if data_item and target_display_item:
-            command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, target_display_item, data_item, display_item.display_layers[0])
+            command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, target_display_item, data_item, display_item.display_layers[0], command_id="append_display_data_channel")
             command.perform()
             self.push_undo_command(command)
             return True
@@ -1209,7 +1209,7 @@ class DocumentController(Window.Window):
     class InsertDisplayItemCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem, display_panel: DisplayPanel.DisplayPanel) -> None:
-            super().__init__(_("Insert Display Item"))
+            super().__init__(_("Insert Display Item"), command_id="insert_display_item")
             self.__document_controller = document_controller
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
@@ -1294,7 +1294,7 @@ class DocumentController(Window.Window):
 
     class InsertDataGroupDisplayItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, before_index: int, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
-            super().__init__("Insert Data Items")
+            super().__init__("Insert Data Items", command_id="insert_data_group_display_items")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
             self.__before_index = before_index
@@ -1347,7 +1347,7 @@ class DocumentController(Window.Window):
 
     class InsertDataGroupDataItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_controller: DocumentController, data_group: DataGroup.DataGroup, data_items: typing.Sequence[DataItem.DataItem], index: int) -> None:
-            super().__init__("Insert Data Items")
+            super().__init__("Insert Data Items", command_id="insert_data_group_data_items")
             self.__document_controller = document_controller
             self.__data_group_proxy = data_group.create_proxy()
             self.__data_group_indexes: typing.List[int] = list()
@@ -1433,7 +1433,7 @@ class DocumentController(Window.Window):
 
     class RemoveDataGroupDisplayItemsCommand(Undo.UndoableCommand):
         def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
-            super().__init__("Remove Data Item")
+            super().__init__("Remove Data Item", command_id="remove_data_group_display_items")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
             combined = [(data_group.display_items.index(display_item), display_item) for display_item in display_items]
@@ -1485,7 +1485,7 @@ class DocumentController(Window.Window):
 
     class RenameDataGroupCommand(Undo.UndoableCommand):
         def __init__(self, document_model: DocumentModel.DocumentModel, data_group: DataGroup.DataGroup, title: str) -> None:
-            super().__init__("Rename Data Group")
+            super().__init__("Rename Data Group", command_id="rename_data_group")
             self.__document_model = document_model
             self.__data_group_proxy = data_group.create_proxy()
             self.__title = title
@@ -1530,7 +1530,7 @@ class DocumentController(Window.Window):
 
     class InsertDataGroupCommand(Undo.UndoableCommand):
         def __init__(self, document_model: DocumentModel.DocumentModel, container: typing.Union[DataGroup.DataGroup, Project.Project], before_index: int, data_group: DataGroup.DataGroup) -> None:
-            super().__init__("Insert Data Group")
+            super().__init__("Insert Data Group", command_id="insert_data_group")
             self.__document_model = document_model
             self.__container_proxy = container.create_proxy()
             self.__before_index = before_index
@@ -1585,7 +1585,7 @@ class DocumentController(Window.Window):
 
     class RemoveDataGroupCommand(Undo.UndoableCommand):
         def __init__(self, document_model: DocumentModel.DocumentModel, container: typing.Union[DataGroup.DataGroup, Project.Project], data_group: DataGroup.DataGroup) -> None:
-            super().__init__("Remove Data Group")
+            super().__init__("Remove Data Group", command_id="remove_data_group")
             self.__document_model = document_model
             self.__container_proxy = container.create_proxy()
             self.__data_group_proxy = data_group.create_proxy()
@@ -1838,7 +1838,7 @@ class DocumentController(Window.Window):
     class RemoveGraphicsCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem, graphics: typing.Sequence[Graphics.Graphic]) -> None:
-            super().__init__(_("Remove Graphics"))
+            super().__init__(_("Remove Graphics"), command_id="remove_graphics")
             self.__document_controller = document_controller
             self.__display_item_proxy = display_item.create_proxy()
             workspace_controller = self.__document_controller.workspace_controller
@@ -1908,7 +1908,7 @@ class DocumentController(Window.Window):
     class RemoveDisplayItemsCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: DocumentController, display_items: typing.Sequence[DisplayItem.DisplayItem]) -> None:
-            super().__init__(_("Remove Display Items"))
+            super().__init__(_("Remove Display Items"), command_id="remove_display_items")
             self.__document_controller = document_controller
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
@@ -1972,7 +1972,7 @@ class DocumentController(Window.Window):
     class RemoveDataItemsCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: DocumentController, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-            super().__init__(_("Remove Data Items"))
+            super().__init__(_("Remove Data Items"), command_id="remove_data_items")
             self.__document_controller = document_controller
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
@@ -2228,7 +2228,7 @@ class DocumentController(Window.Window):
     class InsertDataItemCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: DocumentController, data_item_fn: typing.Callable[[], typing.Optional[DataItem.DataItem]]) -> None:
-            super().__init__(_("Insert Data Item"))
+            super().__init__(_("Insert Data Item"), command_id="insert_data_item")
             self.__document_controller = document_controller
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
@@ -2312,7 +2312,7 @@ class DocumentController(Window.Window):
     class InsertAndShowDisplayItemCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem, display_item_fn: typing.Callable[[DisplayItem.DisplayItem], DisplayItem.DisplayItem]) -> None:
-            super().__init__(_("Insert Display Item"))
+            super().__init__(_("Insert Display Item"), command_id="insert_and_show_display_item")
             self.__document_controller = document_controller
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
@@ -2394,7 +2394,7 @@ class DocumentController(Window.Window):
     class RemoveDisplayItemCommand(Undo.UndoableCommand):
 
         def __init__(self, document_controller: DocumentController, display_item: DisplayItem.DisplayItem) -> None:
-            super().__init__(_("Remove Display Item"))
+            super().__init__(_("Remove Display Item"), command_id="remove_display_item")
             self.__document_controller = document_controller
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
@@ -2618,7 +2618,7 @@ class DocumentController(Window.Window):
         def __init__(self, document_controller: DocumentController, data_items: typing.Sequence[DataItem.DataItem],
                      index: int, display_panel: typing.Optional[DisplayPanel.DisplayPanel] = None, *,
                      project: typing.Optional[Project.Project] = None) -> None:
-            super().__init__(_("Insert Data Items"))
+            super().__init__(_("Insert Data Items"), command_id="insert_data_items")
             self.__document_controller = document_controller
             workspace_controller = self.__document_controller.workspace_controller
             self.__old_workspace_layout: typing.Optional[Persistence.PersistentDictType] = workspace_controller.deconstruct() if workspace_controller else None
@@ -3466,7 +3466,7 @@ class WorkspaceChangeSplits(Window.Action):
         if workspace_controller:
             splitter_canvas_item = typing.cast(CanvasItem.SplitterCanvasItem, context.parameters["splitter"])
             splits = typing.cast(typing.Sequence[float], context.parameters["splits"])
-            command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Splits"))
+            command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Splits"), command_id="change_workspace_splits")
             workspace_controller.set_splits(splitter_canvas_item, splits)
             window.push_undo_command(command)
             return Window.ActionResult(Window.ActionStatus.FINISHED)
@@ -3707,7 +3707,7 @@ class WorkspaceSplitAction(Window.Action):
             v = self.get_int_property(context, "vertical_count")
             h = max(1, min(8, h))
             v = max(1, min(8, v))
-            change_workspace_contents_command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Workspace Contents"))
+            change_workspace_contents_command = Workspace.ChangeWorkspaceContentsCommand(workspace_controller, _("Change Workspace Contents"), command_id="change_workspace_layout")
             display_panels = workspace_controller.apply_layouts(selected_display_panel, display_panels, h, v)
             window.push_undo_command(change_workspace_contents_command)
             action_result = Window.ActionResult(Window.ActionStatus.FINISHED)
@@ -4458,7 +4458,7 @@ class RasterDisplaySetDisplayPropertiesAction(Window.Action):
         window = typing.cast(DocumentController, context.window)
         if context.display_panel:
             display_properties = context.parameters["display_properties"]
-            command = context.display_panel.create_change_display_command()
+            command = context.display_panel.create_change_display_command(command_id="set_display_properties")
             context.display_panel.update_display_properties(display_properties)
             command.perform()
             window.push_undo_command(command)
@@ -4590,7 +4590,7 @@ class RasterDisplaySetDisplayLimitsAction(Window.Action):
             command = DisplayPanel.ChangeDisplayDataChannelCommand(context.model,
                                                                    display_data_channel,
                                                                    display_limits=display_limits,
-                                                                   title=_("Change Display Limits"))
+                                                                   title=_("Change Display Limits"), command_id="change_display_limits")
             command.perform()
             window.push_undo_command(command)
         return Window.ActionResult(Window.ActionStatus.FINISHED)
