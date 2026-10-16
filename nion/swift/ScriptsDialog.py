@@ -627,6 +627,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.document_controller.clear_task("run_" + str(id(self)))
         self.document_controller.clear_task("show_" + str(id(self)))
         self.document_controller.clear_task("print_" + str(id(self)))
+        self.document_controller.clear_task("scroll_" + str(id(self)))
         super().close()
 
     @property
@@ -823,6 +824,11 @@ class RunScriptDialog(Dialog.ActionDialog):
         if callable(func):
             func()
 
+    # changing the row below the output resizes the output, which can hide its last line, so scroll to the end once the
+    # dialog has been laid out again.
+    def __scroll_output_to_end_after_layout(self) -> None:
+        self.document_controller.add_task("scroll_" + str(id(self)), functools.partial(self.__output_widget.move_cursor_position, "end"))
+
     def print(self, *values: typing.Any, sep: str | None = " ", end: str | None = "\n") -> None:
         """Print the values to the output of the dialog, with the sep and end arguments of the built-in print.
 
@@ -858,6 +864,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
                 self.__message_column.remove_all()
                 pose_get_string_message_box(self.ui, self.__message_column, prompt, str(default_str), accepted, rejected)
+                self.__scroll_output_to_end_after_layout()
 
             with self.__lock:
                 self.__q.append(perform)
@@ -869,6 +876,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         def update_message_column() -> None:
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
+            self.__scroll_output_to_end_after_layout()
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
         if result is None:
             raise ScriptCancelException()
@@ -934,6 +942,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
                 self.__message_column.remove_all()
                 pose_confirmation_message_box(self.ui, self.__message_column, prompt, accepted, rejected, accepted_text, rejected_text, display_rejected)
+                self.__scroll_output_to_end_after_layout()
                 # self.__message_column.add(self.__make_cancel_row())
 
             with self.__lock:
@@ -946,6 +955,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         def update_message_column() -> None:
             self.__message_column.remove_all()
             self.__message_column.add(self.__make_cancel_row())
+            self.__scroll_output_to_end_after_layout()
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
         return result
 
