@@ -734,9 +734,7 @@ class Application(UIApplication.BaseApplication):
                             # the closed window can no longer run actions, so the application runs this one.
                             context = UIWindow.ActionContext(self.__application, None, None)
                             context.parameters["project_reference_uuid"] = str(project_reference_item.project_reference.uuid)
-                            context.invoked_from = UIWindow.ActionOrigin.DIALOG
-                            context.invoked_from_id = "choose_project"
-                            self.__application.execute_action("project.open_recent", context)
+                            self.__application.perform_action_in_context("project.open_recent", context, invoked_from=UIWindow.ActionOrigin.DIALOG, invoked_from_id="choose_project")
 
                 def new_project(self, widget: Declarative.UIWidget) -> None:
                     # to ensure the application does not close upon closing the last window, force it
