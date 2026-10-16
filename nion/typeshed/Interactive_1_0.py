@@ -1,3 +1,5 @@
+import typing
+
 import numpy
 
 class Interactive:
@@ -5,8 +7,8 @@ class Interactive:
     def cancelled(self) -> bool:
         """Return True if the interactive script has been cancelled."""
         ...
-    def print(self, text: str) -> None:
-        """Print the text string."""
+    def print(self, *values: typing.Any, sep: str | None = " ", end: str | None = "\n") -> None:
+        """Print the values, with the sep and end arguments of the built-in print."""
         ...
     def print_debug(self, text: str) -> None:
         """Print the text string if debug level output is enabled."""

@@ -3592,8 +3592,8 @@ class InteractiveSession(typing.Protocol):
         """Return whether the user has cancelled the script."""
         raise NotImplementedError()
 
-    def print(self, text: str) -> None:
-        """Print the text in the Scripts dialog."""
+    def print(self, *values: typing.Any, sep: str | None = " ", end: str | None = "\n") -> None:
+        """Print the values in the Scripts dialog, with the sep and end arguments of the built-in print."""
         ...
 
     def print_debug(self, text: str) -> None:

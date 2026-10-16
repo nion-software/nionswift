@@ -408,6 +408,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         properties["min-width"] = 540
 
         self.__output_widget = self.ui.create_text_edit_widget(properties)
+        self.__output_widget.widget_id = "output"
         self.__output_widget.set_text_font(Panel.Panel.get_monospace_text_font())
         self.__output_widget.set_line_height_proportional(Panel.Panel.get_monospace_proportional_line_height())
 
@@ -610,6 +611,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__q: typing.Deque[typing.Callable[[], None]] = collections.deque()
         self.__output_queue: typing.Deque[str] = collections.deque()
 
+        # a line ended by print is broken only when more output follows, so the output does not end in an empty line.
+        # confined to the main thread.
+        self.__output_line_ended = False
+
         self.__is_closed = False
 
     def close(self) -> None:
@@ -673,6 +678,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                         return
 
         self.__output_widget.text = str()
+        self.__output_line_ended = False
 
         script_name = os.path.basename(script_path)
 
@@ -740,7 +746,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                         pass
 
                     def write(self, stuff: str) -> None:
-                        print_fn(stuff.rstrip())
+                        print_fn(stuff, end=str())
 
                     def flush(self) -> None:
                         pass
@@ -802,16 +808,29 @@ class RunScriptDialog(Dialog.ActionDialog):
         func = None
         with self.__lock:
             while len(self.__output_queue) > 0:
+                text = self.__output_queue.popleft()
+                if self.__output_line_ended:
+                    text = "\n" + text
+                self.__output_line_ended = text.endswith("\n")
+                if self.__output_line_ended:
+                    text = text[:-1]
                 self.__output_widget.move_cursor_position("end")
-                self.__output_widget.append_text(self.__output_queue.popleft())
+                self.__output_widget.insert_text(text)
+                # inserting text does not scroll the view, so move the cursor again to show the inserted text.
+                self.__output_widget.move_cursor_position("end")
             if len(self.__q) > 0:
                 func = self.__q.popleft()
         if callable(func):
             func()
 
-    def print(self, text: typing.Any) -> None:
+    def print(self, *values: typing.Any, sep: str | None = " ", end: str | None = "\n") -> None:
+        """Print the values to the output of the dialog, with the sep and end arguments of the built-in print.
+
+        Callable from any thread.
+        """
+        text = (" " if sep is None else sep).join(str(value) for value in values) + ("\n" if end is None else end)
         with self.__lock:
-            self.__output_queue.append(str(text))
+            self.__output_queue.append(text)
             self.document_controller.add_task("print_" + str(id(self)), self.__handle_output_and_q)
 
     def print_debug(self, text: typing.Any) -> None:
