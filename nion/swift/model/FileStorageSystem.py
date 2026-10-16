@@ -65,14 +65,14 @@ class ProjectStorageSettings:
 
 @dataclasses.dataclass(frozen=True)
 class ProjectNameResult:
-    """Result of checking a project name is available.
+    """Result of checking a project name is available or of renaming a project.
 
-    project_path will be None when the project path does not change otherwise it will be the new project path.
+    project_path is the resulting path that was checked or renamed.
     error_messages will be empty when there are no errors, otherwise it is a sequence of error messages.
     The success property is True when there are no errors and False when there are errors.
     """
     error_messages: typing.Sequence[str]
-    project_path: pathlib.Path | None
+    project_path: pathlib.Path
 
     @property
     def success(self) -> bool:
@@ -695,6 +695,16 @@ class ProjectStorageSystem(PersistentStorageSystem):
     @abc.abstractmethod
     def normalize_project_data_path(self) -> None: ...
 
+    def rename_project(self, name: str) -> ProjectNameResult:
+        """Rename the project.
+
+        Returns a ProjectNameResult.
+        ProjectNameResult.project_path will be the new project path or the original if the project path did not change.
+        ProjectNameResult.error_messages will be empty when there are no errors, otherwise it will contain any error messages.
+        The project path changing names does not indicate success, only the ProjectNameResult.success should be used to check success.
+        """
+        raise NotImplementedError("rename_project not implemented")
+
     @property
     def _data_properties_map(self) -> typing.Dict[uuid.UUID, DataItemStorageAdapter]:
         return self.__storage_adapter_map
@@ -1272,16 +1282,67 @@ class FileProjectStorageSystem(ProjectStorageSystem):
                     raise
         return storage_handlers
 
+    def rename_project(self, name: str) -> ProjectNameResult:
+        """Renames the project file and data folder. See ProjectStorageSystem.rename_project.
+
+        The returned ProjectNameResult.project_path will be the new project path.
+        ProjectNameResult.error_messages will be empty when the rename was successful otherwise it will contain error message for the user, the exception is written separately to the logger.
+        The project file and data folder (if the data folder exists) are attempted to be renamed.
+        If the data folder did exist but failed be renamed then this will attempt to undo the renaming of the project file and return an error message.
+        If undoing the renaming of the project file fails then the project file's name will have changed, but there will still be an error message.
+        """
+        self.load_properties()
+        self.normalize_project_data_path()
+        # normalize_project_data_path can set the data path to a non-existent directory instead of None, so if it doesn't exist we set it to None
+        old_data_path = self.__project_data_path
+        if old_data_path is None or not old_data_path.is_dir():
+            old_data_path = None
+        old_project_path = self.__project_path
+        new_project_path = old_project_path.parent / f"{name}.nsproj"
+        new_data_path = old_data_path.parent / f"{name} Data" if old_data_path else None
+
+        if new_project_path.exists():
+            return ProjectNameResult([_("Failed to rename project. Project file with target name already exists.")], self.__project_path)
+        if new_data_path and new_data_path.is_dir():
+            return ProjectNameResult([_("Failed to rename project. Project data folder with target name already exists.")], self.__project_path)
+
+        try:
+            self.__project_path = old_project_path.rename(new_project_path)
+        except Exception as e:
+            logging.exception(_("Failed to rename project. Renaming Project File gave an exception:\n") + str(e))
+            return ProjectNameResult([_("Exception while renaming the Project File")], self.__project_path)
+
+        error_messages = []
+        try:
+            # If the directory doesn't exist then don't try renaming it
+            if old_data_path is not None and new_data_path is not None:
+                self.__project_data_path = old_data_path.rename(new_data_path)
+        except Exception as e:
+            error_messages.append(_("Exception while renaming the Data Folder"))
+            logging.exception(_("Failed to rename project. Renaming Data Folder gave an exception:\n") + str(e))
+            try:  # Try to undo the rename of the project file when the data folder failed to rename
+                if new_project_path.exists():
+                    self.__project_path = new_project_path.rename(old_project_path)
+            except Exception as e2:
+                error_messages.append(_("WARNING: Project File and Data Folder names have diverged"))
+                logging.exception(_("Failed to undo Data Folder rename. Renaming project file gave exception:\n") + str(e2))
+
+        # Trigger the writing of the project_data_folders in the project file
+        self._write_untransformed_properties(self._untransform_properties(self.get_properties()))
+        return ProjectNameResult(error_messages, self.__project_path)
+
 
 def check_file_project_name_is_available(name: str, directory: str) -> ProjectNameResult:
-    """Check if the provided project name is available for use.
+    """Check if the provided project name is available for use as a FileProjectStorageSystem project.
 
-    Checks the directory exists then checks that no existing project file or data folder is in that directory with the same name.
+    Checks the base directory exists then checks that no existing project file or data folder is in that directory with the same name.
     Returns ProjectNameResult with the calculated project_path and error_messages.
     """
     error_messages: list[str] = []
     directory_path = pathlib.Path(directory)
-    new_project_path = pathlib.Path(directory, name).with_suffix(".nsproj")
+    if name.endswith(".nsproj"):  # Ensure that the case of .nsproj already being in the name is removed so appending bellow doesn't cause .nsproj.nsproj
+        name = name.rstrip(".nsproj")
+    new_project_path = pathlib.Path(directory) / f"{name}.nsproj"
     if not directory_path.is_dir():
         error_messages.append(_("Base Directory") + f" \"{directory_path}\" " + _("doesn't exist"))
         return ProjectNameResult(error_messages, new_project_path)
