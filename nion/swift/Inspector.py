@@ -2781,6 +2781,7 @@ class CroppedOverlayGraphicCanvasItemComposer(CanvasItem.BaseComposer):
         is_crop_enabled = self.__crop_enabled
         with drawing_context.saver():
             drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
             drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
             drawing_context.line_join = "miter"
             drawing_context.fill_style = "gray"
@@ -2789,6 +2790,7 @@ class CroppedOverlayGraphicCanvasItemComposer(CanvasItem.BaseComposer):
             drawing_context.line_width = 1.2
             drawing_context.stroke()
             if is_crop_enabled:
+                drawing_context.begin_path()
                 drawing_context.rect(canvas_bounds.center.x - 1, canvas_bounds.center.y - 1, canvas_bounds.width / 2, canvas_bounds.height / 2)
                 drawing_context.line_width = 1.2
                 drawing_context.stroke_style = "white"

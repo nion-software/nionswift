@@ -299,6 +299,7 @@ class EditButtonCell(CanvasItem.Cell):
         return Geometry.IntSize(self.__height, 6)
 
     def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.FloatRect, style: set[str]) -> None:
+        drawing_context.begin_path()
         drawing_context.move_to(canvas_bounds.left, canvas_bounds.top + self.__baseline)
         drawing_context.line_to(canvas_bounds.center.x, canvas_bounds.top + self.__baseline + 3)
         drawing_context.line_to(canvas_bounds.right, canvas_bounds.top + self.__baseline)

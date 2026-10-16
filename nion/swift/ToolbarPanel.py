@@ -227,6 +227,7 @@ class ToolbarPanel(Panel.Panel):
 
             def draw(drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize, *args: typing.Any, **kwargs: typing.Any) -> None:
                 with drawing_context.saver():
+                    drawing_context.begin_path()
                     drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
                     drawing_context.fill_style = "#DDD"
                     drawing_context.stroke_style = "#AAA"

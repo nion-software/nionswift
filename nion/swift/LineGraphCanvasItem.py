@@ -614,6 +614,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     label_rect = _get_text_rectangle(label_text, label_x, label_y, text_baseline, text_align)
 
                     # Draw the text background
+                    drawing_context.begin_path()
                     drawing_context.move_to(label_rect.left, label_rect.top)
                     drawing_context.line_to(label_rect.right, label_rect.top)
                     drawing_context.line_to(label_rect.right, label_rect.bottom)
