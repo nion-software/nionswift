@@ -2323,11 +2323,24 @@ class Computation(Persistence.PersistentObject):
         return Persistence.PersistentObjectSpecifier(self.uuid)
 
     def read_properties_from_dict(self, d: Persistence.PersistentDictType) -> None:
-        self.__source_reference.item_specifier = Persistence.read_persistent_specifier(d.get("source_uuid", None))
-        self.original_expression = d.get("original_expression", self.original_expression)
-        self.error_text = d.get("error_text", self.error_text)
-        self.label = d.get("label", self.label)
-        self.processing_id = d.get("processing_id", self.processing_id)
+        """Set the source, expression, error text, label and processing id given in a dict of persistent keys.
+
+        The keys read are source_uuid, original_expression, error_text, label and processing_id, as write_to_dict writes them. Other keys
+        are ignored, and a property whose key is missing is left as it is. A key whose value is None clears its property. A change to the
+        expression marks the computation for update.
+        """
+        if "source_uuid" in d:
+            self.source_specifier = d["source_uuid"]
+        if "original_expression" in d and d["original_expression"] != self.original_expression:
+            self.original_expression = d["original_expression"]
+            self.needs_update = True
+            self.computation_mutated_event.fire()
+        if "error_text" in d:
+            self.error_text = d["error_text"]
+        if "label" in d:
+            self.label = d["label"]
+        if "processing_id" in d:
+            self.processing_id = d["processing_id"]
 
     @property
     def source(self) -> typing.Optional[Persistence.PersistentObject]:
