@@ -1847,6 +1847,22 @@ class TestInspectorClass(unittest.TestCase):
                 dimensional_calibration_model.units = "y"
                 self.assertEqual("y", data_item.dimensional_calibrations[1].units)
 
+    def test_undo_title_of_dimensional_calibration_change_in_inspector_names_dimensional_calibrations(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(
+                data=numpy.zeros((32, 32)),
+                dimensional_calibrations=[Calibration.Calibration(units="x"), Calibration.Calibration(units="x")],
+                intensity_calibration=Calibration.Calibration(units="u"))
+            )
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            calibration_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channel, display_item)
+            with contextlib.closing(calibration_section):
+                calibration_section._dimensional_calibrations_model.items[1].units = "y"
+                self.assertEqual("Undo Change Dimensional Calibrations", document_controller.get_undo_menu_item_state().title)
+
     def test_session_inspector_model_closes_properly(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
