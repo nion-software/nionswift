@@ -985,7 +985,7 @@ class GraphicHandler(Declarative.Handler):
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "rectangle"
-                rotation_model = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "rotation", title=_("Change {graphic_type} Rotation").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_size")
+                rotation_model = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "rotation", title=_("Change {graphic_type} Rotation").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_rotation")
                 return ClosingPropertyBinding(rotation_model, "value", converter=GraphicsInspector.RadianToDegreeStringConverter())
         if isinstance(source, Graphics.PointTypeGraphic):
             if property in ("position_x", "position_y"):

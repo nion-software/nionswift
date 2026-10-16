@@ -1043,6 +1043,50 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(width_model.value, "40.0")  # width
             self.assertEqual(height_model.value, "100.0")  # height
 
+    def test_undo_after_rectangle_width_and_rotation_changes_in_graphics_inspector_restores_only_rotation(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((100, 100)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            rectangle = Graphics.RectangleGraphic()
+            display_item.add_graphic(rectangle)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_item.calibration_style_id = "pixels-center"
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            rectangle_handler = inspector_panel.column.find_widget_by_id("graphics_inspector_section")._handler._graphic_handlers[0]
+            rectangle_handler._width_model.value = "40"
+            rectangle_handler._rotation_model.value = math.radians(30)
+            document_controller.handle_undo()
+            self.assertAlmostEqual(0.4, rectangle.size[1])
+            self.assertAlmostEqual(0.0, rectangle.rotation)
+
+    def test_undo_after_rectangle_width_and_rotation_changes_in_computation_inspector_restores_only_rotation(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((100, 100, 4)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            pick_data_item = document_model.get_pick_region_new(display_item, data_item)
+            computation = document_model.get_data_item_computation(pick_data_item)
+            region_variable = computation._get_variable("region")
+            rectangle = region_variable.bound_item.value
+            handler = ComputationInspector.GraphicHandler(document_controller, computation, region_variable, rectangle)
+            width_binding = handler.get_binding(rectangle, "width", None)
+            rotation_binding = handler.get_binding(rectangle, "rotation_deg", None)
+            width_binding.update_source("40")
+            rotation_binding.update_source("30")
+            document_controller.handle_undo()
+            self.assertAlmostEqual(0.4, rectangle.size[1])
+            self.assertAlmostEqual(0.0, rectangle.rotation)
+            width_binding.close()
+            rotation_binding.close()
+            handler.close()
+
     def test_interval_dimensions_show_calibrated_units_on_single_spectrum(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
