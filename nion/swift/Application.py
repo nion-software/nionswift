@@ -846,8 +846,16 @@ class Application(UIApplication.BaseApplication):
                     project_title += " " + _("(MISSING)")
                 elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
                     project_title += " " + _("(UNREADABLE)")
-                action = menu.add_menu_item(project_title, functools.partial(self.open_project_reference, project_reference))
+                action = menu.add_menu_item(project_title, functools.partial(self.__open_recent_project_from_menu, window, project_reference))
                 getattr(window, "_dynamic_recent_project_actions").append(action)
+
+    def __open_recent_project_from_menu(self, window: UIWindow.Window, project_reference: Profile.ProjectReference) -> None:
+        # the window makes the context, as it does for the menu items it builds itself. the application and its windows
+        # are written to work together, so the application calls the window's protected method.
+        context = window._get_action_context()
+        context.parameters["project_reference_uuid"] = str(project_reference.uuid)
+        # the recent projects menu is built here rather than by build_menu, so it passes the menu origin itself.
+        window.perform_action_in_context("project.open_recent", context, invoked_from=UIWindow.ActionOrigin.MENU)
 
     def _get_recent_project_references(self) -> typing.Sequence[Profile.ProjectReference]:
         profile = self.profile
@@ -1005,6 +1013,29 @@ class FeaturesPreferencePanel:
 
 
 PreferencesDialog.PreferencesManager().register_preference_pane(FeaturesPreferencePanel())
+
+
+class OpenRecentProjectAction(UIWindow.Action):
+    """Action for opening a project from the profile's list of projects.
+
+    The project_reference_uuid parameter is the project reference's uuid as a string; if no project reference has it, the
+    action does nothing. Opening a project may show a dialog, even from execute: a confirmation for a project which needs
+    upgrading, or an error for one which can't be opened.
+    """
+    action_id = "project.open_recent"
+    action_name = _("Open Recent Project")
+    action_parameters = [
+        UIWindow.ActionStringProperty("project_reference_uuid")
+    ]
+
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        application = typing.cast(Application, context.application)
+        project_reference_uuid_str = self.get_string_property(context, "project_reference_uuid")
+        # open the project reference in the profile with the given uuid, and do nothing if there is none.
+        project_reference = next((project_reference for project_reference in application.profile.project_references if str(project_reference.uuid) == project_reference_uuid_str), None)
+        if project_reference:
+            application.open_project_reference(project_reference)
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
 class NewProjectAction(UIWindow.Action):
@@ -1278,6 +1309,7 @@ class NameProjectDialog(Declarative.WindowHandler):
         super().close()
 
 
+UIWindow.register_action(OpenRecentProjectAction())
 UIWindow.register_action(NewProjectAction())
 UIWindow.register_action(OpenProjectAction())
 UIWindow.register_action(ChooseProjectAction())

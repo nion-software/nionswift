@@ -82,6 +82,25 @@ class TestProfileClass(unittest.TestCase):
             self.assertEqual("unloaded", profile.project_references[1].project_state)
             document_controller.request_close()
 
+    def test_choosing_a_project_from_the_recent_projects_menu_opens_it(self):
+        with create_memory_profile_context() as profile_context:
+            # use lower level calls to create the profile and open the window via the app
+            profile = profile_context.create_profile()
+            profile.read_profile()
+            app = profile_context.create_application()
+            app._set_profile_for_test(profile)
+            TestContext.add_project_memory(profile, load=False)
+            document_controller = app.open_project_window(profile.project_references[0])
+            # the recent projects are filled in when the menu is about to show.
+            file_menu = document_controller._document_window.get_menu("file")
+            recent_projects_menu = next(item.sub_menu for item in file_menu.items if item.sub_menu and item.sub_menu.menu_id == "recent_projects")
+            recent_projects_menu.about_to_show()
+            recent_projects_menu.get_menu_actions()[0].trigger()
+            self.assertEqual("unloaded", profile.project_references[0].project_state)
+            self.assertEqual("loaded", profile.project_references[1].project_state)
+            for window in list(app.windows):
+                window.request_close()
+
     def test_switching_projects_with_related_items(self):
         # this tests that project gets removed from persistent object context
         with create_memory_profile_context() as profile_context:
