@@ -2055,40 +2055,6 @@ class DocumentController(Window.Window):
                 result_display_panel.request_focus()
         self.select_display_items_in_data_panel([display_item])
 
-    def _perform_redimension(self, display_item: DisplayItem.DisplayItem, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
-        def process() -> DataItem.DataItem:
-            assert display_item.data_item
-            new_data_item = self.document_model.get_redimension_new(display_item, display_item.data_item, data_descriptor)
-            assert new_data_item
-            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
-            assert new_display_item
-            self.show_display_item(new_display_item)
-            return new_data_item
-        command = self.create_insert_data_item_command(process)
-        command.perform()
-        assert isinstance(command, DocumentController.InsertDataItemCommand)
-        if command.data_item:
-            self.push_undo_command(command)
-        else:
-            command.close()
-
-    def _perform_squeeze(self, display_item: DisplayItem.DisplayItem) -> None:
-        def process() -> DataItem.DataItem:
-            assert display_item.data_item
-            new_data_item = self.document_model.get_squeeze_new(display_item, display_item.data_item)
-            assert new_data_item
-            new_display_item = self.document_model.get_display_item_for_data_item(new_data_item)
-            assert new_display_item
-            self.show_display_item(new_display_item)
-            return new_data_item
-        command = self.create_insert_data_item_command(process)
-        command.perform()
-        assert isinstance(command, DocumentController.InsertDataItemCommand)
-        if command.data_item:
-            self.push_undo_command(command)
-        else:
-            command.close()
-
     def _menu_about_to_show(self, menu: UserInterface.Menu) -> None:
         if menu.menu_id == "processing_redimension":
             self.__adjust_redimension_data_menu(menu)
@@ -2155,6 +2121,16 @@ class DocumentController(Window.Window):
         data_item = display_item.data_item if display_item else None
         if display_item and data_item:
 
+            # run the action on the display item the menu describes, which can differ from the context's own display
+            # item when the data panel has focus. the menu is built here rather than by build_menu, so it passes the
+            # menu origin itself.
+            def perform_menu_item_action(action_id: str, parameters: typing.Mapping[str, int]) -> None:
+                context = self._get_action_context()
+                context.display_item = display_item
+                context.data_item = data_item
+                context.parameters.update(parameters)
+                self.perform_action_in_context(action_id, context, invoked_from=Window.ActionOrigin.MENU)
+
             def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.Sequence[int]) -> str:
                 if data_descriptor.is_sequence:
                     data_type_name = _("Sequence of {count} ").format(count=data_shape[0])
@@ -2189,7 +2165,8 @@ class DocumentController(Window.Window):
                     data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dims, data_dims)
                     if data_descriptor.expected_dimension_count == data_metadata.data_descriptor.expected_dimension_count and data_descriptor != data_metadata.data_descriptor:
                         data_type_name = describe_data_descriptor(data_descriptor, data_metadata.data_shape)
-                        action = menu.add_menu_item(_("Redimension to {data_type}").format(data_type=data_type_name), functools.partial(self._perform_redimension, display_item, data_descriptor))
+                        parameters = {"is_sequence": int(is_sequence), "collection_dims": collection_dims, "datum_dims": data_dims}
+                        action = menu.add_menu_item(_("Redimension to {data_type}").format(data_type=data_type_name), functools.partial(perform_menu_item_action, "processing.redimension", parameters))
                         self.__data_menu_actions.append(action)
 
             # add squeeze menu item if available
@@ -2209,7 +2186,7 @@ class DocumentController(Window.Window):
                         del data_shape[data_descriptor.datum_dimension_index_slice.start + index]
                         data_descriptor.datum_dimension_count -= 1
                     data_type_name = describe_data_descriptor(data_descriptor, data_shape)
-                    self.__data_menu_actions.append(menu.add_menu_item(_("Squeeze to {data_type}").format(data_type=data_type_name), functools.partial(self._perform_squeeze, display_item)))
+                    self.__data_menu_actions.append(menu.add_menu_item(_("Squeeze to {data_type}").format(data_type=data_type_name), functools.partial(perform_menu_item_action, "processing.squeeze", dict())))
         else:
             action = menu.add_menu_item(_("No Data Selected"), lambda: None)
             action.enabled = False
@@ -5321,6 +5298,30 @@ class RebinAction(ProcessingAction):
         return self.invoke_processing(context, context.model.get_rebin_new)
 
 
+class RedimensionAction(ProcessingAction):
+    action_id = "processing.redimension"
+    action_name = _("Redimension")
+    action_parameters = [
+        Window.ActionIntegerProperty("is_sequence"),
+        Window.ActionIntegerProperty("collection_dims"),
+        Window.ActionIntegerProperty("datum_dims")
+    ]
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        is_sequence = self.get_int_property(context, "is_sequence") != 0
+        collection_dims = self.get_int_property(context, "collection_dims")
+        datum_dims = self.get_int_property(context, "datum_dims")
+        data_metadata = context.data_item.data_metadata if context.data_item else None
+        # redimension only to a valid data descriptor with the data's dimension count, and do nothing otherwise. a data
+        # descriptor rejects dimension counts outside 0 to 2, and the computation fails on a different dimension count.
+        if data_metadata and collection_dims in (0, 1, 2) and datum_dims in (0, 1, 2):
+            data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dims, datum_dims)
+            if data_descriptor.expected_dimension_count == data_metadata.data_descriptor.expected_dimension_count:
+                return self.execute_processing(context, lambda display_item, data_item, crop_graphic: context.model.get_redimension_new(display_item, data_item, data_descriptor))
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+
 class ResampleAction(ProcessingAction):
     action_id = "processing.resample"
     action_name = _("Resample")
@@ -5475,6 +5476,15 @@ class SobelFilterAction(ProcessingAction):
     def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
         context = typing.cast(DocumentController.ActionContext, context)
         return self.invoke_processing(context, context.model.get_sobel_new)
+
+
+class SqueezeAction(ProcessingAction):
+    action_id = "processing.squeeze"
+    action_name = _("Squeeze")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return self.execute_processing(context, lambda display_item, data_item, crop_graphic: context.model.get_squeeze_new(display_item, data_item))
 
 
 class SubtractAction(ProcessingAction):
@@ -5654,6 +5664,7 @@ Window.register_action(PowerSpectrumAction())
 Window.register_action(ProjectionSumAction())
 Window.register_action(RadialProfileAction())
 Window.register_action(RebinAction())
+Window.register_action(RedimensionAction())
 Window.register_action(ResampleAction())
 Window.register_action(ResizeAction())
 Window.register_action(RGBAction())
@@ -5668,6 +5679,7 @@ Window.register_action(SequenceIntegrateAction())
 Window.register_action(SequenceMeasureShiftsAction())
 Window.register_action(SequenceTrimAction())
 Window.register_action(SobelFilterAction())
+Window.register_action(SqueezeAction())
 Window.register_action(SubtractAction())
 Window.register_action(SubtractAverageAction())
 Window.register_action(TransformAction())
