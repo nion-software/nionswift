@@ -1,4 +1,6 @@
 # standard libraries
+import pathlib
+import tempfile
 import threading
 import time
 import typing
@@ -12,6 +14,7 @@ from nion.swift import Facade
 from nion.swift import ScriptsDialog
 from nion.swift.model import DataItem
 from nion.swift.test import TestContext
+from nion.ui import UserInterface
 
 
 Facade.initialize()
@@ -73,6 +76,42 @@ class TestScriptsDialogClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(numpy.ones((4, 6)), data_item.data))
             self.assertTrue(data_changed_threads)
             self.assertEqual({threading.main_thread()}, set(data_changed_threads))
+
+    def test_script_print_breaks_lines_like_built_in_print(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            script_path = pathlib.Path(directory_str) / "print_script.py"
+            script_path.write_text("print(\"x\", end=\"\")\nprint(\"y\")\nprint()\nprint(\"z\")\n")
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                dialog.run_script(str(script_path))
+                expected_text = "xy\n\nz"
+                start_time = time.time()
+                while output_widget.text != expected_text and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                self.assertEqual(expected_text, output_widget.text)
+            finally:
+                dialog.close()
+
+    def test_script_output_written_to_stdout_keeps_its_line_breaks(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            script_path = pathlib.Path(directory_str) / "stdout_script.py"
+            script_path.write_text("import sys\nsys.stdout.write(\"x\")\nsys.stdout.write(\"y\\n\")\nsys.stdout.write(\"z\\n\")\n")
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                dialog.run_script(str(script_path))
+                expected_text = "xy\nz"
+                start_time = time.time()
+                while output_widget.text != expected_text and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                self.assertEqual(expected_text, output_widget.text)
+            finally:
+                dialog.close()
 
 
 if __name__ == '__main__':
