@@ -2115,7 +2115,6 @@ class DocumentController(Window.Window):
             self.__dynamic_window_actions.append(toggle_action)
 
     def __adjust_workspace_menu(self, menu: UserInterface.Menu) -> None:
-        menu.add_separator()
         for dynamic_view_action in self.__dynamic_view_actions:
             menu.remove_action(dynamic_view_action)
         self.__dynamic_view_actions = []

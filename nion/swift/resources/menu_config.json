@@ -747,6 +747,9 @@
             {
                 "type": "item",
                 "action_id": "display_panel.close"
+            },
+            {
+                "type": "separator"
             }
         ]
     },
