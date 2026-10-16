@@ -731,19 +731,26 @@ class Application(UIApplication.BaseApplication):
                         with self.__application.prevent_close():
                             self.close_window()
                             project_reference_item = project_reference_items_model.project_reference_items[current_index]
-                            self.__application.open_project_reference(project_reference_item.project_reference)
+                            # the closed window can no longer run actions, so the application runs this one.
+                            context = UIWindow.ActionContext(self.__application, None, None)
+                            context.parameters["project_reference_uuid"] = str(project_reference_item.project_reference.uuid)
+                            context.invoked_from = UIWindow.ActionOrigin.DIALOG
+                            context.invoked_from_id = "choose_project"
+                            self.__application.execute_action("project.open_recent", context)
 
                 def new_project(self, widget: Declarative.UIWidget) -> None:
                     # to ensure the application does not close upon closing the last window, force it
                     # to stay open while the window is closed and another reopened.
                     with self.__application.prevent_close():
-                        NewProjectAction().invoke(UIWindow.ActionContext(self.__application, self.window, None))
+                        context = UIWindow.ActionContext(self.__application, self.window, None)
+                        self.window.perform_action_in_context("project.new_project", context, invoked_from=UIWindow.ActionOrigin.DIALOG, invoked_from_id="choose_project")
 
                 def open_project(self, widget: Declarative.UIWidget) -> None:
                     # to ensure the application does not close upon closing the last window, force it
                     # to stay open while the window is closed and another reopened.
                     with self.__application.prevent_close():
-                        self.__application.show_open_project_dialog()
+                        context = UIWindow.ActionContext(self.__application, self.window, None)
+                        self.window.perform_action_in_context("project.open_project_dialog", context, invoked_from=UIWindow.ActionOrigin.DIALOG, invoked_from_id="choose_project")
                         self.close_window()
 
                 def open_recent(self, widget: Declarative.UIWidget) -> None:
