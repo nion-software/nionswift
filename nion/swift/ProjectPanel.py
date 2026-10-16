@@ -368,11 +368,12 @@ class ProjectTreeWidget(Widgets.CompositeWidgetBase):
 
 class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
-    def __init__(self, collections_widget: CollectionsWidget, document_controller: DocumentController.DocumentController, collection_selection: Selection.IndexedSelection) -> None:
+    def __init__(self, collections_widget: CollectionsWidget, document_controller: DocumentController.DocumentController, collection_selection: Selection.IndexedSelection, panel_id: str | None = None) -> None:
         super().__init__()
         self.__document_controller = document_controller
         self.__collection_selection = collection_selection
         self.__collections_widget_ref = weakref.ref(collections_widget)
+        self.__panel_id = panel_id
 
     def close(self) -> None:
         pass
@@ -425,7 +426,12 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         index = self.__collection_selection.current_index
         if collection_info := (self.collection_info_list[index] if index is not None else None):
             if data_group := (collection_info.data_group if collection_info else None):
-                self.__document_controller.remove_data_group_from_container(data_group, self.__document_controller.document_model._project)
+                # remove the data group through an action, so the command log records it with the key and the panel id.
+                # the window makes the context, as it does for its own actions, so the panel calls its protected method.
+                document_controller = self.__document_controller
+                context = document_controller._get_action_context()
+                context.parameters["data_group_uuid"] = str(data_group.uuid)
+                document_controller.perform_action_in_context("project.remove_group", context, invoked_from=Window.ActionOrigin.KEY, invoked_from_id=self.__panel_id)
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         if key.is_enter_or_return:
@@ -445,7 +451,7 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
 class CollectionsWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, document_controller: DocumentController.DocumentController, panel_id: str | None = None) -> None:
         content_widget = ui.create_column_widget()
         super().__init__(content_widget)
 
@@ -457,7 +463,7 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
 
         collection_info_list_stream = Stream.PropertyChangedEventStream[typing.Sequence["DocumentController.CollectionInfo"]](collection_info_list_model, "items")
 
-        collection_list_canvas_item_delegate = CollectionListCanvasItemDelegate(self, document_controller, collection_selection)
+        collection_list_canvas_item_delegate = CollectionListCanvasItemDelegate(self, document_controller, collection_selection, panel_id)
         collections_list_widget = Widgets.ListWidget(ui, collection_list_canvas_item_delegate, selection=collection_selection, v_scroll_enabled=False, v_auto_resize=True)
         collections_list_widget.wants_drag_events = True
 
@@ -519,6 +525,7 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         # for testing
         self._collection_selection = collection_selection
         self._collection_info_list_stream = collection_info_list_stream
+        self._collection_list_canvas_item_delegate = collection_list_canvas_item_delegate
 
     def close(self) -> None:
         self.__filter_changed_event_listener.close()
@@ -555,7 +562,7 @@ class CollectionsPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        self._collections_section = CollectionsWidget(ui, document_controller)
+        self._collections_section = CollectionsWidget(ui, document_controller, panel_id)
 
         column = ui.create_column_widget()
         column.add(self._collections_section)
