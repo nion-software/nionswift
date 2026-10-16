@@ -352,7 +352,7 @@ class ChangeDisplayItemPropertyCommand(Undo.UndoableCommand):
         return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return super().can_merge(command) and isinstance(command, self.__class__) and self.__display_item_uuid == command.__display_item_uuid
 
 
 class ChangePropertyCommand(Undo.UndoableCommand):
@@ -405,7 +405,7 @@ class ChangePropertyCommand(Undo.UndoableCommand):
         return data_item.uuid if data_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
+        return super().can_merge(command) and isinstance(command, self.__class__) and self.__data_item_uuid == command.__data_item_uuid
 
 
 class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
@@ -715,7 +715,7 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return super().can_merge(command) and isinstance(command, self.__class__) and self.__display_item_uuid == command.__display_item_uuid and self.__display_layer_index == command.__display_layer_index
 
 
 class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
@@ -777,7 +777,7 @@ class ChangeDisplayLayerDisplayDataChannelCommand(Undo.UndoableCommand):
         return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return super().can_merge(command) and isinstance(command, self.__class__) and self.__display_item_uuid == command.__display_item_uuid and self.__display_layer_uuid == command.__display_layer_uuid
 
 
 class DisplayLayerPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
@@ -1455,7 +1455,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
         return data_item.uuid if data_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
+        return super().can_merge(command) and isinstance(command, self.__class__) and self.__data_item_uuid == command.__data_item_uuid
 
 
 class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
@@ -1507,7 +1507,7 @@ class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
         return data_item.uuid if data_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__data_item_uuid == command.__data_item_uuid
+        return super().can_merge(command) and isinstance(command, self.__class__) and self.__data_item_uuid == command.__data_item_uuid
 
 
 class BetterFloatToStringConverter(Converter.FloatToStringConverter):
@@ -1903,7 +1903,7 @@ class ChangeDisplayTypeCommand(Undo.UndoableCommand):
         return display_item.uuid if display_item else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_uuid == command.__display_item_uuid
+        return super().can_merge(command) and isinstance(command, self.__class__) and self.__display_item_uuid == command.__display_item_uuid
 
 
 class ScaleMarkerOptionsHandler(Declarative.Handler):

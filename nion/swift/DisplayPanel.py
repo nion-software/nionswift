@@ -1222,7 +1222,7 @@ class ChangeDisplayDataChannelCommand(Undo.UndoableCommand):
             display_data_channel.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayDataChannelCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__display_data_channel_proxy.item == command.__display_data_channel_proxy.item
+        return super().can_merge(command) and isinstance(command, ChangeDisplayDataChannelCommand) and self.__display_data_channel_proxy.item == command.__display_data_channel_proxy.item
 
 
 class AppendDisplayDataChannelUndo(Changes.UndeleteBase):
@@ -1528,7 +1528,7 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
             display_item.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeDisplayCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item
+        return super().can_merge(command) and isinstance(command, ChangeDisplayCommand) and self.__display_item_proxy.item == command.__display_item_proxy.item
 
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
@@ -1587,7 +1587,7 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
                 graphic.read_properties_from_dict(graphic_properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeGraphicsCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__display_item_proxy.item == command.__display_item_proxy.item and self.__graphic_indexes == command.__graphic_indexes
+        return super().can_merge(command) and isinstance(command, ChangeGraphicsCommand) and self.__display_item_proxy.item == command.__display_item_proxy.item and self.__graphic_indexes == command.__graphic_indexes
 
 
 class DisplayPanelUISettings(UISettings.UISettings):

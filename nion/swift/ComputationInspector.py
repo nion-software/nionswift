@@ -213,7 +213,7 @@ class ChangeComputationVariableCommand(Undo.UndoableCommand):
         return computation.uuid if computation else None
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, self.__class__) and bool(self.command_id) and self.command_id == command.command_id and self.__computation_uuid == command.__computation_uuid and self.__variable_index == command.__variable_index
+        return super().can_merge(command) and isinstance(command, self.__class__) and self.__computation_uuid == command.__computation_uuid and self.__variable_index == command.__variable_index
 
 
 class VariableHandlerComponentFactory(typing.Protocol):
