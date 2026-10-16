@@ -2165,6 +2165,26 @@ class TestInspectorClass(unittest.TestCase):
             self.assertIsNotNone(sigma_variable)
             self.assertEqual(0.7, sigma_variable.value)
 
+    def test_undo_of_computation_variant_change_restores_variant_after_computation_runs(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.random.randn(16, 16))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            result_data_item = document_model.get_processing_new("gaussian-window", display_item, data_item)
+            document_model.recompute_all()
+            computation = document_model.get_data_item_computation(result_data_item)
+            # change the variant as the computation inspector's variant chooser does
+            command = ComputationInspector.ChangeComputationVariantCommand(document_controller, computation, "hamming-window")
+            command.perform()
+            document_controller.push_undo_command(command)
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertTrue(document_controller.get_undo_menu_item_state().enabled)
+            document_controller.handle_undo()
+            self.assertEqual("gaussian-window", computation.processing_id)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
