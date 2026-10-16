@@ -3907,8 +3907,9 @@ Window.register_action(AddGroupAction())
 class RemoveGroupAction(Window.Action):
     """Remove a top-level data group from the window's project.
 
-    The parameter data_group_uuid is the uuid, as a string, of the data group to remove. A data group which holds
-    display items or other data groups is left alone.
+    The parameter data_group_uuid is the uuid, as a string, of the data group to remove. The action is disabled when
+    the window's project has no data group with that uuid, or when the data group holds display items or other data
+    groups.
     """
     action_id = "project.remove_group"
     action_name = _("Remove Group")
@@ -3917,15 +3918,22 @@ class RemoveGroupAction(Window.Action):
     ]
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        if data_group := self.__get_data_group(context):
+            window = typing.cast(DocumentController, context.window)
+            window.remove_data_group_from_container(data_group, window.project)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        data_group = self.__get_data_group(context)
+        return data_group is not None and len(data_group.display_items) == 0 and len(data_group.data_groups) == 0
+
+    def __get_data_group(self, context: Window.ActionContext) -> DataGroup.DataGroup | None:
+        # the top-level data group in the window's project with the given uuid, or None if there is none.
         if context.window:
             window = typing.cast(DocumentController, context.window)
-            project = window.project
             data_group_uuid_str = self.get_string_property(context, "data_group_uuid")
-            # remove the data group in the window's project with the given uuid, and do nothing if there is none.
-            data_group = next((data_group for data_group in project.data_groups if str(data_group.uuid) == data_group_uuid_str), None)
-            if data_group:
-                window.remove_data_group_from_container(data_group, project)
-        return Window.ActionResult(Window.ActionStatus.FINISHED)
+            return next((data_group for data_group in window.project.data_groups if str(data_group.uuid) == data_group_uuid_str), None)
+        return None
 
 
 Window.register_action(RemoveGroupAction())
