@@ -768,6 +768,17 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.handle_undo()
             self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
 
+    def test_choosing_a_workspace_from_the_workspace_menu_switches_to_it(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+            # the workspace list is filled in when the menu is about to show.
+            workspace_menu = document_controller._document_window.get_menu("workspace")
+            workspace_menu.about_to_show()
+            workspace_menu_action = next(action for action in workspace_menu.get_menu_actions() if action.title.startswith(workspace_2x1.name))
+            workspace_menu_action.trigger()
+            self.assertEqual(workspace_2x1.uuid, document_controller.project.workspace_uuid)
+
     def test_workspace_replace_display_panel_undo_and_redo_works_cleanly(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

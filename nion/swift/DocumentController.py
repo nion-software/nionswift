@@ -2120,9 +2120,10 @@ class DocumentController(Window.Window):
         self.__dynamic_view_actions = []
         for workspace in self.project.sorted_workspaces:
             def switch_to_workspace(workspace: WorkspaceLayout.WorkspaceLayout) -> None:
-                workspace_controller = self.workspace_controller
-                assert workspace_controller
-                workspace_controller.change_workspace(workspace)
+                context = self._get_action_context()
+                context.parameters["workspace_uuid"] = str(workspace.uuid)
+                # the workspace list is built here rather than by build_menu, so it passes the menu origin itself.
+                self.perform_action_in_context("workspace.switch", context, invoked_from=Window.ActionOrigin.MENU)
 
             workspace_timestamp = workspace.timestamp_for_sorting
             local_modified_datetime = workspace_timestamp + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(workspace_timestamp))
@@ -3606,6 +3607,25 @@ class WorkspacePreviousAction(Window.Action):
         return len(window.project.workspaces) > 1
 
 
+class WorkspaceSwitchAction(Window.Action):
+    action_id = "workspace.switch"
+    action_name = _("Switch Workspace")
+    action_parameters = [
+        Window.ActionStringProperty("workspace_uuid")
+    ]
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        workspace_uuid_str = self.get_string_property(context, "workspace_uuid")
+        # switch to the workspace in the window's project with the given uuid, and do nothing if there is none.
+        workspace = next((workspace for workspace in window.project.workspaces if str(workspace.uuid) == workspace_uuid_str), None)
+        if workspace_controller and workspace:
+            workspace_controller.change_workspace(workspace)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+
 class WorkspaceRemoveAction(Window.Action):
     action_id = "workspace.remove"
     action_name = _("Remove Workspace")
@@ -3877,6 +3897,7 @@ Window.register_action(WorkspaceCloneAction())
 Window.register_action(WorkspaceNewAction())
 Window.register_action(WorkspaceNextAction())
 Window.register_action(WorkspacePreviousAction())
+Window.register_action(WorkspaceSwitchAction())
 Window.register_action(WorkspaceRemoveAction())
 Window.register_action(WorkspaceRenameAction())
 Window.register_action(WorkspaceResetAction())
