@@ -76,6 +76,51 @@ class TestInspectorClass(unittest.TestCase):
                 inspector_section.info_title_label.editing_finished("Title2")
                 self.assertEqual("Title2", display_item.title)
 
+    def test_undo_title_changes_to_two_display_items_in_inspector_restores_both_titles(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item1.title = "A"
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2.title = "B"
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            document_controller.selected_display_panel = None  # this would occur when user clicks in data panel
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            # select each display item in the data panel in turn and edit its title in the inspector.
+            for display_item, title in ((display_item1, "A2"), (display_item2, "B2")):
+                document_controller.select_display_items_in_data_panel([display_item])
+                document_controller.periodic()  # needed to build the inspector
+                inspector_section = inspector_panel.widget.find_widget_by_id("info_inspector_section")
+                inspector_section.info_title_label.editing_finished(title)
+            self.assertEqual(("A2", "B2"), (display_item1.title, display_item2.title))
+            document_controller.handle_undo()
+            document_controller.handle_undo()
+            self.assertEqual(("A", "B"), (display_item1.title, display_item2.title))
+
+    def test_undo_intensity_and_dimensional_calibration_changes_in_inspector_restores_both_calibrations(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(
+                data=numpy.zeros((32, 32)),
+                dimensional_calibrations=[Calibration.Calibration(units="x"), Calibration.Calibration(units="x")],
+                intensity_calibration=Calibration.Calibration(units="u"))
+            )
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            calibration_section = Inspector.CalibrationsInspectorSection(document_controller, display_item.display_data_channel, display_item)
+            with contextlib.closing(calibration_section):
+                calibration_section._intensity_calibration_model.units = "v"
+                calibration_section._dimensional_calibrations_model.items[1].units = "y"
+                document_controller.handle_undo()
+                document_controller.handle_undo()
+                self.assertEqual("u", data_item.intensity_calibration.units)
+                self.assertEqual(["x", "x"], [calibration.units for calibration in data_item.dimensional_calibrations])
+
     def test_redo_restores_rectangle_after_inspector_updates_for_undo(self) -> None:
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

@@ -75,7 +75,12 @@ class UndoableCommand(abc.ABC):
         self._set_modified_state(self.__new_modified_state)
 
     def can_merge(self, command: UndoableCommand) -> bool:
-        return False
+        """Return whether the command can be merged into this one, which is the previous command on the undo stack.
+
+        Both commands must be mergeable, of the same class, and have the same, non-empty command id. A subclass whose
+        commands can change different objects under the same command id also compares the object.
+        """
+        return self.is_mergeable and command.is_mergeable and type(command) is type(self) and bool(self.command_id) and self.command_id == command.command_id
 
     def merge(self, command: UndoableCommand) -> None:
         assert self.command_id and self.command_id == command.command_id
@@ -174,7 +179,7 @@ class UndoStack:
     def push(self, undo_command: UndoableCommand) -> None:
         assert undo_command
         last_undo_command = self.__undo_stack[-1] if self.__undo_stack else None
-        if last_undo_command and last_undo_command.is_mergeable and undo_command.is_mergeable and last_undo_command.command_id == undo_command.command_id:
+        if last_undo_command and last_undo_command.can_merge(undo_command):
             undo_command.commit(was_merge=True)
             last_undo_command.merge(undo_command)
             undo_command.close()

@@ -257,7 +257,7 @@ class ChangeComputationCommand(Undo.UndoableCommand):
             computation.read_properties_from_dict(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
-        return isinstance(command, ChangeComputationCommand) and bool(self.command_id) and self.command_id == command.command_id and self.__computation_proxy.item == command.__computation_proxy.item
+        return super().can_merge(command) and isinstance(command, ChangeComputationCommand) and self.__computation_proxy.item == command.__computation_proxy.item
 
 
 def select_computation(document_model: DocumentModel.DocumentModel, display_item: typing.Optional[DisplayItem.DisplayItem]) -> typing.Optional[Symbolic.Computation]:
