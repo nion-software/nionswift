@@ -817,8 +817,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                     text = text[:-1]
                 self.__output_widget.move_cursor_position("end")
                 self.__output_widget.insert_text(text)
-                # inserting text does not scroll the view, so move the cursor again to show the inserted text.
-                self.__output_widget.move_cursor_position("end")
+                # inserting text does not scroll the view, so scroll to show the inserted text.
+                self.__output_widget.scroll_to_end()
             if len(self.__q) > 0:
                 func = self.__q.popleft()
         if callable(func):
@@ -827,7 +827,7 @@ class RunScriptDialog(Dialog.ActionDialog):
     # changing the row below the output resizes the output, which can hide its last line, so scroll to the end once the
     # dialog has been laid out again.
     def __scroll_output_to_end_after_layout(self) -> None:
-        self.document_controller.add_task("scroll_" + str(id(self)), functools.partial(self.__output_widget.move_cursor_position, "end"))
+        self.document_controller.add_task("scroll_" + str(id(self)), self.__output_widget.scroll_to_end)
 
     def print(self, *values: typing.Any, sep: str | None = " ", end: str | None = "\n") -> None:
         """Print the values to the output of the dialog, with the sep and end arguments of the built-in print.
