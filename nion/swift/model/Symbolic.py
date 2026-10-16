@@ -2248,7 +2248,11 @@ class Computation(Persistence.PersistentObject):
             self.__needs_update = value
             self.notify_property_changed("needs_update")
             if self.__recompute_enabled:
+                # whether the computation needs to run is not a change to the computation, so keep the modified state,
+                # which undo of a change to the computation compares to see that it still applies.
+                modified_state = self.modified_state
                 self._set_persistent_property_value("needs_recompute", value)
+                self.modified_state = modified_state
 
     def reset(self) -> None:
         # called after the model (project) is loaded. this ensures the state of needs_update is correctly set
@@ -2473,9 +2477,13 @@ class Computation(Persistence.PersistentObject):
             self.notify_property_changed("error_stack_trace")
 
     def update_status(self, computed_status: ComputationResultStatusEnum, error_text: str | None, error_stack_trace: str | None, timestamp: datetime.datetime | None, elapsed_time: float | None) -> None:
+        # the status records a run of the computation, not a change to it, so keep the modified state, as the error text
+        # does, which undo of a change to the computation compares to see that it still applies.
+        modified_state = self.modified_state
         self._set_persistent_property_value("last_computed_status", computed_status.value)
         self._set_persistent_property_value("last_computed_elapsed_time", elapsed_time)
         self._set_persistent_property_value("last_computed_timestamp", timestamp)
+        self.modified_state = modified_state
         self.notify_property_changed("last_computed_elapsed_time")
         self.notify_property_changed("last_computed_timestamp")
         self.notify_property_changed("last_computed_status")

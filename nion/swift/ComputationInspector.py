@@ -141,6 +141,10 @@ class ChangeComputationVariantCommand(Undo.UndoableCommand):
             computation.modified_state = modified_state[0]
         self.__document_model.modified_state = modified_state[1]
 
+    def _compare_modified_states(self, state1: typing.Any, state2: typing.Any) -> bool:
+        # override to allow the undo command to track state; but only use part of the state for comparison
+        return bool(state1[0] == state2[0])
+
     def _undo(self) -> None:
         computation = self.__computation_proxy.item
         if computation and self.__old_processing_id:
