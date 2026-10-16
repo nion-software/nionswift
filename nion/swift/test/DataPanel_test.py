@@ -1057,6 +1057,18 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1.category = None
             self.assertTrue(project_panel._collection_info_list_stream.value[2].title.endswith("(1)"))
 
+    def test_pressing_delete_on_an_empty_collection_in_the_collections_panel_removes_it(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            document_controller.add_group()
+            data_group = document_model.data_groups[0]
+            collections_panel = typing.cast(ProjectPanel.CollectionsPanel, document_controller.find_dock_panel("collections-panel"))
+            # the first data group follows the four smart collections.
+            collections_panel._collection_selection.set(4)
+            collections_panel._collections_section._collection_list_canvas_item_delegate.delete_pressed()
+            self.assertNotIn(data_group, document_model.data_groups)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -3904,6 +3904,33 @@ class AddGroupAction(Window.Action):
 Window.register_action(AddGroupAction())
 
 
+class RemoveGroupAction(Window.Action):
+    """Remove a top-level data group from the window's project.
+
+    The parameter data_group_uuid is the uuid, as a string, of the data group to remove. A data group which holds
+    display items or other data groups is left alone.
+    """
+    action_id = "project.remove_group"
+    action_name = _("Remove Group")
+    action_parameters = [
+        Window.ActionStringProperty("data_group_uuid")
+    ]
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        if context.window:
+            window = typing.cast(DocumentController, context.window)
+            project = window.project
+            data_group_uuid_str = self.get_string_property(context, "data_group_uuid")
+            # remove the data group in the window's project with the given uuid, and do nothing if there is none.
+            data_group = next((data_group for data_group in project.data_groups if str(data_group.uuid) == data_group_uuid_str), None)
+            if data_group:
+                window.remove_data_group_from_container(data_group, project)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+
+Window.register_action(RemoveGroupAction())
+
+
 class DisplayCopyAction(Window.Action):
     action_id = "display.copy_display"
     action_name = _("Duplicate Display Item")
