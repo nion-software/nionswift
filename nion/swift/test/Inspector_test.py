@@ -1656,6 +1656,26 @@ class TestInspectorClass(unittest.TestCase):
             command.redo()
             self.assertEqual("A", display_item.get_display_layer_property(1, "label"))
 
+    def test_redo_of_repeated_display_layer_label_edits_in_inspector_restores_last_label(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            display_panel = document_controller.selected_display_panel
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8,)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # needed to build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            line_plot_display_layers_section = typing.cast(Inspector.LinePlotDisplayLayersInspectorSection, inspector_panel.widget.find_widget_by_id("line_plot_display_layers_inspector_section"))
+            line_plot_display_layer_model = line_plot_display_layers_section._handler._line_plot_display_layer_handlers[0]._line_plot_display_layer_model
+            # edit the label twice, as a person typing does; the edits merge into one undo entry.
+            line_plot_display_layer_model.label_model.value = "x"
+            line_plot_display_layer_model.label_model.value = "xy"
+            document_controller.handle_undo()
+            document_controller.handle_redo()
+            self.assertEqual("xy", display_item.get_display_layer_property(0, "label"))
+
     def test_change_display_layer_data_command(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

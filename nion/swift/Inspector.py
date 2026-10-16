@@ -673,7 +673,7 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         self.__display_layer_index = display_layer_index
         self.__property_name = property_name
         self.__value = value
-        self.__old_properties = display_item.save_properties()
+        self.__properties = display_item.save_properties()
         self.initialize()
 
     def close(self) -> None:
@@ -702,12 +702,12 @@ class ChangeDisplayLayerPropertyCommand(Undo.UndoableCommand):
         return bool(state1[0] == state2[0])
 
     def _undo(self) -> None:
+        # swap the saved properties with the current ones, so that redo, which undoes again, restores the latest change.
         display_item = self.__display_item_proxy.item
         if display_item:
-            display_item.restore_properties(self.__old_properties)
-
-    def _redo(self) -> None:
-        self.perform()
+            properties = self.__properties
+            self.__properties = display_item.save_properties()
+            display_item.restore_properties(properties)
 
     @property
     def __display_item_uuid(self) -> typing.Optional[uuid.UUID]:
