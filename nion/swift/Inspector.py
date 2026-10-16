@@ -1460,7 +1460,7 @@ class ChangeIntensityCalibrationCommand(Undo.UndoableCommand):
 
 class ChangeDimensionalCalibrationsCommand(Undo.UndoableCommand):
     def __init__(self, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, dimensional_calibrations: DataAndMetadata.CalibrationListType) -> None:
-        super().__init__(_("Change Intensity Calibration"), command_id="change_intensity_calibration", is_mergeable=True)
+        super().__init__(_("Change Dimensional Calibrations"), command_id="change_dimensional_calibrations", is_mergeable=True)
         self.__document_model = document_model
         self.__data_item_proxy = data_item.create_proxy()
         self.__new_dimensional_calibrations = list(dimensional_calibrations)
