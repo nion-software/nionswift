@@ -498,7 +498,8 @@ class DisplayItemDisplayPropertyCommandModel(Model.PropertyModel[typing.Any]):
 
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem, property_name: str) -> None:
-        super().__init__()
+        # pass the initial value to the property model so that it does not go through _set_value, which pushes a command.
+        super().__init__(display_item.get_display_property(property_name))
         self.__display_item = display_item
         self.__document_controller = document_controller
         self.__property_name = property_name
@@ -506,7 +507,6 @@ class DisplayItemDisplayPropertyCommandModel(Model.PropertyModel[typing.Any]):
         # properties change. instead just listen for display item property changes, respond to 'display_properties'
         # changing. then let the PropertyModel machinery check for changes and send out notifications.
         self.__listener = display_item.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayItemDisplayPropertyCommandModel.__display_property_changed, self))
-        self.value = self._get_property_value()
 
     def __display_property_changed(self, key: str) -> None:
         if key == "display_properties":
