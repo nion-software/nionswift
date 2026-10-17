@@ -367,7 +367,10 @@ class ComputationModel:
     @computation_label.setter
     def computation_label(self, label: typing.Optional[str]) -> None:
         computation = self.computation
-        if computation:
+        # the label field commits its text whenever editing finishes, changed or not. push no undo command for an
+        # unchanged label, which would be an undo entry that changes nothing visible. no label and an empty label
+        # look the same in the field, so they count as the same label.
+        if computation and (label or None) != (computation.label or None):
             command = ChangeComputationCommand(self.document_controller.document_model, computation, command_id="computation_change_label", is_mergeable=True, label=label)
             command.perform()
             self.document_controller.push_undo_command(command)
@@ -379,7 +382,8 @@ class ComputationModel:
     @computation_text.setter
     def computation_text(self, computation_text: typing.Optional[str]) -> None:
         computation = self.computation
-        if computation:
+        # push no undo command for an unchanged expression, which would be an undo entry that changes nothing.
+        if computation and computation_text != computation.expression:
             command = ChangeComputationCommand(self.document_controller.document_model, computation, command_id="computation_change_label", is_mergeable=True, expression=computation_text)
             command.perform()
             self.document_controller.push_undo_command(command)
