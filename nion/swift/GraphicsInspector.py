@@ -19,6 +19,7 @@ from nion.swift.model import Symbolic
 from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import Declarative
+from nion.ui import Window
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -37,7 +38,8 @@ _GraphicPropertyCommandModelValueType = typing.TypeVar("_GraphicPropertyCommandM
 
 class GraphicPropertyCommandModel(Model.PropertyModel[_GraphicPropertyCommandModelValueType]):
     def __init__(self, document_controller: DocumentController.DocumentController, display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic,
-                 property_name: str, title: str,  command_id: str, read_property_name: str | None = None) -> None:
+                 property_name: str, title: str,  command_id: str, read_property_name: str | None = None, *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         read_name = read_property_name if read_property_name else property_name
         super().__init__(getattr(graphic, read_name))
         self.__property_name = property_name
@@ -50,7 +52,7 @@ class GraphicPropertyCommandModel(Model.PropertyModel[_GraphicPropertyCommandMod
                                                             title=title, command_id=command_id, is_mergeable=True,
                                                             **{self.__property_name: typing.cast(typing.Any, value)})
                 command.perform()
-                document_controller.push_undo_command(command)
+                document_controller.push_undo_command(command, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
                 self.value = getattr(graphic, self.__read_property_name)
 
         self.on_value_changed = property_changed_from_user
@@ -339,11 +341,16 @@ class LineAngleModel(Model.PropertyModel[float]):
 class GraphicsInspectorHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem,
-                 graphic: Graphics.Graphic):
+                 graphic: Graphics.Graphic, *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None):
         super().__init__()
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__graphic = graphic
+
+        # where the handler is shown, which the command log names as the origin of an edit made in it.
+        self.__invoked_from = invoked_from
+        self.__invoked_from_id = invoked_from_id
 
         # the graphic's persistent type, e.g. rect_graphic, names the graphic in undo command ids. the displayed graphic
         # type is translated, so it would make the ids differ between languages.
@@ -352,15 +359,32 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self._stroke_float_str_converter = Converter.FloatToStringConverter(pass_none=True)
         self._graphic_type_model = Model.PropertyModel[str]()
         self.__set_type_specifics()
-        self._graphic_label_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
-        self._lock_position_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_("Change {graphic_type} Position Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_position_locked")
-        self._lock_rotation_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_rotation_locked", title=_("Change {graphic_type} Rotation Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_rotation_locked")
-        self._stroke_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
-        self._used_stroke_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style")
-        self._stroke_width_model = GraphicPropertyCommandModel[float](document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
-        self._fill_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "fill_color", title=_("Change Fill Color"), command_id="change_fill_color")
-        self._used_fill_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"fill_color", title=_("Change Fill Color"), command_id="change_fill_color", read_property_name="used_fill_style")
-        self._lock_shape_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic,"is_shape_locked", title=_("Change {graphic_type} Shape Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_shape_locked")
+        self._graphic_label_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label",
+                                                                     invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self._lock_position_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_position_locked",
+                                                                      title=_("Change {graphic_type} Position Locked").format(graphic_type=self._graphic_type_model.value),
+                                                                      command_id=f"change_{self.__graphic_type_id}_position_locked",
+                                                                      invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self._lock_rotation_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_rotation_locked",
+                                                                      title=_("Change {graphic_type} Rotation Locked").format(graphic_type=self._graphic_type_model.value),
+                                                                      command_id=f"change_{self.__graphic_type_id}_rotation_locked",
+                                                                      invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self._stroke_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color",
+                                                                    invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self._used_stroke_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "stroke_color",
+                                                                         title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style",
+                                                                         invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self._stroke_width_model = GraphicPropertyCommandModel[float](document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width",
+                                                                      invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self._fill_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "fill_color", title=_("Change Fill Color"), command_id="change_fill_color",
+                                                                  invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self._used_fill_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "fill_color",
+                                                                       title=_("Change Fill Color"), command_id="change_fill_color", read_property_name="used_fill_style",
+                                                                       invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self._lock_shape_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_shape_locked",
+                                                                   title=_("Change {graphic_type} Shape Locked").format(graphic_type=self._graphic_type_model.value),
+                                                                   command_id=f"change_{self.__graphic_type_id}_shape_locked",
+                                                                   invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
         u = Declarative.DeclarativeUI()
 
@@ -462,7 +486,9 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_point_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        position_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "position", title=_("Change Position"), command_id="change_point_position")
+        position_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "position",
+                                                                        title=_("Change Position"), command_id="change_point_position",
+                                                                        invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
         self._point_position_x_model = DisplayItemCalibratedDimensionValueModel(position_model, self.__display_item, dimension_index=1, is_size=False)
         self._point_position_y_model = DisplayItemCalibratedDimensionValueModel(position_model, self.__display_item, dimension_index=0, is_size=False)
         return u.create_row(
@@ -481,7 +507,9 @@ class GraphicsInspectorHandler(Declarative.Handler):
         display_calibration_info = display_info.display_calibration_info if display_info else None
         display_data_shape = display_calibration_info.display_data_shape if display_calibration_info else None
         factor = 1.0 / (display_data_shape[0] if display_data_shape is not None else 1)
-        line_profile_width_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "width", title=_("Change Width"), command_id="change_line_profile_width")
+        line_profile_width_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "width",
+                                                                      title=_("Change Width"), command_id="change_line_profile_width",
+                                                                      invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
         self._line_profile_width_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(line_profile_width_model), self.__display_item, dimension_index=0, is_size=True, factor=factor)
         return u.create_column(
             self.__create_line_shape_and_pos(),
@@ -496,8 +524,11 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_line_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        start_model = GraphicPropertyCommandModel[Geometry.FloatPoint](self.__document_controller, self.__display_item, self.__graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
-        end_model = GraphicPropertyCommandModel[Geometry.FloatPoint](self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change Line End"), command_id="change_line_end")
+        start_model = GraphicPropertyCommandModel[Geometry.FloatPoint](self.__document_controller, self.__display_item, self.__graphic, "start",
+                                                                       title=_("Change Line Start"), command_id="change_line_start",
+                                                                       invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        end_model = GraphicPropertyCommandModel[Geometry.FloatPoint](self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change Line End"), command_id="change_line_end",
+                                                                     invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
         start_tuple_model = FloatPointToTuplePropertyModel(start_model)
         end_tuple_model = FloatPointToTuplePropertyModel(end_model)
         self._x0_model = DisplayItemCalibratedDimensionValueModel(start_tuple_model, self.__display_item, dimension_index=1, is_size=False)
@@ -541,15 +572,24 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_rectangle_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        center_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "center", title=_("Change {graphic_type} Center").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_center")
-        size_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "size", title=_("Change {graphic_type} Size").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_size")
+        center_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "center",
+                                                                      title=_("Change {graphic_type} Center").format(graphic_type=self._graphic_type_model.value),
+                                                                      command_id=f"change_{self.__graphic_type_id}_center",
+                                                                      invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        size_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "size",
+                                                                    title=_("Change {graphic_type} Size").format(graphic_type=self._graphic_type_model.value),
+                                                                    command_id=f"change_{self.__graphic_type_id}_size",
+                                                                    invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
         self._center_x_model = DisplayItemCalibratedDimensionValueModel(center_model, self.__display_item, dimension_index=1, is_size=False)
         self._center_y_model = DisplayItemCalibratedDimensionValueModel(center_model, self.__display_item, dimension_index=0, is_size=False)
         self._width_model = DisplayItemCalibratedDimensionValueModel(size_model, self.__display_item, dimension_index=1, is_size=True)
         self._height_model = DisplayItemCalibratedDimensionValueModel(size_model, self.__display_item, dimension_index=0, is_size=True)
 
-        self._rotation_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "rotation", title=_("Change {graphic_type} Rotation").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_rotation")
+        self._rotation_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "rotation",
+                                                                  title=_("Change {graphic_type} Rotation").format(graphic_type=self._graphic_type_model.value),
+                                                                  command_id=f"change_{self.__graphic_type_id}_rotation",
+                                                                  invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
         self._radian_to_degrees_string_converter = RadianToDegreeStringConverter()
 
@@ -587,8 +627,13 @@ class GraphicsInspectorHandler(Declarative.Handler):
         return self.__create_rectangle_shape_and_pos()
 
     def __create_interval_shape_and_pos(self) -> Declarative.UIDescriptionResult:
-        start_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "start", title=_("Change {graphic_type} Start").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_start")
-        end_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change {graphic_type} End").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_end")
+        start_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "start",
+                                                         title=_("Change {graphic_type} Start").format(graphic_type=self._graphic_type_model.value),
+                                                         command_id=f"change_{self.__graphic_type_id}_start",
+                                                         invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        end_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "end",
+                                                       title=_("Change {graphic_type} End").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_end",
+                                                       invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
         self._start_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(start_model), self.__display_item, dimension_index=-1, is_size=False)
         self._end_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(end_model), self.__display_item, dimension_index=-1, is_size=False)
@@ -612,7 +657,10 @@ class GraphicsInspectorHandler(Declarative.Handler):
         )
 
     def __create_channel_pos(self) -> Declarative.UIDescriptionResult:
-        position_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "position", title=_("Change {graphic_type} Position").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_position")
+        position_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "position",
+                                                            title=_("Change {graphic_type} Position").format(graphic_type=self._graphic_type_model.value),
+                                                            command_id=f"change_{self.__graphic_type_id}_position",
+                                                            invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
         self._position_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(position_model), self.__display_item, dimension_index=-1, is_size=False)
 
@@ -633,7 +681,9 @@ class GraphicsInspectorHandler(Declarative.Handler):
         return self.__create_rectangle_shape_and_pos()
 
     def __create_wedge_shape_and_pos(self) -> Declarative.UIDescriptionResult:
-        angle_interval_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "angle_interval", title=_("Change Angle Interval"), command_id="change_angle_interval")
+        angle_interval_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "angle_interval",
+                                                                              title=_("Change Angle Interval"), command_id="change_angle_interval",
+                                                                              invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
         self._radian_to_degrees_string_converter = RadianToDegreeStringConverter()
         self._start_angle_model = TupleToFloatPropertyElementModel(angle_interval_model, 0)
@@ -669,8 +719,10 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__annular_ring_mode_model.value = self.__annular_ring_mode_ids[current_index]
 
     def __create_ring_shape_and_pos(self) -> Declarative.UIDescriptionResult:
-        radius_1_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "radius_1", title=_("Change Radius 1"), command_id="change_radius_1")
-        radius_2_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "radius_2", title=_("Change Radius 2"), command_id="change_radius_2")
+        radius_1_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "radius_1", title=_("Change Radius 1"), command_id="change_radius_1",
+                                                            invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        radius_2_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "radius_2", title=_("Change Radius 2"), command_id="change_radius_2",
+                                                            invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
         self._radius_1_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(radius_1_model), self.__display_item, dimension_index=0, is_size=True)
         self._radius_2_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(radius_2_model), self.__display_item, dimension_index=0, is_size=True)
@@ -679,7 +731,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__annular_ring_mode_ids = ["band-pass", "low-pass", "high-pass"]
         self.__annular_ring_mode_reverse_map = {p: i for i, p in enumerate(self.__annular_ring_mode_ids)}
 
-        self.__annular_ring_mode_model = GraphicPropertyCommandModel[str](self.__document_controller, self.__display_item, self.__graphic, "mode", title=_("Change Mode"), command_id="change_mode")
+        self.__annular_ring_mode_model = GraphicPropertyCommandModel[str](self.__document_controller, self.__display_item, self.__graphic, "mode", title=_("Change Mode"), command_id="change_mode",
+                                                                          invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
         self._current_annular_ring_mode_index = Model.PropertyModel(
             self.__annular_ring_mode_reverse_map.get(str(self.__annular_ring_mode_model.value), 0))
@@ -714,7 +767,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def _align_center_clicked(self, widget: typing.Any) -> None:
         action_context = self.__document_controller._get_action_context_for_display_items([self.__display_item], None, graphics=[self.__graphic])
-        self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context)
+        self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
     def __create_position_and_shape_ui(self) -> Declarative.UIDescriptionResult:
         if self.__shape_and_pos_func is None:
@@ -752,10 +805,16 @@ class GraphicsInspectorHandler(Declarative.Handler):
 class GraphicsSectionHandler(Declarative.Handler):
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem,
-                 graphics_model: ListModel.ObservedListModel[DisplayItem.DisplayLayer]):
+                 graphics_model: ListModel.ObservedListModel[DisplayItem.DisplayLayer], *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None):
         super().__init__()
         self.__document_controller = document_controller
         self.__display_item = display_item
+
+        # where the section is shown, which the command log names as the origin of an edit made in it.
+        self.__invoked_from = invoked_from
+        self.__invoked_from_id = invoked_from_id
+
         self._graphics_model = graphics_model
         self._graphic_handlers: list[GraphicsInspectorHandler] = []
         # imported here rather than at module scope: Inspector imports this module, so a module level
@@ -773,7 +832,7 @@ class GraphicsSectionHandler(Declarative.Handler):
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "graphic":
             graphic = typing.cast(Graphics.Graphic, item)
-            handler = GraphicsInspectorHandler(self.__document_controller, self.__display_item, graphic)
+            handler = GraphicsInspectorHandler(self.__document_controller, self.__display_item, graphic, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
             self._graphic_handlers.append(handler)
             return handler
         return None
