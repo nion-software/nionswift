@@ -2097,12 +2097,6 @@ class DocumentController(Window.Window):
             menu.remove_action(dynamic_view_action)
         self.__dynamic_view_actions = []
         for workspace in self.project.sorted_workspaces:
-            def switch_to_workspace(workspace: WorkspaceLayout.WorkspaceLayout) -> None:
-                context = self._get_action_context()
-                context.parameters["workspace_uuid"] = str(workspace.uuid)
-                # the workspace list is built here rather than by build_menu, so it passes the menu origin itself.
-                self.perform_action_in_context("workspace.switch", context, invoked_from=Window.ActionOrigin.MENU)
-
             workspace_timestamp = workspace.timestamp_for_sorting
             local_modified_datetime = workspace_timestamp + datetime.timedelta(minutes=Utility.local_utcoffset_minutes(workspace_timestamp))
             workspace_modified_str = local_modified_datetime.strftime('%Y-%m-%d')
@@ -2111,9 +2105,9 @@ class DocumentController(Window.Window):
             elif local_modified_datetime.date() == datetime.date.today() - datetime.timedelta(days=1):
                 workspace_modified_str = _("Yesterday")
 
-            action = menu.add_menu_item(f"{workspace.name} ({workspace_modified_str})", functools.partial(switch_to_workspace, workspace))
-            action.checked = self.project.workspace_uuid == workspace.uuid
-            self.__dynamic_view_actions.append(action)
+            if menu_action := self.add_action_to_main_menu(menu, "workspace.switch", title=f"{workspace.name} ({workspace_modified_str})", parameters={"workspace_uuid": str(workspace.uuid)}):
+                menu_action.checked = self.project.workspace_uuid == workspace.uuid
+                self.__dynamic_view_actions.append(menu_action)
 
     def __about_to_show_display_type_menu(self, menu: UserInterface.Menu) -> None:
         for dynamic_live_action in self.__dynamic_live_actions:
@@ -2133,9 +2127,9 @@ class DocumentController(Window.Window):
         data_item = display_item.data_item if display_item else None
         if display_item and data_item:
 
-            # run the action on the display item the menu describes, which can differ from the context's own display
-            # item when the data panel has focus. the menu is built here rather than by build_menu, so it passes the
-            # menu origin itself.
+            # run the action on the display item and data item the menu describes, which can differ from the context's own
+            # when the data panel has focus. add_action_to_main_menu keeps the context's display item and data item, so
+            # these items are built here and replace them, and pass the menu origin themselves.
             def perform_menu_item_action(action_id: str, parameters: typing.Mapping[str, int]) -> None:
                 context = self._get_action_context()
                 context.display_item = display_item

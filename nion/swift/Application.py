@@ -862,16 +862,8 @@ class Application(UIApplication.BaseApplication):
                     project_title += " " + _("(MISSING)")
                 elif project_reference.project_state != "unloaded" or project_reference.project_version != FileStorageSystem.PROJECT_VERSION:
                     project_title += " " + _("(UNREADABLE)")
-                action = menu.add_menu_item(project_title, functools.partial(self.__open_recent_project_from_menu, window, project_reference))
-                getattr(window, "_dynamic_recent_project_actions").append(action)
-
-    def __open_recent_project_from_menu(self, window: UIWindow.Window, project_reference: Profile.ProjectReference) -> None:
-        # the window makes the context, as it does for the menu items it builds itself. the application and its windows
-        # are written to work together, so the application calls the window's protected method.
-        context = window._get_action_context()
-        context.parameters["project_reference_uuid"] = str(project_reference.uuid)
-        # the recent projects menu is built here rather than by build_menu, so it passes the menu origin itself.
-        window.perform_action_in_context("project.open_recent", context, invoked_from=UIWindow.ActionOrigin.MENU)
+                if menu_action := window.add_action_to_main_menu(menu, "project.open_recent", title=project_title, parameters={"project_reference_uuid": str(project_reference.uuid)}):
+                    getattr(window, "_dynamic_recent_project_actions").append(menu_action)
 
     def _get_recent_project_references(self) -> typing.Sequence[Profile.ProjectReference]:
         profile = self.profile

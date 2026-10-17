@@ -3339,11 +3339,10 @@ class API_1:
                 else:
                     menu = document_controller.get_menu(menu_id)
                 key_sequence = getattr(menu_item_handler, "menu_item_key_sequence", None)
-                if menu:
-                    # the item runs its action with the menu origin, as an item built by Window.build_menu does.
-                    menu.add_menu_item(menu_item_handler.menu_item_name,
-                                       functools.partial(document_controller.perform_action, action_id, invoked_from=UIWindow.ActionOrigin.MENU),
-                                       key_sequence=key_sequence, action_id=action_id)
+                # the item shows the handler's name when the window is built, which differs from the action's name if the
+                # handler was renamed after it was registered.
+                if menu and (menu_action := document_controller.add_action_to_main_menu(menu, action_id, key_sequence=key_sequence)):
+                    menu_action.title = menu_item_handler.menu_item_name
 
             self.__build_menus = build_menus
 
