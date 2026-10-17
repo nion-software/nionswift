@@ -14,6 +14,7 @@ import pathlib
 import pkgutil
 import re
 import sys
+import time
 import typing
 import urllib.parse
 import uuid
@@ -831,9 +832,16 @@ class Application(UIApplication.BaseApplication):
         commands_logger = logging.getLogger("_commands")
         invoked_from_text = action_context.invoked_from_text
         commands_logger.info(f"# action {action.get_action_summary(action_context)}" + (f" (from {invoked_from_text})" if invoked_from_text else ""))
-        # mark the action as running while it runs, so the command log writes the changes it makes as made in the action.
-        with Undo.running_action(action.action_id):
-            return super()._run_action(action, action_context, user_interaction=user_interaction)
+        # the time written at the end is how long the action ran on the main thread before returning, or raising. it leaves
+        # out work the action leaves for later, such as a computation, and includes time a person spends in a dialog the
+        # action waits for, such as a file dialog.
+        start_time = time.perf_counter()
+        try:
+            # mark the action as running while it runs, so the command log writes the changes it makes as made in the action.
+            with Undo.running_action(action.action_id):
+                return super()._run_action(action, action_context, user_interaction=user_interaction)
+        finally:
+            commands_logger.info(f"# action end {action.action_id} ({time.perf_counter() - start_time:.3f} s)")
 
     def __about_to_show_recent_projects_menu(self, window: UIWindow.Window, menu: UserInterface.Menu) -> None:
         # recent project actions are stored with the window so they can be deleted.
