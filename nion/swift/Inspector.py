@@ -69,6 +69,15 @@ _ImageDataType = Calibration._ImageDataType
 _ = gettext.gettext
 
 
+# the id the inspector panel is registered under, which the command log names as the origin of a change made in it.
+INSPECTOR_PANEL_ID = "inspector-panel"
+
+
+# push the command for a change a person made in the inspector panel, so that the command log names the panel as its origin.
+def _push_inspector_undo_command(document_controller: DocumentController.DocumentController, command: Undo.UndoableCommand) -> None:
+    document_controller.push_undo_command(command, invoked_from=Window.ActionOrigin.PANEL, invoked_from_id=INSPECTOR_PANEL_ID)
+
+
 class InspectorPanel(Panel.Panel):
     """Inspect the current selection.
 
@@ -435,7 +444,7 @@ class DisplayDataChannelPropertyCommandModel(Model.PropertyChangedPropertyModel[
                                                                    title=title, command_id=command_id, is_mergeable=True,
                                                                    **{property_name: value})
             command.perform()
-            document_controller.push_undo_command(command)
+            _push_inspector_undo_command(document_controller, command)
 
 
 class DisplayDataChannelAdjustmentPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.Any]):
@@ -462,7 +471,7 @@ class DisplayDataChannelAdjustmentPropertyCommandModel(Model.PropertyChangedProp
             adjustment[property_name] = value
             command = DisplayPanel.ChangeDisplayDataChannelCommand(document_controller.document_model, display_data_channel, title=_("Change Display"), command_id="change_display_" + property_name, is_mergeable=True, adjustments=[adjustment])
             command.perform()
-            document_controller.push_undo_command(command)
+            _push_inspector_undo_command(document_controller, command)
 
     def _get_property_value(self) -> typing.Optional[typing.Any]:
         display_data_channel = typing.cast(DisplayItem.DisplayDataChannel, self._observable)
@@ -484,7 +493,7 @@ class DisplayItemPropertyCommandModel(Model.PropertyChangedPropertyModel[typing.
         if value != self._get_property_value():
             command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__property_name, value)
             command.perform()
-            self.__document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self.__document_controller, command)
 
     def _get_property_value(self) -> typing.Optional[typing.Any]:
         return getattr(self.__display_item, self.__property_name)
@@ -533,7 +542,7 @@ class DisplayItemDisplayPropertyCommandModel(Model.PropertyModel[typing.Any]):
                                                     command_id="change_display_" + self.__property_name, is_mergeable=True,
                                                     **{self.__property_name: value})
         command.perform()
-        self.__document_controller.push_undo_command(command)
+        _push_inspector_undo_command(self.__document_controller, command)
 
     def _get_property_value(self) -> typing.Optional[typing.Any]:
         return self.__display_item.get_display_property(self.__property_name)
@@ -797,7 +806,7 @@ class DisplayLayerPropertyCommandModel(Model.PropertyChangedPropertyModel[typing
             command = ChangeDisplayLayerPropertyCommand(self.__document_controller.document_model, self.__display_item, index,
                                                         self.__property_name, property_value)
             command.perform()
-            self.__document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self.__document_controller, command)
 
 
 class LinePlotDisplayLayerHandler(Declarative.Handler):
@@ -881,7 +890,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                            self._line_plot_display_layer_model.display_item,
                                                            index - 1, command_id="move_display_layer_forward")
             command.perform()
-            self._line_plot_display_layer_model.document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self._line_plot_display_layer_model.document_controller, command)
 
     def _move_layer_backward(self) -> None:
         index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
@@ -892,7 +901,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                            self._line_plot_display_layer_model.display_item,
                                                            index + 1, command_id="move_display_layer_backward")
             command.perform()
-            self._line_plot_display_layer_model.document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self._line_plot_display_layer_model.document_controller, command)
 
     def _add_layer(self) -> None:
         # add new layer after current layer
@@ -901,7 +910,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                       self._line_plot_display_layer_model.display_item,
                                                       index, command_id="add_display_layer")
         command.perform()
-        self._line_plot_display_layer_model.document_controller.push_undo_command(command)
+        _push_inspector_undo_command(self._line_plot_display_layer_model.document_controller, command)
 
     def _remove_layer(self) -> None:
         index = self._line_plot_display_layer_model.display_item.display_layers.index(self._line_plot_display_layer_model.display_layer)
@@ -909,7 +918,7 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
                                                          self._line_plot_display_layer_model.display_item,
                                                          index, command_id="remove_display_layer")
         command.perform()
-        self._line_plot_display_layer_model.document_controller.push_undo_command(command)
+        _push_inspector_undo_command(self._line_plot_display_layer_model.document_controller, command)
 
 
 class LinePlotDisplayLayerModel(Observable.Observable):
@@ -966,7 +975,7 @@ class LinePlotDisplayLayerModel(Observable.Observable):
                                                                       self.display_layer,
                                                                       display_data_channel)
                 command.perform()
-                self.document_controller.push_undo_command(command)
+                _push_inspector_undo_command(self.document_controller, command)
 
     def __on_display_type_index_changed(self, property: str) -> None:
         if property == "value":
@@ -976,7 +985,7 @@ class LinePlotDisplayLayerModel(Observable.Observable):
                                                                    self.display_layer.display_data_channel,
                                                                    complex_display_type=new_type, command_id="change_complex_display_type")
             command.perform()
-            self.document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self.document_controller, command)
 
     def __on_display_layer_list_changed(self, key: str, value: typing.Any, index: int) -> None:
         # changes affect all indices after index of change
@@ -1016,7 +1025,7 @@ class LinePlotDisplayLayersSectionHandler(Declarative.Handler):
                                                       self.__display_item,
                                                       0, command_id="add_display_layer")
         command.perform()
-        self.__document_controller.push_undo_command(command)
+        _push_inspector_undo_command(self.__document_controller, command)
 
 
 class LinePlotDisplayLayersInspectorSection(InspectorSection):
@@ -1157,7 +1166,7 @@ class ImageDataInspectorModel(Observable.Observable):
                                                                    title=_("Change Color Map"),
                                                                    command_id="change_color_map", is_mergeable=True)
             command.perform()
-            self._document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self._document_controller, command)
 
     def change_adjustment_option(self, widget: Declarative.UIWidget, current_index: int) -> None:
         adjustment_option = self._adjustment_options_flags[current_index]
@@ -1166,7 +1175,7 @@ class ImageDataInspectorModel(Observable.Observable):
             command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
                                                                    self._display_data_channel, adjustments=adjustments, command_id="change_display_adjustments")
             command.perform()
-            self._document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self._document_controller, command)
             self._update_gamma_visibility()
 
 
@@ -1281,7 +1290,7 @@ class ComplexDisplayTypeChooserHandler(Declarative.Handler):
             command = DisplayPanel.ChangeDisplayDataChannelCommand(self._document_controller.document_model,
                                                                    self._display_data_channel, complex_display_type=current_display_type, command_id="change_complex_display_type")
             command.perform()
-            self._document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self._document_controller, command)
 
 
 class ImageDataInspectorSection(InspectorSection):
@@ -1332,7 +1341,7 @@ class SessionInspectorModel(Observable.Observable):
         command = ChangePropertyCommand(self.__document_controller.document_model, self.__data_item, "session_metadata",
                                         session_metadata)
         command.perform()
-        self.__document_controller.push_undo_command(command)
+        _push_inspector_undo_command(self.__document_controller, command)
 
     def __fields_changed(self, key: str) -> None:
         if key == "session_metadata":
@@ -1726,7 +1735,7 @@ class CalibrationStyleModel(Observable.Observable):
             calibration_style_id = self.__calibration_styles[value].calibration_style_id
             command = ChangeDisplayItemPropertyCommand(self.__document_controller.document_model, self.__display_item, self.__adapter.get_calibration_style_id_property_name(), calibration_style_id)
             command.perform()
-            self.__document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self.__document_controller, command)
 
 
 class CalibrationSectionHandler(Declarative.Handler):
@@ -1783,7 +1792,7 @@ class CalibrationsInspectorSection(InspectorSection):
             if enabled_ref[0] and data_item:
                 command = ChangeIntensityCalibrationCommand(document_controller.document_model, data_item, intensity_calibration)
                 command.perform()
-                document_controller.push_undo_command(command)
+                _push_inspector_undo_command(document_controller, command)
 
         self.__dimensional_calibrations_model = ListModel.ListModel[CalibrationModel]()
         self.__intensity_calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_intensity_calibration, self.__enabled_ref))
@@ -1823,7 +1832,7 @@ class CalibrationsInspectorSection(InspectorSection):
                     dimensional_calibrations[index] = dimensional_calibration
                     command = ChangeDimensionalCalibrationsCommand(document_controller.document_model, data_item, dimensional_calibrations)
                     command.perform()
-                    document_controller.push_undo_command(command)
+                    _push_inspector_undo_command(document_controller, command)
 
             calibration_model = CalibrationModel(str(), Calibration.Calibration(), functools.partial(change_dimensional_calibration, self.__enabled_ref, self.__document_controller, index))
             self.__dimensional_calibrations_model.append_item(calibration_model)
@@ -1990,7 +1999,7 @@ class DisplayTypeChooserHandler(Declarative.Handler):
         if self._display_item.display_type != current_display_type:
             command = ChangeDisplayTypeCommand(self._document_controller.document_model, self._display_item, display_type=current_display_type)
             command.perform()
-            self._document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self._document_controller, command)
 
 
 class ContrastStringConverter(Converter.ConverterLike[float, str]):
@@ -2100,7 +2109,7 @@ class LegendPositionChooserHandler(Declarative.Handler):
                                                         title=_("Legend Position"), command_id="change_legend_position",
                                                         is_mergeable=True, legend_position=current_legend_position)
             command.perform()
-            self._document_controller.push_undo_command(command)
+            _push_inspector_undo_command(self._document_controller, command)
 
 
 class LinePlotDisplaySectionHandler(Declarative.Handler):
@@ -2545,7 +2554,7 @@ class DataItemLabelWidget(Widgets.CompositeWidgetBase):
         def remove_display_data_channel() -> None:
             command = RemoveDisplayDataChannelCommand(document_controller, display_item, display_data_channel)
             command.perform()
-            document_controller.push_undo_command(command)
+            _push_inspector_undo_command(document_controller, command)
 
         remove_display_data_channel_button.on_button_clicked = remove_display_data_channel
 
