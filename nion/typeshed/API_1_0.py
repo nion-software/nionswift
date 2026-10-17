@@ -1152,6 +1152,36 @@ class API:
         ...
 
     def create_menu_item(self, menu_item_handler):
+        """Create a menu item in each document window, which runs the menu item handler when chosen.
+
+        .. versionadded:: 1.0
+
+        Scriptable: No
+
+        The item is run as the action plug_in.<item id>, where the item id is menu_item_id, or the handler's class name
+        when it declares none. The item id should be unique, so handlers of one class used for more than one item should
+        each declare a different menu_item_id.
+
+         The menu_item_handler should respond to the following:
+            (property, read-only) menu_item_name, the item's title
+            (method, required) menu_item_execute(window), called with the DocumentWindow the item is chosen in
+            (property, read-only, optional) menu_id, the menu to add the item to; a Scripts menu when not given
+            (property, read-only, optional) menu_name and menu_before_id, the title of the menu to create when menu_id is not found, and the menu to insert it before
+            (property, read-only, optional) menu_item_key_sequence
+            (property, read-only, optional) menu_item_id, the item id
+            (method, optional) close()
+
+        With menu_name and menu_before_id, menu_id and menu_before_id are menu ids without a leading underscore, such as
+        "processing_menu" and "window_menu", and the menu is created when the window has none with that id. Without them,
+        menu_id is the name of the window's menu attribute, with a leading underscore, such as "_processing_menu", and the
+        item is not added when the window has no such menu.
+
+        :return: A reference to the menu item. Closing it removes the item from windows built afterwards, unregisters its
+         action, and calls the handler's close().
+
+        .. versionadded:: 16.19
+           menu_item_id
+        """
         ...
 
     def create_panel(self, panel_delegate):

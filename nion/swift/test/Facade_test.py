@@ -8,8 +8,10 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
+from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift import Thumbnails
+from nion.swift import Undo
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
@@ -490,6 +492,129 @@ class TestFacadeClass(unittest.TestCase):
             self.assertFalse(api.library.has_library_value("stem.session.instrument"))
             self.assertIsNone(api.library.get_library_value("stem.session.instrument"))
 
+    def test_plug_in_menu_item_chosen_from_menu_runs_as_action(self):
+        # the handler records each window it runs in, and the action running then, to which its changes are attributed.
+        class RecordingMenuItemHandler:
+            menu_item_name = "Record Window"
+
+            def __init__(self) -> None:
+                self.runs: list[tuple[DocumentController.DocumentController, str | None]] = list()
+
+            def menu_item_execute(self, window: Facade.DocumentWindow) -> None:
+                self.runs.append((window._document_controller, Undo._running_action_id))
+
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            menu_item_handler = RecordingMenuItemHandler()
+            menu_item_reference = api.create_menu_item(menu_item_handler)
+            try:
+                menu = document_controller.get_menu("_script_menu")
+                menu_action = next(action for action in menu.get_menu_actions() if action.title == "Record Window")
+                menu_action.trigger()
+                self.assertEqual([(document_controller, "plug_in.RecordingMenuItemHandler")], menu_item_handler.runs)
+            finally:
+                menu_item_reference.close()
+
+    def test_plug_in_menu_item_with_declared_id_runs_as_action_with_that_id(self):
+        class DeclaredIdMenuItemHandler:
+            menu_item_name = "Declared Id"
+            menu_item_id = "facade_test.declared_id"
+
+            def __init__(self) -> None:
+                self.windows: list[DocumentController.DocumentController] = list()
+
+            def menu_item_execute(self, window: Facade.DocumentWindow) -> None:
+                self.windows.append(window._document_controller)
+
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            api = Facade.get_api("~1.0", "~1.0")
+            menu_item_handler = DeclaredIdMenuItemHandler()
+            menu_item_reference = api.create_menu_item(menu_item_handler)
+            try:
+                document_controller.perform_action("plug_in.facade_test.declared_id")
+                self.assertEqual([document_controller], menu_item_handler.windows)
+            finally:
+                menu_item_reference.close()
+
+    def test_plug_in_menu_items_from_one_handler_class_each_run_their_own_handler(self):
+        class CountingMenuItemHandler:
+            menu_item_name = "Count"
+
+            def __init__(self) -> None:
+                self.run_count = 0
+
+            def menu_item_execute(self, window: Facade.DocumentWindow) -> None:
+                self.run_count += 1
+
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            first_handler = CountingMenuItemHandler()
+            second_handler = CountingMenuItemHandler()
+            first_reference = api.create_menu_item(first_handler)
+            second_reference = api.create_menu_item(second_handler)
+            try:
+                menu = document_controller.get_menu("_script_menu")
+                for menu_action in [action for action in menu.get_menu_actions() if action.title == "Count"]:
+                    menu_action.trigger()
+                self.assertEqual((1, 1), (first_handler.run_count, second_handler.run_count))
+            finally:
+                first_reference.close()
+                second_reference.close()
+
+    def test_plug_in_menu_item_made_again_after_its_reference_is_closed_runs_under_the_same_id(self):
+        class CountingMenuItemHandler:
+            menu_item_name = "Count"
+
+            def __init__(self) -> None:
+                self.run_count = 0
+
+            def menu_item_execute(self, window: Facade.DocumentWindow) -> None:
+                self.run_count += 1
+
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            api = Facade.get_api("~1.0", "~1.0")
+            # closing the first reference and making the item again is what reloading a plug-in does.
+            api.create_menu_item(CountingMenuItemHandler()).close()
+            menu_item_handler = CountingMenuItemHandler()
+            menu_item_reference = api.create_menu_item(menu_item_handler)
+            try:
+                document_controller.perform_action("plug_in.CountingMenuItemHandler")
+                self.assertEqual(1, menu_item_handler.run_count)
+            finally:
+                menu_item_reference.close()
+
+    def test_plug_in_menu_item_made_again_after_its_handler_close_raises_runs_under_the_same_id(self):
+        class RaisingCloseMenuItemHandler:
+            menu_item_name = "Raising Close"
+
+            def __init__(self, raises_on_close: bool) -> None:
+                self.raises_on_close = raises_on_close
+                self.run_count = 0
+
+            def menu_item_execute(self, window: Facade.DocumentWindow) -> None:
+                self.run_count += 1
+
+            def close(self) -> None:
+                if self.raises_on_close:
+                    raise RuntimeError("handler close failed")
+
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            api = Facade.get_api("~1.0", "~1.0")
+            first_reference = api.create_menu_item(RaisingCloseMenuItemHandler(raises_on_close=True))
+            with self.assertRaises(RuntimeError):
+                first_reference.close()
+            menu_item_handler = RaisingCloseMenuItemHandler(raises_on_close=False)
+            menu_item_reference = api.create_menu_item(menu_item_handler)
+            try:
+                document_controller.perform_action("plug_in.RaisingCloseMenuItemHandler")
+                self.assertEqual(1, menu_item_handler.run_count)
+            finally:
+                menu_item_reference.close()
 
 if __name__ == '__main__':
     unittest.main()
