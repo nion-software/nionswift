@@ -344,18 +344,23 @@ class GraphicsInspectorHandler(Declarative.Handler):
         self.__document_controller = document_controller
         self.__display_item = display_item
         self.__graphic = graphic
+
+        # the graphic's persistent type, e.g. rect_graphic, names the graphic in undo command ids. the displayed graphic
+        # type is translated, so it would make the ids differ between languages.
+        self.__graphic_type_id = graphic.type.replace("-", "_")
+
         self._stroke_float_str_converter = Converter.FloatToStringConverter(pass_none=True)
         self._graphic_type_model = Model.PropertyModel[str]()
         self.__set_type_specifics()
         self._graphic_label_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "label", title=_("Change Label"), command_id="change_label")
-        self._lock_position_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_("Change {graphic_type} Position Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_position_locked")
-        self._lock_rotation_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_rotation_locked", title=_("Change {graphic_type} Rotation Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_rotation_locked")
+        self._lock_position_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_position_locked", title=_("Change {graphic_type} Position Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_position_locked")
+        self._lock_rotation_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic, "is_rotation_locked", title=_("Change {graphic_type} Rotation Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_rotation_locked")
         self._stroke_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color")
         self._used_stroke_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"stroke_color", title=_("Change Stroke Color"), command_id="change_stroke_color", read_property_name="used_stroke_style")
         self._stroke_width_model = GraphicPropertyCommandModel[float](document_controller, display_item, graphic, "stroke_width", title=_("Change Stroke Width"), command_id="change_stroke_width")
         self._fill_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic, "fill_color", title=_("Change Fill Color"), command_id="change_fill_color")
         self._used_fill_color_model = GraphicPropertyCommandModel[str](document_controller, display_item, graphic,"fill_color", title=_("Change Fill Color"), command_id="change_fill_color", read_property_name="used_fill_style")
-        self._lock_shape_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic,"is_shape_locked", title=_("Change {graphic_type} Shape Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_shape_locked")
+        self._lock_shape_model = GraphicPropertyCommandModel[bool](self.__document_controller, self.__display_item, graphic,"is_shape_locked", title=_("Change {graphic_type} Shape Locked").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_shape_locked")
 
         u = Declarative.DeclarativeUI()
 
@@ -536,15 +541,15 @@ class GraphicsInspectorHandler(Declarative.Handler):
 
     def __create_rectangle_shape_and_pos(self) -> Declarative.UIDescriptionResult:
         u = Declarative.DeclarativeUI()
-        center_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "center", title=_("Change {graphic_type} Center").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_center")
-        size_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "size", title=_("Change {graphic_type} Size").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_size")
+        center_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "center", title=_("Change {graphic_type} Center").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_center")
+        size_model = GraphicPropertyCommandModel[tuple[float, ...]](self.__document_controller, self.__display_item, self.__graphic, "size", title=_("Change {graphic_type} Size").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_size")
 
         self._center_x_model = DisplayItemCalibratedDimensionValueModel(center_model, self.__display_item, dimension_index=1, is_size=False)
         self._center_y_model = DisplayItemCalibratedDimensionValueModel(center_model, self.__display_item, dimension_index=0, is_size=False)
         self._width_model = DisplayItemCalibratedDimensionValueModel(size_model, self.__display_item, dimension_index=1, is_size=True)
         self._height_model = DisplayItemCalibratedDimensionValueModel(size_model, self.__display_item, dimension_index=0, is_size=True)
 
-        self._rotation_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "rotation", title=_("Change {graphic_type} Rotation").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_rotation")
+        self._rotation_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "rotation", title=_("Change {graphic_type} Rotation").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_rotation")
 
         self._radian_to_degrees_string_converter = RadianToDegreeStringConverter()
 
@@ -582,8 +587,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
         return self.__create_rectangle_shape_and_pos()
 
     def __create_interval_shape_and_pos(self) -> Declarative.UIDescriptionResult:
-        start_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "start", title=_("Change {graphic_type} Start").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_start")
-        end_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change {graphic_type} End").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_end")
+        start_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "start", title=_("Change {graphic_type} Start").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_start")
+        end_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "end", title=_("Change {graphic_type} End").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_end")
 
         self._start_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(start_model), self.__display_item, dimension_index=-1, is_size=False)
         self._end_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(end_model), self.__display_item, dimension_index=-1, is_size=False)
@@ -607,7 +612,7 @@ class GraphicsInspectorHandler(Declarative.Handler):
         )
 
     def __create_channel_pos(self) -> Declarative.UIDescriptionResult:
-        position_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "position", title=_("Change {graphic_type} Position").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self._graphic_type_model.value}_position")
+        position_model = GraphicPropertyCommandModel[float](self.__document_controller, self.__display_item, self.__graphic, "position", title=_("Change {graphic_type} Position").format(graphic_type=self._graphic_type_model.value), command_id=f"change_{self.__graphic_type_id}_position")
 
         self._position_model = DisplayItemCalibratedDimensionValueModel(FloatToTuplePropertyElementModel(position_model), self.__display_item, dimension_index=-1, is_size=False)
 
