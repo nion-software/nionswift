@@ -39,7 +39,9 @@ from __future__ import annotations
 import contextlib
 import copy
 import datetime
+import functools
 import gettext
+import logging
 import numbers
 import pathlib
 import threading
@@ -79,6 +81,7 @@ from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import DrawingContext
 from nion.ui import UserInterface as UserInterfaceModule
+from nion.ui import Window as UIWindow
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Registry
@@ -3269,8 +3272,53 @@ class API_1:
 
         def menu_item_execute(self, window: DocumentWindow) -> None: ...
 
+    class _MenuItemAction(UIWindow.Action):
+        """The action which runs a plug-in menu item's handler in the window the action runs in.
+
+        One instance is registered and shared by every window and every invocation, so an action normally keeps nothing in
+        self. This action holds its handler, which is the same in every window and invocation, and keeps no other state.
+        """
+
+        def __init__(self, action_id: str, menu_item_handler: API_1.MenuItemHandlerLike) -> None:
+            super().__init__()
+            self.action_id = action_id
+            self.action_name = menu_item_handler.menu_item_name
+            self.__menu_item_handler = menu_item_handler
+
+        # the title and the summary follow the handler's current name, as the item built in each window does.
+        def get_action_name(self, context: UIWindow.ActionContext) -> str:
+            return self.__menu_item_handler.menu_item_name
+
+        def get_action_summary(self, context: UIWindow.ActionContext) -> str:
+            return f"{self.action_id}: {self.__menu_item_handler.menu_item_name}"
+
+        def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+            # the handler is given a window, so an action run without one, such as by the application, does nothing.
+            if not context.window:
+                return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
+            document_controller = typing.cast("DocumentController.DocumentController", context.window)
+            self.__menu_item_handler.menu_item_execute(DocumentWindow(document_controller))
+            return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
+
     class MenuItemReference:
         def __init__(self, app: ApplicationModule.Application, menu_item_handler: API_1.MenuItemHandlerLike) -> None:
+
+            # the handler is set once the action is registered, so that close() undoes nothing until there is something to undo.
+            self.__menu_item_handler: API_1.MenuItemHandlerLike | None = None
+
+            # the item runs as the action plug_in.<item id>, where the item id is the handler's menu_item_id if it declares
+            # one, and otherwise its class name. an id which is already registered, such as by a second item made from the
+            # same handler class, is numbered, so that the plug-in still loads and the first item keeps working.
+            item_id = typing.cast(str | None, getattr(menu_item_handler, "menu_item_id", None)) or type(menu_item_handler).__name__
+            requested_action_id = f"plug_in.{item_id}"
+            action_id = requested_action_id
+            action_index = 2
+            while action_id in UIWindow.actions:
+                action_id = f"{requested_action_id}-{action_index}"
+                action_index += 1
+            if action_id != requested_action_id:
+                logging.debug(f"Plug-in menu item registered as {action_id} because {requested_action_id} is already registered.")
+            self.__action_id = action_id
 
             # the build_menus function will be called whenever a new document window is created.
             # it will be passed the document_controller.
@@ -3292,25 +3340,63 @@ class API_1:
                     menu = document_controller.get_menu(menu_id)
                 key_sequence = getattr(menu_item_handler, "menu_item_key_sequence", None)
                 if menu:
-                    facade_document_controller = DocumentWindow(document_controller)
-                    menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(facade_document_controller), key_sequence=key_sequence)
+                    # the item runs its action with the menu origin, as an item built by Window.build_menu does.
+                    menu.add_menu_item(menu_item_handler.menu_item_name,
+                                       functools.partial(document_controller.perform_action, action_id, invoked_from=UIWindow.ActionOrigin.MENU),
+                                       key_sequence=key_sequence, action_id=action_id)
 
-            self.__menu_item_handler = menu_item_handler
             self.__build_menus = build_menus
+
+            # register the action, then the menu handler which builds the item in each window.
+            UIWindow.register_action(API_1._MenuItemAction(action_id, menu_item_handler))
+            self.__menu_item_handler = menu_item_handler
             app.register_menu_handler(self.__build_menus)
 
         def __del__(self) -> None:
             self.close()
 
         def close(self) -> None:
-            if self.__menu_item_handler:
-                menu_item_handler_close_fn = getattr(self.__menu_item_handler, "close", None)
+            if menu_item_handler := self.__menu_item_handler:
+                self.__menu_item_handler = None
+                # the action is unregistered first, so that an exception from the handler's close() or from unregistering
+                # the menu handler never leaves it registered, which would give the item made again a different id.
+                UIWindow.unregister_action(self.__action_id)
+                menu_item_handler_close_fn = getattr(menu_item_handler, "close", None)
                 if menu_item_handler_close_fn:
                    menu_item_handler_close_fn()
                 ApplicationModule.app.unregister_menu_handler(self.__build_menus)
-                self.__menu_item_handler = typing.cast(typing.Any, None)
 
     def create_menu_item(self, menu_item_handler: API_1.MenuItemHandlerLike) -> API_1.MenuItemReference:
+        """Create a menu item in each document window, which runs the menu item handler when chosen.
+
+        .. versionadded:: 1.0
+
+        Scriptable: No
+
+        The item is run as the action plug_in.<item id>, where the item id is menu_item_id, or the handler's class name
+        when it declares none. The item id should be unique, so handlers of one class used for more than one item should
+        each declare a different menu_item_id.
+
+         The menu_item_handler should respond to the following:
+            (property, read-only) menu_item_name, the item's title
+            (method, required) menu_item_execute(window), called with the DocumentWindow the item is chosen in
+            (property, read-only, optional) menu_id, the menu to add the item to; a Scripts menu when not given
+            (property, read-only, optional) menu_name and menu_before_id, the title of the menu to create when menu_id is not found, and the menu to insert it before
+            (property, read-only, optional) menu_item_key_sequence
+            (property, read-only, optional) menu_item_id, the item id
+            (method, optional) close()
+
+        With menu_name and menu_before_id, menu_id and menu_before_id are menu ids without a leading underscore, such as
+        "processing_menu" and "window_menu", and the menu is created when the window has none with that id. Without them,
+        menu_id is the name of the window's menu attribute, with a leading underscore, such as "_processing_menu", and the
+        item is not added when the window has no such menu.
+
+        :return: A reference to the menu item. Closing it removes the item from windows built afterwards, unregisters its
+         action, and calls the handler's close().
+
+        .. versionadded:: 16.19
+           menu_item_id
+        """
         return API_1.MenuItemReference(self.__app, menu_item_handler)
 
     def create_hardware_source(self, hardware_source_delegate: typing.Any) -> typing.Any:
