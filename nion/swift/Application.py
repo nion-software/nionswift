@@ -354,7 +354,7 @@ class Application(UIApplication.BaseApplication):
             log_dir_path = pathlib.Path(self.ui.get_data_location()) / "Logs"
             log_dir_path.mkdir(parents=True, exist_ok=True)
             log_file_path = log_dir_path / f"commands_{now_slug}.log"
-            log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(message)s')
+            log_formatter = logging.Formatter('%(asctime)s - %(message)s')
             log_file_handler = logging.FileHandler(log_file_path)
             log_file_handler.setFormatter(log_formatter)
             commands_logger = logging.getLogger("_commands")
