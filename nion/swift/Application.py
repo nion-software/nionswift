@@ -37,6 +37,7 @@ from nion.swift import ProjectPanel
 from nion.swift import SessionPanel
 from nion.swift import Task
 from nion.swift import ToolbarPanel
+from nion.swift import Undo
 from nion.swift import Workspace
 from nion.swift.model import ApplicationData
 from nion.swift.model import ColorMaps
@@ -826,11 +827,13 @@ class Application(UIApplication.BaseApplication):
         return super()._menu_about_to_show(window, menu)
 
     def _run_action(self, action: UIWindow.Action, action_context: UIWindow.ActionContext, *, user_interaction: bool) -> UIWindow.ActionResult:
-        # write the action to the command log before running it, so it comes before the undo commits it makes.
+        # write the action to the command log before running it, so it comes before the changes it makes.
         commands_logger = logging.getLogger("_commands")
         invoked_from_text = action_context.invoked_from_text
         commands_logger.info(f"# action {action.get_action_summary(action_context)}" + (f" (from {invoked_from_text})" if invoked_from_text else ""))
-        return super()._run_action(action, action_context, user_interaction=user_interaction)
+        # mark the action as running while it runs, so the command log writes the changes it makes as made in the action.
+        with Undo.running_action(action.action_id):
+            return super()._run_action(action, action_context, user_interaction=user_interaction)
 
     def __about_to_show_recent_projects_menu(self, window: UIWindow.Window, menu: UserInterface.Menu) -> None:
         # recent project actions are stored with the window so they can be deleted.

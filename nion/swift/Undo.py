@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import contextlib
 import gettext
 import logging
 import typing
@@ -9,6 +10,25 @@ import typing
 _ = gettext.gettext
 
 commands_logger = logging.getLogger("_commands")
+
+# the id of the action which is running, if any. actions run and changes are committed only on the main thread, so a
+# plain variable holds it. work which runs while an action waits in a modal dialog is also written as made by the action.
+_running_action_id: str | None = None
+
+
+@contextlib.contextmanager
+def running_action(action_id: str) -> typing.Iterator[None]:
+    """Write the changes committed while the context is entered to the command log as made by the action.
+
+    On leaving, the action which was running before is restored, so an action nested in another restores its caller.
+    """
+    global _running_action_id
+    previous_action_id = _running_action_id
+    _running_action_id = action_id
+    try:
+        yield
+    finally:
+        _running_action_id = previous_action_id
 
 
 class UndoableCommand(abc.ABC):
@@ -55,22 +75,35 @@ class UndoableCommand(abc.ABC):
     def _old_modified_state(self) -> typing.Any:
         return self.__old_modified_state
 
+    @property
+    def _log_text(self) -> str:
+        # the text which follows "change", "undo" or "redo" in a command log line: " <command id>: <title>", or ": <title>" for a
+        # command with no id, such as a plug-in's.
+        return f" {self.command_id}: {self.title}" if self.command_id else f": {self.title}"
+
     def commit(self, was_merge: bool = False) -> None:
+        """Record the state after the change, and write the change to the command log unless it was merged into the previous command.
+
+        The command log line is "# change <command id>: <title>", or "# change: <title>" for a command with no id, followed by
+        " (in action <action id>)" when the change is committed while an action runs.
+        """
         if not was_merge:
-            commands_logger.info(f"# undo commit '{self.title}'")
+            action_id = _running_action_id
+            commands_logger.info(f"# change{self._log_text}" + (f" (in action {action_id})" if action_id else ""))
         self.__new_modified_state = self._get_modified_state()
 
     def perform(self) -> None:
         self._perform()
 
     def undo(self) -> None:
-        commands_logger.info(f"# undo '{self.title}'")
+        # the command log line is "# undo <command id>: <title>", or "# undo: <title>" for a command with no id; redo's is the same with "redo".
+        commands_logger.info(f"# undo{self._log_text}")
         self._undo()
         self._set_modified_state(self.__old_modified_state)
         self.__is_mergeable = False
 
     def redo(self) -> None:
-        commands_logger.info(f"# redo '{self.title}'")
+        commands_logger.info(f"# redo{self._log_text}")
         self._redo()
         self._set_modified_state(self.__new_modified_state)
 
