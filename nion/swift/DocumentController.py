@@ -493,10 +493,18 @@ class DocumentController(Window.Window):
             geometry, state = workspace_controller.restore_geometry_state()
             self.restore(geometry, state)
 
+    def show(self, *, size: Geometry.IntSize | None = None, position: Geometry.IntPoint | None = None) -> None:
+        """Show the window, and write its opening line, with its open panels, to the command log."""
+        super().show(size=size, position=position)
+        workspace_controller = self.workspace_controller
+        if workspace_controller:
+            workspace_controller.write_window_opened_to_command_log()
+
     def about_to_close(self, geometry: str, state: str) -> None:
         workspace_controller = self.workspace_controller
         if workspace_controller:
             workspace_controller.save_geometry_state(geometry, state)
+            workspace_controller.write_window_closed_to_command_log()
         super().about_to_close(geometry, state)
 
     def register_console(self, console: ConsoleDialog.ConsoleDialog) -> None:

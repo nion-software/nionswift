@@ -5,6 +5,7 @@ import copy
 import functools
 import gettext
 import json
+import logging
 import math
 import random
 import string
@@ -40,6 +41,8 @@ if typing.TYPE_CHECKING:
 
 
 _ = gettext.gettext
+
+commands_logger = logging.getLogger("_commands")
 
 
 def create_image_desc() -> Persistence.PersistentDictType:
@@ -299,6 +302,14 @@ class Workspace:
         # configure the document window (central widget)
         document_controller.attach_widget(root_widget)
 
+        # the open state of each dock panel, by panel id, as the command log last recorded it. it is None until the window's
+        # opening line is written and again after its closing line, so that changes made while the window is built and its
+        # layout restored are not written. it is used only on the main thread, where the open state changes are reported.
+        self.__command_log_panel_open_states: dict[str, bool] | None = None
+
+        # the listeners to each dock panel's open state, held as long as the dock panels.
+        self.__dock_panel_is_open_changed_listeners: list[Event.EventListener] = list()
+
         visible_panels = []
         if self.workspace_id == "library":
             visible_panels = ["toolbar-panel", "data-panel", "histogram-panel", "info-panel", "inspector-panel"]
@@ -319,6 +330,8 @@ class Workspace:
         self.__display_panel_display_items_changed_event_listeners = list()
         self.__canvas_item = typing.cast(CanvasItem.CanvasItemComposition, None)
         self.__workspace = None
+        self.__command_log_panel_open_states = None
+        self.__dock_panel_is_open_changed_listeners = list()
         for dock_panel in self.dock_panels:
             dock_panel.close()
         self.__content_column = typing.cast(typing.Any, None)
@@ -356,6 +369,42 @@ class Workspace:
         for dock_panel in self.dock_panels:
             with Process.audit(f"dock_panel.{dock_panel.panel_id}"):
                 dock_panel.periodic()
+
+    def write_window_opened_to_command_log(self) -> None:
+        """Write the window's opening line, listing its open panels, to the command log, and start writing each panel opened or closed.
+
+        Call it once the window is shown with its layout restored. It does nothing while the window's panels are already being written.
+        """
+        if self.__command_log_panel_open_states is None:
+            self.__command_log_panel_open_states = {dock_panel.panel_id: dock_panel.dock_widget.is_open for dock_panel in self.dock_panels}
+            commands_logger.info(f"# window opened with panels:{self.__command_log_open_panels_text}")
+
+    def write_window_closed_to_command_log(self) -> None:
+        """Write the window's closing line, listing its open panels, to the command log, and stop writing each panel opened or closed.
+
+        Call it when the window is about to close. A panel change which has not been reported yet is written before the closing line. It
+        does nothing unless the window's opening line was written.
+        """
+        if self.__command_log_panel_open_states is not None:
+            for dock_panel in self.dock_panels:
+                self.__handle_dock_panel_is_open_changed(dock_panel.panel_id, dock_panel.dock_widget.is_open)
+            commands_logger.info(f"# window closed with panels:{self.__command_log_open_panels_text}")
+            self.__command_log_panel_open_states = None
+
+    @property
+    def __command_log_open_panels_text(self) -> str:
+        # the text after the colon of a window line: a space and the sorted ids of the panels recorded as open, separated by
+        # commas, or nothing when none is open.
+        open_states = self.__command_log_panel_open_states or dict()
+        open_panel_ids = sorted(panel_id for panel_id, is_open in open_states.items() if is_open)
+        return f" {', '.join(open_panel_ids)}" if open_panel_ids else str()
+
+    def __handle_dock_panel_is_open_changed(self, panel_id: str, is_open: bool) -> None:
+        # write a panel's change while the window's panels are being written, when it differs from the state last written for it.
+        open_states = self.__command_log_panel_open_states
+        if open_states is not None and open_states.get(panel_id) != is_open:
+            open_states[panel_id] = is_open
+            commands_logger.info(f"# panel {'opened' if is_open else 'closed'}: {panel_id}")
 
     def restore_geometry_state(self) -> typing.Tuple[str, str]:
         geometry = self.ui.get_persistent_string(f"Workspace/{self.workspace_id}/Geometry")
@@ -422,6 +471,7 @@ class Workspace:
             assert panel is not None, f"panel is None [{panel_id}]"
             assert panel.widget is not None, f"panel widget is None [{panel_id}]"
             self.dock_panels.append(panel)
+            self.__dock_panel_is_open_changed_listeners.append(panel.dock_widget.is_open_changed_event.listen(functools.partial(self.__handle_dock_panel_is_open_changed, panel.panel_id)))
             return panel
         except Exception as e:
             import traceback
