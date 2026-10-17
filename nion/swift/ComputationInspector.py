@@ -33,6 +33,7 @@ from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import Declarative
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
@@ -230,11 +231,17 @@ class VariableHandlerComponentFactory2(typing.Protocol):
 
 
 class VariableValueModel(Observable.Observable):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         super().__init__()
         self.__document_controller = document_controller
         self.__computation = computation
         self.__variable = variable
+
+        # where the value is edited, which the command log names as the origin of a change.
+        self.__invoked_from = invoked_from
+        self.__invoked_from_id = invoked_from_id
+
         self.__variable_listener = variable.property_changed_event.listen(ReferenceCounting.weak_partial(VariableValueModel.__property_changed, self))
 
     def __property_changed(self, key: str) -> None:
@@ -252,7 +259,7 @@ class VariableValueModel(Observable.Observable):
         if value != variable.value:
             command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, command_id="change_computation_variable_value", value=value)
             command.perform()
-            document_controller.push_undo_command(command)
+            document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
 
 class BooleanVariableHandler(Declarative.Handler):
@@ -395,12 +402,19 @@ class StringVariableHandlerFactory(VariableHandlerComponentFactory2):
 
 
 class DataSourceVariableHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, compact: bool = False) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, variable_model: VariableValueModel,
+                 compact: bool = False, *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
         self.variable_model = variable_model
+
+        # where the handler is shown, which the command log names as the origin of an edit made in it.
+        self.__invoked_from = invoked_from
+        self.__invoked_from_id = invoked_from_id
+
         self.is_croppable = False
         if computation_processor := computation.computation_processor:
             if source_description := computation_processor.get_source(variable.name):
@@ -487,7 +501,7 @@ class DataSourceVariableHandler(Declarative.Handler):
                                                        variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
-            document_controller.push_undo_command(command)
+            document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
     def add_crop_rectangle(self) -> None:
         document_controller = self.document_controller
@@ -500,7 +514,7 @@ class DataSourceVariableHandler(Declarative.Handler):
             graphic.bounds = Geometry.FloatRect(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
             command = DisplayPanel.InsertGraphicsCommand(document_controller, display_item, [graphic])
             command.perform()
-            document_controller.push_undo_command(command)
+            document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
             display_item.graphic_selection.set(display_item.graphics.index(graphic))
             properties = {"variable_type": "data_source", "secondary_specified_object": graphic,
                           "specified_object": display_item.get_display_data_channel_for_data_item(data_item)}
@@ -508,7 +522,7 @@ class DataSourceVariableHandler(Declarative.Handler):
                                                        variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
-            document_controller.push_undo_command(command)
+            document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
     def assign_crop_rectangle(self, crop_graphic: Graphics.RectangleTypeGraphic) -> None:
         document_controller = self.document_controller
@@ -523,7 +537,7 @@ class DataSourceVariableHandler(Declarative.Handler):
                                                        variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
-            document_controller.push_undo_command(command)
+            document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
     @property
     def data_item(self) -> typing.Optional[DataItem.DataItem]:
@@ -647,7 +661,7 @@ class DataSourceVariableHandler(Declarative.Handler):
             variable = self.variable
             command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable, title=_("Change Input Operation"), command_id="change_input_operation", input_operation=input_operation)
             command.perform()
-            document_controller.push_undo_command(command)
+            document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
     def drop_mime_data(self, mime_data: UserInterface.MimeData, x: int, y: int) -> typing.Optional[str]:
         # return drop_mime_data(self.document_controller, self.computation, self.variable, mime_data, x, y)
@@ -663,7 +677,7 @@ class DataSourceVariableHandler(Declarative.Handler):
                                                        variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
-            document_controller.push_undo_command(command)
+            document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
             return "copy"
         display_item = MimeTypes.mime_data_get_display_item(mime_data, document_controller.document_model)
         data_item = display_item.data_item if display_item else None
@@ -674,7 +688,7 @@ class DataSourceVariableHandler(Declarative.Handler):
                                                        variable, title=_("Set Input Data Source"), command_id="set_input_data_source",
                                                        **properties)  # type: ignore
             command.perform()
-            document_controller.push_undo_command(command)
+            document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
             return "copy"
         return "ignore"
 
@@ -685,13 +699,14 @@ class DataSourceVariableHandler(Declarative.Handler):
         command = ChangeComputationVariableCommand(document_controller.document_model, computation, variable,
                                                    title=_("Remove Input Data Source"), command_id="remove_input_data_source", specified_object=None)
         command.perform()
-        document_controller.push_undo_command(command)
+        document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
 
 class DataSourceVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.variable_type in Symbolic._data_source_types:
-            return DataSourceVariableHandler(computation_inspector_context.window, computation, computation_variable, variable_model, computation_inspector_context.compact)
+            return DataSourceVariableHandler(computation_inspector_context.window, computation, computation_variable, variable_model, computation_inspector_context.compact,
+                                             invoked_from=computation_inspector_context.invoked_from, invoked_from_id=computation_inspector_context.invoked_from_id)
         return None
 
 
@@ -724,12 +739,18 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
     def __init__(self, document_controller: DocumentController.DocumentController,
                  display_item: DisplayItem.DisplayItem, graphic: Graphics.Graphic, property_name: str,
                  converter: typing.Optional[Converter.ConverterLike[typing.Any, typing.Any]] = None,
-                 fallback: typing.Any = None) -> None:
+                 fallback: typing.Any = None, *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         super().__init__(graphic, property_name, converter=converter, fallback=fallback)
         self.__display_item_proxy = display_item.create_proxy()
         self.__graphic_proxy = graphic.create_proxy()
         self.__document_controller = document_controller
         self.__property_name = property_name
+
+        # where the value is edited, which the command log names as the origin of a change.
+        self.__invoked_from = invoked_from
+        self.__invoked_from_id = invoked_from_id
+
         self.__old_source_setter = self.source_setter
         self.__old_source_getter = self.source_getter
         self.source_setter = ReferenceCounting.weak_partial(ChangeGraphicPropertyBinding.__set_value, self)
@@ -755,7 +776,7 @@ class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
             if value != getattr(graphic, self.__property_name):
                 command = DisplayPanel.ChangeGraphicsCommand(self.__document_controller.document_model, display_item, [graphic], title=_("Change Display Type"), command_id="change_display_" + self.__property_name, is_mergeable=True, **{self.__property_name: value})
                 command.perform()
-                self.__document_controller.push_undo_command(command)
+                self.__document_controller.push_undo_command(command, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
 
 class CalibratedBinding(Binding.Binding):
@@ -944,12 +965,19 @@ class CalibratedLengthBinding(Binding.Binding):
 
 
 class GraphicHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, graphic: Graphics.Graphic, compact: bool = False):
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, graphic: Graphics.Graphic,
+                 compact: bool = False, *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None):
         super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
         self.graphic = graphic
+
+        # where the handler is shown, which the command log names as the origin of an edit made in it.
+        self.__invoked_from = invoked_from
+        self.__invoked_from_id = invoked_from_id
+
         u = Declarative.DeclarativeUI()
         graphic_content = self.__make_component_content(graphic, compact)
         label_row = u.create_row(
@@ -965,27 +993,37 @@ class GraphicHandler(Declarative.Handler):
             if property in ("start", "end"):
                 graphic = source
                 display_item = graphic.display_item
-                return CalibratedValueBinding(-1, display_item, ChangeGraphicPropertyBinding(self.document_controller, display_item, graphic, property))
+                return CalibratedValueBinding(-1, display_item, ChangeGraphicPropertyBinding(self.document_controller, display_item, graphic, property,
+                                                                                             invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id))
         if isinstance(source, Graphics.RectangleGraphic):
             if property in ("center_x", "center_y"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "center_x" else 0
                 graphic_name = "rectangle"
-                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "center", title=_("Change {graphic_type} Center").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_center")
+                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "center",
+                                                                                                  title=_("Change {graphic_type} Center").format(graphic_type=graphic_name),
+                                                                                                  command_id="change_" + graphic_name + "_center",
+                                                                                                  invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             elif property in ("width", "height"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "width" else 0
                 graphic_name = "rectangle"
-                size_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "size", title=_("Change {graphic_type} Size").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_size")
+                size_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "size",
+                                                                                              title=_("Change {graphic_type} Size").format(graphic_type=graphic_name),
+                                                                                              command_id="change_" + graphic_name + "_size",
+                                                                                              invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return CalibratedSizeBinding(index, display_item, ClosingTuplePropertyBinding(size_model, "value", index))
             elif property in ("rotation_deg", ):
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "rectangle"
-                rotation_model = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "rotation", title=_("Change {graphic_type} Rotation").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_rotation")
+                rotation_model = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "rotation",
+                                                                                      title=_("Change {graphic_type} Rotation").format(graphic_type=graphic_name),
+                                                                                      command_id="change_" + graphic_name + "_rotation",
+                                                                                      invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return ClosingPropertyBinding(rotation_model, "value", converter=GraphicsInspector.RadianToDegreeStringConverter())
         if isinstance(source, Graphics.PointTypeGraphic):
             if property in ("position_x", "position_y"):
@@ -993,7 +1031,10 @@ class GraphicHandler(Declarative.Handler):
                 display_item = graphic.display_item
                 index = 1 if property == "position_x" else 0
                 graphic_name = "point"
-                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "position", title=_("Change {graphic_type} Position").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_position")
+                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "position",
+                                                                                                  title=_("Change {graphic_type} Position").format(graphic_type=graphic_name),
+                                                                                                  command_id="change_" + graphic_name + "_position",
+                                                                                                  invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
         if isinstance(source, Graphics.LineTypeGraphic):
             if property in ("start_x", "start_y"):
@@ -1001,34 +1042,52 @@ class GraphicHandler(Declarative.Handler):
                 display_item = graphic.display_item
                 index = 1 if property == "start_x" else 0
                 graphic_name = "line_profile"
-                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {graphic_type} Start").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_start")
+                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start",
+                                                                                                  title=_("Change {graphic_type} Start").format(graphic_type=graphic_name),
+                                                                                                  command_id="change_" + graphic_name + "_start",
+                                                                                                  invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property in ("end_x", "end_y"):
                 graphic = source
                 display_item = graphic.display_item
                 index = 1 if property == "end_x" else 0
                 graphic_name = "line_profile"
-                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {graphic_type} End").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_end")
+                property_model = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end",
+                                                                                                  title=_("Change {graphic_type} End").format(graphic_type=graphic_name),
+                                                                                                  command_id="change_" + graphic_name + "_end",
+                                                                                                  invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return CalibratedValueBinding(index, display_item, ClosingTuplePropertyBinding(property_model, "value", index))
             if property == "length":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model1 = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start", title=_("Change {graphic_type} Length").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_length_start")
-                property_model2 = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end", title=_("Change {graphic_type} Length").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_length_end")
+                property_model1 = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "start",
+                                                                                                   title=_("Change {graphic_type} Length").format(graphic_type=graphic_name),
+                                                                                                   command_id="change_" + graphic_name + "_length_start",
+                                                                                                   invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+                property_model2 = GraphicsInspector.GraphicPropertyCommandModel[tuple[float, ...]](self.document_controller, display_item, graphic, "end",
+                                                                                                   title=_("Change {graphic_type} Length").format(graphic_type=graphic_name),
+                                                                                                   command_id="change_" + graphic_name + "_length_end",
+                                                                                                   invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return CalibratedLengthBinding(display_item, ClosingPropertyBinding(property_model1, "value"), ClosingPropertyBinding(property_model2, "value"))
             if property == "angle":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model_f = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "angle", title=_("Change {graphic_type} Angle").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_angle")
+                property_model_f = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "angle",
+                                                                                        title=_("Change {graphic_type} Angle").format(graphic_type=graphic_name),
+                                                                                        command_id="change_" + graphic_name + "_angle",
+                                                                                        invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return CalibratedAngleBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         if isinstance(source, Graphics.LineProfileGraphic):
             if property == "width":
                 graphic = source
                 display_item = graphic.display_item
                 graphic_name = "line_profile"
-                property_model_f = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "width", title=_("Change {graphic_type} Line Width").format(graphic_type=graphic_name), command_id="change_" + graphic_name + "_line_width")
+                property_model_f = GraphicsInspector.GraphicPropertyCommandModel[float](self.document_controller, display_item, graphic, "width",
+                                                                                        title=_("Change {graphic_type} Line Width").format(graphic_type=graphic_name),
+                                                                                        command_id="change_" + graphic_name + "_line_width",
+                                                                                        invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
                 return CalibratedWidthBinding(display_item, ClosingPropertyBinding(property_model_f, "value"))
         return None
 
@@ -1103,7 +1162,8 @@ class GraphicVariableHandlerFactory(VariableHandlerComponentFactory2):
         if computation_variable.variable_type == Symbolic.ComputationVariableType.GRAPHIC:
             graphic = typing.cast(typing.Optional[Graphics.Graphic], computation_variable.bound_item.value if computation_variable.bound_item else None)
             if graphic:
-                return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic, computation_inspector_context.compact)
+                return GraphicHandler(computation_inspector_context.window, computation, computation_variable, graphic, computation_inspector_context.compact,
+                                      invoked_from=computation_inspector_context.invoked_from, invoked_from_id=computation_inspector_context.invoked_from_id)
         return None
 
 
@@ -1269,26 +1329,33 @@ class DataStructureVariableHandlerFactory(VariableHandlerComponentFactory2):
 
 
 class GraphicListVariableHandler(Declarative.Handler):
-    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, compact: bool = False) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, compact: bool = False, *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         super().__init__()
         self.document_controller = document_controller
         self.computation = computation
         self.variable = variable
         self.__compact = compact
+
+        # where the handler is shown, which the command log names as the origin of an edit made in it.
+        self.__invoked_from = invoked_from
+        self.__invoked_from_id = invoked_from_id
+
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(items="variable._bound_items", item_component_id="graphic_item", spacing=8)
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "graphic_item" and item and item.value:
             graphic = typing.cast(Graphics.Graphic, item.value)
-            return GraphicHandler(self.document_controller, self.computation, self.variable, graphic, self.__compact)
+            return GraphicHandler(self.document_controller, self.computation, self.variable, graphic, self.__compact, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
         return None
 
 
 class GraphicListVariableHandlerFactory(VariableHandlerComponentFactory2):
     def make_variable_handler(self, computation_inspector_context: ComputationInspectorContext, computation: Symbolic.Computation, computation_variable: Symbolic.ComputationVariable, variable_model: VariableValueModel, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if computation_variable.is_list:
-            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable, computation_inspector_context.compact)
+            return GraphicListVariableHandler(computation_inspector_context.window, computation, computation_variable, computation_inspector_context.compact,
+                                              invoked_from=computation_inspector_context.invoked_from, invoked_from_id=computation_inspector_context.invoked_from_id)
         return None
 
 
@@ -1337,9 +1404,12 @@ class ComputationInspectorContext(EntityBrowser.Context):
     # a context for the inspectors (not consistently available in all inspectors yet)
     # allows access to a reference handler (when the user clicks links on referenced components),
     # the window (document controller), the document model, whether to provide link controls,
-    # and whether the UI is hosted in a narrow container such as the inspector panel (compact).
+    # whether the UI is hosted in a narrow container such as the inspector panel (compact),
+    # and where the UI is shown, which the command log names as the origin of an edit made in it (invoked_from).
 
-    def __init__(self, document_controller: DocumentController.DocumentController, reference_handler: typing.Optional[EntityBrowser.ReferenceHandlerContext] = None, provide_reference_links: bool = False, compact: bool = False) -> None:
+    def __init__(self, document_controller: DocumentController.DocumentController, reference_handler: typing.Optional[EntityBrowser.ReferenceHandlerContext] = None,
+                 provide_reference_links: bool = False, compact: bool = False, *,
+                 invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         super().__init__()
         self.values["reference_handler"] = reference_handler or document_controller
         self.values["window"] = document_controller
@@ -1347,6 +1417,8 @@ class ComputationInspectorContext(EntityBrowser.Context):
         self.values["document_model"] = document_controller.document_model
         self.values["do_references"] = provide_reference_links
         self.values["compact"] = compact
+        self.values["invoked_from"] = invoked_from
+        self.values["invoked_from_id"] = invoked_from_id
 
     @property
     def reference_handler(self) -> EntityBrowser.ReferenceHandlerContext:
@@ -1373,6 +1445,15 @@ class ComputationInspectorContext(EntityBrowser.Context):
         # whether the UI is hosted in a narrow container, such as the inspector panel, in which case
         # the UI should avoid side-by-side columns and dialog-sized fixed widths.
         return typing.cast(bool, self.values.get("compact", False))
+
+    @property
+    def invoked_from(self) -> Window.ActionOrigin | None:
+        # the origin the command log names for an edit made in the UI; None where the UI records no origin.
+        return typing.cast(Window.ActionOrigin | None, self.values.get("invoked_from"))
+
+    @property
+    def invoked_from_id(self) -> str | None:
+        return typing.cast(str | None, self.values.get("invoked_from_id"))
 
 
 def _variant_processing_id_title(processing_id: str) -> str:
@@ -1414,7 +1495,8 @@ class VariableHandler(Declarative.Handler):
         computation_inspector_context = self.__computation_inspector_context
         computation = self.__computation
         variable = self.__variable
-        variable_model = VariableValueModel(computation_inspector_context.window, computation, variable)
+        variable_model = VariableValueModel(computation_inspector_context.window, computation, variable,
+                                            invoked_from=computation_inspector_context.invoked_from, invoked_from_id=computation_inspector_context.invoked_from_id)
         variable_component = make_computation_variable_component(computation_inspector_context, computation, variable, variable_model)
         if variable_component:
             return variable_component
@@ -1751,7 +1833,8 @@ class ComputationInspectorHandler(Declarative.Handler):
             if new_processing_id != computation.processing_id:
                 command = ChangeComputationVariantCommand(self.document_controller, computation, new_processing_id)
                 command.perform()
-                self.document_controller.push_undo_command(command)
+                self.document_controller.push_undo_command(command, invoked_from=self.__computation_inspector_context.invoked_from,
+                                                           invoked_from_id=self.__computation_inspector_context.invoked_from_id)
 
     def create_handler(self, component_id: str, container: typing.Optional[Symbolic.ComputationVariable] = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
         if component_id == "variable":

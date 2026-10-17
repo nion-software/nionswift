@@ -2423,7 +2423,8 @@ class GraphicsInspectorSection(InspectorSection):
         self.__document_controller = document_controller
         self.__display_item = display_item
         graphics_model = ListModel.ObservedListModel[DisplayItem.DisplayLayer](self.__display_item, "selected_graphics" if selected_only else "graphics")
-        self._handler = GraphicsInspector.GraphicsSectionHandler(self.__document_controller, self.__display_item, graphics_model)
+        self._handler = GraphicsInspector.GraphicsSectionHandler(self.__document_controller, self.__display_item, graphics_model,
+                                                                invoked_from=Window.ActionOrigin.PANEL, invoked_from_id=INSPECTOR_PANEL_ID)
         self.__widget = Declarative.DeclarativeWidget(self.__document_controller.ui, self.__document_controller.event_loop, self._handler)
         self.add_widget_to_content(self.__widget)
 
@@ -2435,7 +2436,8 @@ class ComputationInspectorSection(InspectorSection):
     via ComputationInspectorHandler, so both UIs stay in sync with a single implementation.
 
     The inspector panel is narrow and does not scroll horizontally, so this section always uses the
-    compact layout, regardless of the context passed by the caller.
+    compact layout, regardless of the context passed by the caller. It also names the inspector panel as
+    the origin of its edits in the command log.
     """
 
     def __init__(self, computation_inspector_context: ComputationInspector.ComputationInspectorContext, data_item: DataItem.DataItem) -> None:
@@ -2444,7 +2446,9 @@ class ComputationInspectorSection(InspectorSection):
         compact_inspector_context = ComputationInspector.ComputationInspectorContext(document_controller,
                                                                                      computation_inspector_context.reference_handler,
                                                                                      computation_inspector_context.do_references,
-                                                                                     compact=True)
+                                                                                     compact=True,
+                                                                                     invoked_from=Window.ActionOrigin.PANEL,
+                                                                                     invoked_from_id=INSPECTOR_PANEL_ID)
         document_model = document_controller.document_model
         computation = document_model.get_data_item_computation(data_item)
         if computation:
