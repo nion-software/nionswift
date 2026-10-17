@@ -6,6 +6,9 @@ import gettext
 import logging
 import typing
 
+# local libraries
+from nion.ui import Window
+
 
 _ = gettext.gettext
 
@@ -81,15 +84,21 @@ class UndoableCommand(abc.ABC):
         # command with no id, such as a plug-in's.
         return f" {self.command_id}: {self.title}" if self.command_id else f": {self.title}"
 
-    def commit(self, was_merge: bool = False) -> None:
+    def commit(self, was_merge: bool = False, *, invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         """Record the state after the change, and write the change to the command log unless it was merged into the previous command.
 
-        The command log line is "# change <command id>: <title>", or "# change: <title>" for a command with no id, followed by
-        " (in action <action id>)" when the change is committed while an action runs.
+        The command log line is "# change <command id>: <title>", or "# change: <title>" for a command with no id. When the change
+        is committed while an action runs, the line ends with " (in action <action id>)", since the action's own line gives its
+        origin. Otherwise, when invoked_from names where a person made the change, the line ends with " (from <origin>)", the
+        same text an action line has, e.g. " (from panel inspector-panel)", with invoked_from_id naming the panel or dialog.
         """
         if not was_merge:
-            action_id = _running_action_id
-            commands_logger.info(f"# change{self._log_text}" + (f" (in action {action_id})" if action_id else ""))
+            suffix = str()
+            if action_id := _running_action_id:
+                suffix = f" (in action {action_id})"
+            elif origin_text := Window.invoked_from_text(invoked_from, invoked_from_id):
+                suffix = f" (from {origin_text})"
+            commands_logger.info(f"# change{self._log_text}{suffix}")
         self.__new_modified_state = self._get_modified_state()
 
     def perform(self) -> None:
@@ -209,15 +218,19 @@ class UndoStack:
         undo_command.redo()
         self.__undo_stack.append(undo_command)
 
-    def push(self, undo_command: UndoableCommand) -> None:
+    def push(self, undo_command: UndoableCommand, *, invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
+        """Push the command, which has been performed, merging it into the previous command when it can.
+
+        invoked_from and invoked_from_id name where a person made the change, for the command log; both are None for a change made by code.
+        """
         assert undo_command
         last_undo_command = self.__undo_stack[-1] if self.__undo_stack else None
         if last_undo_command and last_undo_command.can_merge(undo_command):
-            undo_command.commit(was_merge=True)
+            undo_command.commit(was_merge=True, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
             last_undo_command.merge(undo_command)
             undo_command.close()
         else:
-            undo_command.commit()
+            undo_command.commit(invoked_from=invoked_from, invoked_from_id=invoked_from_id)
             self.__undo_stack.append(undo_command)
         while len(self.__redo_stack) > 0:
             self.__redo_stack.pop().close()

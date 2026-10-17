@@ -616,9 +616,13 @@ class DocumentController(Window.Window):
     def last_undo_command(self) -> typing.Optional[Undo.UndoableCommand]:
         return self.__undo_stack.last_command
 
-    def push_undo_command(self, undo_command: Undo.UndoableCommand) -> None:
+    def push_undo_command(self, undo_command: Undo.UndoableCommand, *, invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
+        """Push the command, which has been performed, onto the undo stack; or clear the undo stack if the command is None.
+
+        invoked_from and invoked_from_id name where a person made the change, for the command log; both are None for a change made by code.
+        """
         if undo_command:
-            self.__undo_stack.push(undo_command)
+            self.__undo_stack.push(undo_command, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
         else:
             self.__undo_stack.clear()
 
