@@ -384,7 +384,7 @@ class ComputationModel:
         computation = self.computation
         # push no undo command for an unchanged expression, which would be an undo entry that changes nothing.
         if computation and computation_text != computation.expression:
-            command = ChangeComputationCommand(self.document_controller.document_model, computation, command_id="computation_change_label", is_mergeable=True, expression=computation_text)
+            command = ChangeComputationCommand(self.document_controller.document_model, computation, command_id="computation_change_expression", is_mergeable=True, expression=computation_text)
             command.perform()
             self.document_controller.push_undo_command(command)
 

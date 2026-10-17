@@ -158,6 +158,29 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertFalse(document_controller.get_undo_menu_item_state().enabled)
             panel.close()
 
+    def test_undo_after_label_change_and_expression_change_restores_only_expression(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.ones((10, 10)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation("target.xdata = -a.xdata")
+            computation.create_input_item("a", Symbolic.make_item(data_item1))
+            document_model.set_data_item_computation(data_item2, computation)
+            panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
+            document_controller.periodic()
+            panel._computation_model_for_testing.computation_label = "Negate"
+            panel._text_edit_for_testing.text = "target.xdata = -a.xdata + 3"
+            panel._update_button.on_clicked()
+            document_controller.periodic()
+            document_controller.handle_undo()
+            document_controller.periodic()
+            self.assertEqual("target.xdata = -a.xdata", panel._text_edit_for_testing.text)
+            self.assertEqual("Negate", computation.label)
+            panel.close()
+
     def test_error_text_cleared_after_invalid_script_becomes_valid(self):
         # similar to test_invalid_expression_shows_error_and_clears_it except periodic occurs before recompute at end
         with TestContext.create_memory_context() as test_context:
