@@ -1340,8 +1340,6 @@ def check_file_project_name_is_available(name: str, directory: str) -> ProjectNa
     """
     error_messages: list[str] = []
     directory_path = pathlib.Path(directory)
-    if name.endswith(".nsproj"):  # Ensure that the case of .nsproj already being in the name is removed so appending bellow doesn't cause .nsproj.nsproj
-        name = name.removesuffix(".nsproj")
     new_project_path = pathlib.Path(directory) / f"{name}.nsproj"
     if not directory_path.is_dir():
         error_messages.append(_("Base Directory") + f" \"{directory_path}\" " + _("doesn't exist"))

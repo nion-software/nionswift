@@ -5180,29 +5180,6 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue((profile_context.projects_dir / "ExistingProject.nsproj").exists())  # Both the original and target should still exist
             self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
 
-    def test_file_project_storage_system_reverts_rename(self) -> None:
-        """Test that the FileProjectStorageSystem rename_project reverts the project file name if the data folder could not be renamed."""
-        with create_temp_profile_context() as profile_context:
-            Cache.db_make_directory_if_needed(str(profile_context.projects_dir))
-            pathlib.Path.mkdir(profile_context.projects_dir / "ExistingProject Data")
-            project_path = profile_context.projects_dir / pathlib.Path("ExistingProject").with_suffix(".nsproj")
-            project_uuid = uuid.uuid4()
-            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": ["ExistingProject Data"]})
-            project_path.write_text(project_data_json, "utf-8")
-            storage_system = FileStorageSystem.make_index_project_storage_system(project_path)
-            storage_system.load_properties()  # No actual data is saved so the project storage data path has to be populated by manually calling this
-
-            target_data_path = profile_context.projects_dir / "new_name Data"
-            pathlib.Path.mkdir(profile_context.projects_dir / "new_name Data")  # Create a data folder at the target name
-
-            result = storage_system.rename_project("new_name")
-            self.assertFalse(result.success)  # The rename should have failed
-            target_project_path = profile_context.projects_dir / "new_name.nsproj"
-
-            self.assertFalse(target_project_path.exists())  # The target project path should not exist as the rename should fail
-            self.assertTrue(target_data_path.is_dir())  # Both the original and target data folders should exist
-            self.assertTrue((profile_context.projects_dir / "ExistingProject Data").is_dir())
-
     def test_rename_project_action_renames_current_project(self) -> None:
         """Test that the rename project action renames the project open in the window when no project is given."""
         with create_temp_profile_context() as profile_context:

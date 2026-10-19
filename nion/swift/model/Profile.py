@@ -664,15 +664,12 @@ class Profile(Persistence.PersistentObject):
 
         if rename_result.success:
             self.remove_project_reference(project_reference)
-
-        project_path = project_reference.path  # Load the old path unless the returned project path exists
-        if rename_result.project_path.exists():
-            project_path = rename_result.project_path
+            new_project_reference = self.open_project(rename_result.project_path)
+            assert new_project_reference is not None  # This assert should not fail if the project is an IndexProjectReference
+        else:
+            new_project_reference = project_reference
 
         # Open project creates and adds the project to the profile, but does not read/load the project.
-        # The project reference should be added even when the renaming fails
-        new_project_reference = self.open_project(project_path) if rename_result.success else project_reference
-        assert new_project_reference is not None  # This assert should not be reachable if the project is an IndexProjectReference
         return new_project_reference, rename_result
 
     def get_project_reference(self, uuid_: uuid.UUID) -> typing.Optional[ProjectReference]:

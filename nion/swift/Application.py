@@ -1192,13 +1192,17 @@ class RenameProjectAction(UIWindow.Action):
 
     def __get_project_reference(self, context: UIWindow.ActionContext, application: Application) -> tuple[Profile.ProjectReference | None, str]:
         project_uuid_str = self.get_string_property(context, "project_reference_uuid")
-        if not project_uuid_str:
-            # If the project reference is not set then use the current project reference
-            project_uuid: uuid.UUID | None = application.profile.last_project_reference
-        else:
-            project_uuid = uuid.UUID(project_uuid_str)
 
-        project_reference = application.profile.get_project_reference(project_uuid) if project_uuid is not None else None
+        try:
+            if not project_uuid_str:
+                # If the project reference is not set then use the current project reference
+                project_uuid: uuid.UUID | None = application.profile.last_project_reference
+            else:
+                project_uuid = uuid.UUID(project_uuid_str)
+
+            project_reference = application.profile.get_project_reference(project_uuid) if project_uuid is not None else None
+        except ValueError:
+            return None, _("Unable to rename project.\nInvalid project reference UUID.")
 
         error_message = ""
         if project_reference is None:
@@ -1227,7 +1231,7 @@ class RenameProjectAction(UIWindow.Action):
         if not is_valid:
             application.show_ok_dialog(
                 _("Rename Project Error"),
-                message=_("Unable to rename project.\nInvalid project name.") + '\n'.join(typing.cast(typing.Sequence[str], errors)),
+                message=_("Unable to rename project.\nInvalid project name.\n") + '\n'.join(typing.cast(typing.Sequence[str], errors)),
             )
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
 
