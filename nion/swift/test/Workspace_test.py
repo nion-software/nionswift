@@ -21,6 +21,8 @@ from nion.swift import Workspace
 from nion.swift.model import DataItem
 from nion.swift.test import DocumentController_test, TestContext
 from nion.ui import CanvasItem
+from nion.ui import GridFlowCanvasItem
+from nion.ui import UserInterface
 from nion.ui import Window
 from nion.ui import TestUI
 from nion.utils import DateTime
@@ -103,10 +105,13 @@ class MimeData:
 class SplitCase:
     def __init__(self, total_data_items: int, selected_data_items_indices: list[int] | None = None,
                  expected_split_shape: tuple[int, int] | None = None,
-                 initial_layout_id: str = "1x1", is_disabled: bool = False) -> None:
+                 initial_layout_id: str = "1x1", is_disabled: bool = False,
+                 drop_region: str = "none", existing_data_item_index: int | None = None) -> None:
         """Contains setup and the expected outcome for a specific split case testing the new workspace from selection functions.
 
         initial_layout_id: a string identifier used by get_layout when setting up the initial workspace for a test.
+        drop_region: the region of the first display panel the selection is dropped on when testing drag and drop splits.
+        existing_data_item_index: index of the data item shown in the first display panel before the split, None for an empty panel.
         """
         self.expected_split_shape: tuple[int, int] = expected_split_shape or (0, 0)
         self.selected_data_items_indices: list[int] = selected_data_items_indices or []
@@ -119,6 +124,8 @@ class SplitCase:
         expected_h, expected_w = self.expected_split_shape
         self.total_expected_panels = expected_h * expected_w
         self.is_disabled = is_disabled
+        self.drop_region = drop_region
+        self.existing_data_item_index = existing_data_item_index
 
 
 class TestWorkspaceClass(unittest.TestCase):
@@ -2000,6 +2007,9 @@ class TestWorkspaceClass(unittest.TestCase):
         workspace = workspace_controller.new_workspace("layout", layout=layout_d)
         workspace_controller.change_workspace(workspace)
         document_controller.workspace_controller.display_panels[0].request_focus()  # This ensures the focus_widget is valid
+        if test_case.existing_data_item_index is not None:
+            existing_data_item = data_items[test_case.existing_data_item_index]
+            document_controller.workspace_controller.display_panels[0].set_display_item(document_controller.document_model.get_display_item_for_data_item(existing_data_item))
 
         # Set up the selection
         selected_data_items = [data_items[i] for i in range(len(data_items)) if i in test_case.selected_data_items_indices]
@@ -2042,7 +2052,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.run_split_test(test_case)
 
     def test_new_workspace_disabled_too_many_total(self):  # Total selected data items, 61, is too large, no expected change
-        item_count = DocumentController.CreateWorkspaceFromSelectionAction.MAX_PANELS + 1
+        item_count = Workspace.MAX_SPLIT_FROM_SELECTION + 1
         test_case = SplitCase(selected_data_items_indices=[x for x in range(0, item_count)], total_data_items=item_count, initial_layout_id="3x2", is_disabled=True)
         self.run_split_test(test_case)
 
@@ -2053,6 +2063,82 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_new_workspace_five_items(self):  # 5 data items selected becomes a workspace split 3x2
         test_case = SplitCase(selected_data_items_indices=[0, 1, 2, 3, 4], total_data_items=5, initial_layout_id="2x1", expected_split_shape=(3, 2))
         self.run_split_test(test_case)
+
+    @staticmethod
+    def _get_panel_titles(document_controller: DocumentController.DocumentController) -> list[str | None]:
+        return [display_panel.data_item.title if display_panel.data_item else None for display_panel in document_controller.workspace_controller.display_panels]
+
+    @staticmethod
+    def _get_expected_drop_titles(initial_titles: list[str | None], dropped_titles: list[str], test_case: SplitCase) -> list[str | None]:
+        """Return the expected panel titles after dropping onto the first panel."""
+        grid_titles: list[str | None] = list(dropped_titles[:test_case.total_expected_panels])
+        grid_titles += [None] * (test_case.total_expected_panels - len(grid_titles))
+        target_title, other_titles = initial_titles[0], initial_titles[1:]
+        if test_case.drop_region in ("left", "top"):
+            return grid_titles + [target_title] + other_titles
+        if test_case.drop_region in ("right", "bottom"):
+            return [target_title] + grid_titles + other_titles
+        return grid_titles + other_titles
+
+    def run_split_panel_test(self, test_case: SplitCase) -> None:
+        """Test dragging the data panel selection onto the first display panel against the expected split case, including undo and redo."""
+
+        def create_mime_data() -> UserInterface.MimeData:
+            data_panel = typing.cast(DataPanel.DataPanel, document_controller.find_dock_panel("data-panel"))
+            display_items = document_controller.filtered_display_items_model.display_items
+            selected_display_items = [display_items[i] for i in sorted(document_controller.selection.indexes)]
+            drag_started_event = GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent(selected_display_items[0], selected_display_items, Geometry.IntPoint(), CanvasItem.KeyboardModifiers())
+            mime_data, _ = DataPanel.get_mime_data_and_thumbnail_data(drag_started_event, data_panel.ui)
+            assert mime_data is not None
+            return mime_data
+
+        with TestContext.create_memory_context() as test_context:
+            document_controller, selected_data_items = self.__setup_split_test(test_context, test_case)
+            workspace_controller = document_controller.workspace_controller
+            initial_titles = self._get_panel_titles(document_controller)
+            mime_data = create_mime_data()
+            result = workspace_controller.handle_drop(workspace_controller.display_panels[0], mime_data, test_case.drop_region, 160, 240)
+            self.assertEqual("copy", result)
+            expected_titles = self._get_expected_drop_titles(initial_titles, [data_item.title for data_item in selected_data_items], test_case)
+            self.assertEqual(expected_titles, self._get_panel_titles(document_controller))
+            document_controller.handle_undo()
+            self.assertEqual(initial_titles, self._get_panel_titles(document_controller))
+            document_controller.handle_redo()
+            self.assertEqual(expected_titles, self._get_panel_titles(document_controller))
+
+    def test_drag_two_items_from_data_panel_splits_empty_panel(self):
+        test_case = SplitCase(selected_data_items_indices=[0, 1], total_data_items=2, expected_split_shape=(2, 1))
+        self.run_split_panel_test(test_case)
+
+    def test_drag_multiple_replaces_existing_item_in_panel(self):
+        test_case = SplitCase(selected_data_items_indices=[0, 1, 2, 3], total_data_items=5, expected_split_shape=(2, 2), existing_data_item_index=4)
+        self.run_split_panel_test(test_case)
+
+    def test_drag_multiple_items_leaves_other_panels(self):
+        test_case = SplitCase(selected_data_items_indices=[0, 1, 2], total_data_items=4, expected_split_shape=(3, 1), initial_layout_id="2x1", existing_data_item_index=3)
+        self.run_split_panel_test(test_case)
+
+    def test_drag_items_to_side_of_empty_panel(self):
+        for region in ("left", "right", "top", "bottom"):
+            with self.subTest(region=region):
+                test_case = SplitCase(selected_data_items_indices=[0, 1, 2], total_data_items=3, expected_split_shape=(3, 1), drop_region=region)
+                self.run_split_panel_test(test_case)
+
+    def test_drag_items_to_side_of_panel_with_existing_item(self):
+        for region in ("left", "right", "top", "bottom"):
+            with self.subTest(region=region):
+                test_case = SplitCase(selected_data_items_indices=[0, 1, 2, 3, 4], total_data_items=6, expected_split_shape=(3, 2), drop_region=region, existing_data_item_index=5)
+                self.run_split_panel_test(test_case)
+
+    def test_drag_items_to_side_within_existing_split_leaves_other_panels(self):
+        for region in ("left", "right", "top", "bottom"):
+            with self.subTest(region=region):
+                test_case = SplitCase(selected_data_items_indices=[0, 1], total_data_items=3, expected_split_shape=(2, 1), initial_layout_id="2x1", drop_region=region, existing_data_item_index=2)
+                self.run_split_panel_test(test_case)
+
+    def test_drag_items_preserves_data_panel_order(self):
+        test_case = SplitCase(selected_data_items_indices=[1, 3, 4, 6], total_data_items=8, expected_split_shape=(2, 2))
+        self.run_split_panel_test(test_case)
 
 
 if __name__ == '__main__':
