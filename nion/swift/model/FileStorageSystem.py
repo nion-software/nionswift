@@ -1303,13 +1303,13 @@ class FileProjectStorageSystem(ProjectStorageSystem):
 
         if new_project_path.exists():
             return ProjectNameResult([_("Failed to rename project. Project file with target name already exists.")], self.__project_path)
-        if new_data_path and new_data_path.is_dir():
+        if new_data_path and new_data_path.exists():
             return ProjectNameResult([_("Failed to rename project. Project data folder with target name already exists.")], self.__project_path)
 
         try:
             self.__project_path = old_project_path.rename(new_project_path)
-        except Exception as e:
-            logging.exception(_("Failed to rename project. Renaming Project File gave an exception:\n") + str(e))
+        except OSError as e:
+            logging.exception("Failed to rename project. Renaming Project File gave an exception:\n" + str(e))
             return ProjectNameResult([_("Exception while renaming the Project File")], self.__project_path)
 
         error_messages = []
@@ -1317,15 +1317,15 @@ class FileProjectStorageSystem(ProjectStorageSystem):
             # If the directory doesn't exist then don't try renaming it
             if old_data_path is not None and new_data_path is not None:
                 self.__project_data_path = old_data_path.rename(new_data_path)
-        except Exception as e:
+        except OSError as e:
             error_messages.append(_("Exception while renaming the Data Folder"))
-            logging.exception(_("Failed to rename project. Renaming Data Folder gave an exception:\n") + str(e))
+            logging.exception("Failed to rename project. Renaming Data Folder gave an exception:\n" + str(e))
             try:  # Try to undo the rename of the project file when the data folder failed to rename
                 if new_project_path.exists():
                     self.__project_path = new_project_path.rename(old_project_path)
-            except Exception as e2:
+            except OSError as e2:
                 error_messages.append(_("WARNING: Project File and Data Folder names have diverged"))
-                logging.exception(_("Failed to undo Data Folder rename. Renaming project file gave exception:\n") + str(e2))
+                logging.exception("Failed to undo Data Folder rename. Renaming project file gave exception:\n" + str(e2))
 
         # Trigger the writing of the project_data_folders in the project file
         self._write_untransformed_properties(self._untransform_properties(self.get_properties()))
@@ -1341,7 +1341,7 @@ def check_file_project_name_is_available(name: str, directory: str) -> ProjectNa
     error_messages: list[str] = []
     directory_path = pathlib.Path(directory)
     if name.endswith(".nsproj"):  # Ensure that the case of .nsproj already being in the name is removed so appending bellow doesn't cause .nsproj.nsproj
-        name = name.rstrip(".nsproj")
+        name = name.removesuffix(".nsproj")
     new_project_path = pathlib.Path(directory) / f"{name}.nsproj"
     if not directory_path.is_dir():
         error_messages.append(_("Base Directory") + f" \"{directory_path}\" " + _("doesn't exist"))
@@ -1349,7 +1349,7 @@ def check_file_project_name_is_available(name: str, directory: str) -> ProjectNa
 
     new_data_path = new_project_path.parent / f"{name} Data"
     new_project_path_exists = new_project_path.exists()
-    data_path_exists = new_data_path.is_dir()
+    data_path_exists = new_data_path.exists()
     if new_project_path_exists:
         error_messages.append(_("Project Name") + f" \"{new_project_path.name}\" " + _("already exists"))
     if data_path_exists:
