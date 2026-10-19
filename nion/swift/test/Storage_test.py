@@ -5091,8 +5091,6 @@ class TestStorageClass(unittest.TestCase):
                 app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
-                if document_controller.count > 0:
-                    document_controller.request_close()
 
     def test_rename_current_project_preserves_data_item(self) -> None:
         """Test the application's rename_project works with a basic data item.
@@ -5146,11 +5144,13 @@ class TestStorageClass(unittest.TestCase):
             document_controller = app.open_project_window(project_reference)
             app._set_document_model(document_controller.document_model)
             app.initialize(load_plug_ins=False)
+            original_snapshot: DataItem.DataItem | None = None
             try:
                 document_model = app.document_model
                 data_item = DataItem.DataItem(numpy.zeros((6, 6, 5)), large_format=True)
                 document_model.append_data_item(data_item)
                 original_snapshot = data_item.snapshot()
+                assert original_snapshot is not None
 
                 app.rename_project(project_reference, "new_name")
                 document_controller = get_document_controller(app)
