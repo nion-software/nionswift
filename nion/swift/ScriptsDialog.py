@@ -808,6 +808,7 @@ class RunScriptDialog(Dialog.ActionDialog):
     def __handle_output_and_q(self) -> None:
         func = None
         with self.__lock:
+            has_output = len(self.__output_queue) > 0
             while len(self.__output_queue) > 0:
                 text = self.__output_queue.popleft()
                 if self.__output_line_ended:
@@ -817,6 +818,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                     text = text[:-1]
                 self.__output_widget.move_cursor_position("end")
                 self.__output_widget.insert_text(text)
+            if has_output:
                 # inserting text does not scroll the view, so scroll to show the inserted text.
                 self.__output_widget.scroll_to_end()
             if len(self.__q) > 0:
