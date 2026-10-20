@@ -5322,6 +5322,7 @@ class TestStorageClass(unittest.TestCase):
             profile = profile_context.create_profile(project_name="Project")
             project_reference = profile.project_references[0]
             project_reference.unload_project()  # The test profile loads its project, but at startup no project is loaded
+            profile.last_project_reference = project_reference.uuid
             app = Application.Application(TestUI.UserInterface(), set_global=False)
             app._set_profile_for_test(profile)
             app.initialize(load_plug_ins=False)
@@ -5331,6 +5332,10 @@ class TestStorageClass(unittest.TestCase):
                 self.assertFalse((profile_context.projects_dir / "Project.nsproj").exists())
                 self.assertEqual(["new_name"], [project_reference.path.stem for project_reference in profile.project_references])
                 self.assertIsNone(get_document_controller(app))  # Renaming a project which is not open should not open it
+                # The last project reference must follow the renamed project so it is opened at the next startup
+                last_project_reference = profile.get_project_reference(profile.last_project_reference) if profile.last_project_reference else None
+                assert last_project_reference is not None
+                self.assertEqual("new_name", last_project_reference.path.stem)
             finally:
                 app._set_profile_for_test(None)
                 app.exit()
