@@ -1002,7 +1002,7 @@ class Application(UIApplication.BaseApplication):
                 if error_message:
                     self.__show_project_error_dialog(_("Error Renaming Project"), error_message)
                 else:
-                    logging.info(_("Renamed Project \"{0}\" to \"{1}\"").format(old_title, project_reference.title))
+                    logging.info(_("Renamed Project \"{0}\" to \"{1}\"").format(old_title, name))
 
 
 def get_root_dir() -> str:
