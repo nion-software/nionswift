@@ -644,6 +644,33 @@ class Profile(Persistence.PersistentObject):
             return self.add_project_index(path, load=False)
         return None
 
+    def rename_project(self, project_reference: ProjectReference, name: str) -> tuple[ProjectReference, FileStorageSystem.ProjectNameResult]:
+        """Rename the project, managing the loading and unloading of the project and calling the ProjectStorageSystem rename_project function.
+
+        Returns the project reference and the rename result as a tuple to be unpacked.
+        """
+        assert isinstance(project_reference, IndexProjectReference)
+
+        project_storage_system = project_reference.make_storage(self.profile_context)
+        assert project_storage_system is not None
+
+        project_reference.unload_project()
+
+        rename_result = project_storage_system.rename_project(name)
+
+        if rename_result.project_path.exists() and rename_result.project_path != project_reference.project_path:
+            self.remove_project_reference(project_reference)
+            # Open project creates and adds the project to the profile, but does not read/load the project.
+            new_project_reference = self.open_project(rename_result.project_path)
+            assert new_project_reference is not None  # This assert should not fail if the project is an IndexProjectReference
+            if self.last_project_reference == project_reference.uuid:
+                # Update last project reference to the new reference since the old uuid refers to the original project reference which was removed
+                self.last_project_reference = new_project_reference.uuid
+                new_project_reference.last_used = project_reference.last_used
+        else:
+            new_project_reference = project_reference
+        return new_project_reference, rename_result
+
     def get_project_reference(self, uuid_: uuid.UUID) -> typing.Optional[ProjectReference]:
         for project_reference in self.project_references:
             if project_reference.uuid == uuid_:
