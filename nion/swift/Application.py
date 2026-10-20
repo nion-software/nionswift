@@ -1002,7 +1002,7 @@ class Application(UIApplication.BaseApplication):
                 if error_message:
                     self.__show_project_error_dialog(_("Error Renaming Project"), error_message)
                 else:
-                    logging.info(_("Renamed Project ") +  f"\"{old_title}\"" + _(" to ") + f"\"{name}\"")
+                    logging.info(_("Renamed Project \"{0}\" to \"{1}\"").format(old_title, project_reference.title))
 
 
 def get_root_dir() -> str:
@@ -1209,6 +1209,8 @@ class RenameProjectAction(UIWindow.Action):
             error_message = _("Unable to rename project.\nNo project reference could be found.")
         elif not isinstance(project_reference, Profile.IndexProjectReference):
             error_message = _("Unable to rename project.\nProject does not support renaming.")
+        elif not project_reference.path.is_file():
+            error_message = _("Unable to rename project.\nProject reference has no project file.")
         elif not project_reference.path.parent.is_dir():
             error_message = _("Unable to rename project.\nInvalid directory.")
         return project_reference, error_message
@@ -1238,8 +1240,7 @@ class RenameProjectAction(UIWindow.Action):
         application.rename_project(project_reference, project_name)
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
-    def invoke(self, context_: UIWindow.ActionContext) -> UIWindow.ActionResult:
-        context = typing.cast(DocumentController.DocumentController.ActionContext, context_)
+    def invoke(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
         application = typing.cast(Application, context.application)
 
         project_reference, error_message = self.__get_project_reference(context, application)
@@ -1249,17 +1250,11 @@ class RenameProjectAction(UIWindow.Action):
             return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
         assert isinstance(project_reference, Profile.IndexProjectReference)
 
-        directory = project_reference.path.parent.as_posix()
-        check_project_result = RenameProjectAction.check_project_name_is_available(project_reference.path.stem, directory)
-
-        if check_project_result.success:  # If the project reference is available then it does not have a project file that can be renamed
-            application.show_ok_dialog(_("Rename Project Error"), message=_("Unable to rename project.\nProject reference does not have any project file available."))
-            return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
-
         def handle_rename_clicked(new_name: str, _: str) -> None:
             self.set_string_property(context, "name", new_name)
             self.execute(context)
 
+        directory = project_reference.path.parent.as_posix()
         NameProjectDialog(application.ui, application, directory, project_name=project_reference.path.stem,
                           accept_fn=handle_rename_clicked, dialog_name="Rename Project", choose_directory_visible=False,
                           check_name_available_fn=RenameProjectAction.check_project_name_is_available, parent_window=context.window)

@@ -650,12 +650,8 @@ class Profile(Persistence.PersistentObject):
         Returns the newly loaded project reference and the rename result as a tuple to be unpacked.
         """
         assert isinstance(project_reference, IndexProjectReference)
-        project = project_reference.project
 
-        if project is None:
-            project_storage_system = project_reference.make_storage(self.profile_context)
-        else:
-            project_storage_system = project.project_storage_system
+        project_storage_system = project_reference.make_storage(self.profile_context)
         assert project_storage_system is not None
 
         project_reference.unload_project()
@@ -664,12 +660,16 @@ class Profile(Persistence.PersistentObject):
 
         if rename_result.success:
             self.remove_project_reference(project_reference)
+            # Open project creates and adds the project to the profile, but does not read/load the project.
             new_project_reference = self.open_project(rename_result.project_path)
             assert new_project_reference is not None  # This assert should not fail if the project is an IndexProjectReference
+            if self.last_project_reference == project_reference.uuid:
+                # Update last project reference to the new reference since the old uuid refers to the original project reference which was removed
+                self.last_project_reference = new_project_reference.uuid
         else:
             new_project_reference = project_reference
 
-        # Open project creates and adds the project to the profile, but does not read/load the project.
+
         return new_project_reference, rename_result
 
     def get_project_reference(self, uuid_: uuid.UUID) -> typing.Optional[ProjectReference]:
