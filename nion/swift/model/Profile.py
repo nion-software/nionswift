@@ -647,7 +647,7 @@ class Profile(Persistence.PersistentObject):
     def rename_project(self, project_reference: ProjectReference, name: str) -> tuple[ProjectReference, FileStorageSystem.ProjectNameResult]:
         """Rename the project, managing the loading and unloading of the project and calling the ProjectStorageSystem rename_project function.
 
-        Returns the newly loaded project reference and the rename result as a tuple to be unpacked.
+        Returns the project reference and the rename result as a tuple to be unpacked.
         """
         assert isinstance(project_reference, IndexProjectReference)
 
@@ -658,7 +658,7 @@ class Profile(Persistence.PersistentObject):
 
         rename_result = project_storage_system.rename_project(name)
 
-        if rename_result.success:
+        if rename_result.project_path.exists() and rename_result.project_path != project_reference.project_path:
             self.remove_project_reference(project_reference)
             # Open project creates and adds the project to the profile, but does not read/load the project.
             new_project_reference = self.open_project(rename_result.project_path)
@@ -666,10 +666,9 @@ class Profile(Persistence.PersistentObject):
             if self.last_project_reference == project_reference.uuid:
                 # Update last project reference to the new reference since the old uuid refers to the original project reference which was removed
                 self.last_project_reference = new_project_reference.uuid
+                new_project_reference.last_used = project_reference.last_used
         else:
             new_project_reference = project_reference
-
-
         return new_project_reference, rename_result
 
     def get_project_reference(self, uuid_: uuid.UUID) -> typing.Optional[ProjectReference]:
