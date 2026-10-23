@@ -1938,10 +1938,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__header_canvas_item = Panel.HeaderCanvasItem(DisplayPanelUISettings(document_controller.ui), display_close_control=True, display_edit_control=True)
 
         def edit_title() -> None:
-            action_context = document_controller._get_action_context()
-            action_context.display_panel = self
-            action_context.display_item = self.display_item
-            document_controller.perform_action_in_context("window.open_title_edit", action_context)
+            # the context has this display panel even when other display panels are selected, since the title edit
+            # popup edits this display panel's display item and is placed under its header.
+            if display_item := self.display_item:
+                action_context = document_controller.get_action_context_for_display_items([display_item], None)
+                action_context.display_panel = self
+                document_controller.perform_action_in_context("window.open_title_edit", action_context)
 
         def header_double_clicked(x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
             # Header double click just opens the mini-edit window
