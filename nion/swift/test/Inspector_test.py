@@ -937,6 +937,21 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(rectangle_handler._width_model.value, "512.0 mm")  # width
             self.assertEqual(rectangle_handler._height_model.value, "128.00 mm")  # height
 
+    def test_move_to_center_button_moves_rectangle_to_center(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((32, 32)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            rectangle = Graphics.RectangleGraphic()
+            rectangle.bounds = Geometry.FloatRect.from_tlhw(0.1, 0.1, 0.2, 0.2)
+            display_item.add_graphic(rectangle)
+            document_controller.selected_display_panel.set_display_panel_display_item(display_item)
+            rectangle_handler = GraphicsInspector.GraphicsInspectorHandler(document_controller, display_item, rectangle)
+            rectangle_handler._align_center_clicked(None)
+            self.assertEqual(Geometry.FloatPoint(0.5, 0.5), rectangle.center)
+
     def test_line_dimensions_show_calibrated_units(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
