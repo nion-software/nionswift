@@ -2140,9 +2140,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return key_pressed(key_event.key)
 
             def mouse_double_clicked_event(self, double_clicked_event: GridFlowCanvasItem.GridFlowCanvasItemDoubleClickedEvent) -> bool:
+                # the context has this display panel even when other display panels are selected, since the double-click
+                # cycles the browser it is in.
                 display_panel = self.__display_panel_ref()
                 if display_panel:
-                    display_panel.cycle_display()
+                    display_item = display_panel.display_item
+                    action_context = document_controller.get_action_context_for_display_items([display_item] if display_item else [], None)
+                    action_context.display_panel = display_panel
+                    document_controller.perform_action_in_context("display_panel.cycle_display", action_context, invoked_from=Window.ActionOrigin.WINDOW, invoked_from_id=DISPLAY_PANEL_ORIGIN_ID)
                     return True
                 return True
 
