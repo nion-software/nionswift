@@ -427,11 +427,8 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
         if collection_info := (self.collection_info_list[index] if index is not None else None):
             if data_group := (collection_info.data_group if collection_info else None):
                 # remove the data group through an action, so the command log records it with the key and the panel id.
-                # the window makes the context, as it does for its own actions, so the panel calls its protected method.
-                document_controller = self.__document_controller
-                context = document_controller._get_action_context()
-                context.parameters["data_group_uuid"] = str(data_group.uuid)
-                document_controller.perform_action_in_context("project.remove_group", context, invoked_from=Window.ActionOrigin.KEY, invoked_from_id=self.__panel_id)
+                self.__document_controller.perform_action("project.remove_group", parameters={"data_group_uuid": str(data_group.uuid)},
+                                                          invoked_from=Window.ActionOrigin.KEY, invoked_from_id=self.__panel_id)
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         if key.is_enter_or_return:
