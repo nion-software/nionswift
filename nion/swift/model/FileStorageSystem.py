@@ -120,6 +120,10 @@ class DataItemStorageAdapter:
         if data is not None and data_descriptor:
             self.__storage_handler.write_data(data, data_descriptor, file_datetime)
 
+    def update_data_partial(self, item: Persistence.PersistentObject, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor | None, source_slices: tuple[slice, ...], target_slices: tuple[slice, ...]) -> None:
+        file_datetime = getattr(item, "created_local")
+        self.__storage_handler.write_data_partial(data, data_descriptor, file_datetime, target_slices, source_slices)
+
     def reserve_data(self, item: Persistence.PersistentObject, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         file_datetime = getattr(item, "created_local")
         self.__storage_handler.reserve_data(data_shape, data_dtype, data_descriptor, file_datetime)
@@ -521,6 +525,9 @@ class PersistentStorageSystem(Persistence.PersistentStorageInterface):
     def write_external_data(self, item: Persistence.PersistentObject, name: str, value: _NDArray) -> None:
         pass
 
+    def write_external_data_partial(self, item: Persistence.PersistentObject, name: str, value: _NDArray, source_slices: tuple[slice, ...], target_slices: tuple[slice, ...]) -> None:
+        pass
+
     def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: tuple[bool, int, int]) -> None:
         pass
 
@@ -879,6 +886,12 @@ class ProjectStorageSystem(PersistentStorageSystem):
         else:
             super().write_external_data(item, name, value)
 
+    def write_external_data_partial(self, item: Persistence.PersistentObject, name: str, value: _NDArray, source_slices: tuple[slice, ...], target_slices: tuple[slice, ...]) -> None:
+        if isinstance(item, DataItem.DataItem) and name == "data":
+            self.__write_data_item_data_partial(item, value, source_slices, target_slices)
+        else:
+            raise NotImplementedError("Partial write is only supported for DataItem data.")
+
     # override
     def reserve_external_data(self, item: Persistence.PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: tuple[bool, int, int]) -> None:
         if isinstance(item, DataItem.DataItem) and name == "data":
@@ -945,6 +958,18 @@ class ProjectStorageSystem(PersistentStorageSystem):
             n_bytes = typing.cast(int, numpy.prod(data.shape, dtype=numpy.int64)) * numpy.dtype(data.dtype).itemsize if data is not None else 0
             storage_adapter = self.__ensure_valid_storage_adapter(data_item, n_bytes, False)
             storage_adapter.update_data(data_item, data, data_item.data_descriptor)
+
+    def __write_data_item_data_partial(self, data_item: DataItem.DataItem, data: _NDArray | None, source_slices: tuple[slice, ...], target_slices: tuple[slice, ...]) -> None:
+        data_shape = data_item.data_shape
+        data_dtype = data_item.data_dtype
+        data_descriptor = data_item.data_descriptor
+        if data is not None and data_shape is not None and data_dtype is not None and data_descriptor is not None:
+            n_bytes = typing.cast(int, numpy.prod(data_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
+            storage_adapter = self.__ensure_valid_storage_adapter(data_item, n_bytes)
+            stored_data = storage_adapter.load_data(data_item)
+            if stored_data is None or stored_data.shape != data_shape or stored_data.dtype != data_dtype:
+                storage_adapter.reserve_data(data_item, data_shape, data_dtype, data_descriptor)
+            storage_adapter.update_data_partial(data_item, data, data_descriptor, source_slices, target_slices)
 
     def __reserve_data_item_data(self, data_item: DataItem.DataItem, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor) -> None:
         n_bytes = typing.cast(int, numpy.prod(data_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
