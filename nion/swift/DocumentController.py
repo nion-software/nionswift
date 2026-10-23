@@ -2779,10 +2779,8 @@ class DocumentController(Window.Window):
 
         def reveal_data_item(data_item: DataItem.DataItem) -> None:
             # same as selecting menu item for 'reveal'
-            action_context_ = self._get_action_context()
-            action_context_.display_panel = action_context.display_panel
-            action_context_.display_item = self.document_model.get_best_display_item_for_data_item(data_item)
-            self.perform_action_in_context("display.reveal", action_context_)
+            if revealed_display_item := self.document_model.get_best_display_item_for_data_item(data_item):
+                self.perform_action_for_display_items("display.reveal", [revealed_display_item], action_context.display_panel)
 
         def make_reveal_data_item_callback(data_item: DataItem.DataItem) -> typing.Callable[[], None]:
             return functools.partial(reveal_data_item, data_item)
