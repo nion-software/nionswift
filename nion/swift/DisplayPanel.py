@@ -2933,7 +2933,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         return self.display_clicked(modifiers)
 
     def __show_context_menu(self, display_items: typing.Sequence[DisplayItem.DisplayItem], gx: int, gy: int) -> bool:
-        action_context = self.document_controller._get_action_context_for_display_items(display_items, self)
+        action_context = self.document_controller.get_action_context_for_display_items(display_items, self)
         menu = self.document_controller.create_context_menu()
         self.document_controller.populate_context_menu(menu, action_context)
         if self.__document_controller.is_action_enabled("display_panel.clear", action_context):

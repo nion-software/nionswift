@@ -365,7 +365,7 @@ class DataPanel(Panel.Panel):
             def context_menu_event(self, context_menu_event: GridFlowCanvasItem.GridFlowCanvasItemContextMenuEvent) -> bool:
                 display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in context_menu_event.selected_items)
                 menu = document_controller.create_context_menu()
-                action_context = document_controller._get_action_context_for_display_items(display_items, None)
+                action_context = document_controller.get_action_context_for_display_items(display_items, None)
                 document_controller.populate_context_menu(menu, action_context)
                 menu.add_separator()
                 document_controller.add_action_to_menu_if_enabled(menu, "workspace.new_workspace_from_selection", action_context)
