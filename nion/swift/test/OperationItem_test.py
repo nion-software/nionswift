@@ -1110,6 +1110,30 @@ class TestProcessingClass(unittest.TestCase):
             redim_data_item = document_model.data_items[1]
             self.assertEqual(DataAndMetadata.DataDescriptor(True, 0, 2), redim_data_item.data_descriptor)
 
+    def test_choosing_redimension_from_the_redimension_menu_with_two_display_panels_selected_makes_redimensioned_data_item(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            xdata = DataAndMetadata.new_data_and_metadata(numpy.zeros((2, 3, 4)), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 2))
+            data_item = DataItem.new_data_item(xdata)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            workspace_controller = document_controller.workspace_controller
+            workspace_controller.insert_display_panel(display_panel, "bottom")
+            document_controller.selected_display_panel = display_panel
+            document_controller.add_secondary_display_panel(next(panel for panel in workspace_controller.display_panels if panel != display_panel))
+            # the redimension menu is a sub menu of the processing menu, and its items are filled in when it is about to show.
+            processing_menu = document_controller._document_window.get_menu("processing")
+            redimension_menu = next(item.sub_menu for item in processing_menu.items if item.sub_menu and item.sub_menu.menu_id == "processing_redimension")
+            redimension_menu.about_to_show()
+            redimension_menu_action = next(action for action in redimension_menu.get_menu_actions() if action.title == "Redimension to Sequence of 2 Images of Shape 3x4")
+            redimension_menu_action.trigger()
+            document_model.recompute_all()
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(DataAndMetadata.DataDescriptor(True, 0, 2), document_model.data_items[1].data_descriptor)
+
     def test_choosing_squeeze_from_the_redimension_menu_makes_squeezed_data_item(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

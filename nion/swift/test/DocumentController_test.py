@@ -693,6 +693,25 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_controller.selection.indexes), 0)
 
+    def test_reveal_source_from_display_panel_context_menu_selects_source_in_data_panel(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            inverted_data_item = document_model.get_invert_new(source_display_item, source_data_item, None)
+            inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(inverted_display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            display_panel._context_menu_event_for_testing(500, 500)
+            reveal_item = next(x for x in document_controller.ui.popup.items if x.title.startswith("Reveal Source"))
+            reveal_item.callback()
+            display_items = document_controller.filtered_display_items_model.display_items
+            self.assertEqual([source_display_item], [display_items[index] for index in document_controller.selection.indexes])
+
     def test_selected_display_items_is_non_empty_for_single_focused_display_panel_with_display_item(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
