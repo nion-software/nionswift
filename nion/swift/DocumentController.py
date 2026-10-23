@@ -2766,7 +2766,7 @@ class DocumentController(Window.Window):
     def create_context_menu_for_display(self, display_items: typing.List[DisplayItem.DisplayItem]) -> UserInterface.Menu:
         # only used in tests
         menu = self.create_context_menu()
-        action_context = self._get_action_context_for_display_items(display_items, None)
+        action_context = self.get_action_context_for_display_items(display_items, None)
         self.populate_context_menu(menu, action_context)
         menu.add_separator()
         self.add_action_to_menu(menu, "item.delete", action_context)
@@ -2877,12 +2877,25 @@ class DocumentController(Window.Window):
                                                 display_item, display_items, crop_graphic, selected_graphics, data_item,
                                                 data_items)
 
-    def _get_action_context_for_display_items(
+    def get_action_context_for_display_items(
             self,
             display_items: typing.Sequence[DisplayItem.DisplayItem],
-            display_panel: typing.Optional[DisplayPanel.DisplayPanel],
-            *, graphics: typing.Optional[typing.Sequence[Graphics.Graphic]] = None
+            display_panel: DisplayPanel.DisplayPanel | None,
+            *, graphics: typing.Sequence[Graphics.Graphic] | None = None
     ) -> ActionContext:
+        """Return an action context for the given display items.
+
+        The display panel is the one showing the display items, such as the one a context menu is on, or None when no
+        display panel is involved, such as for the data panel. With None, the context has the given display items and
+        no display panel. With a display panel and no other display panels selected, it has the given display items
+        and that display panel.
+
+        When several display panels are selected and a display panel is given, the given display items are not used:
+        if the display panel is one of the selected ones, the context has the display items of all the selected display
+        panels, and otherwise it has none. Either way the context has no single display item and no display panel.
+
+        The graphics, if given, replace the single display item's selected graphics.
+        """
         focus_widget = self.focus_widget
         model = self.document_model
         # the logic here is if a single display panel is focused and the user context clicks on another one, then use
