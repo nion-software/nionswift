@@ -2127,15 +2127,12 @@ class DocumentController(Window.Window):
         data_item = display_item.data_item if display_item else None
         if display_item and data_item:
 
-            # run the action on the display item and data item the menu describes, which can differ from the context's own
-            # when the data panel has focus. add_action_to_main_menu keeps the context's display item and data item, so
-            # these items are built here and replace them, and pass the menu origin themselves.
+            # run the action on the display item the menu describes, which can differ from the context's own when the data
+            # panel has focus. add_action_to_main_menu uses the context's own display item, so these items are built here
+            # and pass the menu origin themselves. the context has no display panel, so that the display item is used
+            # even when several display panels are selected.
             def perform_menu_item_action(action_id: str, parameters: typing.Mapping[str, int]) -> None:
-                context = self._get_action_context()
-                context.display_item = display_item
-                context.data_item = data_item
-                context.parameters.update(parameters)
-                self.perform_action_in_context(action_id, context, invoked_from=Window.ActionOrigin.MENU)
+                self.perform_action_for_display_items(action_id, [display_item], None, parameters=parameters, invoked_from=Window.ActionOrigin.MENU)
 
             def describe_data_descriptor(data_descriptor: DataAndMetadata.DataDescriptor, data_shape: typing.Sequence[int]) -> str:
                 if data_descriptor.is_sequence:
