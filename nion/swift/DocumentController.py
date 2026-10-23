@@ -2774,6 +2774,11 @@ class DocumentController(Window.Window):
         self.add_action_to_menu_if_enabled(menu, "file.export", action_context)
         self.add_action_to_menu_if_enabled(menu, "file.export_batch", action_context)
 
+        # the reveal items below run display.reveal, which reveals from a display panel only, so they are left out of
+        # the menu when there is no display panel, such as in the data panel.
+        if not action_context.display_panel:
+            return
+
         def reveal_data_item(data_item: DataItem.DataItem) -> None:
             # same as selecting menu item for 'reveal'
             if revealed_display_item := self.document_model.get_best_display_item_for_data_item(data_item):
