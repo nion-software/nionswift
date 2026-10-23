@@ -427,9 +427,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                     upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
                     new_display_limits = (lower_display_limit, upper_display_limit)
 
-                action_context = document_controller._get_action_context()
-                action_context.parameters["display_limits"] = new_display_limits
-                document_controller.perform_action_in_context("raster_display.set_display_limits", action_context)
+                document_controller.perform_action("raster_display.set_display_limits", parameters={"display_limits": new_display_limits})
 
         def cursor_changed(canvas_x: typing.Optional[float]) -> None:
             if callable(cursor_changed_fn):
