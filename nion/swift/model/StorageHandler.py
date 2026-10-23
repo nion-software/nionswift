@@ -75,6 +75,9 @@ class StorageHandler(typing.Protocol):
         """Write the given data array and descriptor to storage with the specified file datetime."""
         ...
 
+    def write_data_partial(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime, target_slices: tuple[slice, ...], source_slices: tuple[slice, ...]) -> None:
+        ...
+
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         """Reserve space for data in storage with the given shape, dtype, descriptor, and file datetime."""
         ...
