@@ -3,19 +3,26 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import io
+import itertools
 import json
 import logging
 import os
 import pathlib
+import struct
 import threading
 import typing
 import uuid
+import concurrent.futures
 
 import h5py
 import numpy
 import numpy.typing
+import bitshuffle
+import hdf5plugin
+from h5py._objects import phil
 
 from nion.data import DataAndMetadata
 from nion.swift.model import StorageHandler
@@ -35,6 +42,32 @@ _NDArray = numpy.typing.NDArray[typing.Any]
 # by default. turn it on with logging.getLogger("nion.swift.data_files").setLevel(logging.DEBUG), for example from the
 # console or a debugger. its records then go to the app's stderr, not to the Output panel.
 data_files_logger = logging.getLogger("nion.swift.data_files")
+
+
+def _normalize_step_one_slice(axis_slice: slice, axis_length: int) -> slice:
+    start, stop, step = axis_slice.indices(axis_length)
+    if step != 1:
+        raise ValueError("HDF5 chunk writes require slices with step 1.")
+    return slice(start, stop)
+
+
+def _normalize_slices(slices: tuple[slice, ...], shape: typing.Sequence[int]) -> tuple[slice, ...]:
+    assert len(slices) == len(shape)
+    return tuple(_normalize_step_one_slice(axis_slice, axis_length) for axis_slice, axis_length in zip(slices, shape))
+
+
+_BITSHUFFLE_FILTER_ID = 32008
+
+
+def _default_bitshuffle_block_size(itemsize: int) -> int:
+    """Return bitshuffle's default block size (in elements): ~8 kB, multiple of 8, at least 128."""
+    block_size = (8192 // itemsize) // 8 * 8
+    return max(block_size, 128)
+
+
+def _dataset_uses_bitshuffle(dataset: typing.Any) -> bool:
+    plist = dataset.id.get_create_plist()
+    return any(plist.get_filter(i)[0] == _BITSHUFFLE_FILTER_ID for i in range(plist.get_nfilters()))
 
 
 def make_directory_if_needed(directory_path: str) -> None:
@@ -112,6 +145,19 @@ def get_write_chunk_shape_for_data(data_shape: DataAndMetadata.ShapeType, data_d
     return tuple(chunk_shape)
 
 
+@dataclasses.dataclass
+class _HDF5ChunkCacheEntry:
+    """A partially filled buffer for a single HDF5 dataset chunk, awaiting the remaining data before it can be flushed.
+
+    data holds the in-progress contents of one dataset chunk. Its shape matches the chunk's actual on-disk shape,
+    which may be smaller than the dataset's nominal chunk shape at the edges of the dataset. mask tracks which
+    elements of data have already been written; once mask is entirely True the chunk is complete and can be
+    written to the file with write_direct_chunk.
+    """
+    data: _NDArray
+    mask: numpy.typing.NDArray[numpy.bool_]
+
+
 _HDF5FilePointer = typing.Any
 
 
@@ -186,11 +232,21 @@ class HDF5Handler(StorageHandler.StorageHandler):
         self.__lock = threading.RLock()
         self.__file = _file_manager.open(pathlib.Path(self.__file_path))
         self.__dataset: typing.Any = None
+        self.__chunk_cache: dict[tuple[int, ...], _HDF5ChunkCacheEntry] = dict()
+        self.__write_futures: set[concurrent.futures.Future] = set()
+        # Use 8 workers for queuing up enough IO tasks. Compression itself is parallelized by bitshuffle internally
+        # (OpenMP), so we do not want to use too many threads here. A future improvement would be to compile
+        # bitshuffle without OpenMP and optimize the number of workers here.
+        # Also vector instructions should be used, which the default version from pip does not.
+        self.__executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         self._write_count = 0
         HDF5Handler.count += 1
 
     def close(self) -> None:
         HDF5Handler.count -= 1
+        self.__executor.shutdown()
+        self.__write_futures.clear()
+        self.__chunk_cache.clear()
         self.__close_fp()
         _file_manager.close(pathlib.Path(self.__file_path))
 
@@ -215,6 +271,19 @@ class HDF5Handler(StorageHandler.StorageHandler):
     @property
     def is_valid(self) -> bool:
         return True
+
+    # For testing
+    @property
+    def _dataset(self) -> typing.Any:
+        return self.__dataset
+
+    @_dataset.setter
+    def _dataset(self, value: typing.Any) -> None:
+        self.__dataset = value
+
+    @property
+    def _file(self) -> HDF5FileEntry:
+        return self.__file
 
     def get_extension(self) -> str:
         return ".h5"
@@ -244,6 +313,155 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 else:
                     self.__dataset = self.__file.fp.create_dataset("data", data=numpy.empty((0,)))
                     data_files_logger.debug("data file created: %s, file type HDF5, shape %s, dtype %s", self.__file_path, self.__dataset.shape, self.__dataset.dtype)
+
+    def __queue_threaded_write(self, dataset: typing.Any, chunk_offset: tuple[int, ...], chunk_data: _NDArray, is_bitshuffled: bool) -> None:
+        def write_chunk():
+            if is_bitshuffled:
+                # write_direct_chunk bypasses the HDF5 filter pipeline, so the 12 byte header that the
+                # bitshuffle HDF5 filter expects (uncompressed size, block size) must be added manually.
+                block_size = _default_bitshuffle_block_size(chunk_data.dtype.itemsize)
+                compressed_chunk_data = bitshuffle.compress_lz4(chunk_data, block_size)
+                header = struct.pack(">QI", chunk_data.nbytes, block_size * chunk_data.dtype.itemsize)
+                payload = header + compressed_chunk_data.tobytes()
+            else:
+                payload = numpy.ascontiguousarray(chunk_data).tobytes()
+            with phil:
+                dataset.id.write_direct_chunk(chunk_offset, payload)
+        future = self.__executor.submit(write_chunk)
+        self.__write_futures.add(future)
+        future.add_done_callback(self.__write_futures.remove)
+
+    def _wait_for_pending_writes(self) -> None:
+        """Wait for all pending threaded writes to complete."""
+        concurrent.futures.wait(list(self.__write_futures))
+
+    def write_hdf5_chunks(self, source_data: _NDArray, source_slices: tuple[slice, ...], target_slices: tuple[slice, ...]) -> None:
+        """Write source_data[source_slices] into target_dataset[target_slices] using direct chunk writes.
+
+        The target dataset is divided into a grid of on-disk chunks. Chunks that are fully covered by
+        target_slices are assembled directly from source_data and written immediately using
+        target_dataset.id.write_direct_chunk. Chunks that are only partially covered are accumulated in
+        self.__chunk_cache (keyed by chunk offset) across successive calls; once a cached chunk becomes
+        fully covered, it is written and removed from the cache. This assumes target_slices and
+        source_slices use a step of 1 in every dimension.
+        """
+        target_dataset = self.__dataset
+        chunk_shape = target_dataset.chunks
+        dataset_shape = target_dataset.shape
+        dataset_dtype = target_dataset.dtype
+        dimension_count = len(dataset_shape)
+        source_slices = _normalize_slices(source_slices, source_data.shape)
+        target_slices = _normalize_slices(target_slices, dataset_shape)
+
+        # if the dataset is not chunked, fall back to a plain slice assignment.
+        if chunk_shape is None:
+            target_dataset[target_slices] = source_data[source_slices]
+            return
+
+        # determine once per call whether chunks must be bitshuffle-compressed manually.
+        with phil:
+            is_bitshuffled = _dataset_uses_bitshuffle(target_dataset)
+
+        # determine the range of chunk indices, in each dimension, that overlap target_slices.
+        chunk_index_ranges = list()
+        for dimension_index in range(dimension_count):
+            first_chunk_index = target_slices[dimension_index].start // chunk_shape[dimension_index]
+            last_chunk_index = (target_slices[dimension_index].stop - 1) // chunk_shape[dimension_index]
+            chunk_index_ranges.append(range(first_chunk_index, last_chunk_index + 1))
+
+        for chunk_index in itertools.product(*chunk_index_ranges):
+            chunk_offset = tuple(chunk_index[d] * chunk_shape[d] for d in range(dimension_count))
+            # the actual on-disk chunk shape may be smaller than the nominal chunk shape at the dataset edges.
+            chunk_actual_shape = tuple(min(chunk_shape[d], dataset_shape[d] - chunk_offset[d]) for d in range(dimension_count))
+            chunk_slices = tuple(slice(chunk_offset[d], chunk_offset[d] + chunk_actual_shape[d]) for d in range(dimension_count))
+
+            fully_overlapping = all(
+                target_slices[d].start <= chunk_slices[d].start and target_slices[d].stop >= chunk_slices[d].stop
+                for d in range(dimension_count)
+            )
+
+            # the region, in target dataset coordinates, where the chunk and target_slices overlap.
+            overlap_slices = tuple(
+                slice(max(target_slices[d].start, chunk_slices[d].start), min(target_slices[d].stop, chunk_slices[d].stop))
+                for d in range(dimension_count)
+            )
+            # the corresponding region in source_data, derived from the offset between target_slices and source_slices.
+            source_overlap_slices = tuple(
+                slice(
+                    source_slices[d].start + (overlap_slices[d].start - target_slices[d].start),
+                    source_slices[d].start + (overlap_slices[d].stop - target_slices[d].start)
+                )
+                for d in range(dimension_count)
+            )
+
+            # the raw buffer passed to write_direct_chunk must always match the dataset's nominal chunk
+            # shape, even at the dataset edges where only a portion of the chunk lies within the dataset
+            # bounds; the out-of-bounds portion is never read back and its contents are irrelevant.
+            valid_local_slices = tuple(slice(0, chunk_actual_shape[d]) for d in range(dimension_count))
+
+            if fully_overlapping:
+                # the entire (in-bounds) chunk is covered by this call; assemble a full-size buffer directly
+                # from source_data and write it, discarding any pending partial data for this chunk.
+                chunk_buffer = numpy.zeros(chunk_shape, dtype=dataset_dtype)
+                chunk_buffer[valid_local_slices] = source_data[source_overlap_slices]
+                self.__queue_threaded_write(target_dataset, chunk_offset, chunk_buffer, is_bitshuffled)
+                self.__chunk_cache.pop(chunk_offset, None)
+                continue
+
+            # the chunk is only partially covered by this call; accumulate it in the cache.
+            chunk_cache_entry = self.__chunk_cache.get(chunk_offset)
+            if chunk_cache_entry is None:
+                # seed the cache entry with the chunk's existing on-disk data so unwritten elements are preserved.
+                existing_chunk_data = numpy.array(target_dataset[chunk_slices], dtype=dataset_dtype)
+                chunk_buffer = numpy.zeros(chunk_shape, dtype=dataset_dtype)
+                chunk_buffer[valid_local_slices] = existing_chunk_data
+                # the portion of the buffer beyond the dataset bounds never receives real data, so mark it
+                # as already complete; only the in-bounds portion needs to be tracked as unwritten.
+                chunk_mask = numpy.ones(chunk_shape, dtype=numpy.bool_)
+                chunk_mask[valid_local_slices] = False
+                chunk_cache_entry = _HDF5ChunkCacheEntry(chunk_buffer, chunk_mask)
+                self.__chunk_cache[chunk_offset] = chunk_cache_entry
+
+            local_slices = tuple(
+                slice(overlap_slices[d].start - chunk_offset[d], overlap_slices[d].stop - chunk_offset[d])
+                for d in range(dimension_count)
+            )
+            chunk_cache_entry.data[local_slices] = source_data[source_overlap_slices]
+            chunk_cache_entry.mask[local_slices] = True
+
+            if bool(chunk_cache_entry.mask.all()):
+                self.__queue_threaded_write(target_dataset, chunk_offset, chunk_cache_entry.data, is_bitshuffled)
+                del self.__chunk_cache[chunk_offset]
+
+    def write_data_partial(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime, target_slices: tuple[slice, ...], source_slices: tuple[slice, ...]) -> None:
+        with self.__lock:
+            assert data is not None
+            json_properties = None
+            normalized_source_slices = _normalize_slices(source_slices, data.shape)
+            if not "data" in self.__file.fp:
+                dataset_shape = tuple(
+                    max(
+                        target_slice.stop if target_slice.stop is not None else (target_slice.start or 0) + (normalized_source_slices[index].stop - normalized_source_slices[index].start),
+                        data.shape[index]
+                    )
+                    for index, target_slice in enumerate(target_slices)
+                )
+                chunks = get_write_chunk_shape_for_data(dataset_shape, data.dtype, data_descriptor)
+                self.__dataset = self.__file.fp.require_dataset("data", shape=dataset_shape, dtype=data.dtype, chunks=chunks, compression=hdf5plugin.Bitshuffle(cname="lz4"))
+            else:
+                if self.__dataset is None:
+                    self.__dataset = self.__file.fp["data"]
+                if self.__dataset.dtype != data.dtype:
+                    json_properties = self.__dataset.attrs.get("properties", "")
+                    dataset_shape = self.__dataset.shape
+                    self.__close_fp()
+                    os.remove(self.__file_path)
+                    chunks = get_write_chunk_shape_for_data(dataset_shape, data.dtype, data_descriptor)
+                    self.__dataset = self.__file.fp.require_dataset("data", shape=dataset_shape, dtype=data.dtype, chunks=chunks, compression=hdf5plugin.Bitshuffle(cname="lz4"))
+                    if json_properties is not None:
+                        self.__dataset.attrs["properties"] = json_properties
+        self.write_hdf5_chunks(data, source_slices, target_slices)
+            # self.__file.fp.flush()
 
     def write_data(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         with self.__lock:
@@ -297,7 +515,7 @@ class HDF5Handler(StorageHandler.StorageHandler):
                 self.__file.open()
             # reserve the data
             chunks = get_write_chunk_shape_for_data(data_shape, data_dtype, data_descriptor)
-            self.__dataset = self.__file.fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0, chunks=chunks)
+            self.__dataset = self.__file.fp.require_dataset("data", shape=data_shape, dtype=data_dtype, fillvalue=0, chunks=chunks, compression=hdf5plugin.Bitshuffle(cname="lz4"))
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
             self.__file.fp.flush()
