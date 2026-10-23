@@ -2939,6 +2939,21 @@ class DocumentController(Window.Window):
                                                 used_display_item, used_display_items, crop_graphic, selected_graphics,
                                                 used_data_item, used_data_items)
 
+    # the parameter values are typed as Any, as the context's parameters are, since an action's parameters may be of any type.
+    def perform_action_for_display_items(self, action: Window.Action | str, display_items: typing.Sequence[DisplayItem.DisplayItem],
+                                         display_panel: DisplayPanel.DisplayPanel | None, *, graphics: typing.Sequence[Graphics.Graphic] | None = None,
+                                         parameters: typing.Mapping[str, typing.Any] | None = None,
+                                         invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
+        """Run the action, given by the action or its id, in the action context for the given display items.
+
+        The display panel and graphics are as for get_action_context_for_display_items. A shallow copy of parameters, if
+        given, is added to the context's parameters before the action runs.
+        """
+        action_context = self.get_action_context_for_display_items(display_items, display_panel, graphics=graphics)
+        if parameters:
+            action_context.parameters.update(parameters)
+        self.perform_action_in_context(action, action_context, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
+
 
 class GraphicFactoryBase:
     def create_graphic_in_display_item(self, window: DocumentController, display_item: DisplayItem.DisplayItem, graphic_properties: typing.Mapping[str, typing.Any]) -> Graphics.Graphic:

@@ -766,8 +766,8 @@ class GraphicsInspectorHandler(Declarative.Handler):
         )
 
     def _align_center_clicked(self, widget: typing.Any) -> None:
-        action_context = self.__document_controller.get_action_context_for_display_items([self.__display_item], None, graphics=[self.__graphic])
-        self.__document_controller.perform_action_in_context("display_panel.center_graphics", action_context, invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
+        self.__document_controller.perform_action_for_display_items("display_panel.center_graphics", [self.__display_item], None, graphics=[self.__graphic],
+                                                                    invoked_from=self.__invoked_from, invoked_from_id=self.__invoked_from_id)
 
     def __create_position_and_shape_ui(self) -> Declarative.UIDescriptionResult:
         if self.__shape_and_pos_func is None:
