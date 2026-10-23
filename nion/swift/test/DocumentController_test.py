@@ -712,6 +712,18 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_items = document_controller.filtered_display_items_model.display_items
             self.assertEqual([source_display_item], [display_items[index] for index in document_controller.selection.indexes])
 
+    def test_data_panel_context_menu_has_no_reveal_source_item(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            inverted_data_item = document_model.get_invert_new(source_display_item, source_data_item, None)
+            inverted_display_item = document_model.get_display_item_for_data_item(inverted_data_item)
+            context_menu = document_controller.create_context_menu_for_display([inverted_display_item])
+            self.assertFalse(any(x.title.startswith("Reveal Source") for x in context_menu.items))
+
     def test_selected_display_items_is_non_empty_for_single_focused_display_panel_with_display_item(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
