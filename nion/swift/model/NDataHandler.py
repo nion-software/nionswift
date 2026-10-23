@@ -393,9 +393,11 @@ class NDataHandler(StorageHandler.StorageHandler):
     def __init__(self, file_path: typing.Union[str, pathlib.Path]) -> None:
         self.__file_path = str(file_path)
         self.__lock = threading.RLock()
+        self.__data: typing.Optional[_NDArray] = None
         NDataHandler.count += 1
 
     def close(self) -> None:
+        self.__data = None
         NDataHandler.count -= 1
 
     @property
@@ -432,6 +434,23 @@ class NDataHandler(StorageHandler.StorageHandler):
             assert data is not None
             self.__write_data(data, file_datetime)
             data_files_logger.debug("data written: %s, file type ndata, shape %s, dtype %s", self.__file_path, data.shape, data.dtype)
+
+    def write_data_partial(self, data: _NDArray, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime, target_slices: tuple[slice, ...], source_slices: tuple[slice, ...]) -> None:
+        with self.__lock:
+            assert data is not None
+            absolute_file_path = self.__file_path
+            make_directory_if_needed(os.path.dirname(absolute_file_path))
+            properties = self.read_properties() if os.path.exists(absolute_file_path) else dict()
+            target_data = self.read_data() if os.path.exists(absolute_file_path) else None
+            if target_data is None:
+                target_shape = tuple(max(target_slice.stop, data.shape[index]) for index, target_slice in enumerate(target_slices))
+                target_data = numpy.zeros(target_shape, dtype=data.dtype)
+            target_data[target_slices] = data[source_slices]
+            write_zip(absolute_file_path, target_data, properties)
+            self.__data = target_data
+            tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
+            timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
+            os.utime(absolute_file_path, (time.time(), timestamp))
 
     def reserve_data(self, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: DataAndMetadata.DataDescriptor, file_datetime: datetime.datetime) -> None:
         with self.__lock:
@@ -502,11 +521,14 @@ class NDataHandler(StorageHandler.StorageHandler):
             :return: a numpy array of the data; maybe None
         """
         with self.__lock:
+            if self.__data is not None:
+                return self.__data
             absolute_file_path = self.__file_path
             data_files_logger.debug("data read: %s, file type ndata", absolute_file_path)
             with open(absolute_file_path, "rb") as fp:
                 local_files, dir_files, eocd = parse_zip(fp)
-                return read_data(fp, local_files, dir_files, b"data.npy")
+                self.__data = read_data(fp, local_files, dir_files, b"data.npy")
+                return self.__data
 
     def remove(self) -> None:
         """
@@ -519,6 +541,7 @@ class NDataHandler(StorageHandler.StorageHandler):
             if os.path.isfile(absolute_file_path):
                 os.remove(absolute_file_path)
                 data_files_logger.debug("data file deleted: %s, file type ndata", absolute_file_path)
+                self.__data = None
 
 
 class NDataHandlerFactory(StorageHandler.StorageHandlerFactoryLike):
