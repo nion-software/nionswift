@@ -1,5 +1,7 @@
 # standard libraries
+import io
 import pathlib
+import sys
 import tempfile
 import typing
 import unittest
@@ -628,6 +630,39 @@ class TestFacadeClass(unittest.TestCase):
             console = ConsoleDialog.ConsoleWidgetStateController({"api": api})
             try:
                 self.assertEqual(("x\n", 0), console.interpret_command(f"api.run_script(file_path={str(script_path)!r})"))
+            finally:
+                console.close()
+
+    def test_run_script_stdout_does_not_receive_output_of_a_thread_started_without_a_copy_of_the_context(self):
+        with create_memory_profile_context() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            profile_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            script_path = pathlib.Path(directory_str) / "thread_script.py"
+            script_path.write_text("import sys, threading\n"
+                                   "thread = threading.Thread(target=sys.stdout.write, args=(\"y\\n\",))\n"
+                                   "thread.start()\n"
+                                   "thread.join()\n"
+                                   "sys.stdout.write(\"x\\n\")\n")
+            output = io.StringIO()
+            stdout = sys.stdout
+            try:
+                # stands in for the Output panel, which receives the thread's output.
+                sys.stdout = io.StringIO()
+                api.run_script(file_path=str(script_path), stdout=output)
+            finally:
+                sys.stdout = stdout
+            self.assertEqual("x\n", output.getvalue())
+
+    def test_run_script_with_sys_stdout_from_console_shows_what_the_script_prints_in_the_console(self):
+        with create_memory_profile_context() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            profile_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            script_path = pathlib.Path(directory_str) / "print_script.py"
+            script_path.write_text("print(\"x\")\n")
+            console = ConsoleDialog.ConsoleWidgetStateController({"api": api, "sys": sys})
+            try:
+                # with a stdout, the script's print is that stdout's write.
+                self.assertEqual(("x", 0), console.interpret_command(f"api.run_script(file_path={str(script_path)!r}, stdout=sys.stdout)"))
             finally:
                 console.close()
 
