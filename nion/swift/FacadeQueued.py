@@ -3,6 +3,7 @@
 ### this file is partially generated, but the generated portion is copied from Classes.py
 ### see comment below
 
+import contextvars
 import threading
 
 
@@ -58,9 +59,12 @@ def queued(method):
         exception_ref = []
         finished_event = threading.Event()
         target = args[0]
+        # the call runs on the main thread in a copy of the caller's context, so that what it writes to sys.stdout and
+        # sys.stderr goes where the caller's output goes, such as a running script's dialog.
+        context = contextvars.copy_context()
         def run():
             try:
-                result_ref.append(convert_to_facade(method(*args, **kwargs), target._queue_task))
+                result_ref.append(convert_to_facade(context.run(method, *args, **kwargs), target._queue_task))
             except Exception as e:
                 exception_ref.append(e)
             finally:

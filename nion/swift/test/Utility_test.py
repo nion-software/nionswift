@@ -1,5 +1,8 @@
+import contextvars
+import io
 import json
 import os
+import sys
 import typing
 import unittest
 import zoneinfo
@@ -168,6 +171,37 @@ class TestUtilityClass(unittest.TestCase):
         self.assertIsNone(Utility.get_local_timezone())
         Utility.tzlocal.get_localzone = raise_other_error
         self.assertIsNone(Utility.get_local_timezone())
+
+    def test_redirect_output_captures_output_after_other_code_replaces_stdout_during_another_redirection(self):
+        stdout = sys.stdout
+        other_redirection = Utility.OutputRedirection(io.StringIO(), io.StringIO())
+        try:
+            # other code, such as a plug-in, replaces sys.stdout and keeps it replaced.
+            sys.stdout = io.StringIO()
+            output = io.StringIO()
+            with Utility.redirect_output(output, io.StringIO()):
+                print("x")
+            self.assertEqual("x\n", output.getvalue())
+        finally:
+            sys.stdout = stdout
+            other_redirection.end()
+
+    def test_redirect_output_to_sys_stdout_writes_to_the_enclosing_redirection(self):
+        output = io.StringIO()
+        with Utility.redirect_output(output, io.StringIO()):
+            with Utility.redirect_output(sys.stdout, sys.stderr):
+                print("x")
+        self.assertEqual("x\n", output.getvalue())
+
+    def test_context_copied_inside_an_ended_redirection_writes_to_the_enclosing_redirection(self):
+        output = io.StringIO()
+        with Utility.redirect_output(output, io.StringIO()):
+            inner_redirection = Utility.OutputRedirection(io.StringIO(), io.StringIO())
+            with inner_redirection.redirect():
+                context = contextvars.copy_context()
+            inner_redirection.end()
+            context.run(print, "x")
+        self.assertEqual("x\n", output.getvalue())
 
 
 if __name__ == '__main__':

@@ -1,5 +1,7 @@
 # standard libraries
+import io
 import sys
+import threading
 import unittest
 
 # local libraries
@@ -32,6 +34,23 @@ class TestConsoleDialogClass(unittest.TestCase):
             self.assertIs(stdout, sys.stdout)
             self.assertIs(stderr, sys.stderr)
         finally:
+            console.close()
+
+    def test_console_command_result_leaves_out_output_of_a_thread_started_without_a_copy_of_the_context(self):
+        # the thread stands in for other work writing while the command runs, such as a running script.
+        def write_on_another_thread() -> None:
+            thread = threading.Thread(target=sys.stdout.write, args=("y\n",))
+            thread.start()
+            thread.join()
+
+        stdout = sys.stdout
+        console = ConsoleDialog.ConsoleWidgetStateController({"write_on_another_thread": write_on_another_thread})
+        try:
+            # stands in for the Output panel, which receives the thread's output.
+            sys.stdout = io.StringIO()
+            self.assertEqual(("", 0), console.interpret_command("write_on_another_thread()"))
+        finally:
+            sys.stdout = stdout
             console.close()
 
 

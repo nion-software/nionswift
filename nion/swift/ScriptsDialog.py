@@ -743,9 +743,6 @@ class RunScriptDialog(Dialog.ActionDialog):
                 self.__cancelled = False  # Reset cancelled flag to make "Run again" work after a script was cancelled
 
                 class StdoutCatcher:
-                    def __init__(self) -> None:
-                        pass
-
                     def write(self, stuff: str) -> None:
                         print_fn(stuff, end=str())
 
@@ -753,7 +750,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                         pass
 
                 stdout = StdoutCatcher()
-                with contextlib.redirect_stdout(typing.cast(typing.Any, stdout)), contextlib.redirect_stderr(typing.cast(typing.Any, stdout)):
+                with Utility.redirect_output(stdout, stdout):
                     try:
                         exec(compiled, g)
                     except ScriptCancelException as e:

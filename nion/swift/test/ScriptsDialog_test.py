@@ -1,5 +1,6 @@
 # standard libraries
 import pathlib
+import sys
 import tempfile
 import threading
 import time
@@ -10,6 +11,7 @@ import unittest
 import numpy
 
 # local libraries
+from nion.swift import ConsoleDialog
 from nion.swift import Facade
 from nion.swift import ScriptsDialog
 from nion.swift.model import DataItem
@@ -112,6 +114,167 @@ class TestScriptsDialogClass(unittest.TestCase):
                 self.assertEqual(expected_text, output_widget.text)
             finally:
                 dialog.close()
+
+    def test_script_started_from_console_shows_output_written_to_stdout(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            directory = pathlib.Path(directory_str)
+            started_path = directory / "started"
+            continue_path = directory / "continue"
+            script_path = directory / "stdout_script.py"
+            # the script writes only after the console command has returned, which is when the console stops capturing output.
+            script_path.write_text(f"import pathlib, sys, time\n"
+                                   f"pathlib.Path({str(started_path)!r}).touch()\n"
+                                   f"start_time = time.time()\n"
+                                   f"while not pathlib.Path({str(continue_path)!r}).exists() and time.time() - start_time < 10.0:\n"
+                                   f"    time.sleep(0.01)\n"
+                                   f"sys.stdout.write(\"x\\n\")\n")
+
+            def wait_until_script_started() -> None:
+                start_time = time.time()
+                while not started_path.exists() and time.time() - start_time < 10.0:
+                    time.sleep(0.01)
+
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            console = ConsoleDialog.ConsoleWidgetStateController({"dialog": dialog, "wait_until_script_started": wait_until_script_started})
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                console.interpret_command(f"dialog.run_script({str(script_path)!r}); wait_until_script_started()")
+                continue_path.touch()
+                start_time = time.time()
+                while output_widget.text != "x" and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                self.assertEqual("x", output_widget.text)
+            finally:
+                dialog.close()
+                console.close()
+
+    def test_script_started_from_console_leaves_stdout_and_stderr_as_they_were(self):
+        # the streams are restored only once every redirection has ended, so this also fails when an earlier test leaves
+        # a redirection which has not ended.
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            directory = pathlib.Path(directory_str)
+            started_path = directory / "started"
+            continue_path = directory / "continue"
+            script_path = directory / "stdout_script.py"
+            # the script runs on past the end of the console command, so that the two redirections overlap.
+            script_path.write_text(f"import pathlib, sys, time\n"
+                                   f"pathlib.Path({str(started_path)!r}).touch()\n"
+                                   f"start_time = time.time()\n"
+                                   f"while not pathlib.Path({str(continue_path)!r}).exists() and time.time() - start_time < 10.0:\n"
+                                   f"    time.sleep(0.01)\n"
+                                   f"sys.stdout.write(\"x\\n\")\n")
+
+            def wait_until_script_started() -> None:
+                start_time = time.time()
+                while not started_path.exists() and time.time() - start_time < 10.0:
+                    time.sleep(0.01)
+
+            stdout, stderr = sys.stdout, sys.stderr
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            console = ConsoleDialog.ConsoleWidgetStateController({"dialog": dialog, "wait_until_script_started": wait_until_script_started})
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                console.interpret_command(f"dialog.run_script({str(script_path)!r}); wait_until_script_started()")
+                continue_path.touch()
+                start_time = time.time()
+                while output_widget.text != "x" and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+            finally:
+                dialog.close()
+                console.close()
+            self.assertIs(stdout, sys.stdout)
+            self.assertIs(stderr, sys.stderr)
+
+    def test_script_shows_output_written_to_stdout_by_thread_started_with_its_context(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            script_path = pathlib.Path(directory_str) / "thread_script.py"
+            script_path.write_text("import contextvars, sys, threading\n"
+                                   "thread = threading.Thread(target=contextvars.copy_context().run, args=(sys.stdout.write, \"x\\n\"))\n"
+                                   "thread.start()\n"
+                                   "thread.join()\n")
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                dialog.run_script(str(script_path))
+                start_time = time.time()
+                while output_widget.text != "x" and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                self.assertEqual("x", output_widget.text)
+            finally:
+                dialog.close()
+
+    def test_output_panel_shows_output_written_outside_a_running_script_and_not_the_script_output(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            output_panel = document_controller.find_dock_panel("output-panel")
+            assert output_panel
+            output_panel_widget = typing.cast(UserInterface.TextEditWidget, output_panel.widget)
+            directory = pathlib.Path(directory_str)
+            started_path = directory / "started"
+            continue_path = directory / "continue"
+            script_path = directory / "stdout_script.py"
+            # the script writes while the main thread writes outside it.
+            script_path.write_text(f"import pathlib, sys, time\n"
+                                   f"sys.stdout.write(\"written by the script\\n\")\n"
+                                   f"pathlib.Path({str(started_path)!r}).touch()\n"
+                                   f"start_time = time.time()\n"
+                                   f"while not pathlib.Path({str(continue_path)!r}).exists() and time.time() - start_time < 10.0:\n"
+                                   f"    time.sleep(0.01)\n")
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                dialog.run_script(str(script_path))
+                start_time = time.time()
+                while not started_path.exists() and time.time() - start_time < 10.0:
+                    time.sleep(0.01)
+                print("printed outside the script")
+                sys.stderr.write("written to stderr outside the script\n")
+                continue_path.touch()
+                start_time = time.time()
+                while output_widget.text != "written by the script" and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                document_controller.periodic()
+                output_panel_text = output_panel_widget.text or str()
+                self.assertEqual("written by the script", output_widget.text)
+                self.assertIn("printed outside the script", output_panel_text)
+                self.assertIn("written to stderr outside the script", output_panel_text)
+                self.assertNotIn("written by the script", output_panel_text)
+            finally:
+                dialog.close()
+
+    def test_script_calling_run_script_through_its_api_shows_the_output_of_the_script_it_runs(self):
+        with TestContext.MemoryProfileContext() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            # the API given to the script queues each call to the application's window.
+            app = self._test_setup.app
+            document_model = profile_context.create_document_model(auto_close=False)
+            app._set_profile_for_test(profile_context.profile)
+            document_controller = app.create_document_controller(document_model, "library")
+            directory = pathlib.Path(directory_str)
+            inner_script_path = directory / "inner_script.py"
+            inner_script_path.write_text("import sys\nsys.stdout.write(\"written by the inner script\\n\")\n")
+            script_path = directory / "outer_script.py"
+            script_path.write_text(f"def script_main(api_broker):\n"
+                                   f"    api_broker.get_api(\"~1.0\").run_script(file_path={str(inner_script_path)!r})\n")
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                dialog.run_script(str(script_path))
+                start_time = time.time()
+                while output_widget.text != "written by the inner script" and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                self.assertEqual("written by the inner script", output_widget.text)
+            finally:
+                dialog.close()
+                document_controller.close()
+                app._set_profile_for_test(None)
 
 
 if __name__ == '__main__':
