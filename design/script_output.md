@@ -11,14 +11,14 @@ The Python console and the Run Script dialog each show what the code they run wr
 | An asyncio task started by a console command or a script, or a thread it starts with `contextvars.copy_context()` | Where the command's or the script's output goes, while that destination lasts |
 | A thread started any other way | The Output panel |
 | An API call made by a dialog's script | The dialog |
-| A dialog script's `print`, from any thread | The dialog |
+| A dialog script's `print`, from any thread | The dialog, until the run ends |
 | Anything else, or anything after its destination ends | The Output panel |
 
 If a destination goes away while something is still writing to it, such as a thread still running after its dialog has closed, the output goes to the Output panel instead.
 
 ## The Run Script dialog
 
-A script's output goes to its dialog until the script returns.
+A script's output goes to its dialog until the dialog runs the script again or is closed, since the dialog still shows that script's result. So a thread the script started keeps writing to the dialog after the script finishes, and a thread left over from an earlier run does not write into the next run's output.
 
 ## Running a script through the API
 
