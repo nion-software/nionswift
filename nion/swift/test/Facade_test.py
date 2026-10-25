@@ -1,4 +1,6 @@
 # standard libraries
+import pathlib
+import tempfile
 import typing
 import unittest
 
@@ -8,6 +10,7 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
+from nion.swift import ConsoleDialog
 from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift import Thumbnails
@@ -615,6 +618,18 @@ class TestFacadeClass(unittest.TestCase):
                 self.assertEqual(1, menu_item_handler.run_count)
             finally:
                 menu_item_reference.close()
+
+    def test_run_script_without_stdout_from_console_shows_what_the_script_prints_in_the_console(self):
+        with create_memory_profile_context() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            profile_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            script_path = pathlib.Path(directory_str) / "print_script.py"
+            script_path.write_text("print(\"x\")\n")
+            console = ConsoleDialog.ConsoleWidgetStateController({"api": api})
+            try:
+                self.assertEqual(("x\n", 0), console.interpret_command(f"api.run_script(file_path={str(script_path)!r})"))
+            finally:
+                console.close()
 
 if __name__ == '__main__':
     unittest.main()

@@ -3567,21 +3567,6 @@ class API_1:
 
         compiled = compile(script_ast, script_name, 'exec')
 
-        if not stdout:
-            print_fn = print
-
-            class StdoutCatcher:
-                def __init__(self) -> None:
-                    pass
-
-                def write(self, stuff: str) -> None:
-                    print_fn(stuff.rstrip())
-
-                def flush(self) -> None:
-                    pass
-
-            stdout = StdoutCatcher()
-
         class ScriptAPIBroker:
             def get_api(self, version: str, ui_version: str | None = None) -> API_1:
                 ui_version = ui_version if ui_version else "~1.0"
@@ -3593,11 +3578,16 @@ class API_1:
                     raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
                 return Declarative.DeclarativeUI()
 
-        with contextlib.redirect_stdout(typing.cast(typing.Any, stdout)), contextlib.redirect_stderr(typing.cast(typing.Any, stdout)):
-            g: typing.Dict[str, typing.Any] = dict()
-            api_broker: APIBroker = ScriptAPIBroker()
-            g["api_broker"] = api_broker
+        g: typing.Dict[str, typing.Any] = dict()
+        api_broker: APIBroker = ScriptAPIBroker()
+        g["api_broker"] = api_broker
+
+        # without a stdout, the script's output goes wherever the caller's output goes.
+        if stdout is not None:
             g["print"] = stdout.write
+            with contextlib.redirect_stdout(typing.cast(typing.Any, stdout)), contextlib.redirect_stderr(typing.cast(typing.Any, stdout)):
+                exec(compiled, g)
+        else:
             exec(compiled, g)
 
     def resolve_api_object_specifier(self, d: typing.Optional[Persistence.PersistentDictType]) -> typing.Any:
