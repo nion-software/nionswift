@@ -22,7 +22,7 @@ A script's output goes to its dialog until the dialog runs the script again or i
 
 ## Running a script through the API
 
-Given a `stdout`, the API's `run_script` sends everything written to standard output and standard error while the script runs, from any thread, to that stream. Without one, the output goes wherever the caller's output goes, such as a console command's result or the dialog of the script which called it.
+The API's `run_script` sends the script's output to the stream passed as its `stdout`. Without one, the output goes wherever the caller's output goes, such as a console command's result or the dialog of the script which called it.
 
 ## Decisions
 

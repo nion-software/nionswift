@@ -3536,10 +3536,8 @@ class API_1:
         elif isinstance(item, dict) and item.get("type") == "modeless_dialog":
             window.show_modeless_dialog(item, *parameters)
 
-    def run_script(self, *, file_path: str, stdout: typing.Any = None) -> None:
-        # stdout is not used
+    def run_script(self, *, file_path: str, stdout: Utility.OutputRedirectionTarget | None = None) -> None:
         import ast
-        import contextlib
         import os
         with open(file_path) as f:
             script = f.read()
@@ -3585,7 +3583,7 @@ class API_1:
         # without a stdout, the script's output goes wherever the caller's output goes.
         if stdout is not None:
             g["print"] = stdout.write
-            with contextlib.redirect_stdout(typing.cast(typing.Any, stdout)), contextlib.redirect_stderr(typing.cast(typing.Any, stdout)):
+            with Utility.redirect_output(stdout, stdout):
                 exec(compiled, g)
         else:
             exec(compiled, g)
