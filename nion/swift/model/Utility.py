@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import contextlib
+import contextvars
 import dataclasses
 import datetime
 import functools
@@ -637,6 +638,172 @@ class Timer:
         if self.threshold == 0.0 or (current_time - self.last_time_ns) // 1E9 > self.threshold:
             print(f"{title}: {(current_time - self.start_time_ns) // 1E6}ms +{(current_time - self.last_time_ns) // 1E6}ms")
         self.last_time_ns = current_time
+
+
+class OutputRedirectionTarget(typing.Protocol):
+    """The part of a text stream that an output redirection writes to."""
+
+    def write(self, text: str, /) -> object: ...
+
+    def flush(self) -> None: ...
+
+
+class OutputRedirection:
+    """A destination for what is written to sys.stdout and sys.stderr in the contexts which hold it, until it ends.
+
+    Creating a redirection installs an OutputRedirectionStream as sys.stdout and as sys.stderr where one is not already
+    installed. Ending the last redirection which has not ended restores the streams they replaced, so every redirection
+    must be ended, once, by whoever creates it; redirect_output does this for a with block.
+
+    The redirect method holds the redirection in the current context, inside any redirection already held there. A copy
+    of that context holds it too, such as the one an asyncio task takes when it is created, or one passed to a thread
+    with contextvars.copy_context. A redirection which has ended, or whose target is itself an OutputRedirectionStream,
+    such as sys.stdout, passes output on to the redirection it is held inside. Output which no redirection takes goes to
+    the replaced streams.
+
+    Callable from any thread.
+    """
+
+    def __init__(self, stdout: OutputRedirectionTarget, stderr: OutputRedirectionTarget) -> None:
+
+        # the targets, which end drops so that an ended redirection does not keep them alive. a target which is itself an
+        # OutputRedirectionStream is kept as None, since writing to it would come back to this redirection, so output for
+        # it passes on to the enclosing redirection as it would without this one. guarded by the lock, which
+        # is also held while writing to a target, so that no output reaches a target once end returns. the lock is
+        # reentrant so that a target which writes to sys.stdout in the same context raises a RecursionError rather than
+        # hanging.
+        self.__lock = threading.RLock()
+        self.__stdout: OutputRedirectionTarget | None = None if isinstance(stdout, OutputRedirectionStream) else stdout
+        self.__stderr: OutputRedirectionTarget | None = None if isinstance(stderr, OutputRedirectionStream) else stderr
+        self.__is_ended = False
+
+        _install_output_redirection_streams()
+
+    def write(self, text: str, is_stderr: bool) -> bool:
+        """Write the text to the stdout or stderr target and return True, or return False if there is no target to take it."""
+        with self.__lock:
+            target = self.__stderr if is_stderr else self.__stdout
+            if target is not None:
+                target.write(text)
+                return True
+            return False
+
+    def flush(self, is_stderr: bool) -> bool:
+        """Flush the stdout or stderr target and return True, or return False if there is no target to take it."""
+        with self.__lock:
+            target = self.__stderr if is_stderr else self.__stdout
+            if target is not None:
+                target.flush()
+                return True
+            return False
+
+    def end(self) -> None:
+        """End the redirection, so that output written in the contexts which hold it passes on to the redirection it is held inside."""
+        with self.__lock:
+            if self.__is_ended:
+                return
+            self.__is_ended = True
+            self.__stdout = None
+            self.__stderr = None
+        _uninstall_output_redirection_streams()
+
+    @contextlib.contextmanager
+    def redirect(self) -> typing.Iterator[None]:
+        """Hold the redirection in the current context, inside any redirection already held there, until the with block exits."""
+        token = _output_redirections.set(_output_redirections.get() + (self,))
+        try:
+            yield
+        finally:
+            _output_redirections.reset(token)
+
+
+class OutputRedirectionStream:
+    """A stream which stands in for sys.stdout or sys.stderr and writes to the output redirections held in the current context.
+
+    Each write goes to the innermost redirection which takes it, and output which no redirection takes goes to the
+    replaced stream.
+    """
+
+    def __init__(self, replaced_stream: typing.TextIO, is_stderr: bool) -> None:
+        self.replaced_stream = replaced_stream
+        self.is_stderr = is_stderr
+
+    # write to the innermost redirection held in the current context which takes the text, or to the replaced stream.
+    def write(self, text: str) -> int:
+        if not any(output_redirection.write(text, self.is_stderr) for output_redirection in reversed(_output_redirections.get())):
+            self.replaced_stream.write(text)
+        return len(text)
+
+    # write each line as write does.
+    def writelines(self, lines: typing.Iterable[str]) -> None:
+        for line in lines:
+            self.write(line)
+
+    # flush the target of the innermost redirection held in the current context which has one, or the replaced stream.
+    def flush(self) -> None:
+        if not any(output_redirection.flush(self.is_stderr) for output_redirection in reversed(_output_redirections.get())):
+            self.replaced_stream.flush()
+
+    # other attributes, such as encoding, are those of the replaced stream. they are typed as Any since they may be of any type.
+    def __getattr__(self, name: str) -> typing.Any:
+        return getattr(self.replaced_stream, name)
+
+
+# the output redirections held in the current context, innermost last.
+_output_redirections: contextvars.ContextVar[tuple[OutputRedirection, ...]] = contextvars.ContextVar("output_redirections", default=tuple())
+
+# the number of output redirections which have not ended. guarded by the lock, which also guards installing and restoring
+# sys.stdout and sys.stderr.
+_output_redirection_lock = threading.Lock()
+_output_redirection_count = 0
+
+
+def _install_output_redirection_streams() -> None:
+    """Count a new output redirection, and install an OutputRedirectionStream as sys.stdout and sys.stderr where one is not installed.
+
+    Something else may have replaced an installed stream since, so each new redirection checks, and wraps whatever stream
+    it finds. Every OutputRedirectionStream writes to the redirections held in the current context, so one which something
+    else has wrapped, or restores later, writes to the same destinations.
+    """
+    global _output_redirection_count
+    with _output_redirection_lock:
+        _output_redirection_count += 1
+        if not isinstance(sys.stdout, OutputRedirectionStream):
+            sys.stdout = typing.cast(typing.TextIO, OutputRedirectionStream(sys.stdout, False))
+        if not isinstance(sys.stderr, OutputRedirectionStream):
+            sys.stderr = typing.cast(typing.TextIO, OutputRedirectionStream(sys.stderr, True))
+
+
+def _uninstall_output_redirection_streams() -> None:
+    """Count an ended output redirection, and once none is left, restore the streams the installed streams replaced.
+
+    An OutputRedirectionStream which something else has wrapped stays where it is, and passes all output through to the
+    stream it replaced, since no redirection is left.
+    """
+    global _output_redirection_count
+    with _output_redirection_lock:
+        _output_redirection_count -= 1
+        if _output_redirection_count == 0:
+            while isinstance(sys.stdout, OutputRedirectionStream):
+                sys.stdout = sys.stdout.replaced_stream
+            while isinstance(sys.stderr, OutputRedirectionStream):
+                sys.stderr = sys.stderr.replaced_stream
+
+
+@contextlib.contextmanager
+def redirect_output(stdout: OutputRedirectionTarget, stderr: OutputRedirectionTarget) -> typing.Iterator[None]:
+    """Redirect what is written to sys.stdout and sys.stderr in the current context to stdout and stderr, until the with block exits.
+
+    Unlike contextlib.redirect_stdout, this leaves the output of other threads where it was, so redirections on several
+    threads can overlap in any order. The redirection ends when the with block exits, so output from a copy of the context,
+    such as an asyncio task created in the block, passes on to the redirection it was held inside after that.
+    """
+    output_redirection = OutputRedirection(stdout, stderr)
+    try:
+        with output_redirection.redirect():
+            yield
+    finally:
+        output_redirection.end()
 
 
 def make_pretty_size_str(total_bytes: int | float) -> str:

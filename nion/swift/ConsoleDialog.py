@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # system imports
 import code
-import contextlib
 import copy
 import dataclasses
 import gettext
@@ -18,6 +17,7 @@ import typing
 from nion.swift import Panel
 from nion.swift.model import DocumentModel
 from nion.swift.model import Persistence
+from nion.swift.model import Utility
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Widgets
@@ -90,7 +90,7 @@ class ConsoleWidgetStateController:
         self.__command_cache = (None, str())
         output = io.StringIO()
         error = io.StringIO()
-        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+        with Utility.redirect_output(output, error):
             self.__incomplete = self.__console.push(command)
         if error.getvalue():
             result =  error.getvalue()
