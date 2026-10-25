@@ -150,8 +150,9 @@ class OutputPanel(Panel):
         class StdoutCatcher:
             def __init__(self, out: typing.TextIO) -> None:
                 self.__out = out
+            # a write may come from any thread while panels are added and removed on the main thread, so iterate a copy.
             def write(self, stuff: typing.Any) -> None:
-                for stdout_listener in stdout_listeners.values():
+                for stdout_listener in tuple(stdout_listeners.values()):
                     stdout_listener(stuff)
                 self.__out.write(stuff)
             def flush(self) -> None:
