@@ -385,6 +385,11 @@ class InteractiveScriptAPIBroker:
         return Declarative.DeclarativeUI()
 
 
+def _format_print_text(values: typing.Sequence[object], sep: str | None, end: str | None) -> str:
+    """Return the text the built-in print writes for the values, with its sep and end arguments."""
+    return (" " if sep is None else sep).join(str(value) for value in values) + ("\n" if end is None else end)
+
+
 class RunScriptDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller: "DocumentController.DocumentController"):
@@ -759,7 +764,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         # the script's print writes to this run's redirection from any thread, with the sep and end arguments of the
         # built-in print, and to sys.stdout once the run has ended.
         def script_print(*values: object, sep: str | None = " ", end: str | None = "\n") -> None:
-            text = (" " if sep is None else sep).join(str(value) for value in values) + ("\n" if end is None else end)
+            text = _format_print_text(values, sep, end)
             if not output_redirection.write(text, False):
                 sys.stdout.write(text)
 
@@ -859,7 +864,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         Callable from any thread.
         """
-        text = (" " if sep is None else sep).join(str(value) for value in values) + ("\n" if end is None else end)
+        text = _format_print_text(values, sep, end)
         with self.__lock:
             self.__output_queue.append(text)
             self.document_controller.add_task("print_" + str(id(self)), self.__handle_output_and_q)
