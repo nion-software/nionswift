@@ -2,14 +2,17 @@ from __future__ import annotations
 
 # system imports
 import code
+import contextvars
 import copy
 import dataclasses
+import functools
 import gettext
 import importlib
 import io
 import logging
 import re
 import sys
+import threading
 import types
 import typing
 
@@ -192,21 +195,38 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__text_edit_widget.on_key_pressed = self.__key_pressed
         self.__text_edit_widget.on_insert_mime_data = self.__insert_mime_data
 
+        # output written from other threads while a command runs, held for the main thread to append before the
+        # command's result, since the text widget is touched only on the main thread. guarded by the lock, which also
+        # guards how many commands are running, counted so that a nested command does not end the outer one.
+        self.__output_lock = threading.Lock()
+        self.__pending_output: list[typing.Callable[[], None]] = list()
+        self.__running_command_count = 0
+
+        console_widget = self
+
         class StdoutCatcher:
-            def __init__(self, text_edit_widget: UserInterface.TextEditWidget) -> None:
-                self.__text_edit_widget = text_edit_widget
+            def __init__(self) -> None:
+                self.__is_closed = False
+
+            def close(self) -> None:
+                self.__is_closed = True
 
             def write(self, stuff: str) -> int:
-                if self.__text_edit_widget:
+                if not self.__is_closed:
                     stripped_stuff = str(stuff).rstrip()
-                    self.__text_edit_widget.append_text(stripped_stuff)
-                    return len(stripped_stuff)
-                return 0
+                    if console_widget._append_output(functools.partial(console_widget._append_text, stripped_stuff)):
+                        return len(stripped_stuff)
+                # output the console does not take, from another thread after its command has returned or from any
+                # thread after the console has closed, goes to the stream the output redirections replaced. it is
+                # written in an empty context, since the writing context can still hold a redirection to this catcher.
+                contextvars.Context().run(sys.stdout.write, stuff)
+                return len(stuff)
 
             def flush(self) -> None:
                 pass
 
-        stdout = StdoutCatcher(self.__text_edit_widget)
+        stdout = StdoutCatcher()
+        self.__stdout = stdout
 
         class LoggingHandler(logging.Handler):
 
@@ -218,7 +238,9 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             def emit(self, record: logging.LogRecord) -> None:
                 if record.levelno >= logging.INFO:
                     color = None if self._prompted else "grey"
-                    self.__console_widget.append_line(str(record.getMessage()).rstrip(), color=color)
+                    # a record the console does not take is left out. the Output panel shows it, since the console's
+                    # logger passes its records on to the root logger.
+                    self.__console_widget._append_output(functools.partial(self.__console_widget.append_line, str(record.getMessage()).rstrip(), color=color))
 
         self.__logging_handler = LoggingHandler(self)
         self.__logger.addHandler(self.__logging_handler)
@@ -239,10 +261,55 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__text_edit_widget.on_return_pressed = None
         self.__text_edit_widget.on_key_pressed = None
         self.__text_edit_widget.on_insert_mime_data = None
+        self.__stdout.close()
         super().close()
         self.__text_edit_widget = typing.cast(typing.Any, None)
         self.__state_controller.close()
         self.__state_controller = typing.cast(typing.Any, None)
+
+    def _append_output(self, append_fn: typing.Callable[[], None]) -> bool:
+        """Run append_fn, which appends output to the console, on the main thread.
+
+        On the main thread, append_fn runs at once, after any output other threads wrote before it. From another thread,
+        it is held while a command runs, for the main thread to run before the command's result. Return False when it does
+        not run: after the console closes, or from another thread while no command runs.
+
+        Callable from any thread.
+        """
+        if self.__closed:
+            return False
+        if threading.current_thread() is threading.main_thread():
+            self.__append_pending_output()
+            append_fn()
+            return True
+        with self.__output_lock:
+            if self.__running_command_count > 0:
+                self.__pending_output.append(append_fn)
+                return True
+        return False
+
+    # append text to the console. called on the main thread.
+    def _append_text(self, text: str) -> None:
+        self.__text_edit_widget.append_text(text)
+
+    # append the output other threads wrote while a command ran. called on the main thread.
+    def __append_pending_output(self) -> None:
+        with self.__output_lock:
+            pending_output = self.__pending_output
+            self.__pending_output = list()
+        if not self.__closed:
+            for append_fn in pending_output:
+                append_fn()
+
+    def __interpret_command(self, command: str) -> typing.Tuple[str, int]:
+        with self.__output_lock:
+            self.__running_command_count += 1
+        try:
+            return self.__state_controller.interpret_command(command)
+        finally:
+            with self.__output_lock:
+                self.__running_command_count -= 1
+            self.__append_pending_output()
 
     def show_prompt(self) -> None:
         self.__logging_handler._prompted = True
@@ -262,7 +329,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             text_edit_widget = self.__text_edit_widget
             text_edit_widget.move_cursor_position("end")
             text_edit_widget.insert_text(l)
-            result, error_code = self.__state_controller.interpret_command(l)
+            result, error_code = self.__interpret_command(l)
             # if the console is closed as a result of running the script, don't try to append text.
             # the console can be closed as a result of switching to another project via script.
             if not self.__closed:
@@ -281,11 +348,11 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
     def interpret_lines(self, lines: typing.Sequence[str]) -> None:
         for l in lines:
-            self.__state_controller.interpret_command(l)
+            self.__interpret_command(l)
 
     def __return_pressed(self) -> bool:
         command = self.__get_partial_command()
-        result, error_code = self.__state_controller.interpret_command(command)
+        result, error_code = self.__interpret_command(command)
         if len(result) > 0:
             self.__text_edit_widget.set_text_color("red" if error_code else "aquamarine")
             self.__text_edit_widget.append_text(result[:-1])
