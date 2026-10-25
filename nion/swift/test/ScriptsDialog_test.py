@@ -276,6 +276,152 @@ class TestScriptsDialogClass(unittest.TestCase):
                 document_controller.close()
                 app._set_profile_for_test(None)
 
+    def test_script_shows_output_written_to_stdout_by_its_thread_after_the_script_finishes(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            directory = pathlib.Path(directory_str)
+            continue_path = directory / "continue"
+            script_path = directory / "thread_script.py"
+            script_path.write_text(f"import contextvars, pathlib, sys, threading, time\n"
+                                   f"def write_later():\n"
+                                   f"    start_time = time.time()\n"
+                                   f"    while not pathlib.Path({str(continue_path)!r}).exists() and time.time() - start_time < 10.0:\n"
+                                   f"        time.sleep(0.01)\n"
+                                   f"    sys.stdout.write(\"x\\n\")\n"
+                                   f"threading.Thread(target=contextvars.copy_context().run, args=(write_later,), daemon=True).start()\n")
+
+            # the dialog shows a Finished label once the script returns.
+            def is_finished() -> bool:
+                widgets: list[UserInterface.Widget] = [dialog.content]
+                while widgets:
+                    widget = widgets.pop()
+                    if isinstance(widget, UserInterface.LabelWidget) and widget.text == "Finished":
+                        return True
+                    widgets.extend(widget._contained_widgets)
+                return False
+
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                dialog.run_script(str(script_path))
+                start_time = time.time()
+                while not is_finished() and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                continue_path.touch()
+                start_time = time.time()
+                while output_widget.text != "x" and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                self.assertEqual("x", output_widget.text)
+            finally:
+                dialog.close()
+
+    def test_script_run_again_does_not_show_output_of_a_thread_of_the_earlier_run(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            directory = pathlib.Path(directory_str)
+            first_run_path = directory / "first_run"
+            continue_path = directory / "continue"
+            written_path = directory / "written"
+            script_path = directory / "thread_script.py"
+            # the first run starts a thread which writes during the second run. the second run writes on its own.
+            script_path.write_text(f"import contextvars, pathlib, sys, threading, time\n"
+                                   f"def write_later():\n"
+                                   f"    start_time = time.time()\n"
+                                   f"    while not pathlib.Path({str(continue_path)!r}).exists() and time.time() - start_time < 10.0:\n"
+                                   f"        time.sleep(0.01)\n"
+                                   f"    print(\"printed by the first run\")\n"
+                                   f"    sys.stdout.write(\"written by the first run\\n\")\n"
+                                   f"    pathlib.Path({str(written_path)!r}).touch()\n"
+                                   f"if not pathlib.Path({str(first_run_path)!r}).exists():\n"
+                                   f"    pathlib.Path({str(first_run_path)!r}).touch()\n"
+                                   f"    threading.Thread(target=contextvars.copy_context().run, args=(write_later,), daemon=True).start()\n"
+                                   f"else:\n"
+                                   f"    sys.stdout.write(\"second\\n\")\n")
+
+            # the dialog shows a Run Again button once the script returns.
+            def find_run_again_button() -> UserInterface.PushButtonWidget | None:
+                widgets: list[UserInterface.Widget] = [dialog.content]
+                while widgets:
+                    widget = widgets.pop()
+                    if isinstance(widget, UserInterface.PushButtonWidget) and widget.text == "Run Again":
+                        return widget
+                    widgets.extend(widget._contained_widgets)
+                return None
+
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                dialog.run_script(str(script_path))
+                start_time = time.time()
+                while not (run_again_button := find_run_again_button()) and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                assert run_again_button and run_again_button.on_clicked
+                run_again_button.on_clicked()
+                start_time = time.time()
+                while output_widget.text != "second" and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                continue_path.touch()
+                start_time = time.time()
+                while not written_path.exists() and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                document_controller.periodic()
+                self.assertEqual("second", output_widget.text)
+            finally:
+                dialog.close()
+
+    def test_script_thread_output_after_the_dialog_closes_goes_to_the_output_panel(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            output_panel = document_controller.find_dock_panel("output-panel")
+            assert output_panel
+            output_panel_widget = typing.cast(UserInterface.TextEditWidget, output_panel.widget)
+            directory = pathlib.Path(directory_str)
+            continue_path = directory / "continue"
+            written_path = directory / "written"
+            script_path = directory / "thread_script.py"
+            script_path.write_text(f"import contextvars, pathlib, sys, threading, time\n"
+                                   f"def write_later():\n"
+                                   f"    start_time = time.time()\n"
+                                   f"    while not pathlib.Path({str(continue_path)!r}).exists() and time.time() - start_time < 10.0:\n"
+                                   f"        time.sleep(0.01)\n"
+                                   f"    print(\"printed after the dialog closed\")\n"
+                                   f"    sys.stdout.write(\"written after the dialog closed\\n\")\n"
+                                   f"    pathlib.Path({str(written_path)!r}).touch()\n"
+                                   f"threading.Thread(target=contextvars.copy_context().run, args=(write_later,), daemon=True).start()\n")
+
+            # the dialog shows a Finished label once the script returns.
+            def is_finished() -> bool:
+                widgets: list[UserInterface.Widget] = [dialog.content]
+                while widgets:
+                    widget = widgets.pop()
+                    if isinstance(widget, UserInterface.LabelWidget) and widget.text == "Finished":
+                        return True
+                    widgets.extend(widget._contained_widgets)
+                return False
+
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                dialog.run_script(str(script_path))
+                start_time = time.time()
+                while not is_finished() and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+            finally:
+                dialog.close()
+            continue_path.touch()
+            start_time = time.time()
+            while not written_path.exists() and time.time() - start_time < 10.0:
+                time.sleep(0.01)
+            document_controller.periodic()
+            output_panel_text = output_panel_widget.text or str()
+            self.assertIn("printed after the dialog closed", output_panel_text)
+            self.assertIn("written after the dialog closed", output_panel_text)
+
 
 if __name__ == '__main__':
     unittest.main()

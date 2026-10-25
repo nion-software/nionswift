@@ -403,6 +403,9 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.__thread: typing.Optional[threading.Thread] = None
 
+        # where the output of the most recent run goes. confined to the main thread.
+        self.__output_redirection: Utility.OutputRedirection | None = None
+
         properties = dict()
         properties["min-height"] = 180
         properties["min-width"] = 540
@@ -619,6 +622,8 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def close(self) -> None:
         self.__is_closed = True
+        if self.__output_redirection:
+            self.__output_redirection.end()
         for sync_event in self.__sync_events:
             sync_event.set()
         if self.__thread:
@@ -659,6 +664,11 @@ class RunScriptDialog(Dialog.ActionDialog):
         return cancel_row
 
     def run_script(self, script_path: str) -> None:
+        # output from threads of an earlier run goes to the Output panel rather than mixing with this run's output.
+        if self.__output_redirection:
+            self.__output_redirection.end()
+            self.__output_redirection = None
+
         # Reload modules that are in on of the script folders.
         current_modules = list(sys.modules.values())
         for module in current_modules:
@@ -678,6 +688,9 @@ class RunScriptDialog(Dialog.ActionDialog):
                         self.continue_after_parse_error(script_path)
                         return
 
+        # output an earlier run's threads queued before its redirection ended is dropped with that run's text.
+        with self.__lock:
+            self.__output_queue.clear()
         self.__output_widget.text = str()
         self.__output_line_ended = False
 
@@ -728,29 +741,42 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         compiled = compile(script_ast, script_name, 'exec')
 
+        print_fn = self.print
+
+        class StdoutCatcher:
+            def write(self, stuff: str) -> None:
+                print_fn(stuff, end=str())
+
+            def flush(self) -> None:
+                pass
+
+        # the redirection lasts until the dialog closes or runs again, so that a thread the script starts with a copy of
+        # its context writes to this dialog after the script returns.
+        stdout = StdoutCatcher()
+        output_redirection = Utility.OutputRedirection(stdout, stdout)
+        self.__output_redirection = output_redirection
+
+        # the script's print writes to this run's redirection from any thread, with the sep and end arguments of the
+        # built-in print, and to sys.stdout once the run has ended.
+        def script_print(*values: object, sep: str | None = " ", end: str | None = "\n") -> None:
+            text = (" " if sep is None else sep).join(str(value) for value in values) + ("\n" if end is None else end)
+            if not output_redirection.write(text, False):
+                sys.stdout.write(text)
+
         def run_it(compiled: typing.Any, interactive_session: RunScriptDialog) -> None:
             try:
                 g: typing.Dict[str, typing.Any] = dict()
                 api_broker: Facade.InteractiveAPIBroker = InteractiveScriptAPIBroker(interactive_session)
                 g["api_broker"] = api_broker
-                g["print"] = self.print
+                g["print"] = script_print
                 g["input"] = self.get_string
 
                 if is_internal_main:
                     g["_window"] = self.document_controller
 
-                print_fn = self.print
                 self.__cancelled = False  # Reset cancelled flag to make "Run again" work after a script was cancelled
 
-                class StdoutCatcher:
-                    def write(self, stuff: str) -> None:
-                        print_fn(stuff, end=str())
-
-                    def flush(self) -> None:
-                        pass
-
-                stdout = StdoutCatcher()
-                with Utility.redirect_output(stdout, stdout):
+                with output_redirection.redirect():
                     try:
                         exec(compiled, g)
                     except ScriptCancelException as e:
