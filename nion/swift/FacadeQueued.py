@@ -53,6 +53,48 @@ def convert_from_facade(x):
         return getattr(x, "_proxy")
     return x
 
+
+class QueuedCallInterruption:
+
+    def __init__(self, make_exception):
+        self.make_exception = make_exception
+        self.__lock = threading.Lock()
+        self.__is_interrupted = False
+        self.__waiting_events = set()
+
+    def interrupt(self):
+        with self.__lock:
+            self.__is_interrupted = True
+            waiting_events = list(self.__waiting_events)
+        for waiting_event in waiting_events:
+            waiting_event.set()
+
+    def reset(self):
+        with self.__lock:
+            self.__is_interrupted = False
+
+    def wait(self, finished_event):
+        with self.__lock:
+            if self.__is_interrupted:
+                return
+            self.__waiting_events.add(finished_event)
+        try:
+            finished_event.wait()
+        finally:
+            with self.__lock:
+                self.__waiting_events.discard(finished_event)
+
+
+class InterruptibleQueueTask:
+
+    def __init__(self, queue_task, interruption):
+        self.__queue_task = queue_task
+        self.interruption = interruption
+
+    def __call__(self, task):
+        self.__queue_task(task)
+
+
 def queued(method):
     def queued(*args, **kwargs):
         result_ref = []
@@ -69,8 +111,14 @@ def queued(method):
                 exception_ref.append(e)
             finally:
                 finished_event.set()
-        getattr(target, "_queue_task")(run)  # avoid type errors below
-        finished_event.wait()
+        queue_task = getattr(target, "_queue_task")  # avoid type errors below
+        queue_task(run)
+        if isinstance(queue_task, InterruptibleQueueTask):
+            queue_task.interruption.wait(finished_event)
+            if len(result_ref) == 0 and len(exception_ref) == 0:
+                raise queue_task.interruption.make_exception()
+        else:
+            finished_event.wait()
         if len(exception_ref) > 0:
             raise exception_ref[0]
         return result_ref[0]

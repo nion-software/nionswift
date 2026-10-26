@@ -355,11 +355,15 @@ class ScriptCancelException(Exception):
 class InteractiveScriptAPIBroker:
     """The api_broker passed to the script_main function of an interactive script.
 
-    The API it returns runs each call on the main thread, since the script runs on its own thread.
+    The API it returns runs each call on the main thread, since the script runs on its own thread. Given a queued call
+    interruption, a call made or waiting while it is interrupted stops waiting and raises its exception; the call itself
+    still runs later on the main thread.
     """
 
-    def __init__(self, interactive_session: Facade.InteractiveSession) -> None:
+    # the queued call interruption is a FacadeQueued.QueuedCallInterruption, which is typed Any since FacadeQueued is not type checked.
+    def __init__(self, interactive_session: Facade.InteractiveSession, queued_call_interruption: typing.Any = None) -> None:
         self.__interactive_session = interactive_session
+        self.__queued_call_interruption = queued_call_interruption
 
     def get_interactive(self, version: str | None = None) -> Facade.InteractiveSession:
         actual_version = "1.0.0"
@@ -371,7 +375,10 @@ class InteractiveScriptAPIBroker:
         ui_version = ui_version if ui_version else "~1.0"
         api = PlugInManager.api_broker_fn(version, ui_version)
         queued_api = FacadeQueued.API(api, None)  # type: ignore
-        queued_api._queue_task = api.queue_task
+        if self.__queued_call_interruption is not None:
+            queued_api._queue_task = FacadeQueued.InterruptibleQueueTask(api.queue_task, self.__queued_call_interruption)  # type: ignore
+        else:
+            queued_api._queue_task = api.queue_task
         # the queued API proxies the public members of the API onto the main thread, so it presents the API interface.
         # members which are not public yet, such as computations and their registration, are not proxied. neither are
         # the type declarations nested in the API, such as MenuItemReference. the proxies are not instances of the
@@ -410,6 +417,10 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         # where the output of the most recent run goes. confined to the main thread.
         self.__output_redirection: Utility.OutputRedirection | None = None
+
+        # closing the dialog interrupts the API calls of its scripts until the script thread ends, so that a call
+        # waiting for the main thread, which waits for the script thread, stops waiting.
+        self.__queued_call_interruption = FacadeQueued.QueuedCallInterruption(lambda: ScriptCancelException(_("The Run Script dialog was closed.")))  # type: ignore
 
         properties = dict()
         properties["min-height"] = 180
@@ -636,8 +647,10 @@ class RunScriptDialog(Dialog.ActionDialog):
             sync_events = list(self.__sync_events)
         for sync_event in sync_events:
             sync_event.set()
+        self.__queued_call_interruption.interrupt()
         if self.__thread:
             self.__thread.join()
+        self.__queued_call_interruption.reset()
         self.document_controller.clear_task("ui_" + str(id(self)))
         self.document_controller.clear_task("run_" + str(id(self)))
         self.document_controller.clear_task("show_" + str(id(self)))
@@ -776,7 +789,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         def run_it(compiled: typing.Any, interactive_session: RunScriptDialog) -> None:
             try:
                 g: typing.Dict[str, typing.Any] = dict()
-                api_broker: Facade.InteractiveAPIBroker = InteractiveScriptAPIBroker(interactive_session)
+                api_broker: Facade.InteractiveAPIBroker = InteractiveScriptAPIBroker(interactive_session, self.__queued_call_interruption)
                 g["api_broker"] = api_broker
                 g["print"] = script_print
                 g["input"] = self.get_string
