@@ -139,6 +139,31 @@ class TestFacadeClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_item_ref.data, data2))
             self.assertTrue(numpy.array_equal(data_item_ref.data_and_metadata.data, data2))
 
+    def test_data_item_data_metadata_does_not_load_data(self):
+        # a script reads the shape, dtype and descriptor of a reloaded data item without loading its data
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                xdata = DataAndMetadata.new_data_and_metadata(numpy.zeros((2, 4, 8), numpy.float32), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+                document_model.append_data_item(DataItem.DataItem())
+                document_model.append_data_item(DataItem.new_data_item(xdata))
+            data_read_count = 0
+
+            def handle_data_read(data_item_uuid_str: str) -> None:
+                nonlocal data_read_count
+                data_read_count += 1
+
+            # reload the project, counting the data items whose data is read
+            data_read_listener = profile_context._test_data_read_event.listen(handle_data_read)
+            profile_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            empty_data_item, data_item = api.library.data_items
+            self.assertIsNone(empty_data_item.data_metadata)
+            self.assertEqual((2, 4, 8), data_item.data_metadata.data_shape)
+            self.assertEqual(numpy.float32, data_item.data_metadata.data_dtype)
+            self.assertEqual(DataAndMetadata.DataDescriptor(True, 0, 2), data_item.data_metadata.data_descriptor)
+            self.assertEqual(0, data_read_count)
+
     def test_set_xdata_accepts_numpy_array(self):
         with create_memory_profile_context() as profile_context:
             document_controller = profile_context.create_document_controller_with_application()

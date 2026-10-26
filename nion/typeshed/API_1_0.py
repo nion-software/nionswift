@@ -442,6 +442,18 @@ class DataItem:
         ...
 
     @property
+    def data_metadata(self) -> DataAndMetadata.DataMetadata | None:
+        """Return the data metadata, such as the shape, dtype and data descriptor, without loading the data.
+
+        Return None when this data item has no data.
+
+        .. versionadded:: 16.19
+
+        Scriptable: Yes
+        """
+        ...
+
+    @property
     def dimensional_calibrations(self) -> typing.List[Calibration.Calibration]:
         """Return a copy of the list of dimensional calibrations.
 

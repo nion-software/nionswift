@@ -97,6 +97,7 @@ class :py:class:`nion.typeshed.API_1_0.DataItem`
    - :py:attr:`created <nion.typeshed.API_1_0.DataItem.created>`
    - :py:attr:`data <nion.typeshed.API_1_0.DataItem.data>`
    - :py:attr:`data_and_metadata <nion.typeshed.API_1_0.DataItem.data_and_metadata>`
+   - :py:attr:`data_metadata <nion.typeshed.API_1_0.DataItem.data_metadata>`
    - :py:attr:`dimensional_calibrations <nion.typeshed.API_1_0.DataItem.dimensional_calibrations>`
    - :py:attr:`display <nion.typeshed.API_1_0.DataItem.display>`
    - :py:attr:`display_xdata <nion.typeshed.API_1_0.DataItem.display_xdata>`

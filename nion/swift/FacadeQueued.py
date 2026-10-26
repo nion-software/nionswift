@@ -345,6 +345,10 @@ class DataItem:
         return get_property(self, 'data_and_metadata')
 
     @property
+    def data_metadata(self):
+        return get_property(self, 'data_metadata')
+
+    @property
     def dimensional_calibrations(self):
         return get_property(self, 'dimensional_calibrations')
 

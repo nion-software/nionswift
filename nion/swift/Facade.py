@@ -925,7 +925,7 @@ class Graphic(metaclass=SharedInstance):
 
 
 class DataItem(metaclass=SharedInstance):
-    release = ["uuid", "title", "created", "modified", "data", "set_data", "xdata", "display_xdata",
+    release = ["uuid", "title", "created", "modified", "data", "set_data", "xdata", "data_metadata", "display_xdata",
                "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
                "set_dimensional_calibrations", "metadata", "set_metadata", "has_metadata_value", "get_metadata_value",
                "set_metadata_value", "delete_metadata_value", "data_and_metadata", "set_data_and_metadata", "regions",
@@ -1056,6 +1056,18 @@ class DataItem(metaclass=SharedInstance):
         Scriptable: Yes
         """
         self.__data_item.set_xdata(DataAndMetadata.promote_ndarray(data_and_metadata))
+
+    @property
+    def data_metadata(self) -> DataAndMetadata.DataMetadata | None:
+        """Return the data metadata, such as the shape, dtype and data descriptor, without loading the data.
+
+        Return None when this data item has no data.
+
+        .. versionadded:: 16.19
+
+        Scriptable: Yes
+        """
+        return self.__data_item.data_metadata
 
     @property
     def display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
