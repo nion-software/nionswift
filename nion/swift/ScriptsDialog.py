@@ -612,9 +612,12 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.content.add(self.__stack)
 
-        self.__sync_events: typing.Set[threading.Event] = set()
-
         self.__lock = threading.RLock()
+
+        # the events awaited by the script's threads, such as for a prompt or a shown array, and whether the dialog has
+        # closed. both change under the lock.
+        self.__sync_events: typing.Set[threading.Event] = set()
+        self.__is_closed = False
 
         self.__q: typing.Deque[typing.Callable[[], None]] = collections.deque()
         self.__output_queue: typing.Deque[str] = collections.deque()
@@ -623,15 +626,15 @@ class RunScriptDialog(Dialog.ActionDialog):
         # confined to the main thread.
         self.__output_line_ended = False
 
-        self.__is_closed = False
-
     def close(self) -> None:
         # the redirection ends before the dialog closes, since output written in the redirection after the close would
         # go through the closed dialog's print to sys.stdout, and from there back into the redirection.
         if self.__output_redirection:
             self.__output_redirection.end()
-        self.__is_closed = True
-        for sync_event in self.__sync_events:
+        with self.__lock:
+            self.__is_closed = True
+            sync_events = list(self.__sync_events)
+        for sync_event in sync_events:
             sync_event.set()
         if self.__thread:
             self.__thread.join()
@@ -799,14 +802,11 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def continue_after_parse_error(self, script_path: str) -> None:
         def func_continue() -> None:
-            result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
-
-            with self.__lock:
-                if result:
-                    self.__q.append(functools.partial(self.run_script, script_path))
-                else:
-                    self.__q.append(self.request_close)
-                self.document_controller.add_task("run_" + str(id(self)), self.__handle_output_and_q)
+            try:
+                result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
+            except ScriptCancelException:
+                return
+            self.__queue_work("run_", functools.partial(self.run_script, script_path) if result else self.request_close)
 
         self.__thread = threading.Thread(target=func_continue)
         self.__thread.start()
@@ -822,16 +822,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                 try:
                     result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
                 except ScriptCancelException:
-                    pass
-
-                # script dialog can be closed if application exit during confirmation dialog, recheck
-                if not self.__is_closed:
-                    with self.__lock:
-                        if result:
-                            self.__q.append(functools.partial(self.run_script, script_path))
-                        else:
-                            self.__q.append(self.request_close)
-                        self.document_controller.add_task("run_" + str(id(self)), self.__handle_output_and_q)
+                    return
+                self.__queue_work("run_", functools.partial(self.run_script, script_path) if result else self.request_close)
 
         self.__thread = threading.Thread(target=func_run, args=(func,))
         self.__thread.start()
@@ -839,6 +831,9 @@ class RunScriptDialog(Dialog.ActionDialog):
     def __handle_output_and_q(self) -> None:
         func = None
         with self.__lock:
+            # a closed dialog does no more work.
+            if self.__is_closed:
+                return
             has_output = len(self.__output_queue) > 0
             while len(self.__output_queue) > 0:
                 text = self.__output_queue.popleft()
@@ -904,17 +899,16 @@ class RunScriptDialog(Dialog.ActionDialog):
                 pose_get_string_message_box(self.ui, self.__message_column, prompt, str(default_str), accepted, rejected)
                 self.__scroll_output_to_end_after_layout()
 
-            with self.__lock:
-                self.__q.append(perform)
-                self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
+            self.__queue_work("ui_", perform)
             accept_event.wait()
             if self.__is_closed:
                 raise ScriptCancelException()
 
         def update_message_column() -> None:
-            self.__message_column.remove_all()
-            self.__message_column.add(self.__make_cancel_row())
-            self.__scroll_output_to_end_after_layout()
+            if not self.__is_closed:
+                self.__message_column.remove_all()
+                self.__message_column.add(self.__make_cancel_row())
+                self.__scroll_output_to_end_after_layout()
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
         if result is None:
             raise ScriptCancelException()
@@ -942,25 +936,37 @@ class RunScriptDialog(Dialog.ActionDialog):
                     result_display_panel.request_focus()
                 accept_event.set()
 
-            with self.__lock:
-                self.__q.append(perform)
-                self.document_controller.add_task("show_" + str(id(self)), self.__handle_output_and_q)
+            self.__queue_work("show_", perform)
             accept_event.wait()
             if self.__is_closed:
                 raise ScriptCancelException()
 
+    # queue work for the main thread, unless the dialog has closed. callable from any thread.
+    def __queue_work(self, task_key: str, func: typing.Callable[[], None]) -> None:
+        with self.__lock:
+            if not self.__is_closed:
+                self.__q.append(func)
+                self.document_controller.add_task(task_key + str(id(self)), self.__handle_output_and_q)
+
+    # an event registered after the dialog has closed is set at once, since closing has set the events registered before it.
     def __register_sync_event(self, sync_event: threading.Event) -> None:
-        self.__sync_events.add(sync_event)
+        with self.__lock:
+            self.__sync_events.add(sync_event)
+            if self.__is_closed:
+                sync_event.set()
 
     def __unregister_sync_event(self, sync_event: threading.Event) -> None:
-        self.__sync_events.remove(sync_event)
+        with self.__lock:
+            self.__sync_events.remove(sync_event)
 
     @contextlib.contextmanager
     def sync_event(self) -> typing.Generator[threading.Event, None, None]:
         sync_event = threading.Event()
         self.__register_sync_event(sync_event)
-        yield sync_event
-        self.__unregister_sync_event(sync_event)
+        try:
+            yield sync_event
+        finally:
+            self.__unregister_sync_event(sync_event)
 
     def __accept_reject(self, prompt: str, accepted_text: typing.Optional[str], rejected_text: typing.Optional[str], display_rejected: bool) -> bool:
         """Return a boolean value for accept/reject."""
@@ -983,17 +989,16 @@ class RunScriptDialog(Dialog.ActionDialog):
                 self.__scroll_output_to_end_after_layout()
                 # self.__message_column.add(self.__make_cancel_row())
 
-            with self.__lock:
-                self.__q.append(perform)
-                self.document_controller.add_task("ui_" + str(id(self)), self.__handle_output_and_q)
+            self.__queue_work("ui_", perform)
             accept_event.wait()
             if self.__is_closed:
                 raise ScriptCancelException()
 
         def update_message_column() -> None:
-            self.__message_column.remove_all()
-            self.__message_column.add(self.__make_cancel_row())
-            self.__scroll_output_to_end_after_layout()
+            if not self.__is_closed:
+                self.__message_column.remove_all()
+                self.__message_column.add(self.__make_cancel_row())
+                self.__scroll_output_to_end_after_layout()
         self.document_controller.add_task("ui_" + str(id(self)), update_message_column)
         return result
 
