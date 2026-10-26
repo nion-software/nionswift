@@ -510,6 +510,123 @@ class TestScriptsDialogClass(unittest.TestCase):
                 support.dialog_closed.set()
                 del sys.modules[support.__name__]
 
+    def test_closing_dialog_interrupts_api_calls_waiting_for_the_main_thread(self):
+        # the script waits for its thread, which makes API calls until stopped, so that closing the dialog finds a call
+        # waiting for the main thread while the main thread waits for the script.
+        script = textwrap.dedent("""
+            import threading
+            import scripts_dialog_test_support as support
+
+            def script_main(api_broker):
+                api = api_broker.get_api("~1.0")
+
+                def make_api_calls():
+                    try:
+                        while not support.stop.is_set():
+                            api.create_calibration(0.0, 1.0, "nm")
+                            support.making_calls.set()
+                    except Exception as exception:
+                        support.exceptions.append(exception)
+                    finally:
+                        support.finished.set()
+
+                thread = threading.Thread(target=make_api_calls, daemon=True)
+                thread.start()
+                thread.join(5.0)
+            """)
+        support = types.ModuleType("scripts_dialog_test_support")
+        support.stop = threading.Event()
+        support.making_calls = threading.Event()
+        support.finished = threading.Event()
+        support.exceptions = list()
+        with TestContext.MemoryProfileContext() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            # the API given to the script queues each call to the application's window.
+            app = self._test_setup.app
+            sys.modules[support.__name__] = support
+            try:
+                document_model = profile_context.create_document_model(auto_close=False)
+                app._set_profile_for_test(profile_context.profile)
+                document_controller = app.create_document_controller(document_model, "library")
+                script_path = pathlib.Path(directory_str) / "api_calls.py"
+                script_path.write_text(script)
+                dialog = ScriptsDialog.RunScriptDialog(document_controller)
+                try:
+                    dialog.run_script(str(script_path))
+                    start_time = time.time()
+                    while not support.making_calls.is_set() and time.time() - start_time < 10.0:
+                        document_controller.periodic()
+                        time.sleep(0.01)
+                    dialog.close()
+                    self.assertEqual([ScriptsDialog.ScriptCancelException], [type(exception) for exception in support.exceptions])
+                finally:
+                    # stop the thread, and run the API call awaited by it if the close did not interrupt that call.
+                    support.stop.set()
+                    start_time = time.time()
+                    while not support.finished.is_set() and time.time() - start_time < 10.0:
+                        document_controller.periodic()
+                        time.sleep(0.01)
+                    document_controller.close()
+            finally:
+                app._set_profile_for_test(None)
+                del sys.modules[support.__name__]
+
+    def test_script_thread_api_call_after_the_dialog_closes_runs(self):
+        # the script starts a thread which outlives it and makes an API call only after the dialog has closed.
+        script = textwrap.dedent("""
+            import threading
+            import scripts_dialog_test_support as support
+
+            def script_main(api_broker):
+                api = api_broker.get_api("~1.0")
+
+                def make_api_call_after_close():
+                    support.dialog_closed.wait(10.0)
+                    try:
+                        support.results.append(api.create_calibration(0.0, 1.0, "nm"))
+                    except Exception as exception:
+                        support.exceptions.append(exception)
+                    finally:
+                        support.finished.set()
+
+                threading.Thread(target=make_api_call_after_close, daemon=True).start()
+            """)
+        support = types.ModuleType("scripts_dialog_test_support")
+        support.dialog_closed = threading.Event()
+        support.finished = threading.Event()
+        support.results = list()
+        support.exceptions = list()
+        with TestContext.MemoryProfileContext() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            # the API given to the script queues each call to the application's window.
+            app = self._test_setup.app
+            sys.modules[support.__name__] = support
+            try:
+                document_model = profile_context.create_document_model(auto_close=False)
+                app._set_profile_for_test(profile_context.profile)
+                document_controller = app.create_document_controller(document_model, "library")
+                script_path = pathlib.Path(directory_str) / "api_call_after_close.py"
+                script_path.write_text(script)
+                dialog = ScriptsDialog.RunScriptDialog(document_controller)
+                try:
+                    dialog.run_script(str(script_path))
+                    dialog.close()
+                    support.dialog_closed.set()
+                    start_time = time.time()
+                    while not support.finished.is_set() and time.time() - start_time < 10.0:
+                        document_controller.periodic()
+                        time.sleep(0.01)
+                    self.assertEqual([], support.exceptions)
+                    self.assertEqual(1, len(support.results))
+                finally:
+                    support.dialog_closed.set()
+                    start_time = time.time()
+                    while not support.finished.is_set() and time.time() - start_time < 10.0:
+                        document_controller.periodic()
+                        time.sleep(0.01)
+                    document_controller.close()
+            finally:
+                app._set_profile_for_test(None)
+                del sys.modules[support.__name__]
+
 
 if __name__ == '__main__':
     unittest.main()
