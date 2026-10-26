@@ -626,9 +626,11 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__is_closed = False
 
     def close(self) -> None:
-        self.__is_closed = True
+        # the redirection ends before the dialog closes, since output written in the redirection after the close would
+        # go through the closed dialog's print to sys.stdout, and from there back into the redirection.
         if self.__output_redirection:
             self.__output_redirection.end()
+        self.__is_closed = True
         for sync_event in self.__sync_events:
             sync_event.set()
         if self.__thread:
@@ -785,7 +787,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                     try:
                         exec(compiled, g)
                     except ScriptCancelException as e:
-                        self.print(_("Script canceled by user."))
+                        if not self.__is_closed:
+                            self.print(_("Script canceled by user."))
             except Exception:
                 self.print(traceback.format_stack())
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
@@ -862,12 +865,17 @@ class RunScriptDialog(Dialog.ActionDialog):
     def print(self, *values: typing.Any, sep: str | None = " ", end: str | None = "\n") -> None:
         """Print the values to the output of the dialog, with the sep and end arguments of the built-in print.
 
+        The values go to sys.stdout instead once the dialog has closed.
+
         Callable from any thread.
         """
         text = _format_print_text(values, sep, end)
         with self.__lock:
-            self.__output_queue.append(text)
-            self.document_controller.add_task("print_" + str(id(self)), self.__handle_output_and_q)
+            if not self.__is_closed:
+                self.__output_queue.append(text)
+                self.document_controller.add_task("print_" + str(id(self)), self.__handle_output_and_q)
+                return
+        sys.stdout.write(text)
 
     def print_debug(self, text: typing.Any) -> None:
         self.print(text)

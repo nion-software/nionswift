@@ -2,8 +2,10 @@
 import pathlib
 import sys
 import tempfile
+import textwrap
 import threading
 import time
+import types
 import typing
 import unittest
 
@@ -421,6 +423,49 @@ class TestScriptsDialogClass(unittest.TestCase):
             output_panel_text = output_panel_widget.text or str()
             self.assertIn("printed after the dialog closed", output_panel_text)
             self.assertIn("written after the dialog closed", output_panel_text)
+
+    def test_script_thread_printing_to_the_dialog_after_it_closes_prints_to_the_output_panel(self):
+        # the script starts a thread which outlives it and prints through the dialog only after the dialog has closed.
+        script = textwrap.dedent("""
+            import threading
+            import scripts_dialog_test_support as support
+
+            def script_main(api_broker):
+                interactive = api_broker.get_interactive(version="~1.0")
+
+                def print_after_close():
+                    support.dialog_closed.wait(10.0)
+                    interactive.print("printed after the dialog closed")
+                    support.finished.set()
+
+                threading.Thread(target=print_after_close, daemon=True).start()
+            """)
+        support = types.ModuleType("scripts_dialog_test_support")
+        support.dialog_closed = threading.Event()
+        support.finished = threading.Event()
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            output_panel = document_controller.find_dock_panel("output-panel")
+            assert output_panel
+            output_panel_widget = typing.cast(UserInterface.TextEditWidget, output_panel.widget)
+            sys.modules[support.__name__] = support
+            try:
+                script_path = pathlib.Path(directory_str) / "print_after_close.py"
+                script_path.write_text(script)
+                dialog = ScriptsDialog.RunScriptDialog(document_controller)
+                try:
+                    dialog.run_script(str(script_path))
+                finally:
+                    dialog.close()
+                support.dialog_closed.set()
+                start_time = time.time()
+                while not support.finished.is_set() and time.time() - start_time < 10.0:
+                    time.sleep(0.01)
+                document_controller.periodic()
+                self.assertIn("printed after the dialog closed", output_panel_widget.text or str())
+            finally:
+                support.dialog_closed.set()
+                del sys.modules[support.__name__]
 
 
 if __name__ == '__main__':
