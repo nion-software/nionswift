@@ -113,6 +113,7 @@ class TestHDF5Handler(unittest.TestCase):
                 source_data = numpy.random.rand(10, 10).astype(numpy.float32)
                 h._dataset = h._file.fp.create_dataset("data", shape=source_data.shape, dtype="float32", chunks=(5, 5))
                 h.write_hdf5_chunks(source_data, (slice(0, 10), slice(0, 10)), (slice(0, 10), slice(0, 10)))
+                h._wait_for_pending_writes()
                 d = h.read_data()
                 self.assertTrue(numpy.allclose(d, source_data))
         finally:
@@ -126,6 +127,7 @@ class TestHDF5Handler(unittest.TestCase):
                 source_data = numpy.random.rand(11, 17, 23).astype(numpy.float32)
                 h._dataset = h._file.fp.create_dataset("data", shape=source_data.shape, dtype="float32", chunks=(2, 5, 12))
                 h.write_hdf5_chunks(source_data, (slice(0, 11), slice(0, 17), slice(0, 23)), (slice(0, 11), slice(0, 17), slice(0, 23)))
+                h._wait_for_pending_writes()
                 d = h.read_data()
                 self.assertTrue(numpy.allclose(d, source_data))
         finally:
@@ -145,6 +147,7 @@ class TestHDF5Handler(unittest.TestCase):
                 h.write_hdf5_chunks(source_data, (slice(6, 7), slice(0, 17), slice(0, 12)), (slice(6, 7), slice(0, 17), slice(0, 12)))
                 h.write_hdf5_chunks(source_data, (slice(6, 7), slice(0, 17), slice(12, 23)), (slice(6, 7), slice(0, 17), slice(12, 23)))
                 h.write_hdf5_chunks(source_data, (slice(7, 11), slice(0, 17), slice(0, 23)), (slice(7, 11), slice(0, 17), slice(0, 23)))
+                h._wait_for_pending_writes()
                 d = h.read_data()
                 self.assertTrue(numpy.allclose(d, source_data))
         finally:
@@ -164,6 +167,7 @@ class TestHDF5Handler(unittest.TestCase):
                 h.write_hdf5_chunks(source_data, (slice(6, 7), slice(None), slice(0, 12)), (slice(6, 7), slice(None), slice(0, 12)))
                 h.write_hdf5_chunks(source_data, (slice(6, 7), slice(None), slice(12, 23)), (slice(6, 7), slice(None), slice(12, 23)))
                 h.write_hdf5_chunks(source_data, (slice(7, 11), slice(None), slice(None)), (slice(7, 11), slice(None), slice(None)))
+                h._wait_for_pending_writes()
                 d = h.read_data()
                 self.assertTrue(numpy.allclose(d, source_data))
         finally:
@@ -198,3 +202,34 @@ class TestHDF5Handler(unittest.TestCase):
                     self.assertTrue(numpy.array_equal(read_data, source_data))
         finally:
             shutil.rmtree(data_dir)
+
+    def test_hdf5_handler_source_data_can_be_modified_after_write_hdf5_chunks_returns(self):
+        # simulates an acquisition that reuses a single buffer for every row; chunk buffers are pooled and reused
+        # by the handler, and the dataset has edge chunks in every dimension.
+        import hdf5plugin  # registers the bitshuffle filter with h5py
+        data_dir = pathlib.Path.cwd() / "__Test"
+        if data_dir.exists():
+            shutil.rmtree(data_dir)
+        file_path = os.path.join(data_dir, "abc.h5")
+        Cache.db_make_directory_if_needed(data_dir)
+        try:
+            shape = (9, 17, 23)
+            expected = (numpy.random.rand(*shape) * 1000).astype(numpy.float32)
+            for compression in (None, hdf5plugin.Bitshuffle(cname="lz4")):
+                with self.subTest(compression=compression):
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    h = HDF5Handler.HDF5Handler(file_path, max_workers=4)
+                    with contextlib.closing(h):
+                        h._dataset = h._file.fp.create_dataset("data", shape=shape, dtype=numpy.float32, chunks=(1, 5, 6), compression=compression)
+                        row_buffer = numpy.empty((1,) + shape[1:], dtype=numpy.float32)
+                        for row in range(shape[0]):
+                            row_buffer[...] = expected[row:row + 1]
+                            h.write_hdf5_chunks(row_buffer, (slice(0, 1), slice(None), slice(None)), (slice(row, row + 1), slice(None), slice(None)), wait_for_copy=True)
+                            row_buffer.fill(-1)  # must not affect what is written
+                        h._wait_for_pending_writes()
+                    with h5py.File(file_path, "r") as f:
+                        self.assertTrue(numpy.array_equal(f["data"][:], expected))
+        finally:
+            shutil.rmtree(data_dir)
+
