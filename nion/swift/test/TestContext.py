@@ -1,6 +1,11 @@
 # system libraries
 import asyncio
 import gc
+import json
+import logging
+import pathlib
+import shutil
+import types
 import typing
 import unittest
 import uuid
@@ -20,6 +25,7 @@ from nion.swift.model import HDF5Handler
 from nion.swift.model import NDataHandler
 from nion.swift.model import Persistence
 from nion.swift.model import Profile
+from nion.swift.model import StorageHandler
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
 from nion.utils import Event
@@ -226,6 +232,112 @@ class MemoryProfileContext:
             item()
         self.__items_exit = list()
         self.__app = None
+
+
+class FileProfileContext:
+    """A profile context which stores its profile and projects as files in a workspace directory.
+
+    Tests use it where memory storage would hide a defect, e.g. memory storage returns the stored array itself, so an in-place
+    write to it looks persisted. The workspace directory is __Test in base_directory, and it is removed on close unless no_remove
+    is set. Projects read through this context store data above large_format_size bytes in HDF5 and smaller data in ndata.
+    """
+
+    def __init__(self, base_directory: pathlib.Path, no_remove: bool = False, *, large_format_size: int = FileStorageSystem.DEFAULT_LARGE_FORMAT_SIZE) -> None:
+        self.project_storage_settings = FileStorageSystem.ProjectStorageSettings(large_format_size=large_format_size)
+        self.workspace_dir = base_directory / "__Test"
+        self.profiles_dir = base_directory / "__Test" / "Profiles"
+        self.projects_dir = base_directory / "__Test" / "Projects"
+        if self.workspace_dir.exists():
+            shutil.rmtree(self.workspace_dir)
+        Cache.db_make_directory_if_needed(self.workspace_dir)
+        Cache.db_make_directory_if_needed(self.profiles_dir)
+        Cache.db_make_directory_if_needed(self.projects_dir)
+        self.__profile: Profile.Profile | None = None
+        self.__no_remove = no_remove
+        self.__items_exit: list[typing.Callable[[], None]] = list()
+        self.__ui = TestUI.UserInterface()
+        self.__app: Application.Application | None = None
+
+    def create_profile(self, *, profile_name: str | None = None, project_name: str | None = None, project_data_name: str | None = None) -> Profile.Profile:
+        if not self.__profile:
+            profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
+            profile_json = json.dumps({"version": FileStorageSystem.PROFILE_VERSION, "uuid": str(uuid.uuid4())})
+            profile_path.write_text(profile_json, "utf-8")
+            project_path = self.projects_dir / pathlib.Path(project_name or "Project").with_suffix(".nsproj")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": [project_data_name or "Data"]})
+            project_path.write_text(project_data_json, "utf-8")
+            storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
+            storage_system.load_properties()
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"), project_storage_settings=self.project_storage_settings)
+            profile.storage_system = storage_system
+            profile.profile_context = self
+            profile.add_project_index(project_path)
+            self.__profile = profile
+            self.__items_exit.append(profile.close)
+            return profile
+        else:
+            profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
+            storage_system = FileStorageSystem.make_file_persistent_storage_system(profile_path)
+            storage_system.load_properties()
+            profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"), project_storage_settings=self.project_storage_settings)
+            profile.storage_system = storage_system
+            profile.profile_context = self
+            self.__items_exit.append(profile.close)
+            return profile
+
+    def create_document_model(self, auto_close: bool = False, project_name: str | None = None, project_data_name: str | None = None) -> DocumentModel.DocumentModel:
+        profile = self.create_profile(project_name=project_name, project_data_name=project_data_name)
+        profile.read_profile()
+        project_reference = profile.project_references[0]
+        profile.read_project(project_reference)
+        document_model = project_reference.document_model
+        document_model._profile_for_test = profile
+        if auto_close:
+            document_model.add_ref()
+            self.__items_exit.append(document_model.remove_ref)
+        return document_model
+
+    def create_document_controller(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
+        document_model = self.create_document_model(auto_close=False)
+        document_controller = DocumentController.DocumentController(self.__ui, document_model, workspace_id="library")
+        if auto_close:
+            self.__items_exit.append(document_controller.close)
+        return document_controller
+
+    def create_document_controller_with_application(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
+        app = Application.Application(self.__ui, set_global=False)
+        document_model = self.create_document_model(auto_close=False)
+        document_controller = app.create_document_controller(document_model, "library")
+        if auto_close:
+            self.__items_exit.append(document_controller.close)
+        self.__app = app  # hold a reference
+        app._set_document_model(document_model)  # required to allow API to find document model
+        return document_controller
+
+    def reset_profile(self) -> None:
+        self.__profile = None
+
+    @property
+    def _file_handler_factories(self) -> typing.Sequence[StorageHandler.StorageHandlerFactoryLike]:
+        return FileStorageSystem.FileProjectStorageSystem._file_handler_factories
+
+    def __enter__(self) -> typing.Self:
+        return self
+
+    def __exit__(self, type_: type[BaseException] | None, value: BaseException | None, traceback: types.TracebackType | None) -> None:
+        self.close()
+
+    def close(self) -> None:
+        for item in reversed(self.__items_exit):
+            item()
+        self.__items_exit = list()
+        self.__profile = None
+        self.__app = None
+        if self.__no_remove:
+            logging.debug("rmtree %s", self.workspace_dir)
+        else:
+            shutil.rmtree(self.workspace_dir)
 
 
 class MemoryProjectReference(Profile.ProjectReference):
