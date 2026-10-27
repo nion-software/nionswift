@@ -77,7 +77,7 @@ class TempProfileContext:
         Cache.db_make_directory_if_needed(self.projects_dir)
         self.__profile = None
         self.__no_remove = no_remove
-        self.__items_to_close = list()
+        self.__items_exit: list[typing.Callable[[], None]] = list()
         self.__ui = TestUI.UserInterface()
 
     def create_profile(self, *, profile_name: str = None, project_name: str = None, project_data_name: str = None) -> Profile.Profile:
@@ -96,7 +96,7 @@ class TempProfileContext:
             profile.profile_context = self
             profile.add_project_index(project_path)
             self.__profile = profile
-            self.__items_to_close.append(profile)
+            self.__items_exit.append(profile.close)
             return profile
         else:
             profile_path = self.profiles_dir / pathlib.Path(profile_name or "Profile").with_suffix(".nsprof")
@@ -105,7 +105,7 @@ class TempProfileContext:
             profile = Profile.Profile(asyncio.get_event_loop(), storage_system=storage_system, cache_factory=Cache.DbCacheFactory(self.profiles_dir, "X"), project_storage_settings=self.project_storage_settings)
             profile.storage_system = storage_system
             profile.profile_context = self
-            self.__items_to_close.append(profile)
+            self.__items_exit.append(profile.close)
             return profile
 
     def create_document_model(self, auto_close: bool = False, project_name: str = None, project_data_name: str = None) -> DocumentModel.DocumentModel:
@@ -116,14 +116,15 @@ class TempProfileContext:
         document_model = project_reference.document_model
         document_model._profile_for_test = profile
         if auto_close:
-            self.__items_to_close.append(document_model)
+            document_model.add_ref()
+            self.__items_exit.append(document_model.remove_ref)
         return document_model
 
     def create_document_controller(self, *, auto_close: bool = True) -> DocumentController.DocumentController:
         document_model = self.create_document_model(auto_close=False)
         document_controller = DocumentController.DocumentController(self.__ui, document_model, workspace_id="library")
         if auto_close:
-            self.__items_to_close.append(document_controller)
+            self.__items_exit.append(document_controller.close)
         return document_controller
 
     def reset_profile(self):
@@ -140,9 +141,9 @@ class TempProfileContext:
         self.close()
 
     def close(self) -> None:
-        for item in reversed(self.__items_to_close):
-            item.close()
-        self.__items_to_close = list()
+        for item in reversed(self.__items_exit):
+            item()
+        self.__items_exit = list()
         self.__profile = None
         if self.__no_remove:
             import logging
@@ -1122,14 +1123,11 @@ class TestStorageClass(unittest.TestCase):
 
     def test_writing_data_item_with_no_data_sources_returns_expected_values(self):
         with create_temp_profile_context() as profile_context:
-            document_model = profile_context.create_document_model(auto_close=False)
-            with document_model.ref():
-                data_item = DataItem.DataItem()
-                document_model.append_data_item(data_item)
-                display_item = document_model.get_display_item_for_data_item(data_item)
-                reference = data_item._test_get_file_path()
-                self.assertIsNotNone(reference)
-            document_model = None
+            document_model = profile_context.create_document_model(auto_close=True)
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            reference = data_item._test_get_file_path()
+            self.assertIsNotNone(reference)
 
     def test_data_writes_to_file_after_transaction(self):
         with create_temp_profile_context() as profile_context:
