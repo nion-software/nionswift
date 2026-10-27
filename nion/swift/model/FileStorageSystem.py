@@ -965,7 +965,7 @@ class ProjectStorageSystem(PersistentStorageSystem):
         data_descriptor = data_item.data_descriptor
         if data is not None and data_shape is not None and data_dtype is not None and data_descriptor is not None:
             n_bytes = typing.cast(int, numpy.prod(data_shape, dtype=numpy.int64)) * numpy.dtype(data_dtype).itemsize
-            storage_adapter = self.__ensure_valid_storage_adapter(data_item, n_bytes)
+            storage_adapter = self.__ensure_valid_storage_adapter(data_item, n_bytes, False)
             stored_data = storage_adapter.load_data(data_item)
             if stored_data is None or stored_data.shape != data_shape or stored_data.dtype != data_dtype:
                 storage_adapter.reserve_data(data_item, data_shape, data_dtype, data_descriptor)
