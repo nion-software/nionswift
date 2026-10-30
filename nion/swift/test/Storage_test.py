@@ -4972,6 +4972,317 @@ class TestStorageClass(unittest.TestCase):
             project_name_2 = Application.NewProjectAction.get_project_base_name(projects_dir_str)
             self.assertEqual(project_name_2, f"{project_name} (2)")
 
+    def test_rename_current_project_with_no_items(self) -> None:
+        """Test the application's rename_project works for the simplest case of no data items.
+
+        This is ProjectStorageSystem independent, testing the project reference is updated and the project is reloaded.
+        """
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            ui = TestUI.UserInterface()
+            app = Application.Application(ui, set_global=False)
+            app._set_profile_for_test(profile)
+            project_reference = profile.project_references[0]
+            document_controller = app.open_project_window(project_reference)
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                app.rename_project(project_reference, "new_name")
+                project_reference = profile.project_references[0]
+
+                self.assertIsNotNone(project_reference.project)  # Check the project reopened
+                self.assertEqual("new_name", project_reference.title)  # Check the title was updated
+                self.assertEqual("loaded", project_reference.project_state)  # Check the project was reloaded
+                self.assertEqual("new_name", project_reference.path.stem)
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+    def test_rename_current_project_preserves_data_item(self) -> None:
+        """Test the application's rename_project works with a basic data item.
+
+        This is ProjectStorageSystem independent, only testing that the data item was preserved.
+        """
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            ui = TestUI.UserInterface()
+            app = Application.Application(ui, set_global=False)
+            app._set_profile_for_test(profile)
+            project_reference = profile.project_references[0]
+            document_controller = app.open_project_window(project_reference)
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            original_snapshot: DataItem.DataItem | None = None
+            try:
+                document_model = app.document_model
+                data_item = DataItem.DataItem(numpy.zeros((6, 6)), large_format=False)
+                document_model.append_data_item(data_item)
+                original_snapshot = data_item.snapshot()
+                assert original_snapshot is not None
+                app.rename_project(project_reference, "new_name")
+                document_controller = get_document_controller(app)
+                assert document_controller is not None
+
+                self.assertEqual(1, len(document_controller.document_model.data_items))
+                self.assertTrue(numpy.array_equal(original_snapshot.data, document_controller.document_model.data_items[0].data))
+                self.assertEqual(original_snapshot.metadata, document_controller.document_model.data_items[0].metadata)
+                self.assertEqual(original_snapshot.title, document_controller.document_model.data_items[0].title)
+                self.assertEqual(original_snapshot.timezone, document_controller.document_model.data_items[0].timezone)
+                self.assertEqual(original_snapshot.timezone_offset, document_controller.document_model.data_items[0].timezone_offset)
+            finally:
+                if original_snapshot:
+                    original_snapshot.close()
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+    def test_rename_current_project_preserves_large_format_data_item(self) -> None:
+        """Test the application's rename_project works with a h5 backed data item.
+
+        This is ProjectStorageSystem independent, only testing that the data item was preserved.
+        """
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            ui = TestUI.UserInterface()
+            app = Application.Application(ui, set_global=False)
+            app._set_profile_for_test(profile)
+            project_reference = profile.project_references[0]
+            document_controller = app.open_project_window(project_reference)
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            original_snapshot: DataItem.DataItem | None = None
+            try:
+                document_model = app.document_model
+                data_item = DataItem.DataItem(numpy.zeros((6, 6, 5)), large_format=True)
+                document_model.append_data_item(data_item)
+                original_snapshot = data_item.snapshot()
+                assert original_snapshot is not None
+
+                app.rename_project(project_reference, "new_name")
+                document_controller = get_document_controller(app)
+                assert document_controller is not None
+
+                self.assertEqual(1, len(document_controller.document_model.data_items))
+                self.assertTrue(numpy.array_equal(original_snapshot.data, document_controller.document_model.data_items[0].data))
+                self.assertEqual(original_snapshot.metadata, document_controller.document_model.data_items[0].metadata)
+                self.assertEqual(original_snapshot.title, document_controller.document_model.data_items[0].title)
+                self.assertEqual(original_snapshot.timezone, document_controller.document_model.data_items[0].timezone)
+                self.assertEqual(original_snapshot.timezone_offset, document_controller.document_model.data_items[0].timezone_offset)
+            finally:
+                if original_snapshot:
+                    original_snapshot.close()
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+    def test_rename_current_project_preserves_workspace(self) -> None:
+        """Test the application's rename_project works with a workspace.
+
+        This is ProjectStorageSystem independent, only testing that the workspace layout was preserved.
+        """
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            ui = TestUI.UserInterface()
+            app = Application.Application(ui, set_global=False)
+            app._set_profile_for_test(profile)
+            project_reference = profile.project_references[0]
+            document_controller = app.open_project_window(project_reference)
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                workspace_controller = document_controller.workspace_controller
+                assert workspace_controller is not None
+
+                display_panel = workspace_controller.display_panels[0]
+                document_controller.selected_display_panel = display_panel
+                document_controller.perform_action("workspace.split_horizontal")
+                old_workspace_layout = copy.deepcopy(document_controller.workspace_controller._workspace_layout)
+
+                app.rename_project(project_reference, "new_name")
+                document_controller = get_document_controller(app)
+                assert document_controller is not None
+                self.assertEqual(old_workspace_layout, document_controller.workspace_controller._workspace_layout)
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+    def test_file_project_storage_system_renames_project_file(self) -> None:
+        """Test that the FileProjectStorageSystem rename_project renames the project file.
+
+        This creates the project file manually to ensure no dependency on the default project storage system, which may change at some point.
+        """
+        with create_temp_profile_context() as profile_context:
+            Cache.db_make_directory_if_needed(str(profile_context.projects_dir))
+            project_path = profile_context.projects_dir / pathlib.Path("ExistingProject").with_suffix(".nsproj")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": []})
+            project_path.write_text(project_data_json, "utf-8")
+            storage_system = FileStorageSystem.make_index_project_storage_system(project_path)
+
+            storage_system.rename_project("new_name")
+            self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
+
+    def test_file_project_storage_system_renames_data_folder(self) -> None:
+        """Test that the FileProjectStorageSystem rename_project renames the data folder.
+
+        This creates the project file and data folder manually to ensure no dependency on the default project storage system, which may change at some point.
+        """
+        with create_temp_profile_context() as profile_context:
+            Cache.db_make_directory_if_needed(str(profile_context.projects_dir))
+            pathlib.Path.mkdir(profile_context.projects_dir / "ExistingProject Data")
+            project_path = profile_context.projects_dir / pathlib.Path("ExistingProject").with_suffix(".nsproj")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": ["ExistingProject Data"]})
+            project_path.write_text(project_data_json, "utf-8")
+            storage_system = FileStorageSystem.make_index_project_storage_system(project_path)
+            storage_system.load_properties()  # No actual data is saved so the project storage data path has to be populated by manually calling this
+            storage_system.rename_project("new_name")
+            self.assertTrue((profile_context.projects_dir / "new_name Data").is_dir())
+
+    def test_file_project_storage_system_renames_data_folder_in_project_file(self) -> None:
+        """Test that the FileProjectStorageSystem rename_project renames the data folder in the project file project_data_folders property."""
+        with create_temp_profile_context() as profile_context:
+            Cache.db_make_directory_if_needed(str(profile_context.projects_dir))
+            pathlib.Path.mkdir(profile_context.projects_dir / "ExistingProject Data")
+            project_path = profile_context.projects_dir / pathlib.Path("ExistingProject").with_suffix(".nsproj")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": ["ExistingProject Data"]})
+            project_path.write_text(project_data_json, "utf-8")
+            storage_system = FileStorageSystem.make_index_project_storage_system(project_path)
+            storage_system.load_properties()  # No actual data is saved so the project storage data path has to be populated by manually calling this
+            storage_system.rename_project("new_name")
+            new_project_path = profile_context.projects_dir / "new_name.nsproj"
+            with new_project_path.open("r") as fp:
+                properties = json.load(fp)
+                self.assertEqual(["new_name Data"], properties["project_data_folders"])
+
+    def test_file_project_storage_system_fails_rename_if_existing(self) -> None:
+        """Test that the FileProjectStorageSystem rename_project does not rename the project file if the target name is already a file."""
+        with create_temp_profile_context() as profile_context:
+            Cache.db_make_directory_if_needed(str(profile_context.projects_dir))
+            project_path = profile_context.projects_dir / pathlib.Path("ExistingProject").with_suffix(".nsproj")
+            project_uuid = uuid.uuid4()
+            project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(project_uuid), "project_data_folders": []})
+            project_path.write_text(project_data_json, "utf-8")
+            storage_system = FileStorageSystem.make_index_project_storage_system(project_path)
+
+            # Create the conflicting target project
+            target_project_path = profile_context.projects_dir / pathlib.Path("new_name").with_suffix(".nsproj")
+            target_project_uuid = uuid.uuid4()
+            target_project_data_json = json.dumps({"version": FileStorageSystem.PROJECT_VERSION, "uuid": str(target_project_uuid), "project_data_folders": []})
+            target_project_path.write_text(target_project_data_json, "utf-8")
+
+            result = storage_system.rename_project("new_name")
+
+            self.assertFalse(result.success)  # The result should have failed
+            self.assertTrue((profile_context.projects_dir / "ExistingProject.nsproj").exists())  # Both the original and target should still exist
+            self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
+
+    def test_rename_project_action_renames_current_project(self) -> None:
+        """Test that the rename project action renames the project open in the window when no project is given."""
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            document_controller = app.open_project_window(profile.project_references[0])
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                document_controller.execute_action("project.rename_project", parameters={"name": "new_name"})
+                renamed_document_controller = get_document_controller(app)
+                assert renamed_document_controller is not None
+                self.assertEqual("new_name", renamed_document_controller._project_reference.path.stem)
+                self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
+                self.assertFalse((profile_context.projects_dir / "Project.nsproj").exists())
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+    def test_rename_project_action_renames_given_project_and_leaves_current_project_open(self) -> None:
+        """Test that the rename project action renames the project given by its reference uuid, not the open project."""
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            other_project_reference = profile.create_project(profile_context.projects_dir, "Other")
+            assert other_project_reference is not None
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            document_controller = app.open_project_window(profile.project_references[0])
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                document_controller.execute_action("project.rename_project", parameters={"name": "new_name", "project_reference_uuid": str(other_project_reference.uuid)})
+                self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
+                self.assertFalse((profile_context.projects_dir / "Other.nsproj").exists())
+                self.assertTrue((profile_context.projects_dir / "Project.nsproj").exists())
+                self.assertIs(document_controller, get_document_controller(app))  # The open project's window was not closed
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+    def test_rename_project_with_no_window_open(self) -> None:
+        """Test that a project can be renamed when no project window is open, as from the Choose Project dialog at startup."""
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            project_reference = profile.project_references[0]
+            project_reference.unload_project()  # The test profile loads its project, but at startup no project is loaded
+            profile.last_project_reference = project_reference.uuid
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            app.initialize(load_plug_ins=False)
+            try:
+                app.execute_action("project.rename_project", parameters={"name": "new_name", "project_reference_uuid": str(project_reference.uuid)})
+                self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
+                self.assertFalse((profile_context.projects_dir / "Project.nsproj").exists())
+                self.assertEqual(["new_name"], [project_reference.path.stem for project_reference in profile.project_references])
+                self.assertIsNone(get_document_controller(app))  # Renaming a project which is not open should not open it
+                # The last project reference must follow the renamed project so it is opened at the next startup
+                last_project_reference = profile.get_project_reference(profile.last_project_reference) if profile.last_project_reference else None
+                assert last_project_reference is not None
+                self.assertEqual("new_name", last_project_reference.path.stem)
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+    def test_rename_project_action_after_cancel_renames_newly_opened_project(self) -> None:
+        """Test that cancelling the rename dialog does not leave the action targeting that project after switching projects."""
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            other_project_reference = profile.create_project(profile_context.projects_dir, "Other")
+            assert other_project_reference is not None
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            document_controller = app.open_project_window(profile.project_references[0])
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                # Open the rename dialog for the current project then cancel it, which closes the dialog window
+                document_controller.perform_action("project.rename_project")
+                self.assertEqual(1, len(document_controller._dialogs))
+                document_controller._dialogs[0].request_close()  # Cancel the action by closing the dialog
+                app.switch_project_reference(other_project_reference)  # Switch to the other project reference
+                other_document_controller = get_document_controller(app)
+                assert other_document_controller is not None
+                other_document_controller.execute_action("project.rename_project", parameters={"name": "new_name"})
+                self.assertTrue((profile_context.projects_dir / "Project.nsproj").exists())
+                self.assertFalse((profile_context.projects_dir / "Other.nsproj").exists())
+                self.assertTrue((profile_context.projects_dir / "new_name.nsproj").exists())
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+
+def get_document_controller(app: Application.Application) -> DocumentController.DocumentController | None:
+    for window in app.windows:
+        if isinstance(window, DocumentController.DocumentController):
+            return window
+    return None
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
