@@ -762,21 +762,15 @@ class Application(UIApplication.BaseApplication):
                     if index is not None:
                         project_reference_item = project_reference_items_model.project_reference_items[index]
                         menu = self.window.create_context_menu()
-                        menu.add_menu_item(_("Open Project Location"), functools.partial(ProjectPanel.reveal_project, project_reference_item.project_reference))
-                        menu.add_separator()
-
-                        def remove_project(index: int) -> None:
-                            project_reference_item = project_reference_items_model.project_reference_items[index]
-                            profile = self.__application.profile
-                            profile.remove_project_reference(project_reference_item.project_reference)
-
-                        menu.add_menu_item(_("Remove Project from List"), functools.partial(remove_project, index))
 
                         def perform_project_action(action_id: str, project_reference: Profile.ProjectReference) -> None:
                             context = UIWindow.ActionContext(self.__application, self.window, None)
                             context.parameters["project_reference_uuid"] = str(project_reference.uuid)
                             self.window.perform_action_in_context(action_id, context, invoked_from=UIWindow.ActionOrigin.CONTEXT_MENU, invoked_from_id="choose_project")
 
+                        menu.add_menu_item(_("Open Project Location"), functools.partial(perform_project_action, "project.reveal_location", project_reference_item.project_reference))
+                        menu.add_separator()
+                        menu.add_menu_item(_("Remove Project from List"), functools.partial(perform_project_action, "project.remove_from_list", project_reference_item.project_reference))
                         menu.add_menu_item(_("Rename Project..."), functools.partial(perform_project_action, "project.rename_project", project_reference_item.project_reference))
 
                         menu.popup(gx, gy)
@@ -1063,6 +1057,11 @@ class FeaturesPreferencePanel:
 PreferencesDialog.PreferencesManager().register_preference_pane(FeaturesPreferencePanel())
 
 
+def _find_project_reference(profile: Profile.Profile, project_reference_uuid_str: str) -> Profile.ProjectReference | None:
+    # the project reference in the profile whose uuid, as a string, is the given one, or None if there is none.
+    return next((project_reference for project_reference in profile.project_references if str(project_reference.uuid) == project_reference_uuid_str), None)
+
+
 class OpenRecentProjectAction(UIWindow.Action):
     """Action for opening a project from the profile's list of projects.
 
@@ -1080,7 +1079,7 @@ class OpenRecentProjectAction(UIWindow.Action):
         application = typing.cast(Application, context.application)
         project_reference_uuid_str = self.get_string_property(context, "project_reference_uuid")
         # open the project reference in the profile with the given uuid, and do nothing if there is none.
-        project_reference = next((project_reference for project_reference in application.profile.project_references if str(project_reference.uuid) == project_reference_uuid_str), None)
+        project_reference = _find_project_reference(application.profile, project_reference_uuid_str)
         if project_reference:
             application.open_project_reference(project_reference)
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
@@ -1257,6 +1256,53 @@ class RenameProjectAction(UIWindow.Action):
         NameProjectDialog(application.ui, application, directory, project_name=project_reference.path.stem,
                           accept_fn=handle_rename_clicked, dialog_name="Rename Project", choose_directory_visible=False,
                           check_name_available_fn=RenameProjectAction.check_project_name_is_available, parent_window=context.window)
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
+
+
+class RevealProjectLocationAction(UIWindow.Action):
+    """Action for showing a project's file in the system's file browser.
+
+    The project_reference_uuid parameter is the project reference's uuid as a string; if no project reference in the
+    profile has it, the action does nothing.
+    """
+    action_id = "project.reveal_location"
+    action_name = _("Open Project Location")
+    action_parameters = [
+        UIWindow.ActionStringProperty("project_reference_uuid")
+    ]
+
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        application = typing.cast(Application, context.application)
+        project_reference_uuid_str = self.get_string_property(context, "project_reference_uuid")
+        project_reference = _find_project_reference(application.profile, project_reference_uuid_str)
+        if project_reference:
+            ProjectPanel.reveal_project(project_reference)
+        return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
+
+
+class RemoveProjectFromListAction(UIWindow.Action):
+    """Action for removing a project from the profile's list of projects, without changing the project's files.
+
+    The project_reference_uuid parameter is the project reference's uuid as a string; if no project reference in the
+    profile has it, the action does nothing. The action is cancelled with a warning if the project is loaded.
+    """
+    action_id = "project.remove_from_list"
+    action_name = _("Remove Project from List")
+    action_parameters = [
+        UIWindow.ActionStringProperty("project_reference_uuid")
+    ]
+
+    def execute(self, context: UIWindow.ActionContext) -> UIWindow.ActionResult:
+        application = typing.cast(Application, context.application)
+        profile = application.profile
+        project_reference_uuid_str = self.get_string_property(context, "project_reference_uuid")
+        project_reference = _find_project_reference(profile, project_reference_uuid_str)
+        # the profile can't remove a loaded project, which the Choose Project window doesn't list.
+        if project_reference and project_reference.project_state == "loaded":
+            self.report(UIWindow.ReportType.WARNING, _("Unable to remove project from list.\nThe project is open."))
+            return UIWindow.ActionResult(UIWindow.ActionStatus.CANCELLED)
+        if project_reference:
+            profile.remove_project_reference(project_reference)
         return UIWindow.ActionResult(UIWindow.ActionStatus.FINISHED)
 
 
@@ -1449,3 +1495,5 @@ UIWindow.register_action(NewProjectAction())
 UIWindow.register_action(OpenProjectAction())
 UIWindow.register_action(ChooseProjectAction())
 UIWindow.register_action(RenameProjectAction())
+UIWindow.register_action(RevealProjectLocationAction())
+UIWindow.register_action(RemoveProjectFromListAction())

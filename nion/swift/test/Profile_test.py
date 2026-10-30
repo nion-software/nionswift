@@ -15,6 +15,7 @@ from nion.swift.test import TestContext
 from nion.ui import TestUI
 from nion.ui import UserInterface
 from nion.ui import Widgets
+from nion.ui import Window
 
 
 Facade.initialize()
@@ -651,6 +652,21 @@ class TestProfileClass(unittest.TestCase):
                     self.assertEqual(1, len(profile.project_references))
                 finally:
                     choose_project_window.request_close()
+            finally:
+                document_controller.close()
+
+    def test_remove_project_from_list_action_keeps_an_open_project(self) -> None:
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.read_profile()
+            app = self._test_setup.app
+            app._set_profile_for_test(profile)
+            project_reference = profile.project_references[0]
+            document_controller = app.open_project_window(project_reference)
+            try:
+                action_result = app.execute_action("project.remove_from_list", parameters={"project_reference_uuid": str(project_reference.uuid)})
+                self.assertEqual(Window.ActionStatus.CANCELLED, action_result.status)
+                self.assertIn(project_reference, profile.project_references)
             finally:
                 document_controller.close()
 
