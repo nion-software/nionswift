@@ -3537,7 +3537,7 @@ class WorkspaceCloneAction(Window.Action):
             def clone_clicked(text: str | None) -> None:
                 if text:
                     self.set_string_property(context, "name", text)
-                    self.execute(context)
+                    context.application.execute_action(self.action_id, context, invoked_from=Window.ActionOrigin.DIALOG, invoked_from_id="clone_workspace")
 
             title = _("Clone workspace") + " \"" + workspace_controller._workspace.name + "\""
             Dialog.pose_edit_string_popup(current_string=workspace_controller._workspace.name, completion_fn=clone_clicked,
@@ -3574,7 +3574,7 @@ class WorkspaceNewAction(Window.Action):
             def create_clicked(text: str | None) -> None:
                 if text:
                     self.set_string_property(context, "name", text)
-                    self.execute(context)
+                    context.application.execute_action(self.action_id, context, invoked_from=Window.ActionOrigin.DIALOG, invoked_from_id="new_workspace")
 
             Dialog.pose_edit_string_popup(current_string=_("Workspace"), completion_fn=create_clicked,
                                           window=window, title=_("Create a new workspace"), show_buttons=True,
@@ -3659,7 +3659,7 @@ class WorkspaceRemoveAction(Window.Action):
         if workspace_controller:
             def confirm_clicked(confirmed: bool) -> None:
                 if confirmed:
-                    self.execute(context)
+                    context.application.execute_action(self.action_id, context, invoked_from=Window.ActionOrigin.DIALOG, invoked_from_id="remove_workspace")
 
             title = _("Remove workspace")
             caption = _("Display panels in '") + workspace_controller._workspace.name + _("' will be deleted.\nThe data will not be deleted.")
@@ -3696,7 +3696,7 @@ class WorkspaceRenameAction(Window.Action):
             def rename_clicked(text: str | None) -> None:
                 if text:
                     self.set_string_property(context, "name", text)
-                    self.execute(context)
+                    context.application.execute_action(self.action_id, context, invoked_from=Window.ActionOrigin.DIALOG, invoked_from_id="rename_workspace")
 
             title = _("Rename workspace") + " \"" + workspace_controller._workspace.name + "\""
             Dialog.pose_edit_string_popup(current_string=workspace_controller._workspace.name,

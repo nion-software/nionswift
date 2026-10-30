@@ -1135,7 +1135,7 @@ class NewProjectAction(UIWindow.Action):
         def handle_create_clicked(new_name: str, new_directory: str) -> None:
             self.set_string_property(context, "name", new_name)
             self.set_string_property(context, "directory", new_directory)
-            self.execute(context)
+            context.application.execute_action(self.action_id, context, invoked_from=UIWindow.ActionOrigin.DIALOG, invoked_from_id="new_project")
 
         NameProjectDialog(application.ui, application, directory, project_name=project_title,
                           accept_fn=handle_create_clicked, dialog_name="New Project", choose_directory_visible=True,
@@ -1250,7 +1250,7 @@ class RenameProjectAction(UIWindow.Action):
 
         def handle_rename_clicked(new_name: str, _: str) -> None:
             self.set_string_property(context, "name", new_name)
-            self.execute(context)
+            context.application.execute_action(self.action_id, context, invoked_from=UIWindow.ActionOrigin.DIALOG, invoked_from_id="rename_project")
 
         directory = project_reference.path.parent.as_posix()
         NameProjectDialog(application.ui, application, directory, project_name=project_reference.path.stem,
