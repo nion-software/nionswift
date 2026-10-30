@@ -772,13 +772,12 @@ class Application(UIApplication.BaseApplication):
 
                         menu.add_menu_item(_("Remove Project from List"), functools.partial(remove_project, index))
 
-                        def rename_selected_project(project_reference: Profile.ProjectReference) -> None:
-                            action = RenameProjectAction()
-                            action_context = UIWindow.ActionContext(self.__application, self.window, None)
-                            action_context.parameters.update({"project_reference_uuid": project_reference.uuid})
-                            action.invoke(action_context)
+                        def perform_project_action(action_id: str, project_reference: Profile.ProjectReference) -> None:
+                            context = UIWindow.ActionContext(self.__application, self.window, None)
+                            context.parameters["project_reference_uuid"] = str(project_reference.uuid)
+                            self.window.perform_action_in_context(action_id, context, invoked_from=UIWindow.ActionOrigin.CONTEXT_MENU, invoked_from_id="choose_project")
 
-                        menu.add_menu_item(_("Rename Project..."), functools.partial(rename_selected_project, project_reference_item.project_reference))
+                        menu.add_menu_item(_("Rename Project..."), functools.partial(perform_project_action, "project.rename_project", project_reference_item.project_reference))
 
                         menu.popup(gx, gy)
                     return True
