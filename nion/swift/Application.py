@@ -1002,7 +1002,6 @@ class Application(UIApplication.BaseApplication):
         If the project reference is the current project, it will be closed and reopened after renaming to update the title.
         """
         with self.prevent_close():
-            old_title = project_reference.title
             renaming_current_project = project_reference.project is not None  # Project is open
             if renaming_current_project:
                 for window in self.windows:
@@ -1025,8 +1024,6 @@ class Application(UIApplication.BaseApplication):
 
                 if error_message:
                     self.__show_project_error_dialog(_("Error Renaming Project"), error_message)
-                else:
-                    logging.info(_("Renamed Project \"{0}\" to \"{1}\"").format(old_title, name))
 
 
 def get_root_dir() -> str:
