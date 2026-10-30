@@ -42,6 +42,7 @@ from nion.swift.model import Symbolic
 from nion.swift.test import TestContext
 from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.ui import Window
 from nion.utils import DateTime
 from nion.utils import Geometry
 from nion.utils import Registry
@@ -5218,6 +5219,24 @@ class TestStorageClass(unittest.TestCase):
                 self.assertFalse((profile_context.projects_dir / "Other.nsproj").exists())
                 self.assertTrue((profile_context.projects_dir / "Project.nsproj").exists())
                 self.assertIs(document_controller, get_document_controller(app))  # The open project's window was not closed
+            finally:
+                app._set_profile_for_test(None)
+                app.exit()
+                app.deinitialize()
+
+    def test_rename_project_action_to_the_current_name_does_nothing(self) -> None:
+        with create_temp_profile_context() as profile_context:
+            profile = profile_context.create_profile(project_name="Project")
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app._set_profile_for_test(profile)
+            document_controller = app.open_project_window(profile.project_references[0])
+            app._set_document_model(document_controller.document_model)
+            app.initialize(load_plug_ins=False)
+            try:
+                action_result = document_controller.execute_action("project.rename_project", parameters={"name": "Project"})
+                self.assertEqual(Window.ActionStatus.FINISHED, action_result.status)
+                self.assertTrue((profile_context.projects_dir / "Project.nsproj").exists())
+                self.assertIs(document_controller, get_document_controller(app))  # the project's window was not closed and reopened
             finally:
                 app._set_profile_for_test(None)
                 app.exit()
