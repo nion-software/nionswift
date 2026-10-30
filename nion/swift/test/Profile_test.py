@@ -13,6 +13,8 @@ from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.test import TestContext
 from nion.ui import TestUI
+from nion.ui import UserInterface
+from nion.ui import Widgets
 
 
 Facade.initialize()
@@ -20,6 +22,17 @@ Facade.initialize()
 
 def create_memory_profile_context() -> TestContext.MemoryProfileContext:
     return TestContext.MemoryProfileContext()
+
+
+_WidgetType = typing.TypeVar("_WidgetType", bound=UserInterface.Widget)
+
+
+def find_widgets(widget: UserInterface.Widget, widget_type: type[_WidgetType]) -> typing.Sequence[_WidgetType]:
+    # the widgets of the type in the tree below the widget, including the widget itself.
+    found: list[_WidgetType] = [widget] if isinstance(widget, widget_type) else list()
+    for child in widget._contained_widgets:
+        found.extend(find_widgets(child, widget_type))
+    return found
 
 
 def press_ok_and_complete(*args, **kwargs):
@@ -616,6 +629,30 @@ class TestProfileClass(unittest.TestCase):
                 app._set_profile_for_test(None)
                 app.exit()
                 app.deinitialize()
+
+    def test_remove_project_from_list_in_choose_project_window_removes_it_from_profile(self) -> None:
+        with create_memory_profile_context() as profile_context:
+            profile = profile_context.create_profile()
+            profile.read_profile()
+            app = self._test_setup.app
+            app._set_profile_for_test(profile)
+            project_reference = TestContext.add_project_memory(profile, load=False)
+            document_controller = app.open_project_window(profile.project_references[0])
+            try:
+                app.show_choose_project_dialog()
+                choose_project_window = next(window for window in app.windows if window.title == "Choose Project")
+                try:
+                    # the window's list shows the one project which is not loaded.
+                    list_widget = find_widgets(choose_project_window._document_window.root_widget, Widgets.StringListViewWidget)[0]
+                    list_widget.on_item_handle_context_menu(x=0, y=0, gx=0, gy=0, index=0)
+                    remove_item = next(item for item in app.ui.popup.items if item.title == "Remove Project from List")
+                    remove_item.callback()
+                    self.assertNotIn(project_reference, profile.project_references)
+                    self.assertEqual(1, len(profile.project_references))
+                finally:
+                    choose_project_window.request_close()
+            finally:
+                document_controller.close()
 
     # TODO: creating new project
     # TODO: opening project from file
