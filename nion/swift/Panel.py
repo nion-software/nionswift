@@ -16,6 +16,7 @@ import weakref
 # None
 
 # local libraries
+from nion.swift.model import Feature
 from nion.swift.model import UISettings
 from nion.swift.model import Utility
 from nion.ui import Application
@@ -744,6 +745,7 @@ class PanelTuple:
     positions: typing.List[str]
     position: str
     properties: typing.Optional[Persistence.PersistentDictType]
+    feature_id: str | None = None
 
 
 class PanelManager(metaclass=Utility.Singleton):
@@ -752,8 +754,12 @@ class PanelManager(metaclass=Utility.Singleton):
 
     def register_panel(self, panel_class: PanelCreateFn, panel_id: str, name: str,
                        positions: typing.Sequence[str], position: str,
-                       properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
-        self.__panel_tuples[panel_id] = PanelTuple(panel_class, panel_id, name, list(positions), position, properties)
+                       properties: typing.Optional[Persistence.PersistentDictType] = None, *, feature_id: str | None = None) -> None:
+        """Register a panel which a window creates as a dock panel.
+
+        A panel with a feature_id is only created in a window opened while that feature is enabled.
+        """
+        self.__panel_tuples[panel_id] = PanelTuple(panel_class, panel_id, name, list(positions), position, properties, feature_id)
 
     def unregister_panel(self, panel_id: str) -> None:
         del self.__panel_tuples[panel_id]
@@ -782,6 +788,11 @@ class PanelManager(metaclass=Utility.Singleton):
     @property
     def panel_ids(self) -> typing.List[str]:
         return list(self.__panel_tuples.keys())
+
+    def is_panel_enabled(self, panel_id: str) -> bool:
+        """Return whether a window creates the panel, which it doesn't while the panel's feature is disabled."""
+        feature_id = self.__panel_tuples[panel_id].feature_id
+        return feature_id is None or Feature.FeatureManager().is_feature_enabled(feature_id)
 
     def load(self, d: typing.Sequence[Persistence.PersistentDictType]) -> None:
         for panel_d in d:
