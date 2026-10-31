@@ -18,6 +18,7 @@ import types
 import typing
 import unittest
 
+from nion.swift.model import CommandHistory
 from nion.swift.model import Utility
 from nion.ui import Declarative
 
@@ -32,12 +33,10 @@ __test_suites: typing.List[unittest.suite.TestSuite] = list()
 
 logger = logging.getLogger("loader_progress")
 
-commands_logger = logging.getLogger("_commands")
-
 
 def log_message(message: str) -> None:
     logger.info(message)
-    commands_logger.info(message.replace("Plug-in", "# plug-in"))
+    CommandHistory.record(CommandHistory.CommandHistoryEntryKind.PLUG_IN, "plug-in", details=message)
 
 
 class RequirementsException(Exception):

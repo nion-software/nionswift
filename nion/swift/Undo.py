@@ -3,16 +3,14 @@ from __future__ import annotations
 import abc
 import contextlib
 import gettext
-import logging
 import typing
 
 # local libraries
+from nion.swift.model import CommandHistory
 from nion.ui import Window
 
 
 _ = gettext.gettext
-
-commands_logger = logging.getLogger("_commands")
 
 # the id of the action which is running, if any. actions run and changes are committed only on the main thread, so a
 # plain variable holds it. work which runs while an action waits in a modal dialog is also written as made by the action.
@@ -78,14 +76,9 @@ class UndoableCommand(abc.ABC):
     def _old_modified_state(self) -> typing.Any:
         return self.__old_modified_state
 
-    @property
-    def _log_text(self) -> str:
-        # the text which follows "change", "undo" or "redo" in a command log line: " <command id>: <title>", or ": <title>" for a
-        # command with no id, such as a plug-in's.
-        return f" {self.command_id}: {self.title}" if self.command_id else f": {self.title}"
-
     def commit(self, was_merge: bool = False, *, invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
-        """Record the state after the change, and write the change to the command log unless it was merged into the previous command.
+        """Record the state after the change, and record the change in the command history, which writes it to the command log, unless it
+        was merged into the previous command.
 
         The command log line is "# change <command id>: <title>", or "# change: <title>" for a command with no id. When the change
         is committed while an action runs, the line ends with " (in action <action id>)", since the action's own line gives its
@@ -93,12 +86,8 @@ class UndoableCommand(abc.ABC):
         same text an action line has, e.g. " (from panel inspector-panel)", with invoked_from_id naming the panel or dialog.
         """
         if not was_merge:
-            suffix = str()
-            if action_id := _running_action_id:
-                suffix = f" (in action {action_id})"
-            elif origin_text := Window.invoked_from_text(invoked_from, invoked_from_id):
-                suffix = f" (from {origin_text})"
-            commands_logger.info(f"# change{self._log_text}{suffix}")
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.CHANGE, self.title, identifier=self.command_id or None,
+                                  invoked_from=invoked_from, invoked_from_id=invoked_from_id, action_id=_running_action_id)
         self.__new_modified_state = self._get_modified_state()
 
     def perform(self) -> None:
@@ -106,13 +95,13 @@ class UndoableCommand(abc.ABC):
 
     def undo(self) -> None:
         # the command log line is "# undo <command id>: <title>", or "# undo: <title>" for a command with no id; redo's is the same with "redo".
-        commands_logger.info(f"# undo{self._log_text}")
+        CommandHistory.record(CommandHistory.CommandHistoryEntryKind.UNDO, self.title, identifier=self.command_id or None)
         self._undo()
         self._set_modified_state(self.__old_modified_state)
         self.__is_mergeable = False
 
     def redo(self) -> None:
-        commands_logger.info(f"# redo{self._log_text}")
+        CommandHistory.record(CommandHistory.CommandHistoryEntryKind.REDO, self.title, identifier=self.command_id or None)
         self._redo()
         self._set_modified_state(self.__new_modified_state)
 
