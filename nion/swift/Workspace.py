@@ -453,7 +453,7 @@ class Workspace:
         # add registered panels
         for panel_id in Panel.PanelManager().panel_ids:
             title, positions, position, properties = Panel.PanelManager().get_panel_info(panel_id)
-            if position != "central":
+            if position != "central" and Panel.PanelManager().is_panel_enabled(panel_id):
                 dock_panel = self.create_panel(document_controller, panel_id, title, positions, position, properties)
                 if dock_panel:  # could have failed to create due to exception
                     if visible_panels is None or panel_id in visible_panels:
@@ -1175,8 +1175,8 @@ class WorkspaceManager(metaclass=Utility.Singleton):
         """
     def register_panel(self, panel_class: typing.Type[typing.Any], panel_id: str, name: str,
                        positions: typing.Sequence[str], position: str,
-                       properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
-        Panel.PanelManager().register_panel(panel_class, panel_id, name, positions, position, properties)
+                       properties: typing.Optional[Persistence.PersistentDictType] = None, *, feature_id: str | None = None) -> None:
+        Panel.PanelManager().register_panel(panel_class, panel_id, name, positions, position, properties, feature_id=feature_id)
 
     def unregister_panel(self, panel_id: str) -> None:
         Panel.PanelManager().unregister_panel(panel_id)

@@ -28,6 +28,7 @@ from nion.swift import ActivityPanel
 from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import FilterPanel
+from nion.swift import HistoryPanel
 from nion.swift import HistogramPanel
 from nion.swift import InfoPanel
 from nion.swift import Inspector
@@ -312,6 +313,8 @@ class Application(UIApplication.BaseApplication):
         workspace_manager.register_panel(ToolbarPanel.ToolbarPanel, "toolbar-panel", _("Toolbar"), ["top"], "top", {"height": 30})
         workspace_manager.register_panel(MetadataPanel.MetadataPanel, "metadata-panel", _("Metadata"), ["left", "right"], "right", {"width": 320, "height": 8})
         workspace_manager.register_panel(ActivityPanel.ActivityPanel, "activity-panel", _("Activity"), ["left", "right"], "right", {"min-width": 320, "height": 80})
+        workspace_manager.register_panel(HistoryPanel.HistoryPanel, "history-panel", _("History"), ["left", "right"], "right", {"preferred-width": 650, "preferred-height": 400},
+                                         feature_id=HistoryPanel.history_panel_feature_id)
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def __purge_log_files(self, log_dir_path: pathlib.Path) -> None:
