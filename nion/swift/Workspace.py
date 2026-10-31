@@ -5,7 +5,6 @@ import copy
 import functools
 import gettext
 import json
-import logging
 import math
 import random
 import string
@@ -24,6 +23,7 @@ from nion.swift import FilterPanel
 from nion.swift import MimeTypes
 from nion.swift import Panel
 from nion.swift import Undo
+from nion.swift.model import CommandHistory
 from nion.swift.model import Persistence
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
@@ -41,8 +41,6 @@ if typing.TYPE_CHECKING:
 
 
 _ = gettext.gettext
-
-commands_logger = logging.getLogger("_commands")
 
 
 def create_image_desc() -> Persistence.PersistentDictType:
@@ -377,7 +375,7 @@ class Workspace:
         """
         if self.__command_log_panel_open_states is None:
             self.__command_log_panel_open_states = {dock_panel.panel_id: dock_panel.dock_widget.is_open for dock_panel in self.dock_panels}
-            commands_logger.info(f"# window opened with panels:{self.__command_log_open_panels_text}")
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.WINDOW, "window opened", details=self.__command_log_open_panels_text.strip())
 
     def write_window_closed_to_command_log(self) -> None:
         """Write the window's closing line, listing its open panels, to the command log, and stop writing each panel opened or closed.
@@ -388,7 +386,7 @@ class Workspace:
         if self.__command_log_panel_open_states is not None:
             for dock_panel in self.dock_panels:
                 self.__handle_dock_panel_is_open_changed(dock_panel.panel_id, dock_panel.dock_widget.is_open)
-            commands_logger.info(f"# window closed with panels:{self.__command_log_open_panels_text}")
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.WINDOW, "window closed", details=self.__command_log_open_panels_text.strip())
             self.__command_log_panel_open_states = None
 
     @property
@@ -404,7 +402,7 @@ class Workspace:
         open_states = self.__command_log_panel_open_states
         if open_states is not None and open_states.get(panel_id) != is_open:
             open_states[panel_id] = is_open
-            commands_logger.info(f"# panel {'opened' if is_open else 'closed'}: {panel_id}")
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.PANEL, "panel opened" if is_open else "panel closed", identifier=panel_id)
 
     def restore_geometry_state(self) -> typing.Tuple[str, str]:
         geometry = self.ui.get_persistent_string(f"Workspace/{self.workspace_id}/Geometry")

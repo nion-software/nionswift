@@ -42,6 +42,7 @@ from nion.swift import Undo
 from nion.swift import Workspace
 from nion.swift.model import ApplicationData
 from nion.swift.model import ColorMaps
+from nion.swift.model import CommandHistory
 from nion.swift.model import DocumentModel
 from nion.swift.model import Feature
 from nion.swift.model import FileStorageSystem
@@ -289,6 +290,9 @@ class Application(UIApplication.BaseApplication):
         self.__profile: typing.Optional[Profile.Profile] = None
         self.__document_model: typing.Optional[DocumentModel.DocumentModel] = None
 
+        # whether the command history recorded the launch, so that it records the shutdown only after a launch.
+        self.__is_launch_recorded = False
+
         self.__menu_handlers: typing.List[typing.Callable[[DocumentController.DocumentController], None]] = []
 
         Registry.register_component(Inspector.DeclarativeImageChooserConstructor(self), {"declarative_constructor"})
@@ -365,14 +369,17 @@ class Application(UIApplication.BaseApplication):
             for handler in list(commands_logger.handlers):
                 commands_logger.removeHandler(handler)
             commands_logger.addHandler(log_file_handler)
+            commands_logger.addHandler(CommandHistory.command_history)
 
             python_version = str(sys.version.replace('\n', ''))
 
             COMMANDS_LOGGER_VERSION: typing.Final[str] = "1"
-            commands_logger.info(f"# application launched (version {COMMANDS_LOGGER_VERSION})")
-            commands_logger.info(f"# python version {python_version}")
-            commands_logger.info(f"# ui {type(self.ui).__name__} / {type(getattr(self.ui, 'proxy')).__name__} / {self.ui.get_build_version()}")
-            commands_logger.info(f"# qt {self.ui.get_qt_version()}")
+            ui_text = f"{type(self.ui).__name__} / {type(getattr(self.ui, 'proxy')).__name__} / {self.ui.get_build_version()}"
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.APPLICATION, f"application launched (version {COMMANDS_LOGGER_VERSION})")
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.APPLICATION, f"python version {python_version}")
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.APPLICATION, f"ui {ui_text}")
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.APPLICATION, f"qt {self.ui.get_qt_version()}")
+            self.__is_launch_recorded = True
 
             logging.info(f"Launch time {datetime.datetime.now()}")
             logging.info(f"Python version {python_version}")
@@ -404,8 +411,8 @@ class Application(UIApplication.BaseApplication):
             self.__profile = None
         self.__document_model = None
         PlugInManager.unload_plug_ins()
-        commands_logger = logging.getLogger("_commands")
-        commands_logger.info("# application shutdown")
+        if self.__is_launch_recorded:
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.APPLICATION, "application shutdown")
         global app
         app = typing.cast(Application, None)  # hack to get the single instance set. hmm. better way?
         self.__class__.count -= 1
@@ -830,10 +837,13 @@ class Application(UIApplication.BaseApplication):
         return super()._menu_about_to_show(window, menu)
 
     def _run_action(self, action: UIWindow.Action, action_context: UIWindow.ActionContext, *, user_interaction: bool) -> UIWindow.ActionResult:
-        # write the action to the command log before running it, so it comes before the changes it makes.
-        commands_logger = logging.getLogger("_commands")
-        invoked_from_text = action_context.invoked_from_text
-        commands_logger.info(f"# action {action.get_action_summary(action_context)}" + (f" (from {invoked_from_text})" if invoked_from_text else ""))
+        # record the action before running it, so it comes before the changes it makes. the summary and the name are read
+        # before it is recorded, so that one which raises leaves no unfinished action.
+        action_summary = action.get_action_summary(action_context)
+        action_name = action.get_action_name(action_context)
+        CommandHistory.record(CommandHistory.CommandHistoryEntryKind.ACTION, action_name, identifier=action.action_id,
+                              invoked_from=action_context.invoked_from, invoked_from_id=action_context.invoked_from_id,
+                              parameters=action_context.parameters, details=action_summary)
         # the time written at the end is how long the action ran on the main thread before returning, or raising. it leaves
         # out work the action leaves for later, such as a computation, and includes time a person spends in a dialog the
         # action waits for, such as a file dialog.
@@ -843,7 +853,8 @@ class Application(UIApplication.BaseApplication):
             with Undo.running_action(action.action_id):
                 return super()._run_action(action, action_context, user_interaction=user_interaction)
         finally:
-            commands_logger.info(f"# action end {action.action_id} ({time.perf_counter() - start_time:.3f} s)")
+            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.ACTION_END, action_name, identifier=action.action_id,
+                                  duration=time.perf_counter() - start_time)
 
     def __about_to_show_recent_projects_menu(self, window: UIWindow.Window, menu: UserInterface.Menu) -> None:
         # recent project actions are stored with the window so they can be deleted.

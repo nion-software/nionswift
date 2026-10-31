@@ -21,6 +21,7 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
+from nion.swift.model import CommandHistory
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import FileStorageSystem
@@ -203,7 +204,7 @@ class ImportExportManager(metaclass=Utility.Singleton):
                 elapsed = time.time() - start
                 export_metrics_str = f"{int(elapsed)}s ({path}) {'/'.join(data_item.size_and_data_format_as_string for data_item in display_item.data_items)}"
                 logging.getLogger("export").info(f"Export {export_metrics_str}")
-                logging.getLogger("_commands").info(f"# export metrics {export_metrics_str}")
+                CommandHistory.record(CommandHistory.CommandHistoryEntryKind.EXPORT, "export", details=export_metrics_str)
 
     def write_display_item(self, display_item: DisplayItem.DisplayItem, path: pathlib.Path) -> None:
         extension = path.suffix
