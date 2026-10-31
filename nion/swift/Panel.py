@@ -746,6 +746,7 @@ class PanelTuple:
     position: str
     properties: typing.Optional[Persistence.PersistentDictType]
     feature_id: str | None = None
+    is_floating: bool = False
 
 
 class PanelManager(metaclass=Utility.Singleton):
@@ -754,12 +755,14 @@ class PanelManager(metaclass=Utility.Singleton):
 
     def register_panel(self, panel_class: PanelCreateFn, panel_id: str, name: str,
                        positions: typing.Sequence[str], position: str,
-                       properties: typing.Optional[Persistence.PersistentDictType] = None, *, feature_id: str | None = None) -> None:
+                       properties: typing.Optional[Persistence.PersistentDictType] = None, *, feature_id: str | None = None,
+                       is_floating: bool = False) -> None:
         """Register a panel which a window creates as a dock panel.
 
         A panel with a feature_id is only created in a window opened while that feature is enabled.
+        A panel with is_floating starts floating in a window of its own, until a window's saved layout places it.
         """
-        self.__panel_tuples[panel_id] = PanelTuple(panel_class, panel_id, name, list(positions), position, properties, feature_id)
+        self.__panel_tuples[panel_id] = PanelTuple(panel_class, panel_id, name, list(positions), position, properties, feature_id, is_floating)
 
     def unregister_panel(self, panel_id: str) -> None:
         del self.__panel_tuples[panel_id]
@@ -773,6 +776,8 @@ class PanelManager(metaclass=Utility.Singleton):
                 properties = properties if properties else {}
                 panel: Panel = panel_tuple.panel_create_fn(document_controller, panel_id, properties)
                 panel.create_dock_widget(title, positions, position)
+                if panel_tuple.is_floating:
+                    panel.dock_widget.set_floating(True)
                 return panel
             except Exception as e:
                 import traceback

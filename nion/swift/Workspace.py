@@ -1175,8 +1175,9 @@ class WorkspaceManager(metaclass=Utility.Singleton):
         """
     def register_panel(self, panel_class: typing.Type[typing.Any], panel_id: str, name: str,
                        positions: typing.Sequence[str], position: str,
-                       properties: typing.Optional[Persistence.PersistentDictType] = None, *, feature_id: str | None = None) -> None:
-        Panel.PanelManager().register_panel(panel_class, panel_id, name, positions, position, properties, feature_id=feature_id)
+                       properties: typing.Optional[Persistence.PersistentDictType] = None, *, feature_id: str | None = None,
+                       is_floating: bool = False) -> None:
+        Panel.PanelManager().register_panel(panel_class, panel_id, name, positions, position, properties, feature_id=feature_id, is_floating=is_floating)
 
     def unregister_panel(self, panel_id: str) -> None:
         Panel.PanelManager().unregister_panel(panel_id)
