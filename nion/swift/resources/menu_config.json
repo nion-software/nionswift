@@ -131,35 +131,35 @@
         "title": "Edit",
         "items": [
             {
-                "type": "item",
-                "action_id": "window.undo"
+                "type": "edit_command",
+                "edit_command_id": "undo"
             },
             {
-                "type": "item",
-                "action_id": "window.redo"
+                "type": "edit_command",
+                "edit_command_id": "redo"
             },
             {
                 "type": "separator"
             },
             {
-                "type": "item",
-                "action_id": "window.cut"
+                "type": "edit_command",
+                "edit_command_id": "cut"
             },
             {
-                "type": "item",
-                "action_id": "window.copy"
+                "type": "edit_command",
+                "edit_command_id": "copy"
             },
             {
-                "type": "item",
-                "action_id": "window.paste"
+                "type": "edit_command",
+                "edit_command_id": "paste"
             },
             {
-                "type": "item",
-                "action_id": "window.delete"
+                "type": "edit_command",
+                "edit_command_id": "delete"
             },
             {
-                "type": "item",
-                "action_id": "window.select_all"
+                "type": "edit_command",
+                "edit_command_id": "select_all"
             },
             {
                 "type": "separator"

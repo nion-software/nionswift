@@ -3396,10 +3396,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.perform_action("graphics.add_spot_graphic")
             self.assertEqual(1, len(display_item.graphics))
             # undo
-            document_controller.perform_action("window.undo")
+            edit_menu_actions = document_controller._document_window.get_menu("edit").get_menu_actions()
+            next(action for action in edit_menu_actions if action.edit_command_id == "undo").trigger()
             self.assertEqual(0, len(display_item.graphics))
-            # undo
-            document_controller.perform_action("window.redo")
+            # redo
+            next(action for action in edit_menu_actions if action.edit_command_id == "redo").trigger()
             self.assertEqual(1, len(display_item.graphics))
             # clean up by clearing out the periodic queue
             document_controller.periodic()
@@ -3432,13 +3433,34 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             document_controller.document_model.recompute_all()
             # undo
-            document_controller.perform_action("window.undo")
+            edit_menu_actions = document_controller._document_window.get_menu("edit").get_menu_actions()
+            next(action for action in edit_menu_actions if action.edit_command_id == "undo").trigger()
             self.assertEqual(0, len(display_item.graphics))
-            # undo
-            document_controller.perform_action("window.redo")
+            # redo
+            next(action for action in edit_menu_actions if action.edit_command_id == "redo").trigger()
             self.assertEqual(1, len(display_item.graphics))
             # clean up by clearing out the periodic queue
             document_controller.periodic()
+
+    def test_select_all_from_edit_menu_selects_the_graphics_of_the_focused_display_panel(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.layout_immediate(Geometry.IntSize(1000 + display_panel.header_canvas_item.header_height, 1000))
+            display_item.add_graphic(Graphics.RectangleGraphic())
+            display_item.add_graphic(Graphics.EllipseGraphic())
+            display_panel.request_focus()
+            edit_menu = document_controller._document_window.get_menu("edit")
+            edit_menu.about_to_show()
+            select_all_menu_action = next(action for action in edit_menu.get_menu_actions() if action.edit_command_id == "select_all")
+            self.assertTrue(select_all_menu_action.enabled)
+            select_all_menu_action.trigger()
+            self.assertEqual({0, 1}, set(display_item.graphic_selection.indexes))
 
     def test_related_canvas_item_focus_handling(self):
         with TestContext.create_memory_context() as test_context:
