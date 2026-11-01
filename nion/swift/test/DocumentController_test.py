@@ -1271,6 +1271,65 @@ class TestDocumentControllerClass(unittest.TestCase):
                 data_item_reference.data_item = data_item
                 document_controller.periodic()
 
+    def test_undo_and_redo_in_edit_menu_are_enabled_after_a_change_without_showing_the_menu(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            edit_menu = document_controller._document_window.get_menu("edit")
+            assert edit_menu
+            undo_menu_action = next(action for action in edit_menu.get_menu_actions() if action.edit_command_id == "undo")
+            redo_menu_action = next(action for action in edit_menu.get_menu_actions() if action.edit_command_id == "redo")
+            edit_menu.about_to_show()
+            document_controller.add_group()
+            document_controller.periodic()
+            self.assertTrue(undo_menu_action.enabled)
+            self.assertFalse(redo_menu_action.enabled)
+            undo_menu_action.trigger()
+            document_controller.periodic()
+            self.assertTrue(redo_menu_action.enabled)
+
+    def test_redo_in_edit_menu_works_when_undo_exposes_a_command_which_a_later_change_made_stale(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            assert display_panel
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            assert display_item
+            display_panel.set_display_panel_display_item(display_item)
+            edit_menu = document_controller._document_window.get_menu("edit")
+            assert edit_menu
+            undo_menu_action = next(action for action in edit_menu.get_menu_actions() if action.edit_command_id == "undo")
+            redo_menu_action = next(action for action in edit_menu.get_menu_actions() if action.edit_command_id == "redo")
+            # the split's command compares the whole project's state, so a change with no command, such as new data, makes it stale.
+            document_controller.perform_action("workspace.split_horizontal")
+            data_item.title = "changed with no command"
+            document_controller.perform_action("graphics.add_rectangle_graphic")
+            document_controller.periodic()
+            undo_menu_action.trigger()
+            document_controller.periodic()
+            edit_menu.about_to_show()
+            self.assertEqual(0, len(display_item.graphics))
+            self.assertFalse(undo_menu_action.enabled)
+            redo_menu_action.trigger()
+            self.assertEqual(1, len(display_item.graphics))
+
+    def test_undo_in_edit_menu_shows_the_change_it_undoes_and_is_disabled_with_nothing_to_undo(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            edit_menu = document_controller._document_window.get_menu("edit")
+            assert edit_menu
+            undo_menu_action = next(action for action in edit_menu.get_menu_actions() if action.edit_command_id == "undo")
+            edit_menu.about_to_show()
+            self.assertFalse(undo_menu_action.enabled)
+            document_controller.add_group()
+            edit_menu.about_to_show()
+            self.assertTrue(undo_menu_action.enabled)
+            self.assertEqual("Undo Insert Data Group", undo_menu_action.title)
+            undo_menu_action.trigger()
+            self.assertEqual(0, len(document_controller.document_model.data_groups))
+
 
 class TestExportBitmapFile(unittest.TestCase):
     """Tests for DocumentController.export_bitmap_file's imageio-based writers (PNG/JPEG) and its

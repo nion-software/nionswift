@@ -633,9 +633,24 @@ class DocumentController(Window.Window):
             self.__undo_stack.push(undo_command, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
         else:
             self.__undo_stack.clear()
+        self.__undo_stack_changed()
 
     def pop_undo_command(self) -> None:
         self.__undo_stack.pop_command()
+        self.__undo_stack_changed()
+
+    def __undo_stack_changed(self) -> None:
+        # a shortcut is ignored while its menu item is disabled, so Undo and Redo can't wait for the Edit menu to be shown.
+        # the task runs once per periodic, for changes which come quickly, such as from a slider.
+        self.add_task("update_undo_menu_items", self.__update_undo_menu_items)
+
+    def __update_undo_menu_items(self) -> None:
+        if edit_menu := self._document_window.get_menu("edit"):
+            for menu_action in edit_menu.get_menu_actions():
+                if menu_action.edit_command_id == "undo":
+                    menu_action.apply_state(self.get_undo_menu_item_state())
+                elif menu_action.edit_command_id == "redo":
+                    menu_action.apply_state(self.get_redo_menu_item_state())
 
     @property
     def workspace_controller(self) -> typing.Optional[Workspace.Workspace]:
@@ -1159,16 +1174,17 @@ class DocumentController(Window.Window):
     def handle_undo(self) -> bool:
         if self.__undo_stack.can_undo:
             self.__undo_stack.undo()
+            self.__undo_stack_changed()
             return True
         return False
 
     def get_undo_menu_item_state(self) -> UserInterface.MenuItemState:
-        self.__undo_stack.validate()
         return UserInterface.MenuItemState(title=self.__undo_stack.undo_title, enabled=self.__undo_stack.can_undo, checked=False)
 
     def handle_redo(self) -> None:
         if self.__undo_stack.can_redo:
             self.__undo_stack.redo()
+            self.__undo_stack_changed()
 
     def get_redo_menu_item_state(self) -> UserInterface.MenuItemState:
         return UserInterface.MenuItemState(title=self.__undo_stack.redo_title, enabled=self.__undo_stack.can_redo, checked=False)
