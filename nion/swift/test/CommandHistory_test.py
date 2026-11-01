@@ -10,6 +10,7 @@ import numpy
 # local libraries
 from nion.swift.model import CommandHistory
 from nion.swift.model import DataItem
+from nion.swift.model import Graphics
 from nion.swift.test import TestContext
 from nion.ui import Window
 from nion.utils import Event
@@ -71,6 +72,23 @@ class TestCommandHistoryClass(unittest.TestCase):
                              (action_end_entry.kind, action_end_entry.identifier))
             self.assertIsNotNone(action_end_entry.duration)
 
+    def test_action_which_raises_is_recorded_with_its_end(self) -> None:
+        class RaisingTestAction(Window.Action):
+            action_id = "command_history_test.raises"
+            action_name = "Raising Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                raise ValueError()
+
+        Window.register_action(RaisingTestAction())
+        self.addCleanup(Window.unregister_action, "command_history_test.raises")
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            entries = self._listen_for_entries()
+            with self.assertRaises(ValueError):
+                document_controller.execute_action("command_history_test.raises")
+            self.assertEqual([CommandHistory.CommandHistoryEntryKind.ACTION, CommandHistory.CommandHistoryEntryKind.ACTION_END], [entry.kind for entry in entries])
+
     def test_change_made_by_an_action_is_recorded_with_the_action(self) -> None:
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller_with_application()
@@ -85,6 +103,29 @@ class TestCommandHistoryClass(unittest.TestCase):
             change_entries = [entry for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.CHANGE]
             self.assertTrue(change_entries)
             self.assertEqual({"processing.line_profile"}, {entry.action_id for entry in change_entries})
+
+    def test_edit_command_which_makes_a_change_is_recorded_as_an_action(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            assert display_panel
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            assert display_item
+            display_panel.set_display_panel_display_item(display_item)
+            display_item.add_graphic(Graphics.RectangleGraphic())
+            display_item.graphic_selection.set(0)
+            document_controller.perform_edit_command("copy")
+            entries = self._listen_for_entries()
+            document_controller.perform_edit_command("paste", invoked_from=Window.ActionOrigin.MENU)
+            self.assertEqual(2, len(display_item.graphics))
+            action_entry, change_entry, action_end_entry = entries
+            self.assertEqual((CommandHistory.CommandHistoryEntryKind.ACTION, "window.paste", Window.ActionOrigin.MENU),
+                             (action_entry.kind, action_entry.identifier, action_entry.invoked_from))
+            self.assertEqual((CommandHistory.CommandHistoryEntryKind.CHANGE, "window.paste"), (change_entry.kind, change_entry.action_id))
+            self.assertEqual((CommandHistory.CommandHistoryEntryKind.ACTION_END, "window.paste"), (action_end_entry.kind, action_end_entry.identifier))
 
     def test_command_history_keeps_only_the_most_recent_entries(self) -> None:
         command_history = CommandHistory.CommandHistoryHandler()

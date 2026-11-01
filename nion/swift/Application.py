@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
+import contextlib
 import dataclasses
 import datetime
 import functools
@@ -254,6 +255,27 @@ def install_gettext_fast_path(domain: str = "messages", localedir: str | None = 
         return translation.gettext(message)
 
     gettext.dgettext = dgettext  # type: ignore  # parameter name differs from the stub; call is positional-only in practice
+
+
+@contextlib.contextmanager
+def _recording_action(action_id: str, title: str, details: str, *, invoked_from: UIWindow.ActionOrigin | None, invoked_from_id: str | None,
+                      parameters: typing.Mapping[str, typing.Any] | None = None) -> typing.Iterator[None]:
+    """Record an action in the command history while the context is entered.
+
+    The action is recorded on entering, so it comes before the changes it makes, and those changes are written as made in
+    the action. Its end is recorded on leaving, with the duration, even if the action raises.
+    """
+    # the time written at the end is how long the action ran on the main thread before returning, or raising. it leaves
+    # out work the action leaves for later, such as a computation, and includes time a person spends in a dialog the
+    # action waits for, such as a file dialog.
+    CommandHistory.record(CommandHistory.CommandHistoryEntryKind.ACTION, title, identifier=action_id, invoked_from=invoked_from,
+                          invoked_from_id=invoked_from_id, parameters=parameters, details=details)
+    start_time = time.perf_counter()
+    try:
+        with Undo.running_action(action_id):
+            yield
+    finally:
+        CommandHistory.record(CommandHistory.CommandHistoryEntryKind.ACTION_END, title, identifier=action_id, duration=time.perf_counter() - start_time)
 
 
 class Application(UIApplication.BaseApplication):
@@ -840,24 +862,19 @@ class Application(UIApplication.BaseApplication):
         return super()._menu_about_to_show(window, menu)
 
     def _run_action(self, action: UIWindow.Action, action_context: UIWindow.ActionContext, *, user_interaction: bool) -> UIWindow.ActionResult:
-        # record the action before running it, so it comes before the changes it makes. the summary and the name are read
-        # before it is recorded, so that one which raises leaves no unfinished action.
+        # the summary and the name are read before the action is recorded, so that one which raises leaves no unfinished action.
         action_summary = action.get_action_summary(action_context)
         action_name = action.get_action_name(action_context)
-        CommandHistory.record(CommandHistory.CommandHistoryEntryKind.ACTION, action_name, identifier=action.action_id,
-                              invoked_from=action_context.invoked_from, invoked_from_id=action_context.invoked_from_id,
-                              parameters=action_context.parameters, details=action_summary)
-        # the time written at the end is how long the action ran on the main thread before returning, or raising. it leaves
-        # out work the action leaves for later, such as a computation, and includes time a person spends in a dialog the
-        # action waits for, such as a file dialog.
-        start_time = time.perf_counter()
-        try:
-            # mark the action as running while it runs, so the command log writes the changes it makes as made in the action.
-            with Undo.running_action(action.action_id):
-                return super()._run_action(action, action_context, user_interaction=user_interaction)
-        finally:
-            CommandHistory.record(CommandHistory.CommandHistoryEntryKind.ACTION_END, action_name, identifier=action.action_id,
-                                  duration=time.perf_counter() - start_time)
+        with _recording_action(action.action_id, action_name, action_summary, invoked_from=action_context.invoked_from,
+                               invoked_from_id=action_context.invoked_from_id, parameters=action_context.parameters):
+            return super()._run_action(action, action_context, user_interaction=user_interaction)
+
+    def _run_edit_command(self, window: UIWindow.Window, edit_command: UIWindow.EditCommand, dispatch: typing.Callable[[], None], *,
+                          invoked_from: UIWindow.ActionOrigin | None, invoked_from_id: str | None) -> None:
+        # window.<id> is the edit command's id in the command log, where the ranking script and old logs expect it.
+        log_id = f"window.{edit_command.edit_command_id}"
+        with _recording_action(log_id, edit_command.title, f"{log_id}: {edit_command.title}", invoked_from=invoked_from, invoked_from_id=invoked_from_id):
+            super()._run_edit_command(window, edit_command, dispatch, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
 
     def __about_to_show_recent_projects_menu(self, window: UIWindow.Window, menu: UserInterface.Menu) -> None:
         # recent project actions are stored with the window so they can be deleted.
