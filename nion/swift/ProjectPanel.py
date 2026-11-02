@@ -422,13 +422,30 @@ class CollectionListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
             return "copy"
         return "ignore"
 
-    def delete_pressed(self) -> None:
+    def __get_selected_data_group(self) -> DataGroup.DataGroup | None:
+        # the data group of the selected collection, or None if no collection is selected or it is a smart collection.
         index = self.__collection_selection.current_index
-        if collection_info := (self.collection_info_list[index] if index is not None else None):
-            if data_group := (collection_info.data_group if collection_info else None):
-                # remove the data group through an action, so the command log records it with the key and the panel id.
-                self.__document_controller.perform_action("project.remove_group", parameters={"data_group_uuid": str(data_group.uuid)},
-                                                          invoked_from=Window.ActionOrigin.KEY, invoked_from_id=self.__panel_id)
+        collection_info = self.collection_info_list[index] if index is not None else None
+        return collection_info.data_group if collection_info else None
+
+    def delete_pressed(self) -> None:
+        # the list calls this for the Delete key. it also calls this for Edit > Delete when get_delete_action returns None,
+        # and then nothing is removed.
+        if data_group := self.__get_selected_data_group():
+            # remove the data group through an action, so the command log records it with the key and the panel id.
+            self.__document_controller.perform_action("project.remove_group", parameters={"data_group_uuid": str(data_group.uuid)},
+                                                      invoked_from=Window.ActionOrigin.KEY, invoked_from_id=self.__panel_id)
+
+    def get_delete_action(self) -> Window.BoundAction | None:
+        # a disabled action isn't returned, since it would leave Edit > Delete disabled, and the item's state isn't
+        # refreshed when the selection or focus changes, so a disabled item could refuse the shortcut for a later selection.
+        if data_group := self.__get_selected_data_group():
+            action = Window.actions["project.remove_group"]
+            action_context = self.__document_controller.get_action_context_for_display_items(list(), None)
+            action_context.parameters["data_group_uuid"] = str(data_group.uuid)
+            if action.is_enabled(action_context):
+                return Window.BoundAction(action, action_context)
+        return None
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         if key.is_enter_or_return:

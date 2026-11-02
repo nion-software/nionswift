@@ -9,15 +9,30 @@ import numpy
 
 # local libraries
 from nion.swift import DataPanel
+from nion.swift import ProjectPanel
 from nion.swift.model import CommandHistory
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
 from nion.ui import CanvasItem
 from nion.ui import TestUI
+from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.ui import Window
 from nion.utils import Event
 from nion.utils import Geometry
+
+WidgetType = typing.TypeVar("WidgetType", bound=UserInterface.Widget)
+
+
+def find_contained_widget(widget: UserInterface.Widget, widget_type: type[WidgetType]) -> WidgetType | None:
+    # the first widget of the type, searching the widget and then the widgets it contains, depth first.
+    if isinstance(widget, widget_type):
+        return widget
+    for contained_widget in widget._contained_widgets:
+        if found_widget := find_contained_widget(contained_widget, widget_type):
+            return found_widget
+    return None
 
 
 class TestCommandHistoryClass(unittest.TestCase):
@@ -183,6 +198,25 @@ class TestCommandHistoryClass(unittest.TestCase):
                 expected_origin = (Window.ActionOrigin.KEY, "display-panel") if invoked_by_key else (Window.ActionOrigin.MENU, None)
                 self.assertEqual([("item.delete", *expected_origin)],
                                  [(entry.identifier, entry.invoked_from, entry.invoked_from_id) for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.ACTION])
+
+    def test_edit_delete_in_the_collections_panel_is_recorded_as_remove_group_from_the_menu(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            document_controller.add_group()
+            collections_panel = typing.cast(ProjectPanel.CollectionsPanel, document_controller.find_dock_panel("collections-panel"))
+            list_widget = find_contained_widget(collections_panel.widget, Widgets.ListWidget)
+            assert list_widget
+            canvas_widget = find_contained_widget(list_widget, UserInterface.CanvasWidget)
+            assert canvas_widget
+            canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(width=320, height=400))
+            # the rows are 20 pixels high, and the first data group follows the four smart collections.
+            canvas_widget.simulate_mouse_click(40, 4 * 20 + 10, CanvasItem.KeyboardModifiers())
+            entries = self._listen_for_entries()
+            document_controller.perform_edit_command("delete", invoked_from=Window.ActionOrigin.MENU)
+            self.assertEqual(0, len(document_model.data_groups))
+            self.assertEqual([("project.remove_group", Window.ActionOrigin.MENU)],
+                             [(entry.identifier, entry.invoked_from) for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.ACTION])
 
     def test_command_history_keeps_only_the_most_recent_entries(self) -> None:
         command_history = CommandHistory.CommandHistoryHandler()

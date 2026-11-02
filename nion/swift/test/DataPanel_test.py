@@ -1136,6 +1136,30 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertIn(data_group, document_model.data_groups)
             self.assertEqual(1, len(data_group.display_items))
 
+    def test_delete_shortcut_works_on_an_empty_collection_selected_after_the_menu_showed_one_with_items(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            document_controller.add_group()
+            document_controller.add_group()
+            data_group_with_item, empty_data_group = document_model.data_groups
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            data_group_with_item.append_display_item(document_model.get_display_item_for_data_item(data_item))
+            collections_panel = typing.cast(ProjectPanel.CollectionsPanel, document_controller.find_dock_panel("collections-panel"))
+            canvas_widget = find_collections_canvas_widget(collections_panel)
+            canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(width=320, height=400))
+            # the rows are 20 pixels high, and the first data group follows the four smart collections.
+            canvas_widget.simulate_mouse_click(40, 4 * 20 + 10, CanvasItem.KeyboardModifiers())
+            edit_menu = document_controller._document_window.get_menu("edit")
+            edit_menu.about_to_show()
+            delete_menu_action = next(action for action in edit_menu.get_menu_actions() if action.edit_command_id == "delete")
+            # nothing refreshes the item when the selection changes below.
+            self.assertTrue(delete_menu_action.enabled, "a disabled Delete item ignores its shortcut")
+            canvas_widget.simulate_mouse_click(40, 5 * 20 + 10, CanvasItem.KeyboardModifiers())
+            delete_menu_action.trigger()
+            self.assertEqual([data_group_with_item], list(document_model.data_groups))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
