@@ -3542,6 +3542,31 @@ class TestDisplayPanelClass(unittest.TestCase):
             select_all_menu_action.trigger()
             self.assertEqual({0, 1}, set(display_item.graphic_selection.indexes))
 
+    def test_delete_shortcut_works_on_a_graphic_selected_after_the_menu_showed_none_selected(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.layout_immediate(Geometry.IntSize(1000 + display_panel.header_canvas_item.header_height, 1000))
+            region = Graphics.RectangleGraphic()
+            region.bounds = ((0.25, 0.25), (0.5, 0.5))
+            display_item.add_graphic(region)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_panel.request_focus()
+            edit_menu = document_controller._document_window.get_menu("edit")
+            edit_menu.about_to_show()
+            delete_menu_action = next(action for action in edit_menu.get_menu_actions() if action.edit_command_id == "delete")
+            # nothing refreshes the item when a click selects the graphic below.
+            self.assertTrue(delete_menu_action.enabled, "a disabled Delete item ignores its shortcut")
+            display_panel.display_canvas_item.simulate_click((500, 500))
+            document_controller.periodic()
+            delete_menu_action.trigger()
+            self.assertEqual(0, len(display_item.graphics))
+
     def test_related_canvas_item_focus_handling(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

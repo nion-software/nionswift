@@ -353,6 +353,7 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
             on_drop(mime_data, drop_region, x, y)
             on_key_pressed(key)
             on_key_released(key)
+            on_get_delete_action()
     """
 
     def __init__(self, get_font_metrics_fn: typing.Callable[[str, str], UISettings.FontMetrics]) -> None:
@@ -370,6 +371,7 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
         self.on_mouse_clicked_event: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
         self.on_adjust_secondary_focus: typing.Optional[typing.Callable[[UserInterface.KeyboardModifiers], None]] = None
         self.on_select_all: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_get_delete_action: typing.Callable[[], Window.BoundAction | None] | None = None  # a direct callback, since only the display panel answers and the caller needs the returned action
         self.add_canvas_item(self.__display_panel_overlay_canvas_item)
 
     def close(self) -> None:
@@ -383,6 +385,7 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
         self.on_mouse_clicked_event = None
         self.on_adjust_secondary_focus = None
         self.on_select_all = None
+        self.on_get_delete_action = None
         super().close()
 
     @property
@@ -526,6 +529,11 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
         if callable(self.on_select_all):
             return self.on_select_all()
         return False
+
+    def get_delete_action(self) -> Window.BoundAction | None:
+        if callable(self.on_get_delete_action):
+            return self.on_get_delete_action()
+        return None
 
     def adjust_secondary_focus(self, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         if modifiers.any_modifier:
@@ -2039,6 +2047,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__content_canvas_item.on_key_released = self._handle_key_released
         self.__content_canvas_item.on_mouse_clicked_event = self.__handle_mouse_clicked
         self.__content_canvas_item.on_select_all = self.select_all
+        self.__content_canvas_item.on_get_delete_action = self.__handle_get_delete_action
         self.__content_canvas_item.on_adjust_secondary_focus = adjust_secondary_focus
 
         def close() -> None:
@@ -3180,6 +3189,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         self.__mouse_tracking_transaction = typing.cast(typing.Any, None)
         if undo_command:
             self.__document_controller.push_undo_command(undo_command)
+
+    def __handle_get_delete_action(self) -> Window.BoundAction | None:
+        # a disabled action isn't returned, for the reason in CollectionListCanvasItemDelegate.get_delete_action.
+        document_controller = self.__document_controller
+        if (display_item := document_controller.selected_display_item) and document_controller.can_remove_selected_graphics():
+            action_context = document_controller.get_action_context_for_display_items([display_item], self)
+            return Window.BoundAction(Window.actions["display_panel.delete_graphics"], action_context)
+        return None
 
     def delete_key_pressed(self) -> None:
         self.__document_controller.remove_selected_graphics()
