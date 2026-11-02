@@ -1860,8 +1860,19 @@ class DocumentController(Window.Window):
 
         return False
 
+    def can_remove_selected_graphics(self) -> bool:
+        """Return whether the selected display item has selected graphics for remove_selected_graphics to remove."""
+        display_item = self.selected_display_item
+        return display_item is not None and display_item.graphic_selection.has_selection
+
     def remove_selected_graphics(self) -> None:
-        self.perform_action("display_panel.delete_graphics")
+        """Remove the selected graphics from the selected display item as one undo step, or do nothing if none are selected."""
+        display_item = self.selected_display_item
+        if display_item and self.can_remove_selected_graphics():
+            graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
+            command = self.create_remove_graphics_command(display_item, graphics)
+            command.perform()
+            self.push_undo_command(command)
 
     class RemoveGraphicsCommand(Undo.UndoableCommand):
 
@@ -4104,23 +4115,13 @@ class DisplayPanelDeleteGraphicsAction(Window.Action):
     action_name = _("Delete Selected Graphics")
 
     def execute(self, context: Window.ActionContext) -> Window.ActionResult:
-        context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        display_item = window.selected_display_item
-        if display_item:
-            if display_item.graphic_selection.has_selection:
-                graphics = [display_item.graphics[index] for index in display_item.graphic_selection.indexes]
-                if graphics:
-                    command = window.create_remove_graphics_command(display_item, graphics)
-                    command.perform()
-                    window.push_undo_command(command)
+        window.remove_selected_graphics()
         return Window.ActionResult(Window.ActionStatus.FINISHED)
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
-        context = typing.cast(DocumentController.ActionContext, context)
         window = typing.cast(DocumentController, context.window)
-        display_item = window.selected_display_item
-        return display_item is not None and display_item.graphic_selection.has_selection
+        return window.can_remove_selected_graphics()
 
 
 def adjust_display_panel_focus(context: Window.ActionContext, delta: int) -> Window.ActionResult:
