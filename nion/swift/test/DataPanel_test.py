@@ -23,11 +23,34 @@ from nion.swift.test import TestContext
 from nion.ui import CanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import TestUI
+from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.utils import Geometry
 from nion.utils import ListModel
 
 
 Facade.initialize()
+
+WidgetType = typing.TypeVar("WidgetType", bound=UserInterface.Widget)
+
+
+def find_contained_widget(widget: UserInterface.Widget, widget_type: type[WidgetType]) -> WidgetType | None:
+    # the first widget of the type, searching the widget and then the widgets it contains, depth first.
+    if isinstance(widget, widget_type):
+        return widget
+    for contained_widget in widget._contained_widgets:
+        if found_widget := find_contained_widget(contained_widget, widget_type):
+            return found_widget
+    return None
+
+
+def find_collections_canvas_widget(collections_panel: ProjectPanel.CollectionsPanel) -> UserInterface.CanvasWidget:
+    # the canvas widget which holds the Collections panel's list, and which receives its clicks and keys.
+    list_widget = find_contained_widget(collections_panel.widget, Widgets.ListWidget)
+    assert list_widget
+    canvas_widget = find_contained_widget(list_widget, UserInterface.CanvasWidget)
+    assert canvas_widget
+    return canvas_widget
 
 
 class TestDataPanelClass(unittest.TestCase):
@@ -1079,17 +1102,39 @@ class TestDataPanelClass(unittest.TestCase):
             data_item1.category = None
             self.assertTrue(project_panel._collection_info_list_stream.value[2].title.endswith("(1)"))
 
-    def test_pressing_delete_on_an_empty_collection_in_the_collections_panel_removes_it(self):
+    def test_pressing_delete_on_an_empty_collection_in_the_collections_panel_removes_it(self) -> None:
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
             document_controller.add_group()
             data_group = document_model.data_groups[0]
             collections_panel = typing.cast(ProjectPanel.CollectionsPanel, document_controller.find_dock_panel("collections-panel"))
-            # the first data group follows the four smart collections.
-            collections_panel._collection_selection.set(4)
-            collections_panel._collections_section._collection_list_canvas_item_delegate.delete_pressed()
+            canvas_widget = find_collections_canvas_widget(collections_panel)
+            canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(width=320, height=400))
+            # the rows are 20 pixels high, and the first data group follows the four smart collections. click it, then
+            # press the Delete key.
+            canvas_widget.simulate_mouse_click(40, 4 * 20 + 10, CanvasItem.KeyboardModifiers())
+            assert canvas_widget.on_key_pressed
+            canvas_widget.on_key_pressed(typing.cast(TestUI.UserInterface, document_controller.ui).create_key_by_id("delete"))
             self.assertNotIn(data_group, document_model.data_groups)
+
+    def test_edit_delete_on_a_collection_with_items_in_the_collections_panel_does_not_remove_it(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            document_controller.add_group()
+            data_group = document_model.data_groups[0]
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            data_group.append_display_item(document_model.get_display_item_for_data_item(data_item))
+            collections_panel = typing.cast(ProjectPanel.CollectionsPanel, document_controller.find_dock_panel("collections-panel"))
+            canvas_widget = find_collections_canvas_widget(collections_panel)
+            canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(width=320, height=400))
+            # the rows are 20 pixels high, and the first data group follows the four smart collections.
+            canvas_widget.simulate_mouse_click(40, 4 * 20 + 10, CanvasItem.KeyboardModifiers())
+            document_controller.perform_edit_command("delete")
+            self.assertIn(data_group, document_model.data_groups)
+            self.assertEqual(1, len(data_group.display_items))
 
 
 if __name__ == '__main__':
