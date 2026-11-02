@@ -237,6 +237,26 @@ class TestCommandHistoryClass(unittest.TestCase):
             self.assertEqual(["window.cut"], [entry.identifier for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.ACTION])
             self.assertEqual(["window.cut"], [entry.action_id for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.CHANGE])
 
+    def test_edit_delete_in_a_display_panel_is_recorded_as_delete_selected_graphics_from_the_menu(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            assert display_panel
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            assert display_item
+            display_panel.set_display_panel_display_item(display_item)
+            display_item.add_graphic(Graphics.RectangleGraphic())
+            display_item.graphic_selection.set(0)
+            display_panel.request_focus()
+            entries = self._listen_for_entries()
+            document_controller.perform_edit_command("delete", invoked_from=Window.ActionOrigin.MENU)
+            self.assertEqual(0, len(display_item.graphics))
+            self.assertEqual([("display_panel.delete_graphics", Window.ActionOrigin.MENU)],
+                             [(entry.identifier, entry.invoked_from) for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.ACTION])
+
     def test_command_history_keeps_only_the_most_recent_entries(self) -> None:
         command_history = CommandHistory.CommandHistoryHandler()
         for index in range(CommandHistory.MAX_ENTRY_COUNT + 10):
