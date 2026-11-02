@@ -8,12 +8,16 @@ import unittest
 import numpy
 
 # local libraries
+from nion.swift import DataPanel
 from nion.swift.model import CommandHistory
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.test import TestContext
+from nion.ui import CanvasItem
+from nion.ui import TestUI
 from nion.ui import Window
 from nion.utils import Event
+from nion.utils import Geometry
 
 
 class TestCommandHistoryClass(unittest.TestCase):
@@ -126,6 +130,59 @@ class TestCommandHistoryClass(unittest.TestCase):
                              (action_entry.kind, action_entry.identifier, action_entry.invoked_from))
             self.assertEqual((CommandHistory.CommandHistoryEntryKind.CHANGE, "window.paste"), (change_entry.kind, change_entry.action_id))
             self.assertEqual((CommandHistory.CommandHistoryEntryKind.ACTION_END, "window.paste"), (action_end_entry.kind, action_end_entry.identifier))
+
+    def test_delete_in_the_data_panel_is_recorded_as_delete_item_with_where_it_was_invoked(self) -> None:
+        for invoked_by_key in (False, True):
+            with self.subTest(invoked_by_key=invoked_by_key), TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller_with_application()
+                document_model = document_controller.document_model
+                for _ in range(2):
+                    document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+                document_controller.periodic()
+                data_panel = typing.cast(DataPanel.DataPanel, document_controller.find_dock_panel("data-panel"))
+                canvas_widget = data_panel.data_view_widget
+                canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(width=320, height=480))
+                display_items = list(document_controller.filtered_display_items_model.display_items)
+                canvas_widget.simulate_mouse_click(40, 40, CanvasItem.KeyboardModifiers())
+                entries = self._listen_for_entries()
+                if invoked_by_key:
+                    assert canvas_widget.on_key_pressed
+                    canvas_widget.on_key_pressed(typing.cast(TestUI.UserInterface, document_controller.ui).create_key_by_id("delete"))
+                else:
+                    document_controller.perform_edit_command("delete", invoked_from=Window.ActionOrigin.MENU)
+                self.assertEqual([display_items[1]], list(document_model.display_items))
+                expected_origin = (Window.ActionOrigin.KEY, "data-panel") if invoked_by_key else (Window.ActionOrigin.MENU, None)
+                self.assertEqual([("item.delete", *expected_origin)],
+                                 [(entry.identifier, entry.invoked_from, entry.invoked_from_id) for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.ACTION])
+                self.assertEqual({"item.delete"}, {entry.action_id for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.CHANGE})
+
+    def test_delete_in_a_browser_display_panel_is_recorded_as_delete_item_with_where_it_was_invoked(self) -> None:
+        for invoked_by_key in (False, True):
+            with self.subTest(invoked_by_key=invoked_by_key), TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller_with_application()
+                document_model = document_controller.document_model
+                for _ in range(2):
+                    document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+                display_panel = document_controller.selected_display_panel
+                assert display_panel
+                display_panel.change_display_panel_content({"browser_type": "grid"})
+                document_controller.periodic()
+                canvas_widget = display_panel.canvas_widget
+                assert canvas_widget
+                canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                display_items = list(document_controller.filtered_display_items_model.display_items)
+                # click the grid's first cell, below the display panel's header.
+                canvas_widget.simulate_mouse_click(60, 80, CanvasItem.KeyboardModifiers())
+                entries = self._listen_for_entries()
+                if invoked_by_key:
+                    assert canvas_widget.on_key_pressed
+                    canvas_widget.on_key_pressed(typing.cast(TestUI.UserInterface, document_controller.ui).create_key_by_id("delete"))
+                else:
+                    document_controller.perform_edit_command("delete", invoked_from=Window.ActionOrigin.MENU)
+                self.assertEqual([display_items[1]], list(document_model.display_items))
+                expected_origin = (Window.ActionOrigin.KEY, "display-panel") if invoked_by_key else (Window.ActionOrigin.MENU, None)
+                self.assertEqual([("item.delete", *expected_origin)],
+                                 [(entry.identifier, entry.invoked_from, entry.invoked_from_id) for entry in entries if entry.kind == CommandHistory.CommandHistoryEntryKind.ACTION])
 
     def test_command_history_keeps_only_the_most_recent_entries(self) -> None:
         command_history = CommandHistory.CommandHistoryHandler()

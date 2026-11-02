@@ -2123,9 +2123,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 return False
 
             def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
-                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in delete_event.selected_items)
-                document_controller.delete_display_items(display_items)
+                if bound_action := self.get_delete_action(delete_event):
+                    document_controller.perform_action_in_context(bound_action.action, bound_action.action_context, invoked_from=delete_event.invoked_from, invoked_from_id=DISPLAY_PANEL_ORIGIN_ID)
                 return True
+
+            def get_delete_action(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> Window.BoundAction | None:
+                # no display panel is passed, since with several display panels selected the context would ignore the grid's selection.
+                display_items = tuple(typing.cast(DisplayItem.DisplayItem, item) for item in delete_event.selected_items)
+                return Window.BoundAction(Window.actions["item.delete"], document_controller.get_action_context_for_display_items(display_items, None))
 
             def drag_started_event(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> bool:
                 mime_data, thumbnail_data = DataPanel.get_mime_data_and_thumbnail_data(drag_started_event, self.__ui)
