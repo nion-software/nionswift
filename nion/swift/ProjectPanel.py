@@ -522,7 +522,6 @@ class CollectionsWidget(Widgets.CompositeWidgetBase):
         # for testing
         self._collection_selection = collection_selection
         self._collection_info_list_stream = collection_info_list_stream
-        self._collection_list_canvas_item_delegate = collection_list_canvas_item_delegate
 
     def close(self) -> None:
         self.__filter_changed_event_listener.close()

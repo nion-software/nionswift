@@ -1561,6 +1561,38 @@ class TestDisplayPanelClass(unittest.TestCase):
             item_canvas_items_in_view = display_panel._strip_canvas_item_for_test.item_canvas_items_in_view
             self.assertTrue(item_canvas_items_in_view[-1]._has_thumbnail_source)
 
+    def test_delete_in_browser_display_panel_with_a_second_display_panel_selected_deletes_only_the_grid_selection(self) -> None:
+        for is_key in (False, True):
+            with self.subTest(is_key=is_key):
+                with TestContext.create_memory_context() as test_context:
+                    document_controller = test_context.create_document_controller()
+                    document_model = document_controller.document_model
+                    for _ in range(3):
+                        document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+                    d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
+                        {"type": "image", "uuid": "0569ca31-afd7-48bd-ad54-5e2bb9f21102", "identifier": "a", "selected": True},
+                        {"type": "image", "uuid": "acd77f9f-2f6f-4fbf-af5e-94330b73b997", "identifier": "b"}]}
+                    workspace_2x1 = document_controller.workspace_controller.new_workspace("2x1", d)
+                    document_controller.workspace_controller.change_workspace(workspace_2x1)
+                    browser_display_panel, other_display_panel = document_controller.workspace_controller.display_panels
+                    display_items = list(document_controller.filtered_display_items_model.display_items)
+                    other_display_panel.set_display_panel_display_item(display_items[2])
+                    browser_display_panel.change_display_panel_content({"browser_type": "grid"})
+                    document_controller.periodic()
+                    canvas_widget = browser_display_panel.canvas_widget
+                    canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                    # click the grid's first cell, below the display panel's header, then add the other display panel to the selection.
+                    canvas_widget.simulate_mouse_click(60, 80, CanvasItem.KeyboardModifiers())
+                    document_controller.add_secondary_display_panel(other_display_panel)
+                    if is_key:
+                        assert canvas_widget.on_key_pressed
+                        canvas_widget.on_key_pressed(typing.cast(TestUI.UserInterface, document_controller.ui).create_key_by_id("delete"))
+                    else:
+                        document_controller.perform_edit_command("delete")
+                    self.assertNotIn(display_items[0], document_model.display_items)
+                    self.assertIn(display_items[1], document_model.display_items)
+                    self.assertIn(display_items[2], document_model.display_items)
+
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
         self.assertEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
         self.data_item.title = "New Title"
