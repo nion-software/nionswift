@@ -129,6 +129,28 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel._list_canvas_item.handle_delete()
             self.assertEqual(0, len(document_model.data_items))
 
+    def test_delete_key_in_data_panel_after_command_click_deselect_deletes_only_the_selected_item(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+            document_controller.periodic()
+            data_panel = typing.cast(DataPanel.DataPanel, document_controller.find_dock_panel("data-panel"))
+            canvas_widget = data_panel.data_view_widget
+            canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(width=320, height=480))
+            display_items = list(document_controller.filtered_display_items_model.display_items)
+            # the items in the list are 80 pixels high. click the first, command-click the second, then command-click the
+            # first again to deselect it, leaving the first as the selection's anchor but not selected.
+            canvas_widget.simulate_mouse_click(40, 40, CanvasItem.KeyboardModifiers())
+            canvas_widget.simulate_mouse_click(40, 120, CanvasItem.KeyboardModifiers(control=True))
+            canvas_widget.simulate_mouse_click(40, 40, CanvasItem.KeyboardModifiers(control=True))
+            assert canvas_widget.on_key_pressed
+            canvas_widget.on_key_pressed(typing.cast(TestUI.UserInterface, document_controller.ui).create_key_by_id("delete"))
+            self.assertIn(display_items[0], document_model.display_items)
+            self.assertNotIn(display_items[1], document_model.display_items)
+            self.assertIn(display_items[2], document_model.display_items)
+
     # make sure switching between two views containing data items from the same group
     # switch between those data items in the data panel when switching.
     def test_selected_data_item_persistence(self):
