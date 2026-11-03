@@ -967,6 +967,31 @@ class TestStorageClass(unittest.TestCase):
                 data_item = document_model.data_items[0]
                 self.assertTrue(numpy.array_equal(zeros.data, data_item.data))
 
+    def test_data_large_format_partial_updates_apply_source_and_target_slices_correctly(self):
+        with create_temp_profile_context() as profile_context:
+            columns = 2048
+            rows = FileStorageSystem._g_large_format_size // (numpy.dtype(numpy.uint32).itemsize * columns) + 1
+            large_shape = (rows, columns)
+            source_data = numpy.arange(16, dtype=numpy.uint32).reshape((4, 4))
+            partial = DataAndMetadata.new_data_and_metadata(source_data)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                data_item.reserve_data(data_shape=large_shape, data_dtype=numpy.uint32, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+                data_item.set_data_and_metadata_partial(data_item.xdata.data_metadata,
+                                                  partial,
+                                                  (slice(1, 3), slice(0, 4)),
+                                                  (slice(2, 4), slice(3, 7)))
+                self.assertEqual(".h5", pathlib.Path(data_item._test_get_file_path()).suffix)
+                self.assertTrue(numpy.array_equal(source_data[1:3, 0:4], data_item.data[2:4, 3:7]))
+                self.assertTrue(numpy.array_equal(numpy.zeros((2, 3), numpy.uint32), data_item.data[0:2, 0:3]))
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = document_model.data_items[0]
+                self.assertTrue(numpy.array_equal(source_data[1:3, 0:4], data_item.data[2:4, 3:7]))
+                self.assertTrue(numpy.array_equal(numpy.zeros((2, 3), numpy.uint32), data_item.data[0:2, 0:3]))
+
     def test_line_plot_display_calculation_with_large_format_after_reload(self):
         # a large format size of 0 stores any data in HDF5.
         stored = numpy.linspace(-2.0, 3.0, 11)
@@ -1120,6 +1145,27 @@ class TestStorageClass(unittest.TestCase):
                 with document_model.item_transaction(data_item):
                     data_item.set_data(numpy.zeros((17, 17), numpy.uint32))
                 self.assertEqual(profile_context.data_map[str(data_item.uuid)].shape, (17, 17))
+
+    def test_partial_data_change_in_transaction_updates_loaded_ndata_backed_item(self):
+        with create_temp_profile_context() as profile_context:
+            partial_data = numpy.arange(16, dtype=numpy.uint32).reshape((4, 4))
+            partial = DataAndMetadata.new_data_and_metadata(partial_data)
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                data_item.reserve_data(data_shape=(8, 8), data_dtype=numpy.uint32, data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+                self.assertEqual(".ndata", pathlib.Path(data_item._test_get_file_path()).suffix)
+                with document_model.item_transaction(data_item):
+                    data_item.set_data_and_metadata_partial(data_item.xdata.data_metadata,
+                                                      partial,
+                                                      (slice(1, 3), slice(0, 4)),
+                                                      (slice(2, 4), slice(3, 7)))
+                    self.assertTrue(numpy.array_equal(partial_data[1:3, 0:4], data_item.data[2:4, 3:7]))
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = document_model.data_items[0]
+                self.assertTrue(numpy.array_equal(partial_data[1:3, 0:4], data_item.data[2:4, 3:7]))
 
     def test_begin_end_transaction_with_data_change_should_write_display_item(self):
         with create_memory_profile_context() as profile_context:

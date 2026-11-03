@@ -1363,7 +1363,9 @@ class DataItem(Persistence.PersistentObject):
                     assert self.data_shape == data_metadata.data_shape
                     assert self.data_dtype == data_metadata.data_dtype
                     assert self.data_dtype == data_and_metadata.data_dtype, f"{self.data_dtype=} == {data_and_metadata.data_dtype=}"
-                    self.__data[tuple(dst)] = data_and_metadata._data_ex[tuple(src)]
+                    source_slices = tuple(src)
+                    target_slices = tuple(dst)
+                    self.write_external_data_partial("data", data_and_metadata._data_ex, source_slices, target_slices)
                     # mark changes and update session
                     self.__change_changed = True
                     self.__change_data_changed = True
@@ -1373,7 +1375,7 @@ class DataItem(Persistence.PersistentObject):
                     # set data_shape as a way to update 'modified' property
                     self._set_persistent_property_value("data_shape", self.data_shape)
                     if self.persistent_object_context and not self.is_write_delayed:
-                        self.write_external_data("data", self.__data)
+                        # self.write_external_data("data", self.__data)
                         self.__data_and_metadata_unloadable = True
             finally:
                 self.decrement_data_ref_count()
