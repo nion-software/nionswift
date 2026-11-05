@@ -654,6 +654,36 @@ class TestScriptsDialogClass(unittest.TestCase):
             finally:
                 app._set_profile_for_test(None)
 
+    def test_removing_script_while_filtered_keeps_scripts_the_filter_hides(self):
+        with TestContext.MemoryProfileContext() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            app = self._test_setup.app
+            directory = pathlib.Path(directory_str)
+            (directory / "needle.py").write_text("print('hay')\n")
+            (directory / "other.py").write_text("print('hay')\n")
+            try:
+                document_model = profile_context.create_document_model(auto_close=False)
+                profile_context.profile.append_script_item(Profile.FileScriptItem(directory / "needle.py"))
+                profile_context.profile.append_script_item(Profile.FileScriptItem(directory / "other.py"))
+                app._set_profile_for_test(profile_context.profile)
+                document_controller = app.create_document_controller(document_model, "library")
+                try:
+                    dialog = ScriptsDialog.RunScriptDialog(document_controller)
+                    try:
+                        filter_widget = typing.cast(UserInterface.LineEditWidget, dialog.content.find_widget_by_id("filter"))
+                        remove_button = typing.cast(UserInterface.PushButtonWidget, dialog.content.find_widget_by_id("remove"))
+                        assert filter_widget.on_text_edited and remove_button.on_clicked
+                        filter_widget.on_text_edited("needle")
+                        dialog.scripts_list_widget.set_selected_index(0)
+                        remove_button.on_clicked()
+                        filter_widget.on_text_edited(str())
+                        self.assertEqual(["other.py"], [item.basename for item in dialog.scripts_list_widget.items])
+                    finally:
+                        dialog.close()
+                finally:
+                    document_controller.close()
+            finally:
+                app._set_profile_for_test(None)
+
 
 if __name__ == '__main__':
     unittest.main()
