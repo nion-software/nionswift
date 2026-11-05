@@ -186,6 +186,8 @@ class FolderListItem(ScriptListItem):
         super().__init__(full_path, indent=indent, indent_level=indent_level, show_dirname=show_dirname)
         self.__content = content if content is not None else list()
         self.folder_closed = True
+        # a folder in a filtered list shows its matching scripts whether closed or not.
+        self.is_filtered = False
 
     @property
     def content(self) -> typing.List[ScriptListItem]:
@@ -211,19 +213,68 @@ class FolderListItem(ScriptListItem):
         return NotImplemented
 
 
-def _build_sorted_scripts_list(scripts_list: typing.Sequence[typing.Any]) -> typing.Sequence[ScriptListItem]:
+class ScriptTextCache:
+    """The case-folded text of script files, read again only when a file's modification time changes."""
+
+    def __init__(self) -> None:
+        self.__texts: dict[str, tuple[float, str]] = dict()
+
+    def get_text(self, full_path: str) -> str:
+        """Return the case-folded text of the script file at the full path, or an empty string if it cannot be read."""
+        try:
+            modified_time = os.path.getmtime(full_path)
+            cached = self.__texts.get(full_path)
+            if cached and cached[0] == modified_time:
+                return cached[1]
+            with open(full_path, encoding="utf-8", errors="replace") as f:
+                text = f.read().casefold()
+        except OSError:
+            # a missing or unreadable script can still match by its name, and the list already marks a missing one.
+            self.__texts.pop(full_path, None)
+            return str()
+        self.__texts[full_path] = (modified_time, text)
+        return text
+
+    def retain(self, full_paths: typing.AbstractSet[str]) -> None:
+        """Forget the text of each script not in the full paths, so the cache holds only the scripts in the list."""
+        for full_path in set(self.__texts) - full_paths:
+            del self.__texts[full_path]
+
+
+def _script_matches_filter(item: ScriptListItem, filter_text: str, script_text_cache: ScriptTextCache) -> bool:
+    """Return whether the name or the contents of the script contain the filter text, ignoring case."""
+    filter_text = filter_text.casefold()
+    return filter_text in item.basename.casefold() or filter_text in script_text_cache.get_text(item.full_path)
+
+
+def _build_sorted_scripts_list(scripts_list: typing.Sequence[typing.Any],
+                               matches_fn: typing.Callable[[ScriptListItem], bool] | None = None) -> typing.Sequence[ScriptListItem]:
+    """Return the items to display, each folder followed by its shown scripts.
+
+    Given a matches_fn, only the matching scripts are shown, along with each folder that contains a matching script.
+    Each folder's is_filtered is set to whether a matches_fn is given, so that the folder draws as open and its open
+    state cannot be toggled while filtered.
+    """
     filtered_items = []
     for item in scripts_list:
         if item.indent_level == 0:
             filtered_items.append(item)
     filtered_items.sort()
-    set_items = []
+    set_items: list[ScriptListItem] = []
     for item in filtered_items:
-        set_items.append(item)
         if isinstance(item, FolderListItem):
-            if not item.folder_closed:
-                for content_item in sorted(item.content):
-                    set_items.append(content_item)
+            item.is_filtered = matches_fn is not None
+            if matches_fn:
+                content_items = [content_item for content_item in sorted(item.content) if matches_fn(content_item)]
+                if content_items:
+                    set_items.append(item)
+                    set_items.extend(content_items)
+            else:
+                set_items.append(item)
+                if not item.folder_closed:
+                    set_items.extend(sorted(item.content))
+        elif not matches_fn or matches_fn(item):
+            set_items.append(item)
     return set_items
 
 
@@ -284,7 +335,7 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
     def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         display_item = self.items[mouse_index]
         width = self.__ui.get_font_metrics(self._major_font_size(), self._closed_folder_icon_strings()[0]).width
-        if isinstance(display_item, FolderListItem) and display_item.indent - 4 < pos.x < display_item.indent + width + 2:
+        if isinstance(display_item, FolderListItem) and not display_item.is_filtered and display_item.indent - 4 < pos.x < display_item.indent + width + 2:
             display_item.folder_closed = not display_item.folder_closed
             if display_item.script_item:
                 display_item.script_item.is_closed = not display_item.script_item.is_closed
@@ -312,7 +363,7 @@ class ScriptListCanvasItemDelegate(Widgets.ListCanvasItemDelegate):
 
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
         if isinstance(display_item, FolderListItem):
-            if display_item.folder_closed:
+            if display_item.folder_closed and not display_item.is_filtered:
                 triangle_string, icon_string = self._closed_folder_icon_strings()
             else:
                 triangle_string, icon_string = self._open_folder_icon_strings()
@@ -411,6 +462,10 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.script_filter_pattern = "(?<!__init__)\\.py$"
 
+        # the text the scripts in the list must contain, in their names or contents.
+        self.__script_filter_text = str()
+        self.__script_text_cache = ScriptTextCache()
+
         self.__cancelled = False
 
         self.__thread: typing.Optional[threading.Thread] = None
@@ -449,6 +504,9 @@ class RunScriptDialog(Dialog.ActionDialog):
                     folder_list_item.folder_closed = script_item.is_closed
                     items.append(folder_list_item)
 
+        # the folders and scripts in the profile, including those the filter hides.
+        self.__script_list_items: list[ScriptListItem] = list(items)
+
         self.__new_path_entries = []
 
         for item in items:
@@ -479,6 +537,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                             text_browser_widget.markdown = docstring
                         else:
                             text_browser_widget.markdown = NO_DESCRIPTION_AVAILABLE_TEXT
+            elif not indexes:
+                text_browser_widget.markdown = NO_DESCRIPTION_AVAILABLE_TEXT
 
         def selected_changed(indexes: typing.AbstractSet[int]) -> None:
             run_button_widget.enabled = len(indexes) == 1
@@ -490,7 +550,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             file_paths, filter_str, directory = self.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
             if len(file_paths) > 0:
                 self.ui.set_persistent_string("import_directory", directory)
-                items = list(self.scripts_list_widget.items)
+                items = list(self.__script_list_items)
                 for file_path_str in file_paths:
                     script_item = Profile.FileScriptItem(pathlib.Path(file_path_str))
                     self.__profile.append_script_item(script_item)
@@ -510,7 +570,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 if full_path not in sys.path:
                     sys.path.append(full_path)
                     self.__new_path_entries.append(full_path)
-                items = list(self.scripts_list_widget.items)
+                items = list(self.__script_list_items)
                 script_item = Profile.FolderScriptItem(pathlib.Path(existing_directory))
                 self.__profile.append_script_item(script_item)
                 folder_list_item.script_item = script_item
@@ -521,10 +581,11 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         def remove_clicked() -> None:
             assert self.__profile
-            indexes = list(self.scripts_list_widget.selected_items)
+            displayed_items = self.scripts_list_widget.items
+            removed_items = [displayed_items[i] for i in self.scripts_list_widget.selected_items]
             new_items = []
-            for i, item in enumerate(self.scripts_list_widget.items):
-                if i not in indexes:
+            for item in self.__script_list_items:
+                if item not in removed_items:
                     new_items.append(item)
                 elif item.script_item:
                     # removing a script from the list cannot be undone, so the undelete log is not kept.
@@ -562,6 +623,22 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.scripts_list_widget.on_item_selected = item_selected
         self.rebuild_scripts_list()
 
+        def handle_filter_text_edited(text: str) -> None:
+            self.__set_script_filter_text(text)
+
+        # the list is filtered as the user types. a line edit widget offers only a direct callback for text edits, and
+        # the dialog is its only client.
+        filter_widget = ui.create_line_edit_widget()
+        filter_widget.widget_id = "filter"
+        filter_widget.placeholder_text = _("Search script names and contents")
+        filter_widget.clear_button_enabled = True
+        filter_widget.on_text_edited = handle_filter_text_edited
+
+        filter_row = ui.create_row_widget()
+        filter_row.add_spacing(8)
+        filter_row.add(filter_widget)
+        filter_row.add_spacing(8)
+
         add_button_widget = ui.create_push_button_widget(_("Add..."))
         add_button_widget.on_clicked = add_clicked
 
@@ -573,6 +650,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         remove_button_widget.on_clicked = remove_clicked
 
         run_button_widget = ui.create_push_button_widget(_("Run"))
+        run_button_widget.widget_id = "run"
         run_button_widget.on_clicked = run_clicked
         run_button_widget.enabled = False
 
@@ -582,6 +660,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         list_widget_row.add_spacing(8)
 
         text_browser_widget = ui.create_text_browser_widget()
+        text_browser_widget.widget_id = "description"
         text_browser_widget.markdown = NO_DESCRIPTION_AVAILABLE_TEXT
         text_browser_widget.on_anchor_clicked = handle_anchor_clicked
 
@@ -605,6 +684,8 @@ class RunScriptDialog(Dialog.ActionDialog):
         button_row.add_spacing(12)
 
         select_column = ui.create_column_widget()
+        select_column.add_spacing(8)
+        select_column.add(filter_row)
         select_column.add_spacing(8)
         select_column.add(list_widget_row)
         select_column.add_spacing(8)
@@ -665,16 +746,48 @@ class RunScriptDialog(Dialog.ActionDialog):
         return self.__cancelled
 
     def update_scripts_list(self, new_scripts_list: typing.Sequence[typing.Any]) -> None:
-        for item in new_scripts_list:
+        self.__script_list_items = [item for item in new_scripts_list if item.indent_level == 0]
+        for item in self.__script_list_items:
             if isinstance(item, FolderListItem):
                 item.update_content_from_file_system(filter_pattern=self.script_filter_pattern)
-        items = _build_sorted_scripts_list(new_scripts_list)
+        # with filter text, only the scripts whose names or contents contain it are shown. the cache keeps the text of
+        # only the scripts in the list, so it does not grow as scripts are removed or deleted.
+        matches_fn: typing.Callable[[ScriptListItem], bool] | None = None
+        if self.__script_filter_text:
+            matches_fn = functools.partial(_script_matches_filter, filter_text=self.__script_filter_text,
+                                           script_text_cache=self.__script_text_cache)
+            listed_paths = {item.full_path for item in self.__script_list_items}
+            for item in self.__script_list_items:
+                if isinstance(item, FolderListItem):
+                    listed_paths.update(content_item.full_path for content_item in item.content)
+            self.__script_text_cache.retain(listed_paths)
+        items = _build_sorted_scripts_list(self.__script_list_items, matches_fn)
         for item in items:
             item.check_existence()
         self.scripts_list_widget.items = items
 
     def rebuild_scripts_list(self) -> None:
-        self.update_scripts_list(self.scripts_list_widget.items)
+        self.update_scripts_list(self.__script_list_items)
+
+    def __set_script_filter_text(self, text: str) -> None:
+        # show only the scripts whose names or contents contain the text, ignoring case, or all for empty text.
+        # the selection follows the selected item to its new index, scrolled into view, or clears if the filter hides it.
+        selected_key = None
+        selected_indexes = self.scripts_list_widget.selected_items
+        if len(selected_indexes) == 1:
+            selected_item = self.scripts_list_widget.items[list(selected_indexes)[0]]
+            selected_key = (type(selected_item), selected_item.full_path)
+        self.__script_filter_text = text
+        self.rebuild_scripts_list()
+        items = self.scripts_list_widget.items
+        if (new_index := next((i for i, item in enumerate(items) if (type(item), item.full_path) == selected_key), None)) is not None:
+            self.scripts_list_widget.set_selected_index(new_index)
+        else:
+            self.scripts_list_widget.current_index = None
+            # the list widget drops a selected index past the end of its new items without a selection changed event,
+            # so the description and the Run button are updated for the empty selection here.
+            if callable(on_selection_changed := self.scripts_list_widget.on_selection_changed):
+                on_selection_changed(self.scripts_list_widget.selected_items)
 
     def __make_cancel_row(self) -> UserInterface.BoxWidget:
         def cancel_script() -> None:
