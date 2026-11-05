@@ -650,7 +650,6 @@ class RunScriptDialog(Dialog.ActionDialog):
         remove_button_widget.on_clicked = remove_clicked
 
         run_button_widget = ui.create_push_button_widget(_("Run"))
-        run_button_widget.widget_id = "run"
         run_button_widget.on_clicked = run_clicked
         run_button_widget.enabled = False
 
@@ -660,7 +659,6 @@ class RunScriptDialog(Dialog.ActionDialog):
         list_widget_row.add_spacing(8)
 
         text_browser_widget = ui.create_text_browser_widget()
-        text_browser_widget.widget_id = "description"
         text_browser_widget.markdown = NO_DESCRIPTION_AVAILABLE_TEXT
         text_browser_widget.on_anchor_clicked = handle_anchor_clicked
 
