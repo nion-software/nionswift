@@ -527,7 +527,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                 if i not in indexes:
                     new_items.append(item)
                 elif item.script_item:
-                    self.__profile.remove_script_item(item.script_item)
+                    # removing a script from the list cannot be undone, so the undelete log is not kept.
+                    self.__profile.remove_script_item(item.script_item).close()
             self.update_scripts_list(new_items)
 
         def run_clicked() -> None:
@@ -568,6 +569,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         add_folder_button_widget.on_clicked = add_folder_clicked
 
         remove_button_widget = ui.create_push_button_widget(_("Remove"))
+        remove_button_widget.widget_id = "remove"
         remove_button_widget.on_clicked = remove_clicked
 
         run_button_widget = ui.create_push_button_widget(_("Run"))

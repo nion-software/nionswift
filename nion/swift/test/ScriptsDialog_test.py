@@ -17,6 +17,7 @@ from nion.swift import ConsoleDialog
 from nion.swift import Facade
 from nion.swift import ScriptsDialog
 from nion.swift.model import DataItem
+from nion.swift.model import Profile
 from nion.swift.test import TestContext
 from nion.ui import UserInterface
 
@@ -626,6 +627,32 @@ class TestScriptsDialogClass(unittest.TestCase):
             finally:
                 app._set_profile_for_test(None)
                 del sys.modules[support.__name__]
+
+    def test_removing_script_releases_its_undelete_log(self):
+        # the leak check at the end of the test fails if the undelete log of the removed script is not released.
+        with TestContext.MemoryProfileContext() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            app = self._test_setup.app
+            directory = pathlib.Path(directory_str)
+            (directory / "script.py").write_text("print('hay')\n")
+            try:
+                document_model = profile_context.create_document_model(auto_close=False)
+                profile_context.profile.append_script_item(Profile.FileScriptItem(directory / "script.py"))
+                app._set_profile_for_test(profile_context.profile)
+                document_controller = app.create_document_controller(document_model, "library")
+                try:
+                    dialog = ScriptsDialog.RunScriptDialog(document_controller)
+                    try:
+                        remove_button = typing.cast(UserInterface.PushButtonWidget, dialog.content.find_widget_by_id("remove"))
+                        assert remove_button.on_clicked
+                        dialog.scripts_list_widget.set_selected_index(0)
+                        remove_button.on_clicked()
+                        self.assertEqual([], dialog.scripts_list_widget.items)
+                    finally:
+                        dialog.close()
+                finally:
+                    document_controller.close()
+            finally:
+                app._set_profile_for_test(None)
 
 
 if __name__ == '__main__':
