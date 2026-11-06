@@ -1665,6 +1665,17 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.handle_redo()
             self.assertEqual("image", display_item.display_type)
 
+    def test_display_type_chooser_of_item_with_unknown_display_type_shows_the_stored_type(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8,)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.display_type = "plug_in.not_installed"
+            display_type_chooser = Inspector.DisplayTypeChooserHandler(display_item, document_controller)
+            self.assertEqual("plug_in.not_installed", display_type_chooser._display_type_items[display_type_chooser._current_index])
+
     def test_remove_display_layer_command(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
