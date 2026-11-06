@@ -1980,10 +1980,16 @@ class DisplayTypeChooserHandler(Declarative.Handler):
         super().__init__()
         self._document_controller = document_controller
         self._display_item = display_item
-        self._display_type_items = (_("Default"), _("Line Plot"), _("Image"))
-        self._display_type_flags = (None, "line_plot", "image")
-        self._display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
-        self._current_index = self._display_type_reverse_map[self._display_item.display_type]
+        display_type_items = [_("Default"), _("Line Plot"), _("Image")]
+        display_type_flags: list[str | None] = [None, "line_plot", "image"]
+        # a type which this version does not know, such as one written by a later version, is listed by its id so that
+        # the chooser shows the stored type.
+        if display_item.display_type not in display_type_flags:
+            display_type_items.append(display_item.display_type or str())
+            display_type_flags.append(display_item.display_type)
+        self._display_type_items = tuple(display_type_items)
+        self._display_type_flags = tuple(display_type_flags)
+        self._current_index = self._display_type_flags.index(self._display_item.display_type)
 
         u = Declarative.DeclarativeUI()
 
