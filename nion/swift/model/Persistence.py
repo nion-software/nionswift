@@ -321,6 +321,9 @@ class PersistentStorageInterface(typing.Protocol):
     def write_external_data(self, item: PersistentObject, name: str, value: _NDArray) -> None: ...
 
     @abc.abstractmethod
+    def write_external_data_partial(self, item: PersistentObject, name: str, value: _NDArray, source_slices: tuple[slice, ...], target_slices: tuple[slice, ...]) -> None: ...
+
+    @abc.abstractmethod
     def reserve_external_data(self, item: PersistentObject, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: tuple[bool, int, int]) -> None: ...
 
     @abc.abstractmethod
@@ -1251,6 +1254,10 @@ class PersistentObject(Observable.Observable):
         """ Call this to notify write external data value with name to an item in persistent storage. """
         assert self.persistent_storage
         self.persistent_storage.write_external_data(self, name, value)
+
+    def write_external_data_partial(self, name: str, value: _NDArray, source_slices: tuple[slice, ...], target_slices: tuple[slice, ...]) -> None:
+        assert self.persistent_storage
+        self.persistent_storage.write_external_data_partial(self, name, value, source_slices, target_slices)
 
     def reserve_external_data(self, name: str, data_shape: typing.Tuple[int, ...], data_dtype: numpy.typing.DTypeLike, data_descriptor: tuple[bool, int, int]) -> None:
         """ Call this to notify reserve external data value with name to an item in persistent storage. """
