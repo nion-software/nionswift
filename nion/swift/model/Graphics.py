@@ -2150,9 +2150,9 @@ class IntervalGraphic(Graphic):
         For width text when the interval is a measurement where it should be white.
         """
         if self.used_role == "measurement":
-            return {"default": "#99ffffff", "width_text": "white"}
+            return {"default": "rgba(255, 255, 255, 0.6)", "width_text": "white"}
         else:
-            return {"default": "#99ffffff"}
+            return {"default": "rgba(255, 255, 255, 0.6)"}
 
     @property
     def used_text_visibility_map(self) -> dict[str, str]:
