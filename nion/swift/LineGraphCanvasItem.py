@@ -546,7 +546,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
         self.__drawing_metrics = drawing_metrics
         self.__display_style = display_style
         self.label_text_color = "black"
-        self.text_background_color = "#99ffffff"
+        self.text_background_color = "rgba(255, 255, 255, 0.6)"
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         # draw the data, if any
