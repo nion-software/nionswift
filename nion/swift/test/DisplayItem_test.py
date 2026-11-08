@@ -470,6 +470,34 @@ class TestDisplayItemClass(unittest.TestCase):
                 display_layer.fill_color = "red"
             self.assertTrue(property_did_change)
 
+    def test_colors_with_alpha_are_stored_alpha_first_and_reload_as_css(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+                display_item = document_model.display_items[0]
+                display_item.display_layers[0].fill_color = "#ff000080"
+                display_item.set_display_property("scale_marker_text_color", "#00ff0080")
+                interval_graphic = Graphics.IntervalGraphic()
+                interval_graphic.fill_color = "#ffff0080"
+                display_item.add_graphic(interval_graphic)
+                # a color set after the graphic is stored, as the inspector sets it.
+                interval_graphic.stroke_color = "#0000ff80"
+                # a copy of the display item, whose layers are inserted with their colors.
+                document_model.append_display_item(display_item.snapshot())
+            for display_item_properties in profile_context.project_properties["display_items"]:
+                self.assertEqual("#80ff0000", display_item_properties["display_layers"][0]["fill_color"])
+                self.assertEqual("#8000ff00", display_item_properties["display_properties"]["scale_marker_text_color"])
+                self.assertEqual("#80ffff00", display_item_properties["graphics"][0]["fill_color"])
+                self.assertEqual("#800000ff", display_item_properties["graphics"][0]["stroke_color"])
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                for display_item in document_model.display_items:
+                    self.assertEqual("#ff000080", display_item.display_layers[0].fill_color)
+                    self.assertEqual("#00ff0080", display_item.get_display_property("scale_marker_text_color"))
+                    self.assertEqual("#ffff0080", display_item.graphics[0].fill_color)
+                    self.assertEqual("#0000ff80", display_item.graphics[0].stroke_color)
+
     def test_display_layer_property_reloads_after_change(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
