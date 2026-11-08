@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import gettext
+import re
 import typing
 import uuid
 
@@ -347,7 +348,43 @@ window_processing_ids = ("gaussian-window", "hamming-window", "hann-window")
 mapped_processing_ids = ("mapped-sum", "mapped-average")
 
 
+# a project stores hex with alpha with the alpha first, as #argb or #aarrggbb, where CSS puts it last, and earlier
+# releases read it that way. in memory, colors are CSS.
+def _read_legacy_color(color: typing.Any) -> typing.Any:
+    # a stored value may be any JSON value, so it is typed as Any.
+    if isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{8}", color):
+        return "#" + color[3:] + color[1:3]
+    if isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{4}", color):
+        return "#" + color[2:] + color[1]
+    return color
+
+
+def _write_legacy_color(color: typing.Any) -> typing.Any:
+    # a stored value may be any JSON value, so it is typed as Any.
+    if isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{8}", color):
+        return "#" + color[7:] + color[1:7]
+    if isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{4}", color):
+        return "#" + color[4] + color[1:4]
+    return color
+
+
+def _convert_display_item_colors(display_item: PersistentDictType, convert_color_fn: typing.Callable[[typing.Any], typing.Any]) -> None:
+    # the colors of the display item's graphics and display layers, and of its scale marker.
+    for item in display_item.get("graphics", list()) + display_item.get("display_layers", list()):
+        for key in ("stroke_color", "fill_color"):
+            if key in item:
+                item[key] = convert_color_fn(item[key])
+    display_properties = display_item.get("display_properties")
+    if isinstance(display_properties, dict):
+        for key in ("scale_marker_text_color", "scale_marker_background_color"):
+            if key in display_properties:
+                display_properties[key] = convert_color_fn(display_properties[key])
+
+
 def transform_forward(d: PersistentDictType) -> PersistentDictType:
+    for display_item in d.get("display_items", list()):
+        _convert_display_item_colors(display_item, _read_legacy_color)
+
     # ensure the display_layer has a uuid and modified and looks like a regular entity.
     for display_item in d.get("display_items", list()):
         display_data_channels = display_item.get("display_data_channels", list())
@@ -432,6 +469,9 @@ def get_mapping_for_input_operation(input_operation_id: str | None) -> str | Non
 
 
 def transform_backward(d: PersistentDictType) -> PersistentDictType:
+    for display_item in d.get("display_items", list()):
+        _convert_display_item_colors(display_item, _write_legacy_color)
+
     # ensure the display_layer has a uuid and modified and looks like a regular entity (reverse)
     for display_item in d.get("display_items", list()):
         display_data_channels = display_item.get("display_data_channels", list())
