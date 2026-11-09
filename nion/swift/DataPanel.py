@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
+import datetime
 import gettext
 import operator
 import pkgutil
@@ -19,6 +20,7 @@ from nion.swift import Thumbnails
 from nion.swift.model import DisplayItem
 from nion.swift.model import Persistence
 from nion.swift.model import UISettings
+from nion.swift.model import Utility
 from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
@@ -123,6 +125,10 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         if not self.__thumbnail_source:
             self.__attach_thumbnail_source(Thumbnails.ThumbnailManager().thumbnail_source_for_display_item(self.__ui, self.__display_item))
 
+    def _show_in_view(self) -> None:
+        """Show the parts of the item which are made only once it is in view, such as its thumbnail. Call on the main thread."""
+        self._show_thumbnail()
+
     def __attach_thumbnail_source(self, thumbnail_source: Thumbnails.ThumbnailSource) -> None:
         self.__thumbnail_source = thumbnail_source
         self.__thumbnail_source_action = Stream.ValueStreamAction(thumbnail_source, ReferenceCounting.weak_partial(DataPanelItemBaseCanvasItem.__handle_thumbnail_updated, self))
@@ -148,6 +154,10 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         return " ".join([format_str, storage_space_string])
 
     @property
+    def date_for_sorting_local(self) -> datetime.datetime:
+        return self.__display_item.date_for_sorting_local if self.__display_item else datetime.datetime.now()
+
+    @property
     def datetime_str(self) -> str:
         return self.__display_item.date_for_sorting_local_as_string if self.__display_item else str()
 
@@ -156,6 +166,9 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
         return self.__display_item.status_str if self.__display_item else str()
 
     def __item_changed(self) -> None:
+        self._item_changed()
+
+    def _item_changed(self) -> None:
         self.update()
 
 
@@ -202,7 +215,7 @@ class DataPanelBrowserThumbnailLoader:
         if browser_canvas_item := self.__browser_canvas_item:
             for item_canvas_item in browser_canvas_item.item_canvas_items_in_view:
                 if isinstance(item_canvas_item, DataPanelItemBaseCanvasItem):
-                    item_canvas_item._show_thumbnail()
+                    item_canvas_item._show_in_view()
 
 
 class DataPanelListItemComposer(CanvasItem.BaseComposer):
@@ -281,6 +294,147 @@ class DataPanelListItem(DataPanelItemBaseCanvasItem):
         return DataPanelListItemComposer(self, self.layout_sizing, composer_cache, self._thumbnail, line_height, self.title, self.format_str, self.datetime_str, self.status_str)
 
 
+def get_detail_date_format_type(date_local: datetime.datetime, now_local: datetime.datetime) -> Utility.DateTimeFormatType:
+    """Return the form of a date shown in a detail browser item.
+
+    The form is the time with seconds for a date within the minute before now_local, the time for a date on the same day,
+    the month and day for a date within 48 weeks, and the year and month for a date further away. The seconds let the
+    date of a live item visibly advance.
+    """
+    if 0 <= (now_local - date_local).total_seconds() < 60:
+        return Utility.DateTimeFormatType.TIME_WITH_SECONDS
+    if date_local.date() == now_local.date():
+        return Utility.DateTimeFormatType.TIME
+    if abs(now_local - date_local) <= datetime.timedelta(weeks=48):
+        return Utility.DateTimeFormatType.MONTH_DAY
+    return Utility.DateTimeFormatType.YEAR_MONTH
+
+
+def update_detail_dates_in_view(detail_canvas_item: GridFlowCanvasItem.GridFlowCanvasItem, is_changing_only: bool) -> None:
+    """Update the date text of the detail browser items in view for the current time.
+
+    With is_changing_only, only the items whose date shows its seconds or whose display item has changed are updated.
+    """
+    now_local = datetime.datetime.now()
+    for item_canvas_item in detail_canvas_item.item_canvas_items_in_view:
+        if isinstance(item_canvas_item, DataPanelDetailItem) and (item_canvas_item._is_date_changing or not is_changing_only):
+            item_canvas_item._update_date(now_local)
+
+
+def add_detail_dates_periodic_listeners(document_controller: DocumentController.DocumentController, detail_canvas_item: GridFlowCanvasItem.GridFlowCanvasItem) -> typing.Sequence[DocumentController.PeriodicListener]:
+    """Add the periodic listeners which update the date text of the detail browser items in view, and return them.
+
+    The form of a date depends on the current time, so the items in view are updated each minute, and the changing ones
+    each second. The updates continue while the returned listeners are held.
+    """
+    return (document_controller.add_periodic(60.0, ReferenceCounting.weak_partial(update_detail_dates_in_view, detail_canvas_item, False)),
+            document_controller.add_periodic(1.0, ReferenceCounting.weak_partial(update_detail_dates_in_view, detail_canvas_item, True)))
+
+
+def get_detail_item_height(font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> int:
+    """Return the height of a detail browser item."""
+    line_height: float = font_metrics_fn("11px sans-serif", "M").height
+    return round(line_height) + 6
+
+
+class DataPanelDetailItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
+                 ui_settings: UISettings.UISettings, thumbnail: typing.Optional[Bitmap.Bitmap], displayed_title: str, date_str: str) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__ui_settings = ui_settings
+        self.__bitmap = thumbnail
+        self.__displayed_title = displayed_title
+        self.__date_str = date_str
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        font = "11px sans-serif"
+        margin = 4
+        spacing = 6
+
+        # the row is the thumbnail, then the title, then the date against the right edge. the title is truncated in
+        # the middle to fit the space which the date leaves.
+        thumbnail_size = max(canvas_bounds.height - 4, 0)
+        thumbnail_rect = Geometry.IntRect.from_tlhw(canvas_bounds.top + (canvas_bounds.height - thumbnail_size) // 2, canvas_bounds.left + margin, thumbnail_size, thumbnail_size)
+        if self.__bitmap and self.__bitmap.rgba_bitmap_data is not None:
+            image_size = self.__bitmap.computed_shape
+            if image_size.height > 0 and image_size.width > 0:
+                display_rect = Geometry.fit_to_size(thumbnail_rect, image_size)
+                if display_rect.width > 0 and display_rect.height > 0:
+                    drawing_context.draw_image(self.__bitmap.rgba_bitmap_data, display_rect.left, display_rect.top, display_rect.width, display_rect.height)
+
+        drawing_context.font = font
+        drawing_context.fill_style = "black"
+        drawing_context.text_baseline = "middle"
+        text_y = canvas_bounds.center.y
+        date_right = canvas_bounds.right - margin
+        date_width = int(self.__ui_settings.get_font_metrics(font, self.__date_str).width) if self.__date_str else 0
+        if self.__date_str:
+            drawing_context.text_align = "right"
+            drawing_context.fill_text(self.__date_str, date_right, text_y)
+        title_left = thumbnail_rect.right + spacing
+        title_width = date_right - date_width - spacing - title_left
+        if self.__displayed_title and title_width > 0:
+            truncated_displayed_title = self.__ui_settings.truncate_string_to_width(font, self.__displayed_title, title_width, UISettings.TruncateModeType.MIDDLE)
+            drawing_context.text_align = "left"
+            drawing_context.fill_text(truncated_displayed_title, title_left, text_y)
+
+
+class DataPanelDetailItem(DataPanelItemBaseCanvasItem):
+
+    def __init__(self, display_item: DisplayItem.DisplayItem, ui: UserInterface.UserInterface, ui_settings: UISettings.UISettings, height: int) -> None:
+        super().__init__(display_item, ui, typing.cast(typing.Callable[[str, str], UserInterface.FontMetrics], ui_settings.get_font_metrics))
+        self.__ui_settings = ui_settings
+
+        # the date is formatted on the main thread, only once the item is in view, so that the dates of items which are
+        # never shown are not formatted. a change to the display item can arrive on any thread, so it only marks the date
+        # as changed, and the periodic update formats it.
+        self.__date_local: datetime.datetime | None = None
+        self.__date_format_type: Utility.DateTimeFormatType | None = None
+        self.__date_str = str()
+        self.__is_date_changed = False
+
+        self.update_sizing(self.sizing.with_fixed_height(height))
+        self.update_sizing(self.sizing.with_fixed_width(CanvasItem.SizingEnum.UNRESTRAINED))
+
+    @property
+    def _date_str(self) -> str:
+        # for testing.
+        return self.__date_str
+
+    @property
+    def _is_date_with_seconds(self) -> bool:
+        return self.__date_format_type == Utility.DateTimeFormatType.TIME_WITH_SECONDS
+
+    @property
+    def _is_date_changing(self) -> bool:
+        return self.__is_date_changed or self._is_date_with_seconds
+
+    def _show_in_view(self) -> None:
+        super()._show_in_view()
+        self._update_date(datetime.datetime.now())
+
+    def _update_date(self, now_local: datetime.datetime) -> None:
+        """Redraw the item if its date text for now_local differs from the text drawn."""
+        # the flag is cleared before the date is read, so that a change during the update is not lost.
+        self.__is_date_changed = False
+        date_local = self.date_for_sorting_local
+        date_format_type = get_detail_date_format_type(date_local, now_local)
+        if date_local != self.__date_local or date_format_type != self.__date_format_type:
+            self.__date_local = date_local
+            self.__date_format_type = date_format_type
+            date_str = Utility.format_date_time(date_local, date_format_type)
+            if date_str != self.__date_str:
+                self.__date_str = date_str
+                self.update()
+
+    def _item_changed(self) -> None:
+        self.__is_date_changed = True
+        super()._item_changed()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        return DataPanelDetailItemComposer(self, self.layout_sizing, composer_cache, self.__ui_settings, self._thumbnail, self.title, self.__date_str)
+
+
 class DataPanelGridItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing,
                  cache: CanvasItem.ComposerCache, ui_settings: UISettings.UISettings,
@@ -352,7 +506,7 @@ class DataPanelUISettings(UISettings.UISettings):
 
 class DataPanel(Panel.Panel):
 
-    # the user's choice of browser type (list/grid) is persisted under this key (via ui.get/set_persistent_string)
+    # the user's choice of browser type (list/detail/grid) is persisted under this key (via ui.get/set_persistent_string)
     # so it is restored the next time the application is launched.
     BROWSER_TYPE_PREFERENCE_KEY = "DataPanel/BrowserType"
 
@@ -376,15 +530,18 @@ class DataPanel(Panel.Panel):
         #
         # browser types are stored by name in dicts rather than a pair of ivars per type, so adding a new
         # type doesn't mean adding a whole new parallel set of ivars: __browser_view_items holds the inner
-        # view canvas item (list/grid share a base type, see GridFlowCanvasItem.GridFlowCanvasItem),
+        # view canvas item (the browser types share a base type, see GridFlowCanvasItem.GridFlowCanvasItem),
         # __browser_wrapper_items holds the scroll-group wrapper that gets inserted into __stack_canvas_item,
         # __browser_focus_listeners holds each view's focus_changed_event listener, and __browser_thumbnail_loaders
-        # holds each view's thumbnail loader. see __ensure_list_canvas_item, __ensure_grid_canvas_item, and
-        # __switch_to_browser_type below.
-        self.__browser_view_items: dict[str, GridFlowCanvasItem.GridFlowCanvasItem | None] = {"list": None, "grid": None}
-        self.__browser_wrapper_items: dict[str, CanvasItem.CanvasItemComposition | None] = {"list": None, "grid": None}
-        self.__browser_focus_listeners: dict[str, Event.EventListener | None] = {"list": None, "grid": None}
-        self.__browser_thumbnail_loaders: dict[str, DataPanelBrowserThumbnailLoader | None] = {"list": None, "grid": None}
+        # holds each view's thumbnail loader. see the __ensure_*_canvas_item methods and __switch_to_browser_type below.
+        self.__browser_view_items: dict[str, GridFlowCanvasItem.GridFlowCanvasItem | None] = {"list": None, "detail": None, "grid": None}
+        self.__browser_wrapper_items: dict[str, CanvasItem.CanvasItemComposition | None] = {"list": None, "detail": None, "grid": None}
+        self.__browser_focus_listeners: dict[str, Event.EventListener | None] = {"list": None, "detail": None, "grid": None}
+        self.__browser_thumbnail_loaders: dict[str, DataPanelBrowserThumbnailLoader | None] = {"list": None, "detail": None, "grid": None}
+
+        # the listeners which update the dates in the detail browser while it exists.
+        self.__detail_dates_periodic_listeners: typing.Sequence[DocumentController.PeriodicListener] = tuple()
+
         # extra test-only hooks specific to the list view's internal layout (no grid equivalent exists yet).
         self.__list_scroll_area_canvas_item: CanvasItem.ScrollAreaCanvasItem | None = None
         self.__list_scroll_bar_canvas_item: CanvasItem.ScrollBarCanvasItem | None = None
@@ -457,21 +614,26 @@ class DataPanel(Panel.Panel):
         self.__display_items_end_changes_listener = display_items_model.end_changes_event.listen(end_changes)
 
         list_icon_20_bytes = pkgutil.get_data(__name__, "resources/list_icon_20.png")
+        detail_icon_20_bytes = pkgutil.get_data(__name__, "resources/detail_icon_20.png")
         grid_icon_20_bytes = pkgutil.get_data(__name__, "resources/grid_icon_20.png")
         list_icon_20_bytes = list_icon_20_bytes or bytes()
+        detail_icon_20_bytes = detail_icon_20_bytes or bytes()
         grid_icon_20_bytes = grid_icon_20_bytes or bytes()
         list_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(list_icon_20_bytes))
+        detail_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(detail_icon_20_bytes))
         grid_icon_button = CanvasItem.BitmapButtonCanvasItem(CanvasItem.load_rgba_data_from_bytes(grid_icon_20_bytes))
 
         list_icon_button.update_sizing(list_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
+        detail_icon_button.update_sizing(detail_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
         grid_icon_button.update_sizing(grid_icon_button.sizing.with_fixed_size(Geometry.IntSize(20, 20)))
 
         button_row = CanvasItem.CanvasItemComposition()
         button_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
         button_row.add_canvas_item(list_icon_button)
+        button_row.add_canvas_item(detail_icon_button)
         button_row.add_canvas_item(grid_icon_button)
 
-        buttons_widget = ui.create_canvas_widget(properties={"height": 20, "width": 44})
+        buttons_widget = ui.create_canvas_widget(properties={"height": 20, "width": 68})
         buttons_widget.canvas_item.add_canvas_item(button_row)
 
         search_widget = ui.create_row_widget()
@@ -495,18 +657,19 @@ class DataPanel(Panel.Panel):
         self.data_view_widget = ui.create_canvas_widget(properties={"size-policy-vertical": "expanding"})
         self.data_view_widget.canvas_item.add_canvas_item(stack_canvas_item)
 
-        # keyed by name so "list" and "grid" (and whatever comes later) aren't special-cased in the switch
-        # logic below -- the order here just needs to match the buttons passed to RadioButtonGroup. both are
-        # built lazily (see __ensure_list_canvas_item / __ensure_grid_canvas_item); __switch_to_browser_type
+        # keyed by name so no browser type is special-cased in the switch logic below -- the order here just
+        # needs to match the buttons passed to RadioButtonGroup. each is built lazily (see
+        # __ensure_list_canvas_item, __ensure_detail_canvas_item and __ensure_grid_canvas_item); __switch_to_browser_type
         # builds whichever one is needed and looks up its position in the stack dynamically, since browser
         # types can end up built in any order.
         self.__browser_type_ensure_fns: dict[str, typing.Callable[[], CanvasItem.CanvasItemComposition]] = {
             "list": self.__ensure_list_canvas_item,
+            "detail": self.__ensure_detail_canvas_item,
             "grid": self.__ensure_grid_canvas_item,
         }
         self.__browser_type_ids = list(self.__browser_type_ensure_fns)
 
-        self.__view_button_group = CanvasItem.RadioButtonGroup([list_icon_button, grid_icon_button])
+        self.__view_button_group = CanvasItem.RadioButtonGroup([list_icon_button, detail_icon_button, grid_icon_button])
 
         def on_view_button_group_current_index_changed(index: int) -> None:
             self.__switch_to_browser_type(self.__browser_type_ids[index], persist=True)
@@ -574,6 +737,7 @@ class DataPanel(Panel.Panel):
             if browser_thumbnail_loader:
                 browser_thumbnail_loader.close()
             self.__browser_thumbnail_loaders[browser_type_id] = None
+        self.__detail_dates_periodic_listeners = tuple()
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(Event.EventListener, None)
         self.__filter_description_action = typing.cast(typing.Any, None)
@@ -626,6 +790,36 @@ class DataPanel(Panel.Panel):
             self.__list_scroll_area_canvas_item = list_scroll_area_canvas_item
             self.__list_scroll_bar_canvas_item = list_scroll_bar_canvas_item
         return list_scroll_group_canvas_item
+
+    def __ensure_detail_canvas_item(self) -> CanvasItem.CanvasItemComposition:
+        # build the detail canvas item and its wrapper the first time it's needed. see the comment in __init__ near
+        # __browser_view_items for why this is lazy.
+        detail_scroll_group_canvas_item = self.__browser_wrapper_items["detail"]
+        if detail_scroll_group_canvas_item is None:
+            document_controller = self.document_controller
+            detail_item_height = get_detail_item_height(document_controller.get_font_metrics)
+
+            def detail_item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+                return DataPanelDetailItem(typing.cast(DisplayItem.DisplayItem, item), document_controller.ui, DataPanelUISettings(document_controller.ui), detail_item_height)
+
+            # note is_shared_selection is True across all browser types' canvas items. prevents the selection from being updated when items are inserted.
+            # instead, the selection in the model itself is used.
+            detail_canvas_item = ListCanvasItem.ListCanvasItem2(Panel.ThreadSafeListModel(self.__display_items_model, document_controller.event_loop), self.__selection, detail_item_factory, self.__item_delegate, item_height=detail_item_height, key="display_items", is_shared_selection=True)
+            detail_canvas_item.wants_drag_events = True
+            detail_scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(detail_canvas_item)
+            detail_scroll_area_canvas_item.auto_resize_contents = True
+            detail_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(detail_scroll_area_canvas_item, CanvasItem.Orientation.Vertical)
+            detail_scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+            detail_scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            detail_scroll_group_canvas_item.add_canvas_item(detail_scroll_area_canvas_item)
+            detail_scroll_group_canvas_item.add_canvas_item(detail_scroll_bar_canvas_item)
+            self.__stack_canvas_item.add_canvas_item(detail_scroll_group_canvas_item)
+            self.__browser_focus_listeners["detail"] = detail_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
+            self.__browser_thumbnail_loaders["detail"] = DataPanelBrowserThumbnailLoader(detail_canvas_item, document_controller.event_loop)
+            self.__browser_view_items["detail"] = detail_canvas_item
+            self.__browser_wrapper_items["detail"] = detail_scroll_group_canvas_item
+            self.__detail_dates_periodic_listeners = add_detail_dates_periodic_listeners(document_controller, detail_canvas_item)
+        return detail_scroll_group_canvas_item
 
     def __ensure_grid_canvas_item(self) -> CanvasItem.CanvasItemComposition:
         # build the grid canvas item and its wrapper the first time it's needed (see the comment in
@@ -682,6 +876,17 @@ class DataPanel(Panel.Panel):
         return self.__list_scroll_bar_canvas_item
 
     @property
+    def _detail_canvas_item(self) -> ListCanvasItem.ListCanvasItem2:
+        self.__ensure_detail_canvas_item()
+        detail_canvas_item = self.__browser_view_items["detail"]
+        assert isinstance(detail_canvas_item, ListCanvasItem.ListCanvasItem2)
+        return detail_canvas_item
+
+    @property
+    def _data_detail_canvas_item(self) -> CanvasItem.CanvasItemComposition:
+        return self.__ensure_detail_canvas_item()
+
+    @property
     def _grid_canvas_item(self) -> GridCanvasItem.GridCanvasItem2:
         self.__ensure_grid_canvas_item()
         grid_canvas_item = self.__browser_view_items["grid"]
@@ -698,6 +903,9 @@ class DataPanel(Panel.Panel):
         # we now have the focus.
         if any(view_item is not None and view_item.focused for view_item in self.__browser_view_items.values()):
             self.document_controller.data_panel_focused()
+
+    def _switch_to_browser_type_for_test(self, browser_type_id: str) -> None:
+        self.__switch_to_browser_type(browser_type_id, persist=False)
 
     def _request_focus_for_test(self) -> None:
         self.__ensure_list_canvas_item()
