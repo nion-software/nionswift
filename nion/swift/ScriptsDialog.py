@@ -249,19 +249,14 @@ def _script_matches_filter(item: ScriptListItem, filter_text: str, script_text_c
 
 def _build_sorted_scripts_list(scripts_list: typing.Sequence[typing.Any],
                                matches_fn: typing.Callable[[ScriptListItem], bool] | None = None) -> typing.Sequence[ScriptListItem]:
-    """Return the items to display, each folder followed by its shown scripts.
+    """Return the items to display for the top-level items in the scripts list, each folder followed by its shown scripts.
 
     Given a matches_fn, only the matching scripts are shown, along with each folder that contains a matching script.
     Each folder's is_filtered is set to whether a matches_fn is given, so that the folder draws as open and its open
     state cannot be toggled while filtered.
     """
-    filtered_items = []
-    for item in scripts_list:
-        if item.indent_level == 0:
-            filtered_items.append(item)
-    filtered_items.sort()
     set_items: list[ScriptListItem] = []
-    for item in filtered_items:
+    for item in sorted(scripts_list):
         if isinstance(item, FolderListItem):
             item.is_filtered = matches_fn is not None
             if matches_fn:
