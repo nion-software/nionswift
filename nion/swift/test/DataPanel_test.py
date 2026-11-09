@@ -1,5 +1,6 @@
 # standard libraries
 import contextlib
+import datetime
 import logging
 import pathlib
 import time
@@ -712,6 +713,87 @@ class TestDataPanelClass(unittest.TestCase):
                 time.sleep(0.01)
             self.assertIsNotNone(item_canvas_items[-1]._thumbnail)
 
+    def test_data_panel_detail_browser_makes_thumbnail_sources_only_for_items_in_view(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(40):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            document_controller.periodic()
+            data_panel = document_controller.find_dock_panel("data-panel")
+            data_panel._switch_to_browser_type_for_test("detail")
+            data_panel._data_detail_canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
+            document_controller.periodic()
+            item_canvas_items = [grid_flow_item_canvas_item._canvas_item for grid_flow_item_canvas_item in data_panel._detail_canvas_item.canvas_items]
+            self.assertTrue(item_canvas_items[0]._has_thumbnail_source)
+            self.assertFalse(item_canvas_items[-1]._has_thumbnail_source)
+
+    def test_data_panel_detail_browser_formats_dates_only_for_items_in_view(self):
+        # formatting the date of every item when a large project loads is slow.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(40):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            document_controller.periodic()
+            data_panel = document_controller.find_dock_panel("data-panel")
+            data_panel._switch_to_browser_type_for_test("detail")
+            data_panel._data_detail_canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
+            document_controller.periodic()
+            item_canvas_items = [grid_flow_item_canvas_item._canvas_item for grid_flow_item_canvas_item in data_panel._detail_canvas_item.canvas_items]
+            self.assertTrue(item_canvas_items[0]._date_str)
+            self.assertFalse(item_canvas_items[-1]._date_str)
+
+    def test_data_panel_detail_item_shows_seconds_at_the_next_changing_update_once_its_data_changes(self):
+        # an item which becomes live has to show its seconds at once, even if its date was shown without them.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            document_controller.periodic()
+            data_panel = document_controller.find_dock_panel("data-panel")
+            data_panel._switch_to_browser_type_for_test("detail")
+            data_panel._data_detail_canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
+            document_controller.periodic()
+            detail_item = data_panel._detail_canvas_item.canvas_items[0]._canvas_item
+            detail_item._update_date(detail_item.date_for_sorting_local + datetime.timedelta(minutes=2))
+            date_str_before_change = detail_item._date_str
+            data_item.set_data(numpy.ones((8, 8), numpy.uint32))
+            # stands in for the periodic update each second.
+            DataPanel.update_detail_dates_in_view(data_panel._detail_canvas_item, True)
+            self.assertTrue(detail_item._is_date_with_seconds)
+            self.assertNotEqual(date_str_before_change, detail_item._date_str)
+
+    def test_detail_date_shows_seconds_within_a_minute_and_shorter_forms_for_earlier_dates(self):
+        now = datetime.datetime(2026, 11, 9, 15, 30, 45)
+        self.assertEqual("jms", DataPanel.get_detail_date_skeleton(now - datetime.timedelta(seconds=59), now))
+        self.assertEqual("jm", DataPanel.get_detail_date_skeleton(now - datetime.timedelta(seconds=60), now))
+        self.assertEqual("MMMd", DataPanel.get_detail_date_skeleton(datetime.datetime(2026, 11, 8, 23, 59, 0), now))
+        self.assertEqual("MMMd", DataPanel.get_detail_date_skeleton(now - datetime.timedelta(weeks=48), now))
+        self.assertEqual("yMM", DataPanel.get_detail_date_skeleton(now - datetime.timedelta(weeks=48, seconds=1), now))
+
+    def test_detail_date_of_a_future_item_shows_no_seconds(self):
+        # a date ahead of the clock, such as from a clock change or another computer, should not look like it is from now.
+        now = datetime.datetime(2026, 11, 9, 15, 30, 45)
+        self.assertEqual("jm", DataPanel.get_detail_date_skeleton(now + datetime.timedelta(seconds=30), now))
+        self.assertEqual("MMMd", DataPanel.get_detail_date_skeleton(datetime.datetime(2027, 3, 1, 9, 0), now))
+
+    def test_data_panel_detail_item_drops_seconds_from_its_date_once_a_minute_has_passed(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            document_controller.periodic()
+            data_panel = document_controller.find_dock_panel("data-panel")
+            detail_item = data_panel._detail_canvas_item.canvas_items[0]._canvas_item
+            date_local = detail_item.date_for_sorting_local
+            detail_item._update_date(date_local + datetime.timedelta(seconds=10))
+            date_str_with_seconds = detail_item._date_str
+            detail_item._update_date(date_local + datetime.timedelta(seconds=90))
+            self.assertFalse(detail_item._is_date_with_seconds)
+            self.assertNotEqual(date_str_with_seconds, detail_item._date_str)
+
     def test_data_panel_item_moved_by_sorting_keeps_showing_its_thumbnail(self):
         # updating the data of an item moves it to the top, which recreates its canvas item. it should not show blank.
         with TestContext.create_memory_context() as test_context:
@@ -733,6 +815,24 @@ class TestDataPanelClass(unittest.TestCase):
             top_canvas_item = data_panel._list_canvas_item.canvas_items[0]._canvas_item
             self.assertEqual(bottom_display_item, top_canvas_item.display_item)
             self.assertIsNotNone(top_canvas_item._thumbnail)
+
+    def test_data_panel_detail_item_moved_by_sorting_keeps_showing_its_date(self):
+        # updating the data of an item moves it to the top, which recreates its canvas item. it should not show blank.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            document_controller.periodic()
+            data_panel = document_controller.find_dock_panel("data-panel")
+            data_panel._switch_to_browser_type_for_test("detail")
+            data_panel._data_detail_canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
+            document_controller.periodic()
+            bottom_display_item = data_panel._detail_canvas_item.canvas_items[-1]._canvas_item.display_item
+            bottom_display_item.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
+            top_canvas_item = data_panel._detail_canvas_item.canvas_items[0]._canvas_item
+            self.assertEqual(bottom_display_item, top_canvas_item.display_item)
+            self.assertTrue(top_canvas_item._date_str)
 
     def test_data_panel_item_changed_during_transaction_moves_only_when_transaction_ends(self):
         # items must not move around in the data panel while a mouse drag or acquisition is changing them.
