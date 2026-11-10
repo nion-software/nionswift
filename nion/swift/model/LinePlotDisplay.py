@@ -216,6 +216,16 @@ def calculate_y_axis(xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata
     return scaled_data_min, scaled_data_max, ticker
 
 
+# the plot kinds of a display layer, the first being the default.
+PLOT_KINDS = ("step", "line", "bar", "stem", "none")
+
+# the marker shapes of a display layer, the first being the default.
+MARKER_SHAPES = ("none", "circle", "square", "diamond", "triangle", "plus", "cross", "point")
+
+# the stroke dashes of a display layer, the first being the default.
+STROKE_DASHES = ("solid", "dashed", "dotted")
+
+
 @dataclasses.dataclass
 class LegendEntry:
     label: str

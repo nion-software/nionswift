@@ -516,6 +516,54 @@ class TestDisplayItemClass(unittest.TestCase):
                 self.assertEqual("red", display_layer.fill_color)
                 display_layer.fill_color = "blue"  # should be able to set value after reload. failed once.
 
+    def test_display_layer_plot_kind_and_style_reload(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+                display_layer = document_model.display_items[0].display_layers[0]
+                display_layer.plot_kind = "line"
+                display_layer.marker_shape = "circle"
+                display_layer.marker_size = 4.0
+                display_layer.stroke_dash = "dashed"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                display_layer = document_model.display_items[0].display_layers[0]
+                self.assertEqual(("line", "circle", 4.0, "dashed"), (display_layer.plot_kind, display_layer.marker_shape, display_layer.marker_size, display_layer.stroke_dash))
+
+    def test_display_layer_plot_kind_and_style_this_version_does_not_know_survive_reload_snapshot_and_copy(self):
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+                display_layer = document_model.display_items[0].display_layers[0]
+                display_layer.plot_kind = "spline"
+                display_layer.marker_shape = "star"
+                display_layer.marker_size = 4.0
+                display_layer.stroke_dash = "dash_dot"
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                display_item = document_model.display_items[0]
+                with contextlib.closing(display_item.snapshot()) as snapshot_display_item, contextlib.closing(copy.deepcopy(display_item)) as copy_display_item:
+                    display_layers = (display_item.display_layers[0], snapshot_display_item.display_layers[0], copy_display_item.display_layers[0])
+                    styles = [(display_layer.plot_kind, display_layer.marker_shape, display_layer.marker_size, display_layer.stroke_dash) for display_layer in display_layers]
+                    self.assertEqual([("spline", "star", 4.0, "dash_dot")] * 3, styles)
+
+    def test_restoring_saved_display_item_properties_restores_display_layer_plot_kind_and_style(self):
+        # undo of a change to a display layer restores the display item's saved properties.
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+            display_item = document_model.display_items[0]
+            saved_properties = display_item.save_properties()
+            display_layer = display_item.display_layers[0]
+            display_layer.plot_kind = "line"
+            display_layer.marker_shape = "circle"
+            display_layer.marker_size = 4.0
+            display_layer.stroke_dash = "dashed"
+            display_item.restore_properties(saved_properties)
+            self.assertEqual((None, None, None, None), (display_layer.plot_kind, display_layer.marker_shape, display_layer.marker_size, display_layer.stroke_dash))
+
     def test_display_layer_property_reloads_with_no_display_data_channel(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
