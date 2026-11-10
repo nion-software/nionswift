@@ -1746,6 +1746,83 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.handle_redo()
             self.assertEqual("xy", display_item.get_display_layer_property(0, "label"))
 
+    def test_choosing_the_first_display_layer_plot_kind_in_inspector_stores_the_default(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            display_panel = document_controller.selected_display_panel
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+            display_item = document_model.display_items[0]
+            display_item.display_layers[0].plot_kind = "line"
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            line_plot_display_layers_section = typing.cast(Inspector.LinePlotDisplayLayersInspectorSection, inspector_panel.widget.find_widget_by_id("line_plot_display_layers_inspector_section"))
+            handler = line_plot_display_layers_section._handler._line_plot_display_layer_handlers[0]
+            handler.plot_kind_choice_model.index = 0
+            self.assertIsNone(display_item.display_layers[0].plot_kind)
+
+    def test_inspector_shows_display_layer_plot_kind_and_style_it_does_not_know_without_changing_them(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            display_panel = document_controller.selected_display_panel
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+            display_item = document_model.display_items[0]
+            display_layer = display_item.display_layers[0]
+            display_layer.plot_kind = "spline"
+            display_layer.marker_shape = "star"
+            display_layer.stroke_dash = "dash_dot"
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            line_plot_display_layers_section = typing.cast(Inspector.LinePlotDisplayLayersInspectorSection, inspector_panel.widget.find_widget_by_id("line_plot_display_layers_inspector_section"))
+            handler = line_plot_display_layers_section._handler._line_plot_display_layer_handlers[0]
+            shown_items = tuple(choice_model.items[choice_model.index] for choice_model in
+                                (handler.plot_kind_choice_model, handler.marker_shape_choice_model, handler.stroke_dash_choice_model))
+            self.assertEqual(("spline", "star", "dash_dot"), shown_items)
+            self.assertEqual(("spline", "star", "dash_dot"), (display_layer.plot_kind, display_layer.marker_shape, display_layer.stroke_dash))
+
+    def test_inspector_shows_display_layer_plot_kind_it_does_not_know_after_undo_in_a_rebuilt_inspector(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            display_panel = document_controller.selected_display_panel
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+            display_item = document_model.display_items[0]
+            display_item.display_layers[0].plot_kind = "spline"
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            line_plot_display_layers_section = typing.cast(Inspector.LinePlotDisplayLayersInspectorSection, inspector_panel.widget.find_widget_by_id("line_plot_display_layers_inspector_section"))
+            line_plot_display_layers_section._handler._line_plot_display_layer_handlers[0].plot_kind_choice_model.index = 1
+            # show another display and then this one again, which rebuilds the inspector while the layer is a line.
+            display_panel.set_display_panel_display_item(document_model.display_items[1])
+            document_controller.periodic()
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()
+            document_controller.handle_undo()
+            line_plot_display_layers_section = typing.cast(Inspector.LinePlotDisplayLayersInspectorSection, inspector_panel.widget.find_widget_by_id("line_plot_display_layers_inspector_section"))
+            plot_kind_choice_model = line_plot_display_layers_section._handler._line_plot_display_layer_handlers[0].plot_kind_choice_model
+            self.assertEqual("spline", plot_kind_choice_model.items[plot_kind_choice_model.index])
+
+    def test_clearing_display_layer_marker_size_in_inspector_restores_the_default(self) -> None:
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            display_panel = document_controller.selected_display_panel
+            document_model = document_controller.document_model
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8,))))
+            display_item = document_model.display_items[0]
+            display_item.display_layers[0].marker_size = 4.0
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.periodic()  # build the inspector
+            inspector_panel = document_controller.find_dock_panel("inspector-panel")
+            line_plot_display_layers_section = typing.cast(Inspector.LinePlotDisplayLayersInspectorSection, inspector_panel.widget.find_widget_by_id("line_plot_display_layers_inspector_section"))
+            handler = line_plot_display_layers_section._handler._line_plot_display_layer_handlers[0]
+            handler._line_plot_display_layer_model.marker_size_model.value = handler.marker_size_converter.convert_back(str())
+            self.assertIsNone(display_item.display_layers[0].marker_size)
+
     def test_change_display_layer_data_command(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()

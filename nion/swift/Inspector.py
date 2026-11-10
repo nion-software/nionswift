@@ -34,6 +34,7 @@ from nion.swift.model import DisplayInfo
 from nion.swift.model import DisplayItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import LinePlotDisplay
 from nion.swift.model import Observer
 from nion.swift.model import Schema
 from nion.swift.model import Symbolic
@@ -809,12 +810,66 @@ class DisplayLayerPropertyCommandModel(Model.PropertyChangedPropertyModel[typing
             _push_inspector_undo_command(self.__document_controller, command)
 
 
+class DisplayLayerChoiceModel(Observable.Observable):
+    """A model of a choice of a display layer property's value, with the choice's items and the index of the stored value's item.
+
+    The first item stands for None, which the property stores for its default. Each stored value which isn't one of the
+    values has an item of its own after the others, from when the property first stores it, so that the choice shows it.
+    """
+
+    def __init__(self, value_model: DisplayLayerPropertyCommandModel, values: typing.Sequence[str], labels: typing.Sequence[str]) -> None:
+        super().__init__()
+        self.__value_model = value_model
+        self.__values = list(values)
+        self.__items = list(labels)
+        self.__add_value_item()
+        self.__value_listener = value_model.property_changed_event.listen(ReferenceCounting.weak_partial(DisplayLayerChoiceModel.__handle_value_changed, self))
+
+    def __add_value_item(self) -> bool:
+        # add an item for a stored value which the choice doesn't have, and return whether it adds one. the choice keeps each
+        # item, since a combo box whose new items don't include its current item writes a cleared index back to this model.
+        value = self.__value_model.value
+        if value and value not in self.__values:
+            self.__values.append(value)
+            self.__items.append(value)
+            return True
+        return False
+
+    def __handle_value_changed(self, property_name: str) -> None:
+        if property_name == "value":
+            # notify the items before the index, so that the index is valid for the items.
+            if self.__add_value_item():
+                self.notify_property_changed("items")
+            self.notify_property_changed("index")
+
+    @property
+    def items(self) -> typing.Sequence[str]:
+        return list(self.__items)
+
+    @property
+    def index(self) -> int:
+        value = self.__value_model.value
+        return self.__values.index(value) if value in self.__values else 0
+
+    @index.setter
+    def index(self, index: int | None) -> None:
+        self.__value_model.value = self.__values[index] if index else None
+
+
 class LinePlotDisplayLayerHandler(Declarative.Handler):
     def __init__(self, line_plot_display_layer_model: LinePlotDisplayLayerModel):
         super().__init__()
         self._line_plot_display_layer_model = line_plot_display_layer_model
         self.integer_to_string_converter = Converter.IntegerToStringConverter()
         self.float_to_string_converter = Converter.FloatToStringConverter()
+        # an empty size gives None, the default size.
+        self.marker_size_converter = Converter.FloatToStringConverter(pass_none=True)
+        self.plot_kind_choice_model = DisplayLayerChoiceModel(line_plot_display_layer_model.plot_kind_model, LinePlotDisplay.PLOT_KINDS,
+                                                              [_("Step"), _("Line"), _("Bar"), _("Stem"), _("None")])
+        self.marker_shape_choice_model = DisplayLayerChoiceModel(line_plot_display_layer_model.marker_shape_model, LinePlotDisplay.MARKER_SHAPES,
+                                                                 [_("None"), _("Circle"), _("Square"), _("Diamond"), _("Triangle"), _("Plus"), _("Cross"), _("Point")])
+        self.stroke_dash_choice_model = DisplayLayerChoiceModel(line_plot_display_layer_model.stroke_dash_model, LinePlotDisplay.STROKE_DASHES,
+                                                                [_("Solid"), _("Dashed"), _("Dotted")])
 
         u = Declarative.DeclarativeUI()
         self.ui_view = u.create_column(
@@ -869,6 +924,22 @@ class LinePlotDisplayLayerHandler(Declarative.Handler):
             u.create_row(
                 u.create_label(text=_("Stroke Width"), width=80, height=30, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
                 u.create_line_edit(text="@binding(_line_plot_display_layer_model.stroke_width_model.value, converter=float_to_string_converter)", width=36),
+                u.create_label(text=_("Dash")),
+                u.create_combo_box(items_ref="@binding(stroke_dash_choice_model.items)", current_index="@binding(stroke_dash_choice_model.index)"),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Plot Kind"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_combo_box(items_ref="@binding(plot_kind_choice_model.items)", current_index="@binding(plot_kind_choice_model.index)"),
+                u.create_stretch(),
+                spacing=8
+            ),
+            u.create_row(
+                u.create_label(text=_("Marker"), width=80, text_alignment_vertical="vcenter", text_alignment_horizontal="right"),
+                u.create_combo_box(items_ref="@binding(marker_shape_choice_model.items)", current_index="@binding(marker_shape_choice_model.index)"),
+                u.create_label(text=_("Size")),
+                u.create_line_edit(text="@binding(_line_plot_display_layer_model.marker_size_model.value, converter=marker_size_converter)", placeholder_text=f"{LinePlotDisplay.DEFAULT_MARKER_SIZE:g}", width=36),
                 u.create_stretch(),
                 spacing=8
             ),
@@ -947,6 +1018,10 @@ class LinePlotDisplayLayerModel(Observable.Observable):
         self.fill_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "fill_color")
         self.stroke_color_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_color")
         self.stroke_width_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_width")
+        self.stroke_dash_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "stroke_dash")
+        self.plot_kind_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "plot_kind")
+        self.marker_shape_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "marker_shape")
+        self.marker_size_model = DisplayLayerPropertyCommandModel(document_controller, display_item, display_layer, "marker_size")
 
         self.display_type_items = [_("Log Absolute"), _("Absolute"), _("Phase"), _("Real"), _("Imaginary")]
         self._display_type_flags = ["log-absolute", "absolute", "phase", "real", "imaginary"]
