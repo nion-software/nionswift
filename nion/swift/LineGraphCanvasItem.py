@@ -706,6 +706,54 @@ def draw_markers(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_conte
     return tuple()
 
 
+def draw_legend_swatch(drawing_context: DrawingContext.DrawingContext, swatch_rect: Geometry.FloatRect, legend_entry: LinePlotDisplay.LegendEntry, drawing_metrics: UISettings.DrawingMetrics) -> None:
+    """Draw the swatch of a legend entry the way the line plot draws its layer: a square for step or bar, a line or a stem, and its marker."""
+    fill_color = Color.Color(legend_entry.fill_color) if legend_entry.fill_color else None
+    stroke_color = Color.Color(legend_entry.stroke_color) if legend_entry.stroke_color else None
+    stroke_width = drawing_metrics.scale_stroke(1.0)
+    left, top, width, height = swatch_rect.left, swatch_rect.top, swatch_rect.width, swatch_rect.height
+    center = Geometry.FloatPoint(x=left + width / 2, y=top + height / 2)
+    with drawing_context.saver():
+        # dash the swatch's lines inside the saver, so that the dash ends before the marker.
+        if line_dash := get_line_dash(legend_entry.stroke_dash, drawing_metrics):
+            drawing_context.line_dash = line_dash
+        if legend_entry.plot_kind in ("step", "bar"):
+            drawing_context.begin_path()
+            drawing_context.rect(left, top, width, height)
+            if fill_color:
+                drawing_context.fill_style = fill_color.color_str
+                drawing_context.fill()
+            if stroke_color:
+                drawing_context.stroke_style = stroke_color.color_str
+                drawing_context.line_width = stroke_width
+                drawing_context.stroke()
+        elif legend_entry.plot_kind == "line":
+            if fill_color:
+                drawing_context.begin_path()
+                drawing_context.rect(left, center.y, width, top + height - center.y)
+                drawing_context.fill_style = fill_color.color_str
+                drawing_context.fill()
+            if stroke_color:
+                drawing_context.begin_path()
+                drawing_context.move_to(left, center.y)
+                drawing_context.line_to(left + width, center.y)
+                drawing_context.stroke_style = stroke_color.color_str
+                drawing_context.line_width = stroke_width
+                drawing_context.stroke()
+        elif legend_entry.plot_kind == "stem":
+            if stroke_color:
+                drawing_context.begin_path()
+                drawing_context.move_to(center.x, top + height)
+                drawing_context.line_to(center.x, top)
+                drawing_context.stroke_style = stroke_color.color_str
+                drawing_context.line_width = stroke_width
+                drawing_context.stroke()
+    if legend_entry.marker_shape != "none":
+        # make the marker no larger than the swatch.
+        marker_size = min(height, get_marker_size_in_pixels(legend_entry.marker_size, drawing_metrics))
+        draw_marker_shapes(drawing_context, legend_entry.marker_shape, [(center.x, center.y)], marker_size, fill_color, stroke_color, stroke_width)
+
+
 class LineGraphLayerPart(enum.Enum):
     """The part of a layer which a layer canvas item draws."""
     FILL = 0
@@ -1586,16 +1634,9 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
                     middle_line_y = legend_line_height * index + border + legend_line_height / 2
                     drawing_context.fill_text(legend_entry.label, border, middle_line_y)
 
-                    drawing_context.begin_path()
                     icon_size = legend_font_metrics.height * 0.7
-                    drawing_context.rect(legend_width - border - icon_size, middle_line_y - legend_font_metrics.descent / 2 - icon_size / 2, icon_size, icon_size)
-                    if legend_entry.fill_color:
-                        drawing_context.fill_style = legend_entry.fill_color
-                        drawing_context.fill()
-                    if legend_entry.stroke_color:
-                        drawing_context.stroke_style = legend_entry.stroke_color
-                        drawing_context.line_width = self.__drawing_metrics.scale_stroke(1.0)
-                        drawing_context.stroke()
+                    icon_rect = Geometry.FloatRect.from_tlhw(middle_line_y - legend_font_metrics.descent / 2 - icon_size / 2, legend_width - border - icon_size, icon_size, icon_size)
+                    draw_legend_swatch(drawing_context, icon_rect, legend_entry, self.__drawing_metrics)
 
 
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -1759,7 +1800,8 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__mouse_pressed_for_dragging and Geometry.distance(drag_start_position.to_float_point(), Geometry.FloatPoint(y=y, x=x)) > 1:
             mime_data = self.__delegate.create_mime_data()
             layer = self.__legend_entries[dragging_index]
-            MimeTypes.mime_data_put_layer(mime_data, dragging_index, self.__delegate.get_display_item(), layer.label, layer.fill_color, layer.stroke_color)
+            MimeTypes.mime_data_put_layer(mime_data, dragging_index, self.__delegate.get_display_item(), layer.label, layer.fill_color, layer.stroke_color,
+                                          layer.plot_kind, layer.marker_shape, layer.marker_size, layer.stroke_dash)
             thumbnail_data = self.__get_icon_for_layer(layer.fill_color)
             self.drag(mime_data, thumbnail_data)
             self.update()
@@ -1832,8 +1874,10 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             else:
                 # if we aren't the source, setup foreign_legend_* and update the display
                 assert display_item
-                # the layer mime data leaves out a label or a color which the layer doesn't have.
-                self.__foreign_legend_entry = LinePlotDisplay.LegendEntry(label=legend_data.get("label", str()), fill_color=legend_data.get("fill_color"), stroke_color=legend_data.get("stroke_color"))
+                # the layer mime data leaves out a label or a property which the layer doesn't have.
+                self.__foreign_legend_entry = LinePlotDisplay.create_legend_entry(legend_data.get("label", str()), legend_data.get("fill_color"), legend_data.get("stroke_color"),
+                                                                                  legend_data.get("plot_kind"), legend_data.get("marker_shape"), legend_data.get("marker_size"),
+                                                                                  legend_data.get("stroke_dash"))
                 self.__foreign_legend_uuid_and_index = (display_item, typing.cast(int, legend_data["index"]))
                 self.update()
             return "move"

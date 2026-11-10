@@ -112,7 +112,8 @@ def mime_data_get_layer(mime_data: UserInterface.MimeData, document_model: Docum
     return legend_data, display_item
 
 
-def mime_data_put_layer(mime_data: UserInterface.MimeData, index: int, display_item: DisplayItem.DisplayItem, label: typing.Optional[str], fill_color: typing.Optional[str], stroke_color: typing.Optional[str]) -> None:
+def mime_data_put_layer(mime_data: UserInterface.MimeData, index: int, display_item: DisplayItem.DisplayItem, label: typing.Optional[str], fill_color: typing.Optional[str], stroke_color: typing.Optional[str],
+                        plot_kind: str | None = None, marker_shape: str | None = None, marker_size: float | None = None, stroke_dash: str | None = None) -> None:
     legend_data: Persistence.PersistentDictType = {
         "index": index,
     }
@@ -122,6 +123,14 @@ def mime_data_put_layer(mime_data: UserInterface.MimeData, index: int, display_i
         legend_data["fill_color"] = fill_color
     if stroke_color:
         legend_data["stroke_color"] = stroke_color
+    if plot_kind:
+        legend_data["plot_kind"] = plot_kind
+    if marker_shape:
+        legend_data["marker_shape"] = marker_shape
+    if marker_size:
+        legend_data["marker_size"] = marker_size
+    if stroke_dash:
+        legend_data["stroke_dash"] = stroke_dash
     mime_dict = {
         "legend_data": legend_data,
         "display_item_specifier": Persistence.write_persistent_specifier(display_item.uuid)

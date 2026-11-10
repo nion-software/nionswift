@@ -244,6 +244,18 @@ class LegendEntry:
     label: str
     fill_color: typing.Optional[str]
     stroke_color: typing.Optional[str]
+    # how the line plot draws the layer, so that its swatch shows it.
+    plot_kind: str = PLOT_KINDS[0]
+    marker_shape: str = MARKER_SHAPES[0]
+    marker_size: float = DEFAULT_MARKER_SIZE
+    stroke_dash: str = STROKE_DASHES[0]
+
+
+def create_legend_entry(label: str, fill_color: str | None, stroke_color: str | None, plot_kind: str | None, marker_shape: str | None,
+                        marker_size: float | None, stroke_dash: str | None) -> LegendEntry:
+    """Return the legend entry of a layer with the properties, giving the default for a value it doesn't know."""
+    return LegendEntry(label, fill_color, stroke_color, get_known_value(plot_kind, PLOT_KINDS), get_known_value(marker_shape, MARKER_SHAPES),
+                       get_known_marker_size(marker_size), get_known_value(stroke_dash, STROKE_DASHES))
 
 
 class LineGraphAxes:
@@ -737,6 +749,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         label = "Unknown"
                 fill_color = display_layer.fill_color
                 stroke_color = display_layer.stroke_color
-                legend_entries.append(LegendEntry(label, fill_color, stroke_color))
+                legend_entries.append(create_legend_entry(label, fill_color, stroke_color, display_layer.plot_kind, display_layer.marker_shape,
+                                                          display_layer.marker_size, display_layer.stroke_dash))
             self.__legend_entries = legend_entries
         return self.__legend_entries
