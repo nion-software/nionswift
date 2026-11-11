@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 # standard libraries
+import contextlib
 import dataclasses
 import enum
 import functools
@@ -272,6 +273,90 @@ def calculate_channel_plot_points(plot_height: int, plot_width: int, plot_origin
     return PlotPoints(tuple(runs), baseline, clip_bounds)
 
 
+def add_line_path(drawing_context: DrawingContext.DrawingContext, run: PlotPointRun) -> None:
+    """Continue the path from the start of the run's first value along the line through the run to the end of its last."""
+    for x, y in zip(run.xs, run.ys):
+        drawing_context.line_to(x, y)
+    drawing_context.line_to(run.ends[-1], run.ys[-1])
+
+
+def draw_line_fill(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, fill_color: Color.Color) -> None:
+    """Fill the area between the line through each run and the baseline."""
+    baseline = plot_points.baseline
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        for run in plot_points.runs:
+            drawing_context.move_to(run.starts[0], baseline)
+            drawing_context.line_to(run.starts[0], run.ys[0])
+            add_line_path(drawing_context, run)
+            drawing_context.line_to(run.ends[-1], baseline)
+            drawing_context.close_path()
+        drawing_context.fill_style = fill_color.color_str
+        drawing_context.fill()
+
+
+def draw_line_stroke(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, stroke_color: Color.Color, scaled_stroke_width: float) -> None:
+    """Stroke the line through each run."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        for run in plot_points.runs:
+            drawing_context.move_to(run.starts[0], run.ys[0])
+            add_line_path(drawing_context, run)
+        drawing_context.line_width = scaled_stroke_width
+        drawing_context.stroke_style = stroke_color.color_str
+        drawing_context.stroke()
+
+
+def add_bar_paths(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints) -> None:
+    """Add a bar from the baseline to each value, across the value's span, to the path."""
+    for run in plot_points.runs:
+        for start, end, y in zip(run.starts, run.ends, run.ys):
+            drawing_context.rect(start, y, end - start, plot_points.baseline - y)
+
+
+def draw_bar_fill(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, fill_color: Color.Color) -> None:
+    """Fill the bars."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        add_bar_paths(drawing_context, plot_points)
+        drawing_context.fill_style = fill_color.color_str
+        drawing_context.fill()
+
+
+def draw_bar_stroke(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, stroke_color: Color.Color, scaled_stroke_width: float) -> None:
+    """Stroke the outline of the bars."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        add_bar_paths(drawing_context, plot_points)
+        drawing_context.line_width = scaled_stroke_width
+        drawing_context.stroke_style = stroke_color.color_str
+        drawing_context.stroke()
+
+
+def draw_stem_stroke(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, stroke_color: Color.Color, scaled_stroke_width: float) -> None:
+    """Stroke a stem from the baseline to each value, at the center of its span."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        for run in plot_points.runs:
+            for x, y in zip(run.xs, run.ys):
+                drawing_context.move_to(x, plot_points.baseline)
+                drawing_context.line_to(x, y)
+        drawing_context.line_width = scaled_stroke_width
+        drawing_context.stroke_style = stroke_color.color_str
+        drawing_context.stroke()
+
+
+@contextlib.contextmanager
+def clip_to_bounds(drawing_context: DrawingContext.DrawingContext, clip_bounds: Geometry.IntRect | None) -> typing.Iterator[None]:
+    """Clip the drawing within the context to the bounds, if there are bounds."""
+    if clip_bounds is not None:
+        with drawing_context.saver():
+            drawing_context.clip_rect(clip_bounds.left, clip_bounds.top, clip_bounds.width, clip_bounds.height)
+            yield
+    else:
+        yield
+
+
 def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int, drawing_metrics: UISettings.DrawingMetrics) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
@@ -413,26 +498,54 @@ class ChannelPlotPointsCacheItem(PlotPointsCacheItem):
                                              axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min, left_channel, right_channel, axes.axis_scale)
 
 
-def get_plot_points(line_graph_layer: LinePlotDisplay.LineGraphLayer, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> tuple[PlotPoints, tuple[CanvasItem.CacheValue, ...]]:
+@dataclasses.dataclass(frozen=True)
+class PlotKindDrawing:
+    """How the line plot draws the layers of a plot kind.
+
+    plot_points_cache_item_type: the cache item which calculates the plot points of a layer.
+    draw_fill: the function which fills the plot points, or None for a plot kind without a fill.
+    draw_stroke: the function which strokes the plot points, or None for a plot kind without a stroke.
+    """
+    plot_points_cache_item_type: type[PlotPointsCacheItem]
+    draw_fill: typing.Callable[[DrawingContext.DrawingContext, PlotPoints, Color.Color], None] | None
+    draw_stroke: typing.Callable[[DrawingContext.DrawingContext, PlotPoints, Color.Color, float], None] | None
+
+
+# the drawing of each of LinePlotDisplay.PLOT_KINDS.
+PLOT_KIND_DRAWINGS: typing.Mapping[str, PlotKindDrawing] = {
+    "step": PlotKindDrawing(StepPlotPointsCacheItem, draw_step_fill, draw_step_stroke),
+    "line": PlotKindDrawing(ChannelPlotPointsCacheItem, draw_line_fill, draw_line_stroke),
+    "bar": PlotKindDrawing(ChannelPlotPointsCacheItem, draw_bar_fill, draw_bar_stroke),
+    "stem": PlotKindDrawing(ChannelPlotPointsCacheItem, None, draw_stem_stroke),
+    "none": PlotKindDrawing(ChannelPlotPointsCacheItem, None, None),
+}
+
+
+def get_plot_points(line_graph_layer: LinePlotDisplay.LineGraphLayer, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache,
+                    plot_points_cache_item_type: type[PlotPointsCacheItem]) -> tuple[PlotPoints, tuple[CanvasItem.CacheValue, ...]]:
     """Return the plot points of the layer, and the cache values which hold them."""
     scaled_xdata_cache_value = composer_cache.get_cache_value(MappedCalibratedDataAndMetadataCacheItem(line_graph_layer.xdata, line_graph_layer.axes))
     scaled_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], scaled_xdata_cache_value.value)
-    plot_points_cache_value = composer_cache.get_cache_value(StepPlotPointsCacheItem(scaled_xdata, line_graph_layer.axes, canvas_bounds))
+    plot_points_cache_value = composer_cache.get_cache_value(plot_points_cache_item_type(scaled_xdata, line_graph_layer.axes, canvas_bounds))
     return typing.cast(PlotPoints, plot_points_cache_value.value), (scaled_xdata_cache_value, plot_points_cache_value)
 
 
 def draw_fills(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
-    if line_graph_layer.fill_color:
-        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache)
-        draw_step_fill(drawing_context, plot_points, Color.Color(line_graph_layer.fill_color))
+    plot_kind_drawing = PLOT_KIND_DRAWINGS[line_graph_layer.plot_kind]
+    if line_graph_layer.fill_color and plot_kind_drawing.draw_fill:
+        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache, plot_kind_drawing.plot_points_cache_item_type)
+        with clip_to_bounds(drawing_context, plot_points.clip_bounds):
+            plot_kind_drawing.draw_fill(drawing_context, plot_points, Color.Color(line_graph_layer.fill_color))
         return cache_values
     return tuple()
 
 
 def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache, drawing_metrics: UISettings.DrawingMetrics) -> typing.Tuple[CanvasItem.CacheValue, ...]:
-    if line_graph_layer.stroke_color:
-        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache)
-        draw_step_stroke(drawing_context, plot_points, Color.Color(line_graph_layer.stroke_color), drawing_metrics.scale_stroke(line_graph_layer.stroke_width))
+    plot_kind_drawing = PLOT_KIND_DRAWINGS[line_graph_layer.plot_kind]
+    if line_graph_layer.stroke_color and plot_kind_drawing.draw_stroke:
+        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache, plot_kind_drawing.plot_points_cache_item_type)
+        with clip_to_bounds(drawing_context, plot_points.clip_bounds):
+            plot_kind_drawing.draw_stroke(drawing_context, plot_points, Color.Color(line_graph_layer.stroke_color), drawing_metrics.scale_stroke(line_graph_layer.stroke_width))
         return cache_values
     return tuple()
 
