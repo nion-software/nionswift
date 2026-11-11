@@ -2529,6 +2529,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.restore_contents(d)
 
+        # an item chosen in the previous contents is not a change made in the new contents, so Cycle Display moves on to
+        # the next browser.
+        self.__display_changed = False
+
         self.set_selected(is_selected)
 
         if is_focused:
