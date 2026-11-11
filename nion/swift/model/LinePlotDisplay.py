@@ -226,8 +226,8 @@ class LegendEntry:
 class LineGraphAxes:
     """Track information about line graph axes."""
 
-    def __init__(self, data_scale: float, scaled_data_min: float, scaled_data_max: float, data_left: int,
-                 data_right: int, x_calibration: typing.Optional[Calibration.Calibration],
+    def __init__(self, data_scale: float, scaled_data_min: float, scaled_data_max: float, data_left: float,
+                 data_right: float, x_calibration: typing.Optional[Calibration.Calibration],
                  y_calibration: typing.Optional[Calibration.Calibration], axis_scale_id: typing.Optional[str],
                  y_ticker: Geometry.Ticker) -> None:
         assert x_calibration is None or x_calibration.is_valid
@@ -297,11 +297,11 @@ class LineGraphAxes:
         return calibrated_value
 
     @property
-    def drawn_left_channel(self) -> int:
+    def drawn_left_channel(self) -> float:
         return self.__uncalibrated_left_channel
 
     @property
-    def drawn_right_channel(self) -> int:
+    def drawn_right_channel(self) -> float:
         return self.__uncalibrated_right_channel
 
     @property
@@ -450,8 +450,8 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
         self.__y_min: float | None = display_properties.get("y_min", None)
         self.__y_max: float | None = display_properties.get("y_max", None)
         self.__y_axis_scale_id: str | None = display_properties.get("y_style", "linear")  # 'y_style' for backward compatibility
-        self.__left_channel: int | None = display_properties.get("left_channel", None)
-        self.__right_channel: int | None = display_properties.get("right_channel", None)
+        self.__left_channel: float | None = display_properties.get("left_channel", None)
+        self.__right_channel: float | None = display_properties.get("right_channel", None)
         self.__legend_position: str | None = display_properties.get("legend_position", None)
         self.__xdata_list: typing.Optional[typing.List[typing.Optional[DataAndMetadata.DataAndMetadata]]] = None
         self.__axes: typing.Optional[LineGraphAxes] = None
@@ -603,8 +603,8 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
             # update the line graph data
             left_channel = left_channel_opt if left_channel_opt is not None else 0
             right_channel = right_channel_opt if right_channel_opt is not None else data_scale
-            left_channel = typing.cast(int, min(left_channel, right_channel))
-            right_channel = typing.cast(int, max(left_channel, right_channel))
+            left_channel = min(left_channel, right_channel)
+            right_channel = max(left_channel, right_channel)
 
             if y_min is not None:
                 y_min_calibrated = displayed_intensity_calibration.convert_to_calibrated_value(y_min)

@@ -23,7 +23,6 @@ import warnings
 import numpy
 
 # local libraries
-from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import MimeTypes
 from nion.swift import Undo
@@ -155,72 +154,46 @@ def get_run_edges(is_drawn: _NDArray) -> list[tuple[int, int]]:
 
 def calculate_step_plot_points(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
                                scaled_xdata: DataAndMetadata.DataAndMetadata, scaled_data_min: float,
-                               scaled_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
-                               line_graph_x_calibration: Calibration.Calibration,
+                               scaled_data_range: float, left_channel: float, right_channel: float,
                                axis_scale: LinePlotDisplay.AxisScale) -> PlotPoints:
     """Return the plot points of a step plot: one for each pixel, with the heights held within the plot.
 
-    Note: line_graph_x_calibration may not match the calibration of scaled_xdata since the x_calibration
-    represents the calibration of the graph itself, which may include multiple data items with different
-    calibrations. the units will match.
+    left_channel and right_channel are the view's edges in the data's channels, and may be fractional or beyond the data.
     """
-    x_calibration = scaled_xdata.dimensional_calibrations[-1]
-    assert x_calibration.units == line_graph_x_calibration.units
-    if line_graph_x_calibration.scale < 0:
-        # note: x_calibration is the same as calibrated_xdata_calibration. it is the x-dimension. use short names.
-        calibrated_min_channel = min(calibrated_left_channel, x_calibration.convert_to_calibrated_value(0))
-        calibrated_max_channel = max(calibrated_right_channel, x_calibration.convert_to_calibrated_value(scaled_xdata.dimensional_shape[-1]))
-        if calibrated_min_channel <= calibrated_right_channel or calibrated_max_channel >= calibrated_left_channel:
-            return PlotPoints(tuple(), 0)  # data is outside drawing area
-    else:
-        # note: x_calibration is the same as calibrated_xdata_calibration. it is the x-dimension. use short names.
-        calibrated_min_channel = max(calibrated_left_channel, x_calibration.convert_to_calibrated_value(0))
-        calibrated_max_channel = min(calibrated_right_channel, x_calibration.convert_to_calibrated_value(scaled_xdata.dimensional_shape[-1]))
-        if calibrated_min_channel >= calibrated_right_channel or calibrated_max_channel <= calibrated_left_channel:
-            return PlotPoints(tuple(), 0)  # data is outside drawing area
-    # calculate the left/right channels as indexes into the data arrays and the left/right pixels for drawing.
-    left_channel_index = round(x_calibration.convert_from_calibrated_value(calibrated_min_channel))
-    right_channel_index = round(x_calibration.convert_from_calibrated_value(calibrated_max_channel))
-    left_pixel = round((calibrated_min_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
-    right_pixel = round((calibrated_max_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
-
-    # update input parameters, then fall back to old algorithm
-    plot_width = right_pixel - left_pixel
-    plot_origin_x = left_pixel
-    # calculate the subset of data that is visible in the graph
-    if 0 <= left_channel_index < right_channel_index and right_channel_index <= scaled_xdata.dimensional_shape[-1]:
-        visible_scaled_xdata = scaled_xdata[left_channel_index:right_channel_index]
-    else:
+    data_length = scaled_xdata.dimensional_shape[-1]
+    left_channel_index = max(0, math.floor(left_channel))
+    right_channel_index = min(data_length, math.ceil(right_channel))
+    # don't draw an empty plot or view, data outside the view, or data with no range.
+    if plot_width <= 0 or right_channel <= left_channel or left_channel_index >= right_channel_index or scaled_data_range == 0.0:
         return PlotPoints(tuple(), 0)
-    visible_x_calibration = visible_scaled_xdata.dimensional_calibrations[-1]
-    # these variables are repurposed. TODO: pick better names
-    visible_calibrated_left_channel = visible_x_calibration.convert_to_calibrated_value(0)
-    visible_calibrated_right_channel = visible_x_calibration.convert_to_calibrated_value(visible_scaled_xdata.dimensional_shape[-1])
+    baseline = calculate_baseline(plot_height, plot_origin_y, scaled_data_min, scaled_data_range, axis_scale)
+    data = scaled_xdata._data_ex
+    if right_channel - left_channel <= plot_width:
+        # give each pixel the channel under its left edge, which doesn't skip a channel, since each channel is at least a pixel wide.
+        channels = numpy.floor(left_channel + (numpy.arange(plot_width) * (right_channel - left_channel)) / plot_width)
+        values = data[numpy.clip(channels, 0, data_length - 1).astype(numpy.intp)].astype(numpy.double)
+        first_pixel = plot_origin_x
+        is_drawn = (channels >= 0) & (channels < data_length) & ~numpy.isnan(values)
+    else:
+        # average the channels under each pixel. the slice starts and ends at whole channels, so the bins of a partly visible
+        # channel start at that channel's own edge, outside the plot, which keeps each channel at its place on the axis.
 
-    uncalibrated_visible_left_channel = visible_x_calibration.convert_from_calibrated_value(visible_calibrated_left_channel)
-    uncalibrated_visible_right_channel = visible_x_calibration.convert_from_calibrated_value(visible_calibrated_right_channel)
-    uncalibrated_visible_width = uncalibrated_visible_right_channel - uncalibrated_visible_left_channel
-    if scaled_data_range != 0.0 and uncalibrated_visible_width > 0.0:
-        baseline = calculate_baseline(plot_height, plot_origin_y, scaled_data_min, scaled_data_range, axis_scale)
-        runs = list[PlotPointRun]()
-        # rebin so that uncalibrated_visible_width corresponds to plot width
-        calibrated_data = visible_scaled_xdata._data_ex
-        binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_visible_width)
-        if binned_length > 0:
-            binned_data = rebin_1d(calibrated_data, binned_length)
-            binned_left = int(uncalibrated_visible_left_channel * plot_width / uncalibrated_visible_width)
-            # each pixel draws the binned value at its index, where there is one and it isn't a NaN.
-            binned_indexes = binned_left + numpy.arange(plot_width)
-            binned_values = binned_data[numpy.clip(binned_indexes, 0, binned_length - 1)]
-            is_drawn = (binned_indexes >= 0) & (binned_indexes < binned_length) & ~numpy.isnan(binned_values)
-            # plot_origin_y is the top of the plot, and a height extends downwards.
-            ys = numpy.clip(plot_origin_y + plot_height - (plot_height * (binned_values - scaled_data_min) / scaled_data_range), plot_origin_y, plot_origin_y + plot_height)
-            for run_start, run_end in get_run_edges(is_drawn):
-                runs.append(PlotPointRun(tuple(range(plot_origin_x + run_start, plot_origin_x + run_end)),
-                                         tuple(range(plot_origin_x + run_start + 1, plot_origin_x + run_end + 1)),
-                                         tuple(ys[run_start:run_end].tolist())))
-        return PlotPoints(tuple(runs), baseline)
-    return PlotPoints(tuple(), 0)
+        # return the pixel at the left edge of a channel.
+        def get_pixel(channel_index: int) -> int:
+            return round((channel_index - left_channel) / (right_channel - left_channel) * plot_width + plot_origin_x)
+
+        left_pixel = get_pixel(left_channel_index)
+        right_pixel = get_pixel(right_channel_index)
+        first_pixel = max(plot_origin_x, left_pixel)
+        end_pixel = max(first_pixel, min(plot_origin_x + plot_width, right_pixel))
+        binned_data = rebin_1d(data[left_channel_index:right_channel_index], right_pixel - left_pixel)
+        values = binned_data[first_pixel - left_pixel:end_pixel - left_pixel]
+        is_drawn = ~numpy.isnan(values)
+    # convert each value to a y coordinate held within the plot, where y grows downwards from plot_origin_y at the top.
+    ys = numpy.clip(plot_origin_y + plot_height - (plot_height * (values - scaled_data_min) / scaled_data_range), plot_origin_y, plot_origin_y + plot_height)
+    runs = [PlotPointRun(tuple(range(first_pixel + run_start, first_pixel + run_end)), tuple(range(first_pixel + run_start + 1, first_pixel + run_end + 1)),
+                         tuple(ys[run_start:run_end].tolist())) for run_start, run_end in get_run_edges(is_drawn)]
+    return PlotPoints(tuple(runs), baseline)
 
 
 def draw_step_fill(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, fill_color: Color.Color) -> None:
@@ -358,9 +331,15 @@ class StepPlotPointsCacheItem:
         canvas_bounds = self.canvas_bounds
         x_calibration = axes.x_calibration if axes else None
         if scaled_xdata is not None and axes and x_calibration and x_calibration.units == scaled_xdata.dimensional_calibrations[-1].units:
+            data_calibration = scaled_xdata.dimensional_calibrations[-1]
+            # convert the view's edges from the graph's channels to the data's with one offset and scale, which is exact for
+            # data with the graph's calibration.
+            offset = (x_calibration.offset - data_calibration.offset) / data_calibration.scale
+            scale = x_calibration.scale / data_calibration.scale
+            left_channel = offset + scale * axes.drawn_left_channel
+            right_channel = offset + scale * axes.drawn_right_channel
             return calculate_step_plot_points(canvas_bounds.height - 1, canvas_bounds.width - 1, canvas_bounds.top, canvas_bounds.left, scaled_xdata,
-                                              axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min,
-                                              axes.calibrated_left_channel, axes.calibrated_right_channel, x_calibration, axes.axis_scale)
+                                              axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min, left_channel, right_channel, axes.axis_scale)
         return PlotPoints(tuple(), 0.0)
 
 

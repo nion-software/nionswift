@@ -176,7 +176,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data[3:] = range(3,16,1)
         plot_points = LineGraphCanvasItem.calculate_step_plot_points(
             100, 32, 0, 0, DataAndMetadata.new_data_and_metadata(data),
-            0, 16, 0, 16, Calibration.Calibration(), LinePlotDisplay._get_axis_scale("linear")
+            0, 16, 0, 16, LinePlotDisplay._get_axis_scale("linear")
         )
         # each channel is two pixels wide, so the channel between the NaNs gives a run of two pixels.
         self.assertEqual([(2, 4), (6, 32)], [(run.starts[0], run.ends[-1]) for run in plot_points.runs])
@@ -200,6 +200,50 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             MimeTypes.mime_data_put_layer(mime_data, 0, source_display_item, legend_entry.label, legend_entry.fill_color, legend_entry.stroke_color)
             legend_canvas_item = display_panel.display_canvas_item._line_graph_legend_canvas_item_for_testing
             self.assertEqual("move", legend_canvas_item.drag_enter(mime_data))
+
+    def test_step_plot_of_a_view_starting_partway_into_a_channel_draws_each_channel_at_its_place(self):
+        # the view of channels 2.5 to 22.5 across 400 pixels gives channels 20 pixels wide, so channel 3 starts at pixel 10.
+        plot_points = LineGraphCanvasItem.calculate_step_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.arange(24.0)),
+            0, 24, 2.5, 22.5, LinePlotDisplay._get_axis_scale("linear"))
+        run = plot_points.runs[0]
+        steps = [start for start, last_y, y in zip(run.starts[1:], run.ys, run.ys[1:]) if y != last_y]
+        self.assertEqual((0, [10, 30, 50], 400), (run.starts[0], steps[:3], run.ends[-1]))
+
+    def test_step_plot_of_more_channels_than_pixels_averages_the_channels_under_each_pixel(self):
+        # the view of channels 0.5 to 800.5 across 400 pixels puts two channels under each pixel, and the data is the
+        # channel index, so a pixel's value lies between the first and last channel under it.
+        plot_points = LineGraphCanvasItem.calculate_step_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.arange(1600.0)),
+            0, 1600, 0.5, 800.5, LinePlotDisplay._get_axis_scale("linear"))
+        run = plot_points.runs[0]
+        first_value, last_value = ((100 - y) * 16 for y in (run.ys[0], run.ys[-1]))
+        self.assertEqual((0, 400), (run.starts[0], run.ends[-1]))
+        self.assertTrue(0 <= first_value <= 2.5 and 798 <= last_value <= 800.5, (first_value, last_value))
+
+    def test_step_plot_of_data_with_a_large_calibration_offset_draws_each_channel_at_its_place(self):
+        # converting a view edge to a calibrated value and back to a channel isn't exact with a large offset.
+        calibration = Calibration.Calibration(5e5, 1e-5, "s")
+        xdata = DataAndMetadata.new_data_and_metadata(numpy.arange(24.0), dimensional_calibrations=[calibration])
+        scaled_data_min, scaled_data_max, y_ticker = LinePlotDisplay.calculate_y_axis([xdata], None, None, None)
+        axes = LinePlotDisplay.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 24, calibration, None, None, y_ticker)
+        scaled_xdata = LineGraphCanvasItem.MappedCalibratedDataAndMetadataCacheItem(xdata, axes).calculate()
+        run = LineGraphCanvasItem.StepPlotPointsCacheItem(scaled_xdata, axes, Geometry.IntRect.from_tlbr(0, 0, 100, 401)).calculate().runs[0]
+        steps = [start for start, last_y, y in zip(run.starts[1:], run.ys, run.ys[1:]) if y != last_y]
+        # 24 channels across 400 pixels end at 400, and channels 22 and 23 start at 366.7 and 383.3.
+        self.assertEqual((0, 400, [367, 384]), (run.starts[0], run.ends[-1], steps[-2:]))
+
+    def test_step_plot_of_a_view_within_one_channel_draws_the_channel_across_the_plot(self):
+        plot_points = LineGraphCanvasItem.calculate_step_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.arange(24.0)),
+            0, 24, 11.2, 11.20001, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([(0, 400, {100 - 100 * 11 / 24})], [(run.starts[0], run.ends[-1], set(run.ys)) for run in plot_points.runs])
+
+    def test_step_plot_of_a_view_with_a_subnormal_width_draws_its_channel_across_the_plot(self):
+        plot_points = LineGraphCanvasItem.calculate_step_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.arange(24.0)),
+            0, 24, 0.0, 1e-310, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([(0, 400, {100.0})], [(run.starts[0], run.ends[-1], set(run.ys)) for run in plot_points.runs])
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup
