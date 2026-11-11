@@ -1535,7 +1535,8 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             else:
                 # if we aren't the source, setup foreign_legend_* and update the display
                 assert display_item
-                self.__foreign_legend_entry = LinePlotDisplay.LegendEntry(label=legend_data["label"], fill_color=legend_data["fill_color"], stroke_color=legend_data["stroke_color"])
+                # the layer mime data leaves out a label or a color which the layer doesn't have.
+                self.__foreign_legend_entry = LinePlotDisplay.LegendEntry(label=legend_data.get("label", str()), fill_color=legend_data.get("fill_color"), stroke_color=legend_data.get("stroke_color"))
                 self.__foreign_legend_uuid_and_index = (display_item, typing.cast(int, legend_data["index"]))
                 self.update()
             return "move"

@@ -12,6 +12,7 @@ import numpy
 from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import LineGraphCanvasItem
+from nion.swift import MimeTypes
 from nion.swift.model import DataItem
 from nion.swift.model import DisplayItem
 from nion.swift.model import Graphics
@@ -181,6 +182,26 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         # make a rough check to ensure that the first segment is minimal; and the second one has some content.
         self.assertLess(len(segments[0].path.commands), 8)
         self.assertGreater(len(segments[1].path.commands), 8)
+
+    def test_dragging_a_layer_without_a_fill_color_onto_another_legend_shows_it_there(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            source_data_item = DataItem.DataItem(numpy.arange(8.0))
+            target_data_item = DataItem.DataItem(numpy.ones((8,)))
+            document_model.append_data_item(source_data_item)
+            document_model.append_data_item(target_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            source_display_item.display_layers[0].fill_color = None
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(target_data_item))
+            display_panel.display_canvas_item.update_canvas_items()
+            # the legend puts the layer's legend entry into the mime data when the drag starts.
+            mime_data = TestUI.MimeData()
+            legend_entry = LinePlotDisplay.LinePlotDisplayInfo(source_display_item.display_info).legend_entries[0]
+            MimeTypes.mime_data_put_layer(mime_data, 0, source_display_item, legend_entry.label, legend_entry.fill_color, legend_entry.stroke_color)
+            legend_canvas_item = display_panel.display_canvas_item._line_graph_legend_canvas_item_for_testing
+            self.assertEqual("move", legend_canvas_item.drag_enter(mime_data))
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup
