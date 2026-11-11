@@ -669,6 +669,25 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(self.display_item.get_display_property("left_channel"), int(offset))
         self.assertEqual(self.display_item.get_display_property("right_channel"), int(1024 + offset))
 
+    def test_line_plot_cursor_is_at_the_channel_under_the_mouse_when_the_view_starts_partway_into_a_channel(self):
+        data_item = DataItem.DataItem(numpy.arange(24.0))
+        self.document_model.append_data_item(data_item)
+        display_item = self.document_model.get_display_item_for_data_item(data_item)
+        display_item.set_display_property("left_channel", 2.5)
+        display_item.set_display_property("right_channel", 22.5)
+        self.display_panel.set_display_panel_display_item(display_item)
+        self.display_panel.display_canvas_item.layout_immediate((480, 640))
+        self.display_panel.refresh_layout_immediate()
+        line_plot_canvas_item = self.display_panel.display_canvas_item
+        line_graph_layers_canvas_item = line_plot_canvas_item.line_graph_layers_canvas_item
+        # the mouse is just past channel 11.1, so it is over channel 11.
+        mouse_x = math.ceil((11.1 - 2.5) / 20 * line_graph_layers_canvas_item.canvas_rect.width)
+        mouse = line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(x=mouse_x, y=20), line_plot_canvas_item)
+        line_plot_canvas_item.mouse_entered()
+        line_plot_canvas_item.mouse_position_changed(mouse.x, mouse.y, CanvasItem.KeyboardModifiers())
+        self.assertEqual((11,), line_plot_canvas_item.cursor_position)
+        line_plot_canvas_item.mouse_exited()
+
     def test_mouse_tracking_moves_vertical_scale(self):
         line_plot_canvas_item = self.setup_line_plot()
         # notice: dragging increasing y drags down.

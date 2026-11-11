@@ -848,7 +848,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 if canvas_bounds and canvas_bounds.contains_point(mouse):
                     mouse = mouse - canvas_bounds.origin
                     x = float(mouse.x) / canvas_bounds.width
-                    px = axes.drawn_left_channel + int(x * (axes.drawn_right_channel - axes.drawn_left_channel))
+                    # the floor of the sum finds the channel under the mouse when the view starts partway into a channel.
+                    px = math.floor(axes.drawn_left_channel + x * (axes.drawn_right_channel - axes.drawn_left_channel))
                     pos_1d = px,
         return pos_1d
 
