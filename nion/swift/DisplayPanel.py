@@ -2176,8 +2176,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         # are open at once. see __ensure_horizontal_browser_canvas_item / __destroy_horizontal_browser_canvas_item
         # and __ensure_grid_browser_canvas_item / __destroy_grid_browser_canvas_item.
         self.__strip_canvas_item: DisplayPanelListCanvasItem | None = None
+        self.__strip_thumbnail_loader: DataPanel.DataPanelBrowserThumbnailLoader | None = None
         self.__horizontal_browser_canvas_item: CanvasItem.CanvasItemComposition | None = None
         self.__grid_canvas_item: DisplayPanelGridCanvasItem | None = None
+        self.__grid_thumbnail_loader: DataPanel.DataPanelBrowserThumbnailLoader | None = None
         self.__grid_browser_canvas_item: CanvasItem.CanvasItemComposition | None = None
 
         # the column composition layout permits displaying data item and horizontal browser simultaneously and also the
@@ -2219,6 +2221,12 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
         self.__set_display_panel_controller(None)
+        if self.__strip_thumbnail_loader:
+            self.__strip_thumbnail_loader.close()
+            self.__strip_thumbnail_loader = None
+        if self.__grid_thumbnail_loader:
+            self.__grid_thumbnail_loader.close()
+            self.__grid_thumbnail_loader = None
         self.__strip_canvas_item = None
         self.__horizontal_browser_canvas_item = None
         self.__grid_canvas_item = None
@@ -2263,6 +2271,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     @property
     def _related_icons_canvas_item(self) -> typing.Optional[RelatedIconsCanvasItem]:
         return self.__related_icons_canvas_item
+
+    @property
+    def _strip_canvas_item_for_test(self) -> DisplayPanelListCanvasItem | None:
+        return self.__strip_canvas_item
+
+    @property
+    def _grid_canvas_item_for_test(self) -> DisplayPanelGridCanvasItem | None:
+        return self.__grid_canvas_item
 
     @property
     def header_canvas_item(self) -> Panel.HeaderCanvasItem:
@@ -2802,6 +2818,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             strip_scroll_group_canvas_item.update_sizing(strip_scroll_group_canvas_item.sizing.with_fixed_height(96))
 
             self.__strip_canvas_item = strip_canvas_item
+            self.__strip_thumbnail_loader = DataPanel.DataPanelBrowserThumbnailLoader(strip_canvas_item, document_controller.event_loop)
 
             horizontal_browser_canvas_item = strip_scroll_group_canvas_item
             horizontal_browser_canvas_item.visible = False
@@ -2812,6 +2829,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __destroy_horizontal_browser_canvas_item(self) -> None:
         horizontal_browser_canvas_item = self.__horizontal_browser_canvas_item
         if horizontal_browser_canvas_item is not None:
+            if self.__strip_thumbnail_loader:
+                self.__strip_thumbnail_loader.close()
+                self.__strip_thumbnail_loader = None
             self.__browser_composition_canvas_item.remove_canvas_item(horizontal_browser_canvas_item)
             self.__horizontal_browser_canvas_item = None
             self.__strip_canvas_item = None
@@ -2833,6 +2853,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
             grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
 
             self.__grid_canvas_item = grid_canvas_item
+            self.__grid_thumbnail_loader = DataPanel.DataPanelBrowserThumbnailLoader(grid_canvas_item, document_controller.event_loop)
 
             grid_browser_canvas_item = grid_scroll_group_canvas_item
             grid_browser_canvas_item.visible = False
@@ -2843,6 +2864,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __destroy_grid_browser_canvas_item(self) -> None:
         grid_browser_canvas_item = self.__grid_browser_canvas_item
         if grid_browser_canvas_item is not None:
+            if self.__grid_thumbnail_loader:
+                self.__grid_thumbnail_loader.close()
+                self.__grid_thumbnail_loader = None
             self.__browser_composition_canvas_item.remove_canvas_item(grid_browser_canvas_item)
             self.__grid_browser_canvas_item = None
             self.__grid_canvas_item = None
@@ -2863,6 +2887,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         horizontal_browser_canvas_item = self.__ensure_horizontal_browser_canvas_item()
         self.__display_composition_canvas_item.visible = True
         horizontal_browser_canvas_item.visible = True
+        # the items of the browser are now in view.
+        if self.__strip_thumbnail_loader:
+            self.__strip_thumbnail_loader.handle_items_in_view_changed()
         strip_canvas_item = self.__strip_canvas_item
         assert strip_canvas_item is not None
         return strip_canvas_item
@@ -2874,6 +2901,9 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
         grid_browser_canvas_item = self.__ensure_grid_browser_canvas_item()
         self.__display_composition_canvas_item.visible = False
         grid_browser_canvas_item.visible = True
+        # the items of the browser are now in view.
+        if self.__grid_thumbnail_loader:
+            self.__grid_thumbnail_loader.handle_items_in_view_changed()
         grid_canvas_item = self.__grid_canvas_item
         assert grid_canvas_item is not None
         return grid_canvas_item

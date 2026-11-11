@@ -1513,6 +1513,36 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertEqual(0, len(document_model.data_items))
 
+    def test_grid_browser_shows_thumbnails_of_items_in_view(self):
+        # the data panel is not laid out and shows no items, so the browser cannot rely on it for its thumbnails.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(10):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", None)
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            document_controller.periodic()
+            item_canvas_items_in_view = display_panel._grid_canvas_item_for_test.item_canvas_items_in_view
+            self.assertTrue(item_canvas_items_in_view[-1]._has_thumbnail_source)
+
+    def test_horizontal_browser_shows_thumbnails_of_items_in_view(self):
+        # the data panel is not laid out and shows no items, so the browser cannot rely on it for its thumbnails.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(10):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", None)
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            document_controller.periodic()
+            item_canvas_items_in_view = display_panel._strip_canvas_item_for_test.item_canvas_items_in_view
+            self.assertTrue(item_canvas_items_in_view[-1]._has_thumbnail_source)
+
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
         self.assertEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
         self.data_item.title = "New Title"
