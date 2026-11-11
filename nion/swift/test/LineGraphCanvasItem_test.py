@@ -181,6 +181,34 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         # each channel is two pixels wide, so the channel between the NaNs gives a run of two pixels.
         self.assertEqual([(2, 4), (6, 32)], [(run.starts[0], run.ends[-1]) for run in plot_points.runs])
 
+    def test_plot_points_are_at_the_centers_of_channels_wider_than_a_pixel(self):
+        # four values across 400 pixels give channels 100 pixels wide.
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.array([0.0, 1.0, 2.0, 3.0])),
+            0, 4, 0, 4, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual(100, plot_points.baseline)
+        self.assertEqual([[(0, 50, 100, 100), (100, 150, 200, 75), (200, 250, 300, 50), (300, 350, 400, 25)]],
+                         [list(zip(run.starts, run.xs, run.ends, run.ys)) for run in plot_points.runs])
+
+    def test_plot_points_of_channels_narrower_than_a_pixel_are_one_for_each_pixel(self):
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 100, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.linspace(0.0, 1.0, 1000)),
+            0, 1, 0, 1000, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([(100, 0, 100)], [(len(run.ys), run.starts[0], run.ends[-1]) for run in plot_points.runs])
+
+    def test_plot_points_are_split_where_a_value_is_nan_or_infinite(self):
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 500, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.array([0.0, numpy.nan, 2.0, numpy.inf, 4.0])),
+            0, 4, 0, 5, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([[50], [250], [450]], [list(run.xs) for run in plot_points.runs])
+
+    def test_plot_points_of_a_zoomed_view_include_the_channel_beyond_each_edge(self):
+        # the view of channels 1.3 to 2.7 across 140 pixels gives channels 100 pixels wide.
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 140, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.array([0.0, 1.0, 2.0, 3.0])),
+            0, 4, 1.3, 2.7, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([[-80, 20, 120, 220]], [[round(x) for x in run.xs] for run in plot_points.runs])
+
     def test_line_plot_draws_values_it_does_not_know_as_defaults(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
@@ -190,6 +218,32 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_layer.plot_kind = "spline"
             line_graph_layer = LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info).line_graph_layers[0]
             self.assertEqual("step", line_graph_layer.plot_kind)
+
+    def test_plot_points_of_data_with_a_negative_calibration_scale_are_in_channel_order(self):
+        # the axes count the calibrated values down from 4, and draw the channels from left to right, as the steps do.
+        calibration = Calibration.Calibration(4.0, -1.0, "eV")
+        xdata = DataAndMetadata.new_data_and_metadata(numpy.array([0.0, 1.0, 2.0, 3.0]), dimensional_calibrations=[calibration])
+        scaled_data_min, scaled_data_max, y_ticker = LinePlotDisplay.calculate_y_axis([xdata], None, None, None)
+        axes = LinePlotDisplay.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 4, calibration, None, None, y_ticker)
+        scaled_xdata = LineGraphCanvasItem.MappedCalibratedDataAndMetadataCacheItem(xdata, axes).calculate()
+        run = LineGraphCanvasItem.ChannelPlotPointsCacheItem(scaled_xdata, axes, Geometry.IntRect.from_tlbr(0, 0, 100, 401)).calculate().runs[0]
+        self.assertEqual(([50, 150, 250, 350], sorted(run.ys, reverse=True)), (list(run.xs), list(run.ys)))
+
+    def test_plot_points_of_a_view_deep_inside_a_channel_put_its_center_at_its_place(self):
+        # a view a ten-billionth of a channel wide, centered in channel 10, puts that channel's edges far outside the plot.
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.arange(24.0)),
+            0, 24, 10.5 - 0.5e-10, 10.5 + 0.5e-10, LinePlotDisplay._get_axis_scale("linear"))
+        run = plot_points.runs[0]
+        self.assertAlmostEqual(200, run.xs[1], places=2)
+        self.assertTrue(run.starts[1] < 0 and run.ends[1] > 400)
+
+    def test_plot_points_outside_the_value_range_keep_their_height(self):
+        # a value of 100 on an axis to 1 is 99 plot heights above the top, and the drawing clips it.
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.array([0.0, 100.0])),
+            0, 1, 0, 2, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([[100, -9900]], [list(run.ys) for run in plot_points.runs])
 
     def test_line_graph_layer_follows_a_change_to_its_display_layer_plot_kind(self):
         with TestContext.create_memory_context() as test_context:

@@ -86,6 +86,11 @@ class PlotPointRun:
     ys: tuple[float, ...]
 
     @functools.cached_property
+    def xs(self) -> tuple[float, ...]:
+        """Return the horizontal center of each value."""
+        return tuple((start + end) / 2 for start, end in zip(self.starts, self.ends))
+
+    @functools.cached_property
     def step_path(self) -> DrawingContext.DrawingContext:
         """Return the steps of the run as a path, from the start of its first value to the end of its last.
 
@@ -112,9 +117,11 @@ class PlotPoints:
 
     runs: the runs of consecutive values without a NaN.
     baseline: the height of the axis origin.
+    clip_bounds: the bounds which clip the drawing, if any.
     """
     runs: tuple[PlotPointRun, ...]
     baseline: float
+    clip_bounds: Geometry.IntRect | None = None
 
 
 def rebin_1d(src: _NDArray, length: int) -> _NDArray:
@@ -192,7 +199,8 @@ def calculate_step_plot_points(plot_height: int, plot_width: int, plot_origin_y:
     # convert each value to a y coordinate held within the plot, where y grows downwards from plot_origin_y at the top.
     ys = numpy.clip(plot_origin_y + plot_height - (plot_height * (values - scaled_data_min) / scaled_data_range), plot_origin_y, plot_origin_y + plot_height)
     runs = [PlotPointRun(tuple(range(first_pixel + run_start, first_pixel + run_end)), tuple(range(first_pixel + run_start + 1, first_pixel + run_end + 1)),
-                         tuple(ys[run_start:run_end].tolist())) for run_start, run_end in get_run_edges(is_drawn)]
+                         tuple(ys[run_start:run_end].tolist()))
+            for run_start, run_end in get_run_edges(is_drawn)]
     return PlotPoints(tuple(runs), baseline)
 
 
@@ -221,6 +229,47 @@ def draw_step_stroke(drawing_context: DrawingContext.DrawingContext, plot_points
             drawing_context.line_width = scaled_stroke_width
             drawing_context.stroke_style = stroke_color.color_str
             drawing_context.stroke()
+
+
+def calculate_channel_plot_points(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
+                                  scaled_xdata: DataAndMetadata.DataAndMetadata, scaled_data_min: float, scaled_data_range: float,
+                                  left_channel: float, right_channel: float, axis_scale: LinePlotDisplay.AxisScale) -> PlotPoints:
+    """Return the plot points of the visible values of the data at the centers of their channels.
+
+    left_channel and right_channel are the view's edges in the data's channels, and may be fractional or beyond the data.
+    When a channel is narrower than a pixel, the values give one point for each pixel. A height outside the plot keeps
+    its place, and the plot points clip the drawing to the plot. An infinite value breaks the run, as a NaN does.
+    """
+    # the plot includes the pixels at its far edges.
+    clip_bounds = Geometry.IntRect.from_tlhw(plot_origin_y, plot_origin_x, plot_height + 1, plot_width + 1)
+    if scaled_data_range == 0.0 or right_channel <= left_channel:
+        return PlotPoints(tuple(), 0.0, clip_bounds)
+    baseline = calculate_baseline(plot_height, plot_origin_y, scaled_data_min, scaled_data_range, axis_scale)
+    data = scaled_xdata._data_ex
+    # the channel beyond each edge of the view gives the line its direction at the edge.
+    first_channel = max(0, math.floor(left_channel) - 1)
+    end_channel = min(data.shape[-1], math.ceil(right_channel) + 1)
+    if first_channel >= end_channel:
+        return PlotPoints(tuple(), baseline, clip_bounds)
+
+    # return the pixel position of each channel coordinate.
+    def get_pixels(channels: _NDArray) -> _NDArray:
+        return plot_origin_x + plot_width * (channels - left_channel) / (right_channel - left_channel)
+
+    values = data[first_channel:end_channel]
+    # compute each channel's edges when channels are a pixel wide or more, and only the outer edges when they are narrower.
+    first_pixel, end_pixel = get_pixels(numpy.array([first_channel, end_channel], dtype=numpy.float64)).tolist()
+    pixel_count = round(abs(end_pixel - first_pixel))
+    if pixel_count < len(values):
+        values = rebin_1d(values, max(1, pixel_count))
+        edges = numpy.linspace(first_pixel, end_pixel, len(values) + 1)
+    else:
+        edges = get_pixels(numpy.arange(first_channel, end_channel + 1, dtype=numpy.float64))
+    ys = plot_origin_y + plot_height - plot_height * (values - scaled_data_min) / scaled_data_range
+    is_drawn = numpy.isfinite(ys)
+    runs = [PlotPointRun(tuple(edges[run_start:run_end].tolist()), tuple(edges[run_start + 1:run_end + 1].tolist()), tuple(ys[run_start:run_end].tolist()))
+            for run_start, run_end in get_run_edges(is_drawn)]
+    return PlotPoints(tuple(runs), baseline, clip_bounds)
 
 
 def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int, drawing_metrics: UISettings.DrawingMetrics) -> None:
@@ -311,10 +360,12 @@ class MappedCalibratedDataAndMetadataCacheItem:
 
 
 @dataclasses.dataclass(frozen=True)
-class StepPlotPointsCacheItem:
-    """The step plot points of a layer's data, cached for the layer's parts.
+class PlotPointsCacheItem:
+    """A cache item which calculates the plot points of a layer's data, which the layer's parts share.
 
-    scaled_xdata: the layer's data, scaled for the axes.
+    A subclass decides where the points go.
+
+    scaled_xdata: the layer's data in the axes' scale.
     axes: the axes of the line plot.
     canvas_bounds: the plot area.
     """
@@ -328,7 +379,6 @@ class StepPlotPointsCacheItem:
     def calculate(self) -> PlotPoints:
         scaled_xdata = self.scaled_xdata
         axes = self.axes
-        canvas_bounds = self.canvas_bounds
         x_calibration = axes.x_calibration if axes else None
         if scaled_xdata is not None and axes and x_calibration and x_calibration.units == scaled_xdata.dimensional_calibrations[-1].units:
             data_calibration = scaled_xdata.dimensional_calibrations[-1]
@@ -336,11 +386,31 @@ class StepPlotPointsCacheItem:
             # data with the graph's calibration.
             offset = (x_calibration.offset - data_calibration.offset) / data_calibration.scale
             scale = x_calibration.scale / data_calibration.scale
-            left_channel = offset + scale * axes.drawn_left_channel
-            right_channel = offset + scale * axes.drawn_right_channel
-            return calculate_step_plot_points(canvas_bounds.height - 1, canvas_bounds.width - 1, canvas_bounds.top, canvas_bounds.left, scaled_xdata,
-                                              axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min, left_channel, right_channel, axes.axis_scale)
+            return self._calculate_plot_points(scaled_xdata, axes, offset + scale * axes.drawn_left_channel, offset + scale * axes.drawn_right_channel)
         return PlotPoints(tuple(), 0.0)
+
+    def _calculate_plot_points(self, scaled_xdata: DataAndMetadata.DataAndMetadata, axes: LinePlotDisplay.LineGraphAxes, left_channel: float, right_channel: float) -> PlotPoints:
+        raise NotImplementedError()
+
+
+@dataclasses.dataclass(frozen=True)
+class StepPlotPointsCacheItem(PlotPointsCacheItem):
+    """A cache item which calculates the step plot points of a layer's data."""
+
+    def _calculate_plot_points(self, scaled_xdata: DataAndMetadata.DataAndMetadata, axes: LinePlotDisplay.LineGraphAxes, left_channel: float, right_channel: float) -> PlotPoints:
+        canvas_bounds = self.canvas_bounds
+        return calculate_step_plot_points(canvas_bounds.height - 1, canvas_bounds.width - 1, canvas_bounds.top, canvas_bounds.left, scaled_xdata,
+                                          axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min, left_channel, right_channel, axes.axis_scale)
+
+
+@dataclasses.dataclass(frozen=True)
+class ChannelPlotPointsCacheItem(PlotPointsCacheItem):
+    """A cache item which calculates the plot points of a layer's data at the centers of its channels."""
+
+    def _calculate_plot_points(self, scaled_xdata: DataAndMetadata.DataAndMetadata, axes: LinePlotDisplay.LineGraphAxes, left_channel: float, right_channel: float) -> PlotPoints:
+        canvas_bounds = self.canvas_bounds
+        return calculate_channel_plot_points(canvas_bounds.height - 1, canvas_bounds.width - 1, canvas_bounds.top, canvas_bounds.left, scaled_xdata,
+                                             axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min, left_channel, right_channel, axes.axis_scale)
 
 
 def get_plot_points(line_graph_layer: LinePlotDisplay.LineGraphLayer, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> tuple[PlotPoints, tuple[CanvasItem.CacheValue, ...]]:
