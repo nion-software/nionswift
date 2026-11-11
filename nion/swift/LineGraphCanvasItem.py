@@ -475,6 +475,17 @@ def clip_to_bounds(drawing_context: DrawingContext.DrawingContext, clip_bounds: 
         yield
 
 
+@contextlib.contextmanager
+def dash_lines(drawing_context: DrawingContext.DrawingContext, line_dash: float) -> typing.Iterator[None]:
+    """Dash the context's lines with the dash length, if it isn't zero."""
+    if line_dash:
+        with drawing_context.saver():
+            drawing_context.line_dash = line_dash
+            yield
+    else:
+        yield
+
+
 def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int, drawing_metrics: UISettings.DrawingMetrics) -> None:
     with drawing_context.saver():
         drawing_context.begin_path()
@@ -648,6 +659,11 @@ def get_plot_points(line_graph_layer: LinePlotDisplay.LineGraphLayer, canvas_bou
     return typing.cast(PlotPoints, plot_points_cache_value.value), (scaled_xdata_cache_value, plot_points_cache_value)
 
 
+def get_line_dash(stroke_dash: str, drawing_metrics: UISettings.DrawingMetrics) -> float:
+    """Return the dash length in pixels of a stroke dash, or 0 for a solid stroke."""
+    return drawing_metrics.scale_length({"dashed": 6.0, "dotted": 2.0}.get(stroke_dash, 0.0))
+
+
 def draw_fills(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
     plot_kind_drawing = PLOT_KIND_DRAWINGS[line_graph_layer.plot_kind]
     if line_graph_layer.fill_color and plot_kind_drawing.draw_fill:
@@ -662,7 +678,7 @@ def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_conte
     plot_kind_drawing = PLOT_KIND_DRAWINGS[line_graph_layer.plot_kind]
     if line_graph_layer.stroke_color and plot_kind_drawing.draw_stroke:
         plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache, plot_kind_drawing.plot_points_cache_item_type)
-        with clip_to_bounds(drawing_context, plot_points.clip_bounds):
+        with clip_to_bounds(drawing_context, plot_points.clip_bounds), dash_lines(drawing_context, get_line_dash(line_graph_layer.stroke_dash, drawing_metrics)):
             plot_kind_drawing.draw_stroke(drawing_context, plot_points, Color.Color(line_graph_layer.stroke_color), drawing_metrics.scale_stroke(line_graph_layer.stroke_width))
         return cache_values
     return tuple()
