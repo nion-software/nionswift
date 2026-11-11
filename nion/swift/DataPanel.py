@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import gettext
 import operator
 import pkgutil
@@ -156,6 +157,52 @@ class DataPanelItemBaseCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __item_changed(self) -> None:
         self.update()
+
+
+class DataPanelBrowserThumbnailLoader:
+    """Show the data panel items in view in a browser.
+
+    Only the items in view are shown, so that the parts of items which are never shown, such as their thumbnails, are not
+    made. Close the loader before closing the browser.
+    """
+
+    def __init__(self, browser_canvas_item: GridFlowCanvasItem.GridFlowCanvasItem, event_loop: asyncio.AbstractEventLoop) -> None:
+        self.__browser_canvas_item: GridFlowCanvasItem.GridFlowCanvasItem | None = browser_canvas_item
+        self.__event_loop = event_loop
+
+        # the items in view change on render threads during layout, so showing them is queued to the main thread. the lock
+        # protects the pending flag. the browser canvas item is used only on the main thread.
+        self.__lock = threading.Lock()
+        self.__is_pending = False
+
+        self.__items_in_view_changed_listener: Event.EventListener | None = browser_canvas_item.items_in_view_changed_event.listen(ReferenceCounting.weak_partial(DataPanelBrowserThumbnailLoader.handle_items_in_view_changed, self))
+
+    def close(self) -> None:
+        self.__items_in_view_changed_listener = None
+        self.__browser_canvas_item = None
+
+    def handle_items_in_view_changed(self) -> None:
+        """Show the items in view soon. Call on any thread.
+
+        The browser calls this when the items in view change, except when it or a container is hidden or shown.
+        """
+        with self.__lock:
+            if self.__is_pending:
+                return
+            self.__is_pending = True
+        try:
+            self.__event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(DataPanelBrowserThumbnailLoader.__show_items_in_view, self))
+        except RuntimeError:
+            # the event loop is closed during shutdown, so there is no browser left to show.
+            pass
+
+    def __show_items_in_view(self) -> None:
+        with self.__lock:
+            self.__is_pending = False
+        if browser_canvas_item := self.__browser_canvas_item:
+            for item_canvas_item in browser_canvas_item.item_canvas_items_in_view:
+                if isinstance(item_canvas_item, DataPanelItemBaseCanvasItem):
+                    item_canvas_item._show_thumbnail()
 
 
 class DataPanelListItemComposer(CanvasItem.BaseComposer):
@@ -331,18 +378,13 @@ class DataPanel(Panel.Panel):
         # type doesn't mean adding a whole new parallel set of ivars: __browser_view_items holds the inner
         # view canvas item (list/grid share a base type, see GridFlowCanvasItem.GridFlowCanvasItem),
         # __browser_wrapper_items holds the scroll-group wrapper that gets inserted into __stack_canvas_item,
-        # and __browser_focus_listeners holds each view's focus_changed_event listener. see
-        # __ensure_list_canvas_item, __ensure_grid_canvas_item, and __switch_to_browser_type below.
+        # __browser_focus_listeners holds each view's focus_changed_event listener, and __browser_thumbnail_loaders
+        # holds each view's thumbnail loader. see __ensure_list_canvas_item, __ensure_grid_canvas_item, and
+        # __switch_to_browser_type below.
         self.__browser_view_items: dict[str, GridFlowCanvasItem.GridFlowCanvasItem | None] = {"list": None, "grid": None}
         self.__browser_wrapper_items: dict[str, CanvasItem.CanvasItemComposition | None] = {"list": None, "grid": None}
         self.__browser_focus_listeners: dict[str, Event.EventListener | None] = {"list": None, "grid": None}
-        self.__browser_items_in_view_changed_listeners: dict[str, Event.EventListener | None] = {"list": None, "grid": None}
-        # the data panel shows the thumbnails of only the items in view, so that the thumbnails of items which are never
-        # shown are not read or drawn. the items in view change on render threads during layout, so showing their
-        # thumbnails is queued to the main thread. the lock protects the pending flag.
-        self.__show_thumbnails_in_view_lock = threading.Lock()
-        self.__is_show_thumbnails_in_view_pending = False
-        self.__is_closed = False
+        self.__browser_thumbnail_loaders: dict[str, DataPanelBrowserThumbnailLoader | None] = {"list": None, "grid": None}
         # extra test-only hooks specific to the list view's internal layout (no grid equivalent exists yet).
         self.__list_scroll_area_canvas_item: CanvasItem.ScrollAreaCanvasItem | None = None
         self.__list_scroll_bar_canvas_item: CanvasItem.ScrollBarCanvasItem | None = None
@@ -528,7 +570,10 @@ class DataPanel(Panel.Panel):
         self.__filter_description_combo_box.on_current_item_changed = on_current_collection_changed
 
     def close(self) -> None:
-        self.__is_closed = True
+        for browser_type_id, browser_thumbnail_loader in self.__browser_thumbnail_loaders.items():
+            if browser_thumbnail_loader:
+                browser_thumbnail_loader.close()
+            self.__browser_thumbnail_loaders[browser_type_id] = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(Event.EventListener, None)
         self.__filter_description_action = typing.cast(typing.Any, None)
@@ -547,32 +592,10 @@ class DataPanel(Panel.Panel):
         canvas_item = self.__browser_type_ensure_fns[browser_type_id]()
         self.__stack_canvas_item.current_index = list(self.__stack_canvas_item.canvas_items).index(canvas_item)
         # the items of the browser type shown are now in view.
-        self.__items_in_view_changed()
+        if browser_thumbnail_loader := self.__browser_thumbnail_loaders[browser_type_id]:
+            browser_thumbnail_loader.handle_items_in_view_changed()
         if persist:
             self.document_controller.ui.set_persistent_string(self.BROWSER_TYPE_PREFERENCE_KEY, browser_type_id)
-
-    def __items_in_view_changed(self) -> None:
-        # called on any thread.
-        with self.__show_thumbnails_in_view_lock:
-            if self.__is_show_thumbnails_in_view_pending:
-                return
-            self.__is_show_thumbnails_in_view_pending = True
-        try:
-            self.document_controller.event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(DataPanel.__show_thumbnails_in_view, self))
-        except RuntimeError:
-            # the event loop is closed during shutdown, so there is no data panel left to show.
-            pass
-
-    def __show_thumbnails_in_view(self) -> None:
-        with self.__show_thumbnails_in_view_lock:
-            self.__is_show_thumbnails_in_view_pending = False
-        if self.__is_closed:
-            return
-        for browser_view_item in self.__browser_view_items.values():
-            if browser_view_item:
-                for item_canvas_item in browser_view_item.item_canvas_items_in_view:
-                    if isinstance(item_canvas_item, DataPanelItemBaseCanvasItem):
-                        item_canvas_item._show_thumbnail()
 
     def __ensure_list_canvas_item(self) -> CanvasItem.CanvasItemComposition:
         # build the list canvas item and its wrapper the first time it's needed. mirrors
@@ -597,7 +620,7 @@ class DataPanel(Panel.Panel):
             list_scroll_group_canvas_item.add_canvas_item(list_scroll_bar_canvas_item)
             self.__stack_canvas_item.add_canvas_item(list_scroll_group_canvas_item)
             self.__browser_focus_listeners["list"] = list_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
-            self.__browser_items_in_view_changed_listeners["list"] = list_canvas_item.items_in_view_changed_event.listen(ReferenceCounting.weak_partial(DataPanel.__items_in_view_changed, self))
+            self.__browser_thumbnail_loaders["list"] = DataPanelBrowserThumbnailLoader(list_canvas_item, document_controller.event_loop)
             self.__browser_view_items["list"] = list_canvas_item
             self.__browser_wrapper_items["list"] = list_scroll_group_canvas_item
             self.__list_scroll_area_canvas_item = list_scroll_area_canvas_item
@@ -630,7 +653,7 @@ class DataPanel(Panel.Panel):
             grid_scroll_group_canvas_item.add_canvas_item(grid_scroll_bar_canvas_item)
             self.__stack_canvas_item.add_canvas_item(grid_scroll_group_canvas_item)
             self.__browser_focus_listeners["grid"] = grid_canvas_item.focus_changed_event.listen(self.__notify_focus_changed)
-            self.__browser_items_in_view_changed_listeners["grid"] = grid_canvas_item.items_in_view_changed_event.listen(ReferenceCounting.weak_partial(DataPanel.__items_in_view_changed, self))
+            self.__browser_thumbnail_loaders["grid"] = DataPanelBrowserThumbnailLoader(grid_canvas_item, document_controller.event_loop)
             self.__browser_view_items["grid"] = grid_canvas_item
             self.__browser_wrapper_items["grid"] = grid_scroll_group_canvas_item
         return grid_scroll_group_canvas_item
