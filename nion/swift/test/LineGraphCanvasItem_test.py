@@ -174,14 +174,12 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data[1] = 1
         data[2] = numpy.nan
         data[3:] = range(3,16,1)
-        segments, baseline = LineGraphCanvasItem.calculate_line_graph(
+        plot_points = LineGraphCanvasItem.calculate_step_plot_points(
             100, 32, 0, 0, DataAndMetadata.new_data_and_metadata(data),
             0, 16, 0, 16, Calibration.Calibration(), LinePlotDisplay._get_axis_scale("linear")
         )
-        self.assertEqual(2, len(segments))
-        # make a rough check to ensure that the first segment is minimal; and the second one has some content.
-        self.assertLess(len(segments[0].path.commands), 8)
-        self.assertGreater(len(segments[1].path.commands), 8)
+        # each channel is two pixels wide, so the channel between the NaNs gives a run of two pixels.
+        self.assertEqual([(2, 4), (6, 32)], [(run.starts[0], run.ends[-1]) for run in plot_points.runs])
 
     def test_dragging_a_layer_without_a_fill_color_onto_another_legend_shows_it_there(self):
         with TestContext.create_memory_context() as test_context:
