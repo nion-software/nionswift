@@ -32,7 +32,7 @@ if typing.TYPE_CHECKING:
 class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
     """A coordinate mapping for a line plot."""
 
-    def __init__(self, scale: float, plot_rect: Geometry.IntRect, left_channel: int, right_channel: int) -> None:
+    def __init__(self, scale: float, plot_rect: Geometry.IntRect, left_channel: float, right_channel: float) -> None:
         self.__scale = scale
         self.__plot_rect = plot_rect
         self.__left_channel = left_channel
