@@ -9,9 +9,9 @@
 from __future__ import annotations
 
 # standard libraries
-import copy
 import dataclasses
 import enum
+import functools
 import gettext
 import math
 import re
@@ -75,65 +75,47 @@ def draw_vertical_grid_lines(drawing_context: DrawingContext.DrawingContext, plo
         drawing_context.stroke()
 
 
-class LineGraphSegment:
-    """Helper for constructing a segment of a line graph.
+@dataclasses.dataclass(frozen=True)
+class PlotPointRun:
+    """Consecutive values of a layer in a line plot, without a NaN, in pixels.
 
-    Keeps a path, provides drawing methods and methods to fill/stroke.
+    starts, ends: the horizontal edges of each value.
+    ys: the height of each value.
     """
+    starts: tuple[float, ...]
+    ends: tuple[float, ...]
+    ys: tuple[float, ...]
 
-    def __init__(self, path: typing.Optional[DrawingContext.DrawingContext] = None) -> None:
-        self.__path = path or DrawingContext.DrawingContext()
-        self.__first_point = Geometry.FloatPoint()
-        self.__last_point = Geometry.FloatPoint()
-        self.line_commands: typing.List[typing.Tuple[float, float]] = list()  # used for optimization
+    @functools.cached_property
+    def step_path(self) -> DrawingContext.DrawingContext:
+        """Return the steps of the run as a path, from the start of its first value to the end of its last.
 
-    def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> LineGraphSegment:
-        return LineGraphSegment(copy.deepcopy(self.__path))
+        The fill and the stroke of a step plot both add the path, so it is built once.
+        """
+        path = DrawingContext.DrawingContext()
+        ys = self.ys
+        path.line_to(self.starts[0], ys[0])
+        # a step changes height where a value's height differs from the one before it. the line commands are added
+        # together, as an optimization which is critical for performance.
+        line_commands = list[tuple[float, float]]()
+        for start, last_y, y in zip(self.starts[1:], ys, ys[1:]):
+            if y != last_y:
+                line_commands.append((start, last_y))
+                line_commands.append((start, y))
+        path._line_to_multi(line_commands)
+        path.line_to(self.ends[-1], ys[-1])
+        return path
 
-    @property
-    def path(self) -> DrawingContext.DrawingContext:
-        return self.__path
 
-    def first_line_to(self, x: float, y: float) -> None:
-        self.__path.line_to(x, y)
-        self.__first_point = Geometry.FloatPoint(x=x, y=y)
+@dataclasses.dataclass(frozen=True)
+class PlotPoints:
+    """The values of a layer in a line plot, in pixels.
 
-    def line_to(self, x: float, y: float) -> None:
-        self.__path.line_to(x, y)
-
-    def final_line_to(self, x: float, y: float) -> None:
-        self.__path._line_to_multi(self.line_commands)
-        self.line_commands = list()
-        self.__path.line_to(x, y)
-        self.__last_point = Geometry.FloatPoint(x=x, y=y)
-
-    def fill(self, drawing_context: DrawingContext.DrawingContext, baseline: float, fill_color: Color.Color) -> None:
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            # the first action in the 'path' is a line, so be sure to move to the right starting point
-            drawing_context.move_to(self.__first_point.x, baseline)
-            drawing_context.add(self.__path)
-            drawing_context.line_to(self.__last_point.x, baseline)
-            drawing_context.line_to(self.__first_point.x, baseline)
-            drawing_context.close_path()
-            drawing_context.fill_style = fill_color.color_str
-            drawing_context.fill()
-
-    def stroke(self, drawing_context: DrawingContext.DrawingContext, baseline: float, stroke_color: Color.Color, scaled_stroke_width: float, draw_sides: bool = False) -> None:
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            # the first action in the 'path' is a line, so be sure to move to the right starting point
-            # draw_sides is off by default, but leaving the option here for the future.
-            if draw_sides:
-                drawing_context.move_to(self.__first_point.x, baseline)
-            else:
-                drawing_context.move_to(self.__first_point.x, self.__first_point.y)
-            drawing_context.add(self.__path)
-            if draw_sides:
-                drawing_context.line_to(self.__last_point.x, baseline)
-            drawing_context.line_width = scaled_stroke_width
-            drawing_context.stroke_style = stroke_color.color_str
-            drawing_context.stroke()
+    runs: the runs of consecutive values without a NaN.
+    baseline: the height of the axis origin.
+    """
+    runs: tuple[PlotPointRun, ...]
+    baseline: float
 
 
 def rebin_1d(src: _NDArray, length: int) -> _NDArray:
@@ -158,12 +140,25 @@ def rebin_1d(src: _NDArray, length: int) -> _NDArray:
     return result
 
 
-def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
-                         scaled_xdata: DataAndMetadata.DataAndMetadata, scaled_data_min: float,
-                         scaled_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
-                         line_graph_x_calibration: Calibration.Calibration,
-                         axis_scale: LinePlotDisplay.AxisScale) -> typing.Tuple[typing.List[LineGraphSegment], int]:
-    """Calculate the line graph segments for the given parameters.
+def calculate_baseline(plot_height: int, plot_origin_y: int, scaled_data_min: float, scaled_data_range: float, axis_scale: LinePlotDisplay.AxisScale) -> int:
+    """Return the height in pixels of the axis origin, held within the plot."""
+    origin_display = axis_scale.display_origin(scaled_data_min, scaled_data_min + scaled_data_range)
+    baseline = plot_origin_y + plot_height - int(plot_height * float(origin_display - scaled_data_min) / scaled_data_range)
+    return max(plot_origin_y, min(plot_origin_y + plot_height, baseline))
+
+
+def get_run_edges(is_drawn: _NDArray) -> list[tuple[int, int]]:
+    """Return the first index of each run of drawn values and the index after its last."""
+    run_edges = numpy.flatnonzero(numpy.diff(is_drawn.astype(numpy.int8), prepend=0, append=0)).tolist()
+    return list(zip(run_edges[0::2], run_edges[1::2]))
+
+
+def calculate_step_plot_points(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
+                               scaled_xdata: DataAndMetadata.DataAndMetadata, scaled_data_min: float,
+                               scaled_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
+                               line_graph_x_calibration: Calibration.Calibration,
+                               axis_scale: LinePlotDisplay.AxisScale) -> PlotPoints:
+    """Return the plot points of a step plot: one for each pixel, with the heights held within the plot.
 
     Note: line_graph_x_calibration may not match the calibration of scaled_xdata since the x_calibration
     represents the calibration of the graph itself, which may include multiple data items with different
@@ -176,13 +171,13 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
         calibrated_min_channel = min(calibrated_left_channel, x_calibration.convert_to_calibrated_value(0))
         calibrated_max_channel = max(calibrated_right_channel, x_calibration.convert_to_calibrated_value(scaled_xdata.dimensional_shape[-1]))
         if calibrated_min_channel <= calibrated_right_channel or calibrated_max_channel >= calibrated_left_channel:
-            return list(), 0  # data is outside drawing area
+            return PlotPoints(tuple(), 0)  # data is outside drawing area
     else:
         # note: x_calibration is the same as calibrated_xdata_calibration. it is the x-dimension. use short names.
         calibrated_min_channel = max(calibrated_left_channel, x_calibration.convert_to_calibrated_value(0))
         calibrated_max_channel = min(calibrated_right_channel, x_calibration.convert_to_calibrated_value(scaled_xdata.dimensional_shape[-1]))
         if calibrated_min_channel >= calibrated_right_channel or calibrated_max_channel <= calibrated_left_channel:
-            return list(), 0  # data is outside drawing area
+            return PlotPoints(tuple(), 0)  # data is outside drawing area
     # calculate the left/right channels as indexes into the data arrays and the left/right pixels for drawing.
     left_channel_index = round(x_calibration.convert_from_calibrated_value(calibrated_min_channel))
     right_channel_index = round(x_calibration.convert_from_calibrated_value(calibrated_max_channel))
@@ -196,7 +191,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
     if 0 <= left_channel_index < right_channel_index and right_channel_index <= scaled_xdata.dimensional_shape[-1]:
         visible_scaled_xdata = scaled_xdata[left_channel_index:right_channel_index]
     else:
-        return list(), 0
+        return PlotPoints(tuple(), 0)
     visible_x_calibration = visible_scaled_xdata.dimensional_calibrations[-1]
     # these variables are repurposed. TODO: pick better names
     visible_calibrated_left_channel = visible_x_calibration.convert_to_calibrated_value(0)
@@ -205,67 +200,54 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
     uncalibrated_visible_left_channel = visible_x_calibration.convert_from_calibrated_value(visible_calibrated_left_channel)
     uncalibrated_visible_right_channel = visible_x_calibration.convert_from_calibrated_value(visible_calibrated_right_channel)
     uncalibrated_visible_width = uncalibrated_visible_right_channel - uncalibrated_visible_left_channel
-    segments: typing.List[LineGraphSegment] = list()
-    segment = LineGraphSegment()
-    # use line_commands as an optimization for adding line commands to the path. this is critical for performance.
-    line_commands = segment.line_commands
-    # segment_path = segment.path  # partially optimized; see note below
-    # note: testing performance using a loop around drawing commands in test_line_plot_handle_calibrated_x_axis_with_negative_scale
     if scaled_data_range != 0.0 and uncalibrated_visible_width > 0.0:
-        origin_display = axis_scale.display_origin(scaled_data_min, scaled_data_min + scaled_data_range)
-        baseline = plot_origin_y + plot_height - int(plot_height * float(origin_display - scaled_data_min) / scaled_data_range)
-
-        baseline = min(plot_origin_y + plot_height, baseline)
-        baseline = max(plot_origin_y, baseline)
+        baseline = calculate_baseline(plot_height, plot_origin_y, scaled_data_min, scaled_data_range, axis_scale)
+        runs = list[PlotPointRun]()
         # rebin so that uncalibrated_visible_width corresponds to plot width
         calibrated_data = visible_scaled_xdata._data_ex
         binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_visible_width)
-        did_draw = False
         if binned_length > 0:
             binned_data = rebin_1d(calibrated_data, binned_length)
-            binned_data_is_nan = numpy.isnan(binned_data)
             binned_left = int(uncalibrated_visible_left_channel * plot_width / uncalibrated_visible_width)
-            # draw the plot
-            last_py = baseline
-            for i in range(0, plot_width):
-                px = plot_origin_x + i
-                binned_index = binned_left + i
-                if binned_index >= 0 and binned_index < binned_length and not binned_data_is_nan[binned_index]:
-                    data_value = binned_data[binned_index]
-                    # plot_origin_y is the TOP of the drawing
-                    # py extends DOWNWARDS
-                    py = plot_origin_y + plot_height - (plot_height * (data_value - scaled_data_min) / scaled_data_range)
-                    py = max(plot_origin_y, py)
-                    py = min(plot_origin_y + plot_height, py)
-                    if did_draw:
-                        # only draw horizontal lines when necessary
-                        if py != last_py:
-                            # draw forward from last_px to px at last_py level
-                            # note: using optimized line commands to optimize this critical code.
-                            line_commands.append((px, last_py))
-                            line_commands.append((px, py))
-                            # partially optimized code below.
-                            # segment_path.line_to(px, last_py)
-                            # segment_path.line_to(px, py)
-                    else:
-                        did_draw = True
-                        segment.first_line_to(px, py)
-                    last_py = py
-                else:
-                    if did_draw:
-                        did_draw = False
-                        segment.final_line_to(px, last_py)
-                        segments.append(segment)
-                        segment = LineGraphSegment()
-                        # update line_commands (a path drawing optimization) for the new segment.
-                        line_commands = segment.line_commands
+            # each pixel draws the binned value at its index, where there is one and it isn't a NaN.
+            binned_indexes = binned_left + numpy.arange(plot_width)
+            binned_values = binned_data[numpy.clip(binned_indexes, 0, binned_length - 1)]
+            is_drawn = (binned_indexes >= 0) & (binned_indexes < binned_length) & ~numpy.isnan(binned_values)
+            # plot_origin_y is the top of the plot, and a height extends downwards.
+            ys = numpy.clip(plot_origin_y + plot_height - (plot_height * (binned_values - scaled_data_min) / scaled_data_range), plot_origin_y, plot_origin_y + plot_height)
+            for run_start, run_end in get_run_edges(is_drawn):
+                runs.append(PlotPointRun(tuple(range(plot_origin_x + run_start, plot_origin_x + run_end)),
+                                         tuple(range(plot_origin_x + run_start + 1, plot_origin_x + run_end + 1)),
+                                         tuple(ys[run_start:run_end].tolist())))
+        return PlotPoints(tuple(runs), baseline)
+    return PlotPoints(tuple(), 0)
 
-            segment.final_line_to(plot_origin_x + plot_width, last_py)
 
-            if did_draw:
-                segments.append(segment)
-        return segments, baseline
-    return list(), 0
+def draw_step_fill(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, fill_color: Color.Color) -> None:
+    """Fill the area between the steps of each run and the baseline."""
+    baseline = plot_points.baseline
+    for run in plot_points.runs:
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.move_to(run.starts[0], baseline)
+            drawing_context.add(run.step_path)
+            drawing_context.line_to(run.ends[-1], baseline)
+            drawing_context.line_to(run.starts[0], baseline)
+            drawing_context.close_path()
+            drawing_context.fill_style = fill_color.color_str
+            drawing_context.fill()
+
+
+def draw_step_stroke(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, stroke_color: Color.Color, scaled_stroke_width: float) -> None:
+    """Stroke the steps of each run."""
+    for run in plot_points.runs:
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.move_to(run.starts[0], run.ys[0])
+            drawing_context.add(run.step_path)
+            drawing_context.line_width = scaled_stroke_width
+            drawing_context.stroke_style = stroke_color.color_str
+            drawing_context.stroke()
 
 
 def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int, drawing_metrics: UISettings.DrawingMetrics) -> None:
@@ -356,7 +338,13 @@ class MappedCalibratedDataAndMetadataCacheItem:
 
 
 @dataclasses.dataclass(frozen=True)
-class SegmentsCacheItem:
+class StepPlotPointsCacheItem:
+    """The step plot points of a layer's data, cached for the layer's parts.
+
+    scaled_xdata: the layer's data, scaled for the axes.
+    axes: the axes of the line plot.
+    canvas_bounds: the plot area.
+    """
     scaled_xdata: typing.Optional[DataAndMetadata.DataAndMetadata]
     axes: typing.Optional[LinePlotDisplay.LineGraphAxes]
     canvas_bounds: Geometry.IntRect
@@ -364,65 +352,39 @@ class SegmentsCacheItem:
     def key(self) -> typing.Tuple[typing.Optional[int], typing.Optional[LinePlotDisplay.LineGraphAxes], Geometry.IntRect]:
         return id(self.scaled_xdata.data) if self.scaled_xdata else None, self.axes, self.canvas_bounds
 
-    def calculate(self) -> typing.Tuple[typing.List[LineGraphSegment], float]:
+    def calculate(self) -> PlotPoints:
         scaled_xdata = self.scaled_xdata
         axes = self.axes
         canvas_bounds = self.canvas_bounds
-        segments: typing.List[LineGraphSegment] = list()
-        baseline = 0.0
-        if scaled_xdata is not None and axes:
-            plot_width = canvas_bounds.width - 1
-            plot_height = canvas_bounds.height - 1
-            plot_origin_x = canvas_bounds.left
-            plot_origin_y = canvas_bounds.top
+        x_calibration = axes.x_calibration if axes else None
+        if scaled_xdata is not None and axes and x_calibration and x_calibration.units == scaled_xdata.dimensional_calibrations[-1].units:
+            return calculate_step_plot_points(canvas_bounds.height - 1, canvas_bounds.width - 1, canvas_bounds.top, canvas_bounds.left, scaled_xdata,
+                                              axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min,
+                                              axes.calibrated_left_channel, axes.calibrated_right_channel, x_calibration, axes.axis_scale)
+        return PlotPoints(tuple(), 0.0)
 
-            # extract the data we need for drawing y-axis
-            scaled_data_min = axes.scaled_data_min
-            scaled_data_max = axes.scaled_data_max
-            scaled_data_range = scaled_data_max - scaled_data_min
 
-            # extract the data we need for drawing x-axis
-            calibrated_left_channel = axes.calibrated_left_channel
-            calibrated_right_channel = axes.calibrated_right_channel
-            x_calibration = axes.x_calibration
-
-            # draw the line plot itself
-            if x_calibration and x_calibration.units == scaled_xdata.dimensional_calibrations[-1].units:
-                segments, baseline = calculate_line_graph(plot_height, plot_width, plot_origin_y, plot_origin_x,
-                                                          scaled_xdata,
-                                                          scaled_data_min, scaled_data_range,
-                                                          calibrated_left_channel,
-                                                          calibrated_right_channel, x_calibration,
-                                                          axes.axis_scale)
-        return segments, baseline
+def get_plot_points(line_graph_layer: LinePlotDisplay.LineGraphLayer, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> tuple[PlotPoints, tuple[CanvasItem.CacheValue, ...]]:
+    """Return the plot points of the layer, and the cache values which hold them."""
+    scaled_xdata_cache_value = composer_cache.get_cache_value(MappedCalibratedDataAndMetadataCacheItem(line_graph_layer.xdata, line_graph_layer.axes))
+    scaled_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], scaled_xdata_cache_value.value)
+    plot_points_cache_value = composer_cache.get_cache_value(StepPlotPointsCacheItem(scaled_xdata, line_graph_layer.axes, canvas_bounds))
+    return typing.cast(PlotPoints, plot_points_cache_value.value), (scaled_xdata_cache_value, plot_points_cache_value)
 
 
 def draw_fills(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
     if line_graph_layer.fill_color:
-        scaled_data_and_metadata_cache_item = MappedCalibratedDataAndMetadataCacheItem(line_graph_layer.xdata, line_graph_layer.axes)
-        scaled_xdata_cache_value = composer_cache.get_cache_value(scaled_data_and_metadata_cache_item)
-        scaled_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], scaled_xdata_cache_value.value)
-        segments_cache_item = SegmentsCacheItem(scaled_xdata, line_graph_layer.axes, canvas_bounds)
-        segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
-        segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
-        for segment in segments:
-            segment.fill(drawing_context, baseline, Color.Color(line_graph_layer.fill_color))
-        return scaled_xdata_cache_value, segments_cache_value
+        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache)
+        draw_step_fill(drawing_context, plot_points, Color.Color(line_graph_layer.fill_color))
+        return cache_values
     return tuple()
 
 
 def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache, drawing_metrics: UISettings.DrawingMetrics) -> typing.Tuple[CanvasItem.CacheValue, ...]:
     if line_graph_layer.stroke_color:
-        scaled_data_and_metadata_cache_item = MappedCalibratedDataAndMetadataCacheItem(line_graph_layer.xdata, line_graph_layer.axes)
-        scaled_xdata_cache_value = composer_cache.get_cache_value(scaled_data_and_metadata_cache_item)
-        scaled_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], scaled_xdata_cache_value.value)
-        segments_cache_item = SegmentsCacheItem(scaled_xdata, line_graph_layer.axes, canvas_bounds)
-        segments_cache_value = composer_cache.get_cache_value(segments_cache_item)
-        segments, baseline = typing.cast(typing.Tuple[typing.List[LineGraphSegment], float], segments_cache_value.value)
-        for segment in segments:
-            scaled_stroke_width = drawing_metrics.scale_stroke(line_graph_layer.stroke_width)
-            segment.stroke(drawing_context, baseline, Color.Color(line_graph_layer.stroke_color), scaled_stroke_width)
-        return scaled_xdata_cache_value, segments_cache_value
+        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache)
+        draw_step_stroke(drawing_context, plot_points, Color.Color(line_graph_layer.stroke_color), drawing_metrics.scale_stroke(line_graph_layer.stroke_width))
+        return cache_values
     return tuple()
 
 
