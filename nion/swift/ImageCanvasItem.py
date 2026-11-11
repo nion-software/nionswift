@@ -713,6 +713,40 @@ MousePositionAndModifiers = typing.Tuple[Geometry.IntPoint, "UserInterface.Keybo
 MouseHandlerReactorFn = typing.Callable[[Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers]], typing.Coroutine[typing.Any, typing.Any, typing.Any]]
 
 
+def find_graphic_part(graphics: typing.Sequence[Graphics.Graphic], selection_indexes: typing.AbstractSet[int], mapping: Graphics.CoordinateMappingLike,
+                      drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, pos: Geometry.FloatPoint) -> tuple[int, str] | None:
+    """Return the index of the graphic and the name of its part which a press of the pointer tool at a widget position grabs.
+
+    A hit on a specific part, such as a handle or an outline, takes priority over a hit elsewhere, such as inside a graphic.
+    Among hits of the same kind, a selected graphic takes priority over one which isn't selected, and then a graphic drawn
+    later takes priority over one drawn earlier. A press moves a graphic which isn't selected, and any graphic while several
+    are selected, so the part is then "all", unless it is an inverted part.
+
+    Returns None if a press at the position grabs no graphic.
+    """
+    multiple_items_selected = len(selection_indexes) > 1
+    part_specs: list[tuple[int, str]] = list()
+    specific_part_spec: tuple[int, str] | None = None
+    # sort the graphics so that the one with the highest priority comes last.
+    for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
+        if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
+            move_only = graphic_index not in selection_indexes or multiple_items_selected
+            try:
+                part, specific = graphic.test(mapping, drawing_metrics, display_style, pos, move_only)
+            except Exception as e:
+                import traceback
+                logging.debug("Graphic Test Error: %s", e)
+                traceback.print_exc()
+                traceback.print_stack()
+                continue
+            if part:
+                part_spec = graphic_index, "all" if move_only and not part.startswith("inverted") else part
+                part_specs.append(part_spec)
+                if specific:
+                    specific_part_spec = part_spec
+    return specific_part_spec if specific_part_spec is not None else part_specs[-1] if len(part_specs) > 0 else None
+
+
 class MouseHandler:
     def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop) -> None:
         self.__image_canvas_item = image_canvas_item
@@ -769,34 +803,10 @@ class PointerMouseHandler(MouseHandler):
 
         graphics = image_canvas_item.graphics
         selection_indexes = image_canvas_item.graphic_selection.indexes
-        multiple_items_selected = len(selection_indexes) > 1
-        part_specs: typing.List[typing.Tuple[int, Graphics.Graphic, bool, str]] = list()
-        part_spec: typing.Optional[typing.Tuple[int, Graphics.Graphic, bool, str]]
-        specific_part_spec: typing.Optional[typing.Tuple[int, Graphics.Graphic, bool, str]] = None
-        # the graphics are drawn in order, which means the graphics with the higher index are "on top" of the
-        # graphics with the lower index. but priority should also be given to selected graphics. so sort the
-        # graphics according to whether they are selected or not (selected ones go later), then by their index.
-        for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
-            if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
-                already_selected = graphic_index in selection_indexes
-                move_only = not already_selected or multiple_items_selected
-                try:
-                    part, specific = graphic.test(widget_mapping, image_canvas_item.drawing_metrics, image_canvas_item.display_style, start_drag_pos, move_only)
-                except Exception as e:
-                    import traceback
-                    logging.debug("Graphic Test Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
-                    continue
-                if part:
-                    part_spec = graphic_index, graphic, already_selected, "all" if move_only and not part.startswith("inverted") else part
-                    part_specs.append(part_spec)
-                    if specific:
-                        specific_part_spec = part_spec
-        part_spec = specific_part_spec if specific_part_spec is not None else part_specs[-1] if len(part_specs) > 0 else None
+        part_spec = find_graphic_part(graphics, selection_indexes, widget_mapping, image_canvas_item.drawing_metrics, image_canvas_item.display_style, start_drag_pos)
         if part_spec is not None:
-            graphic_index, graphic, already_selected, part = part_spec
-            part = part if specific_part_spec is not None else part_spec[-1]
+            graphic_index, part = part_spec
+            already_selected = graphic_index in selection_indexes
             # select item and prepare for drag
             graphic_drag_item_was_selected = already_selected
             if not graphic_drag_item_was_selected:
