@@ -346,6 +346,124 @@ def draw_stem_stroke(drawing_context: DrawingContext.DrawingContext, plot_points
         drawing_context.stroke()
 
 
+def add_circle_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a circle marker of the size, with its center at the point."""
+    drawing_context.move_to(x + marker_size / 2, y)
+    drawing_context.arc(x, y, marker_size / 2, 0, 2 * math.pi)
+
+
+def add_square_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a square marker of the size, with its center at the point."""
+    drawing_context.rect(x - marker_size / 2, y - marker_size / 2, marker_size, marker_size)
+
+
+def add_diamond_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a diamond marker of the size, with its center at the point."""
+    half_size = marker_size / 2
+    drawing_context.move_to(x, y - half_size)
+    drawing_context.line_to(x + half_size, y)
+    drawing_context.line_to(x, y + half_size)
+    drawing_context.line_to(x - half_size, y)
+    drawing_context.close_path()
+
+
+def add_triangle_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a triangle marker of the size, with its center at the point."""
+    half_size = marker_size / 2
+    drawing_context.move_to(x, y - half_size)
+    drawing_context.line_to(x + half_size, y + half_size)
+    drawing_context.line_to(x - half_size, y + half_size)
+    drawing_context.close_path()
+
+
+def add_plus_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a plus marker of the size, with its center at the point."""
+    half_size = marker_size / 2
+    drawing_context.move_to(x - half_size, y)
+    drawing_context.line_to(x + half_size, y)
+    drawing_context.move_to(x, y - half_size)
+    drawing_context.line_to(x, y + half_size)
+
+
+def add_cross_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a cross marker of the size, with its center at the point."""
+    half_size = marker_size / 2
+    drawing_context.move_to(x - half_size, y - half_size)
+    drawing_context.line_to(x + half_size, y + half_size)
+    drawing_context.move_to(x - half_size, y + half_size)
+    drawing_context.line_to(x + half_size, y - half_size)
+
+
+def add_point_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a point marker of the size, with its center at the point."""
+    point_radius = max(1.0, marker_size / 6)
+    drawing_context.move_to(x + point_radius, y)
+    drawing_context.arc(x, y, point_radius, 0, 2 * math.pi)
+
+
+class MarkerPaint(enum.Enum):
+    """How the line plot paints the markers of a shape."""
+    # fill the marker in the fill color and outline it in the stroke color.
+    OUTLINED = 0
+    # stroke the marker in the stroke color, or else the fill color, since the shape has no inside.
+    LINES = 1
+    # fill the marker in the stroke color, or else the fill color, since the shape is too small to outline.
+    DOT = 2
+
+
+@dataclasses.dataclass(frozen=True)
+class MarkerShapeDrawing:
+    """How the line plot draws the markers of a shape.
+
+    add_marker_path: the function which adds the path of a marker of a size in pixels, with its center at a point.
+    paint: how the line plot paints the markers.
+    """
+    add_marker_path: typing.Callable[[DrawingContext.DrawingContext, float, float, float], None]
+    paint: MarkerPaint
+
+
+# the drawing of each of LinePlotDisplay.MARKER_SHAPES other than none.
+MARKER_SHAPE_DRAWINGS: typing.Mapping[str, MarkerShapeDrawing] = {
+    "circle": MarkerShapeDrawing(add_circle_marker_path, MarkerPaint.OUTLINED),
+    "square": MarkerShapeDrawing(add_square_marker_path, MarkerPaint.OUTLINED),
+    "diamond": MarkerShapeDrawing(add_diamond_marker_path, MarkerPaint.OUTLINED),
+    "triangle": MarkerShapeDrawing(add_triangle_marker_path, MarkerPaint.OUTLINED),
+    "plus": MarkerShapeDrawing(add_plus_marker_path, MarkerPaint.LINES),
+    "cross": MarkerShapeDrawing(add_cross_marker_path, MarkerPaint.LINES),
+    "point": MarkerShapeDrawing(add_point_marker_path, MarkerPaint.DOT),
+}
+
+
+def draw_marker_shapes(drawing_context: DrawingContext.DrawingContext, marker_shape: str, centers: typing.Iterable[tuple[float, float]], marker_size: float,
+                       fill_color: Color.Color | None, stroke_color: Color.Color | None, scaled_stroke_width: float) -> None:
+    """Draw a marker of the shape, other than none, and of the size in pixels at each center."""
+    marker_shape_drawing = MARKER_SHAPE_DRAWINGS[marker_shape]
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        for x, y in centers:
+            marker_shape_drawing.add_marker_path(drawing_context, x, y, marker_size)
+        match marker_shape_drawing.paint:
+            case MarkerPaint.OUTLINED:
+                if fill_color:
+                    drawing_context.fill_style = fill_color.color_str
+                    drawing_context.fill()
+                if stroke_color:
+                    drawing_context.line_width = scaled_stroke_width
+                    drawing_context.stroke_style = stroke_color.color_str
+                    drawing_context.stroke()
+            case MarkerPaint.LINES:
+                if line_color := stroke_color or fill_color:
+                    drawing_context.line_width = scaled_stroke_width
+                    drawing_context.stroke_style = line_color.color_str
+                    drawing_context.stroke()
+            case MarkerPaint.DOT:
+                if dot_color := stroke_color or fill_color:
+                    drawing_context.fill_style = dot_color.color_str
+                    drawing_context.fill()
+            case _:
+                typing.assert_never(marker_shape_drawing.paint)
+
+
 @contextlib.contextmanager
 def clip_to_bounds(drawing_context: DrawingContext.DrawingContext, clip_bounds: Geometry.IntRect | None) -> typing.Iterator[None]:
     """Clip the drawing within the context to the bounds, if there are bounds."""
@@ -550,10 +668,33 @@ def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_conte
     return tuple()
 
 
+def get_marker_size_in_pixels(marker_size: float, drawing_metrics: UISettings.DrawingMetrics) -> float:
+    """Return the size in pixels of a marker size in points."""
+    # there are 72 points and 96 pixels to an inch.
+    return drawing_metrics.scale_length(marker_size * 96 / 72)
+
+
+def draw_markers(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect,
+                 composer_cache: CanvasItem.ComposerCache, drawing_metrics: UISettings.DrawingMetrics) -> typing.Tuple[CanvasItem.CacheValue, ...]:
+    """Draw the layer's markers at its channel-sampled plot points, and return the cache values which hold them."""
+    if line_graph_layer.marker_shape != "none" and (line_graph_layer.fill_color or line_graph_layer.stroke_color):
+        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache, ChannelPlotPointsCacheItem)
+        fill_color = Color.Color(line_graph_layer.fill_color) if line_graph_layer.fill_color else None
+        stroke_color = Color.Color(line_graph_layer.stroke_color) if line_graph_layer.stroke_color else None
+        marker_size = get_marker_size_in_pixels(line_graph_layer.marker_size, drawing_metrics)
+        with clip_to_bounds(drawing_context, plot_points.clip_bounds):
+            centers = [(x, y) for run in plot_points.runs for x, y in zip(run.xs, run.ys)]
+            draw_marker_shapes(drawing_context, line_graph_layer.marker_shape, centers, marker_size, fill_color, stroke_color,
+                               drawing_metrics.scale_stroke(line_graph_layer.stroke_width))
+        return cache_values
+    return tuple()
+
+
 class LineGraphLayerPart(enum.Enum):
     """The part of a layer which a layer canvas item draws."""
     FILL = 0
     STROKE = 1
+    MARKERS = 2
 
 
 class LineGraphLayerCanvasItemComposer(CanvasItem.BaseComposer):
@@ -572,6 +713,8 @@ class LineGraphLayerCanvasItemComposer(CanvasItem.BaseComposer):
                 cache_values.append(draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache))
             case LineGraphLayerPart.STROKE:
                 cache_values.append(draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache, self.__drawing_metrics))
+            case LineGraphLayerPart.MARKERS:
+                cache_values.append(draw_markers(line_graph_layer, drawing_context, canvas_bounds, composer_cache, self.__drawing_metrics))
             case _:
                 typing.assert_never(self.__part)
         self.__cache_values = cache_values
@@ -598,6 +741,10 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__line_graph_layer = line_graph_layer
             self.__part = part
             self.update()
+
+    @property
+    def _part_for_testing(self) -> LineGraphLayerPart:
+        return self.__part
 
     @property
     def _line_graph_layer_for_testing(self) -> typing.Optional[LinePlotDisplay.LineGraphLayer]:
