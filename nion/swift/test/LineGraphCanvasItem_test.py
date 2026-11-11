@@ -216,8 +216,12 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_item = document_model.display_items[0]
             display_layer = display_item.display_layers[0]
             display_layer.plot_kind = "spline"
+            display_layer.marker_shape = "star"
+            display_layer.marker_size = 0.0
             line_graph_layer = LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info).line_graph_layers[0]
-            self.assertEqual("step", line_graph_layer.plot_kind)
+            self.assertEqual(("step", "none", 6.0), (line_graph_layer.plot_kind, line_graph_layer.marker_shape, line_graph_layer.marker_size))
+            display_layer.marker_size = math.inf
+            self.assertEqual(6.0, LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info).line_graph_layers[0].marker_size)
 
     def test_plot_points_of_data_with_a_negative_calibration_scale_are_in_channel_order(self):
         # the axes count the calibrated values down from 4, and draw the channels from left to right, as the steps do.
@@ -245,7 +249,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             0, 1, 0, 2, LinePlotDisplay._get_axis_scale("linear"))
         self.assertEqual([[100, -9900]], [list(run.ys) for run in plot_points.runs])
 
-    def test_line_graph_layer_follows_a_change_to_its_display_layer_plot_kind(self):
+    def test_line_graph_layer_follows_changes_to_its_display_layer_plot_kind_and_style(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
             document_model = document_controller.document_model
@@ -255,11 +259,14 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_display_item(display_item)
             display_panel.display_canvas_item.update_canvas_items()
-            display_item.display_layers[0].plot_kind = "line"
-            display_panel.display_canvas_item.update_canvas_items()
+            display_layer = display_item.display_layers[0]
             line_graph_layers_canvas_item = display_panel.display_canvas_item.line_graph_layers_canvas_item
-            line_graph_layers = [typing.cast(LineGraphCanvasItem.LineGraphLayerCanvasItem, canvas_item)._line_graph_layer_for_testing for canvas_item in line_graph_layers_canvas_item.canvas_items]
-            self.assertEqual({"line"}, {line_graph_layer.plot_kind for line_graph_layer in line_graph_layers if line_graph_layer})
+            # change one property at a time, so that the drawn layer follows each one only if the layer compares it.
+            for name, value in (("plot_kind", "line"), ("marker_shape", "circle"), ("marker_size", 4.0)):
+                setattr(display_layer, name, value)
+                display_panel.display_canvas_item.update_canvas_items()
+                line_graph_layers = [typing.cast(LineGraphCanvasItem.LineGraphLayerCanvasItem, canvas_item)._line_graph_layer_for_testing for canvas_item in line_graph_layers_canvas_item.canvas_items]
+                self.assertEqual({value}, {getattr(line_graph_layer, name) for line_graph_layer in line_graph_layers if line_graph_layer}, name)
 
     def test_dragging_a_layer_without_a_fill_color_onto_another_legend_shows_it_there(self):
         with TestContext.create_memory_context() as test_context:
@@ -324,6 +331,23 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.arange(24.0)),
             0, 24, 0.0, 1e-310, LinePlotDisplay._get_axis_scale("linear"))
         self.assertEqual([(0, 400, {100.0})], [(run.starts[0], run.ends[-1], set(run.ys)) for run in plot_points.runs])
+
+    def test_layers_draw_every_fill_then_every_stroke_then_every_marker(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.arange(8.0))
+            data_item2 = DataItem.DataItem(numpy.ones((8,)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            line_graph_layers_canvas_item = display_panel.display_canvas_item.line_graph_layers_canvas_item
+            parts = [typing.cast(LineGraphCanvasItem.LineGraphLayerCanvasItem, canvas_item)._part_for_testing for canvas_item in line_graph_layers_canvas_item.canvas_items]
+            self.assertEqual([LineGraphCanvasItem.LineGraphLayerPart.FILL] * 2 + [LineGraphCanvasItem.LineGraphLayerPart.STROKE] * 2 + [LineGraphCanvasItem.LineGraphLayerPart.MARKERS] * 2, parts)
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup

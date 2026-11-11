@@ -222,6 +222,9 @@ PLOT_KINDS = ("step", "line", "bar", "stem", "none")
 # the marker shapes of a display layer, the first being the default.
 MARKER_SHAPES = ("none", "circle", "square", "diamond", "triangle", "plus", "cross", "point")
 
+# the size of a marker in points, when a display layer doesn't give one.
+DEFAULT_MARKER_SIZE = 6.0
+
 # the stroke dashes of a display layer, the first being the default.
 STROKE_DASHES = ("solid", "dashed", "dotted")
 
@@ -229,6 +232,11 @@ STROKE_DASHES = ("solid", "dashed", "dotted")
 def get_known_value(value: str | None, values: typing.Sequence[str]) -> str:
     """Return the value if it is one of the values, or else the first of the values."""
     return value if value is not None and value in values else values[0]
+
+
+def get_known_marker_size(marker_size: float | None) -> float:
+    """Return the marker size in points if it is finite and above zero, or else the default."""
+    return marker_size if marker_size is not None and math.isfinite(marker_size) and marker_size > 0 else DEFAULT_MARKER_SIZE
 
 
 @dataclasses.dataclass
@@ -406,12 +414,16 @@ class LineGraphLayer:
                  fill_color: typing.Optional[Color.Color],
                  stroke_color: typing.Optional[Color.Color],
                  stroke_width: typing.Optional[float],
-                 plot_kind: str | None = None) -> None:
+                 plot_kind: str | None = None,
+                 marker_shape: str | None = None,
+                 marker_size: float | None = None) -> None:
         self.__xdata = xdata
         self.__fill_color = fill_color
         self.__stroke_color = stroke_color
         self.__stroke_width = stroke_width or 0.5
         self.__plot_kind = get_known_value(plot_kind, PLOT_KINDS)
+        self.__marker_shape = get_known_value(marker_shape, MARKER_SHAPES)
+        self.__marker_size = get_known_marker_size(marker_size)
         self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
         self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__axes = axes
@@ -428,6 +440,8 @@ class LineGraphLayer:
                 self.__stroke_color == other.__stroke_color and
                 self.__stroke_width == other.__stroke_width and
                 self.__plot_kind == other.__plot_kind and
+                self.__marker_shape == other.__marker_shape and
+                self.__marker_size == other.__marker_size and
                 self.__axes == other.__axes)
 
     @property
@@ -450,6 +464,16 @@ class LineGraphLayer:
     def plot_kind(self) -> str:
         """Return how the line plot draws the layer, one of PLOT_KINDS."""
         return self.__plot_kind
+
+    @property
+    def marker_shape(self) -> str:
+        """Return the shape of the marker which the line plot draws at each value, one of MARKER_SHAPES."""
+        return self.__marker_shape
+
+    @property
+    def marker_size(self) -> float:
+        """Return the size of a marker in points."""
+        return self.__marker_size
 
     @property
     def axes(self) -> typing.Optional[LineGraphAxes]:
@@ -678,7 +702,8 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                             intensity_calibration = xdata.intensity_calibration
                             displayed_dimensional_calibration = xdata.dimensional_calibrations[-1]
                             xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width, display_layer.plot_kind))
+                    line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width, display_layer.plot_kind,
+                                                            display_layer.marker_shape, display_layer.marker_size))
                     self._has_valid_drawn_graph_data = xdata is not None
             self.__line_graph_layers = line_graph_layers
         return self.__line_graph_layers
