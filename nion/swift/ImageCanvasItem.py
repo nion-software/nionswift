@@ -207,6 +207,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__graphic_selection = DisplayItem.GraphicSelection()
         self.__coordinate_system: typing.Sequence[Calibration.Calibration] = tuple()
         self.__is_focused = False
+        self.__hovered_graphic_part: Graphics.HoveredGraphicPart | None = None
 
     @property
     def is_focused(self) -> bool:
@@ -216,6 +217,14 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     def is_focused(self, value: bool) -> None:
         self.__is_focused = value
         self.update()
+
+    @property
+    def hovered_graphic_part(self) -> Graphics.HoveredGraphicPart | None:
+        return self.__hovered_graphic_part
+
+    @hovered_graphic_part.setter
+    def hovered_graphic_part(self, value: Graphics.HoveredGraphicPart | None) -> None:
+        self.__hovered_graphic_part = value
 
     def update_coordinate_system(self, displayed_shape: DataAndMetadata.ShapeType | None, coordinate_system: typing.Sequence[Calibration.Calibration], graphic_renderers: typing.Sequence[Graphics.GraphicRenderer], graphic_selection: DisplayItem.GraphicSelection) -> None:
         needs_update = False
@@ -1113,8 +1122,17 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__mouse_in = False
         self.__mouse_handler: typing.Optional[MouseHandler] = None
 
+        # the graphics, the selection, the calibrations, and the image rect at the last update of the canvas items. only the
+        # render thread uses it.
+        self.__hover_key: tuple[tuple[tuple[uuid.UUID, int], ...], frozenset[int], tuple[Calibration.Calibration, ...], Geometry.IntRect | None] | None = None
+
         # frame rate and latency
         self.__display_latency_model = Model.PropertyModel[bool](False)
+
+    def close(self) -> None:
+        # a hovered graphic part update which the render thread queued may run after close.
+        self.__mouse_in = False
+        super().close()
 
     @property
     def _scale_marker_canvas_item_for_test(self) -> ScaleMarkerCanvasItem:
@@ -1220,6 +1238,41 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # this goes at the end so that the previous values are still available to determine changes during the update.
         self.__last_image_display_info = image_display_info
 
+        # the graphics, the selection, the calibrations, or the image rect may change under a mouse which doesn't move. the
+        # hit test reads the graphics, so it runs on the main thread. reading the mouse state here may race with a mouse
+        # event, which finds the hovered graphic part itself.
+        hover_key = (tuple((graphic_renderer.graphic_uuid, graphic_renderer.modified_count) for graphic_renderer in image_display_info.graphic_renderers),
+                     frozenset(image_display_info.graphic_selection.indexes), tuple(datum_calibrations), self.__composite_canvas_item.canvas_rect)
+        if hover_key != self.__hover_key:
+            self.__hover_key = hover_key
+            if self.__mouse_in and self.__event_loop:
+                self.__event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(ImageCanvasItem.__update_hovered_graphic_part_at_last_mouse, self))
+
+    def __update_hovered_graphic_part_at_last_mouse(self) -> None:
+        if self.__mouse_in and self.__last_mouse:
+            self.__update_hovered_graphic_part(self.__last_mouse.to_float_point())
+
+    def __update_hovered_graphic_part(self, mouse_pos: Geometry.FloatPoint | None) -> None:
+        # a press of the pointer tool grabs the hovered graphic part, so it doesn't change while the press is tracked.
+        if self.__mouse_handler:
+            return
+        hovered_graphic_part: Graphics.HoveredGraphicPart | None = None
+        delegate = self.delegate
+        display_item = delegate.display_item if delegate else None
+        widget_mapping = self.__make_mouse_mapping()
+        if self.__mouse_in and mouse_pos is not None and delegate and display_item and delegate.tool_mode == "pointer" and widget_mapping:
+            # the drawn graphics may still include a deleted graphic until the next repaint, so test the current ones.
+            graphics = display_item.graphics
+            if part_spec := find_graphic_part(graphics, display_item.graphic_selection.indexes, widget_mapping, self.drawing_metrics, self.display_style, mouse_pos):
+                graphic_index, part = part_spec
+                hovered_graphic_part = Graphics.HoveredGraphicPart(graphics[graphic_index].uuid, part)
+        self.__graphics_canvas_item.hovered_graphic_part = hovered_graphic_part
+
+    @property
+    def hovered_graphic_part(self) -> Graphics.HoveredGraphicPart | None:
+        """Return the hovered graphic part, or None if there is none."""
+        return self.__graphics_canvas_item.hovered_graphic_part
+
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.
         delegate = self.delegate
@@ -1321,6 +1374,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if delegate.tool_mode == "pointer":
             assert not self.__mouse_handler
             assert self.__event_loop
+            self.__update_hovered_graphic_part(mouse_pos)
             self.__mouse_handler = PointerMouseHandler(self, self.__event_loop)
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
         elif delegate.tool_mode == "hand":
@@ -1373,6 +1427,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             pass
         else:
             delegate.tool_mode = "pointer"
+        self.__update_hovered_graphic_part(mouse_pos)
         return True
 
     def mouse_entered(self) -> bool:
@@ -1385,6 +1440,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if super().mouse_exited():
             return True
         self.__mouse_in = False
+        self.__update_hovered_graphic_part(None)
         if self.delegate:  # allow display to work without delegate
             # whenever the cursor exits, clear the cursor display
             self.delegate.cursor_changed(None)
@@ -1426,6 +1482,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         # x,y already have transform applied
         self.__last_mouse = mouse_pos.to_int_point()
+        self.__update_hovered_graphic_part(mouse_pos)
         delegate.cursor_changed(self.cursor_position)
         if self.__mouse_handler:
             self.__mouse_handler.mouse_position_changed(Geometry.IntPoint(y, x), modifiers)
@@ -1476,10 +1533,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def toggle_latency(self) -> None:
         self.__display_latency_model.value = not self.__display_latency_model.value
 
+    def __make_mouse_mapping(self) -> ImageCanvasItemMapping | None:
+        # the render thread replaces the display info, so read it once.
+        image_display_info = self.__last_image_display_info
+        data_shape = image_display_info.data_shape.as_tuple() if image_display_info.data_shape else None
+        datum_calibrations = image_display_info.display_calibration_info.datum_calibrations if image_display_info.display_calibration_info else list()
+        return ImageCanvasItemMapping.make(data_shape, self.__composite_canvas_item.canvas_rect, datum_calibrations)
+
     def __get_mouse_mapping(self) -> ImageCanvasItemMapping:
-        data_shape = self.__last_image_display_info.data_shape.as_tuple() if self.__last_image_display_info.data_shape else None
-        datum_calibrations = self.__last_image_display_info.display_calibration_info.datum_calibrations if self.__last_image_display_info.display_calibration_info else list()
-        widget_mapping = ImageCanvasItemMapping.make(data_shape, self.__composite_canvas_item.canvas_rect, datum_calibrations)
+        widget_mapping = self.__make_mouse_mapping()
         assert widget_mapping
         return widget_mapping
 

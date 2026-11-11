@@ -4,6 +4,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import copy
+import dataclasses
 import enum
 import gettext
 import math
@@ -1032,6 +1033,17 @@ class Graphic(Persistence.PersistentObject):
                 bounds = Geometry.FloatRect.from_center_and_size(text_pos, Geometry.FloatSize(width=scaled_text_size.width + scaled_padding * 2, height=scaled_text_size.height + scaled_padding * 2))
                 return test_inside_bounds(bounds, test_point, drawing_metrics.cursor_tolerance)
         return False
+
+
+@dataclasses.dataclass(frozen=True)
+class HoveredGraphicPart:
+    """The graphic under the mouse, and its part which a press of the pointer tool there grabs.
+
+    graphic_uuid: the uuid of the graphic.
+    part: the name of the part, as the hit test of the graphic gives it.
+    """
+    graphic_uuid: uuid.UUID
+    part: str
 
 
 class GraphicRenderer:
