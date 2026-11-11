@@ -882,3 +882,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     @property
     def _axes_for_testing(self) -> LinePlotDisplay.LineGraphAxes | None:
         return self.__line_plot_display_info.axes
+
+    @property
+    def _line_graph_legend_canvas_item_for_testing(self) -> LineGraphCanvasItem.LineGraphLegendCanvasItem:
+        return self.__line_graph_legend_canvas_item
