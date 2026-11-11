@@ -417,6 +417,10 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     @property
+    def _line_graph_layer_for_testing(self) -> typing.Optional[LinePlotDisplay.LineGraphLayer]:
+        return self.__line_graph_layer
+
+    @property
     def _xdata_for_testing(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         return self.__line_graph_layer.xdata if self.__line_graph_layer else None
 
