@@ -666,8 +666,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=360, y=465), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         offset = -1024.0 * 40.0 / plot_width
-        self.assertEqual(self.display_item.get_display_property("left_channel"), int(offset))
-        self.assertEqual(self.display_item.get_display_property("right_channel"), int(1024 + offset))
+        self.assertAlmostEqual(self.display_item.get_display_property("left_channel"), offset)
+        self.assertAlmostEqual(self.display_item.get_display_property("right_channel"), 1024 + offset)
 
     def test_line_plot_cursor_is_at_the_channel_under_the_mouse_when_the_view_starts_partway_into_a_channel(self):
         data_item = DataItem.DataItem(numpy.arange(24.0))
@@ -794,8 +794,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
-        self.assertEqual(self.display_item.get_display_property("left_channel"), int(round(512 - int(plot_width * 0.5) * 10 * channel_per_pixel)))
-        self.assertEqual(self.display_item.get_display_property("right_channel"), int(round(512 + int(plot_width * 0.5) * 10 * channel_per_pixel)))
+        self.assertAlmostEqual(self.display_item.get_display_property("left_channel"), 512 - int(plot_width * 0.5) * 10 * channel_per_pixel)
+        self.assertAlmostEqual(self.display_item.get_display_property("right_channel"), 512 + int(plot_width * 0.5) * 10 * channel_per_pixel)
 
     def test_mouse_tracking_expand_scale_by_10_around_center(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -809,9 +809,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
-        # self.__display.left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
-        self.assertEqual(self.display_item.get_display_property("left_channel"), int(round(512 - int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
-        self.assertEqual(self.display_item.get_display_property("right_channel"), int(round(512 + int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
+        self.assertAlmostEqual(self.display_item.get_display_property("left_channel"), 512 - int(plot_width * 0.5) * 0.1 * channel_per_pixel)
+        self.assertAlmostEqual(self.display_item.get_display_property("right_channel"), 512 + int(plot_width * 0.5) * 0.1 * channel_per_pixel)
 
     def test_mouse_tracking_expand_scale_by_high_amount(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -885,8 +884,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
-        self.assertEqual(self.display_item.get_display_property("left_channel"), int(round(200 * channel_per_pixel - 200 * 10 * channel_per_pixel)))
-        self.assertEqual(self.display_item.get_display_property("right_channel"), int(round(200 * channel_per_pixel + (plot_width - 200) * 10 * channel_per_pixel)))
+        self.assertAlmostEqual(self.display_item.get_display_property("left_channel"), 200 * channel_per_pixel - 200 * 10 * channel_per_pixel)
+        self.assertAlmostEqual(self.display_item.get_display_property("right_channel"), 200 * channel_per_pixel + (plot_width - 200) * 10 * channel_per_pixel)
 
     def test_mouse_tracking_expand_scale_by_10_around_non_center(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -900,8 +899,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
-        self.assertEqual(self.display_item.get_display_property("left_channel"), int(round(400 * channel_per_pixel - 400 * 0.1 * channel_per_pixel)))
-        self.assertEqual(self.display_item.get_display_property("right_channel"), int(round(400 * channel_per_pixel + (plot_width - 400) * 0.1 * channel_per_pixel)))
+        self.assertAlmostEqual(self.display_item.get_display_property("left_channel"), 400 * channel_per_pixel - 400 * 0.1 * channel_per_pixel)
+        self.assertAlmostEqual(self.display_item.get_display_property("right_channel"), 400 * channel_per_pixel + (plot_width - 400) * 0.1 * channel_per_pixel)
 
     def test_mouse_tracking_vertical_shrink_with_origin_at_bottom(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -1037,8 +1036,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_released(plot_left+116, 190, CanvasItem.KeyboardModifiers())
         self.document_controller.periodic()
         channel_per_pixel = 1024.0/10 / plot_width
-        self.assertEqual(self.display_item.get_display_property("left_channel"), int(0 - channel_per_pixel * 100))
-        self.assertEqual(self.display_item.get_display_property("right_channel"), int(int(1024/10.0) - channel_per_pixel * 100))
+        self.assertAlmostEqual(self.display_item.get_display_property("left_channel"), 0 - channel_per_pixel * 100)
+        self.assertAlmostEqual(self.display_item.get_display_property("right_channel"), 1024/10.0 - channel_per_pixel * 100)
 
     def test_click_on_selection_makes_it_selected(self):
         line_plot_canvas_item = self.setup_line_plot()

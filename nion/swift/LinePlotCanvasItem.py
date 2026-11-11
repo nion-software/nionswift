@@ -760,14 +760,14 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                 pixel_offset_x = pos.x - self.__tracking_start_pos.x
                 scaling = math.pow(10, pixel_offset_x/96.0)  # 10x per inch of travel, assume 96dpi
                 new_drawn_channel_per_pixel = self.__tracking_start_drawn_channel_per_pixel / scaling
-                left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
-                right_channel = int(round(self.__tracking_start_channel + new_drawn_channel_per_pixel * (plot_rect.width - self.__tracking_start_origin_pixel)))
+                left_channel = self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel
+                right_channel = self.__tracking_start_channel + new_drawn_channel_per_pixel * (plot_rect.width - self.__tracking_start_origin_pixel)
                 delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
                 return True
             else:
                 delta = pos - self.__tracking_start_pos
-                left_channel = int(self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
-                right_channel = int(self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
+                left_channel = self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x
+                right_channel = self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x
                 delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
                 return True
         elif self.__tracking_vertical:
