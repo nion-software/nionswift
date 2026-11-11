@@ -130,6 +130,26 @@ To delete a data item, select it in the data panel and press :kbd:`Delete`.
 
 To select multiple data items, hold :kbd:`Control` (or :kbd:`Command` on macOS) while selecting items.
 
+.. _Data Panel Browsers:
+
+Data Panel Browsers
+-------------------
+To change how the data panel shows its items, click one of the three browser buttons to the right of the filter text box.
+From left to right, the buttons show the list, detail, and grid browsers.
+The data panel restores the chosen browser when the application next starts.
+
+- **List** shows each item with a thumbnail and lines for its title, its size, data type and storage space, its date, and its status.
+- **Detail** shows each item on one line, with a small thumbnail, its title, and its date.
+- **Grid** shows each item as a thumbnail with its title below it.
+
+The detail browser shows each item's date in a short form which depends on how old the date is.
+The form follows the region or locale setting of the operating system.
+
+- Within the last minute, it shows the time with seconds, which advance while the item is live.
+- Earlier the same day, it shows the time.
+- Within 48 weeks, it shows the month and day.
+- Otherwise, it shows the month and year.
+
 .. _Histogram Panel:
 
 Histogram
