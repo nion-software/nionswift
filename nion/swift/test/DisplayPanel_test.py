@@ -1581,6 +1581,26 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual("data_item", display_panel.display_panel_type)
             self.assertEqual(display_items[1], display_panel.display_item)
 
+    def test_cycle_display_goes_on_from_a_browser_chosen_from_the_display_menu(self):
+        # choosing an item in the earlier browser should not make the cycle leave the chosen one.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_items = document_controller.filtered_display_items_model.display_items
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_items[0])
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            strip_canvas_item = display_panel._strip_canvas_item_for_test
+            strip_canvas_item.mouse_pressed(120, 40, CanvasItem.KeyboardModifiers())
+            strip_canvas_item.mouse_released(120, 40, CanvasItem.KeyboardModifiers())
+            workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_panel.display_item)
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
+            display_panel.cycle_display()
+            self.assertEqual("grid", display_panel.display_panel_type)
+
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
         self.assertEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
         self.data_item.title = "New Title"

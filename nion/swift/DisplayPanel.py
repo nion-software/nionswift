@@ -2515,6 +2515,10 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
         self.restore_contents(d)
 
+        # a display item chosen in the previous contents does not count as a change made in the new contents, so that
+        # cycling the display goes on from them.
+        self.__display_changed = False
+
         self.set_selected(is_selected)
 
         if is_focused:
