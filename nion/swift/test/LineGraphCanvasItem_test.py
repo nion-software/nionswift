@@ -218,8 +218,9 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_layer.plot_kind = "spline"
             display_layer.marker_shape = "star"
             display_layer.marker_size = 0.0
+            display_layer.stroke_dash = "dash_dot"
             line_graph_layer = LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info).line_graph_layers[0]
-            self.assertEqual(("step", "none", 6.0), (line_graph_layer.plot_kind, line_graph_layer.marker_shape, line_graph_layer.marker_size))
+            self.assertEqual(("step", "none", 6.0, "solid"), (line_graph_layer.plot_kind, line_graph_layer.marker_shape, line_graph_layer.marker_size, line_graph_layer.stroke_dash))
             display_layer.marker_size = math.inf
             self.assertEqual(6.0, LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info).line_graph_layers[0].marker_size)
 
@@ -262,7 +263,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_layer = display_item.display_layers[0]
             line_graph_layers_canvas_item = display_panel.display_canvas_item.line_graph_layers_canvas_item
             # change one property at a time, so that the drawn layer follows each one only if the layer compares it.
-            for name, value in (("plot_kind", "line"), ("marker_shape", "circle"), ("marker_size", 4.0)):
+            for name, value in (("plot_kind", "line"), ("marker_shape", "circle"), ("marker_size", 4.0), ("stroke_dash", "dashed")):
                 setattr(display_layer, name, value)
                 display_panel.display_canvas_item.update_canvas_items()
                 line_graph_layers = [typing.cast(LineGraphCanvasItem.LineGraphLayerCanvasItem, canvas_item)._line_graph_layer_for_testing for canvas_item in line_graph_layers_canvas_item.canvas_items]

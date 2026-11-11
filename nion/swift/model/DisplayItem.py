@@ -1691,6 +1691,7 @@ class DisplayLayerInfo:
     plot_kind: str | None = None
     marker_shape: str | None = None
     marker_size: float | None = None
+    stroke_dash: str | None = None
 
 
 @dataclasses.dataclass
@@ -2722,7 +2723,8 @@ class DisplayItem(Persistence.PersistentObject):
                 stroke_width=display_layer.stroke_width,
                 plot_kind=display_layer.plot_kind,
                 marker_shape=display_layer.marker_shape,
-                marker_size=display_layer.marker_size
+                marker_size=display_layer.marker_size,
+                stroke_dash=display_layer.stroke_dash
             )
             display_layer_list.append(display_layer_info)
         return display_layer_list

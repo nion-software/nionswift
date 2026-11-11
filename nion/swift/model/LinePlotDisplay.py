@@ -416,7 +416,8 @@ class LineGraphLayer:
                  stroke_width: typing.Optional[float],
                  plot_kind: str | None = None,
                  marker_shape: str | None = None,
-                 marker_size: float | None = None) -> None:
+                 marker_size: float | None = None,
+                 stroke_dash: str | None = None) -> None:
         self.__xdata = xdata
         self.__fill_color = fill_color
         self.__stroke_color = stroke_color
@@ -424,6 +425,7 @@ class LineGraphLayer:
         self.__plot_kind = get_known_value(plot_kind, PLOT_KINDS)
         self.__marker_shape = get_known_value(marker_shape, MARKER_SHAPES)
         self.__marker_size = get_known_marker_size(marker_size)
+        self.__stroke_dash = get_known_value(stroke_dash, STROKE_DASHES)
         self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
         self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__axes = axes
@@ -442,6 +444,7 @@ class LineGraphLayer:
                 self.__plot_kind == other.__plot_kind and
                 self.__marker_shape == other.__marker_shape and
                 self.__marker_size == other.__marker_size and
+                self.__stroke_dash == other.__stroke_dash and
                 self.__axes == other.__axes)
 
     @property
@@ -474,6 +477,11 @@ class LineGraphLayer:
     def marker_size(self) -> float:
         """Return the size of a marker in points."""
         return self.__marker_size
+
+    @property
+    def stroke_dash(self) -> str:
+        """Return the dash of the layer's stroke, one of STROKE_DASHES."""
+        return self.__stroke_dash
 
     @property
     def axes(self) -> typing.Optional[LineGraphAxes]:
@@ -703,7 +711,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                             displayed_dimensional_calibration = xdata.dimensional_calibrations[-1]
                             xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
                     line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width, display_layer.plot_kind,
-                                                            display_layer.marker_shape, display_layer.marker_size))
+                                                            display_layer.marker_shape, display_layer.marker_size, display_layer.stroke_dash))
                     self._has_valid_drawn_graph_data = xdata is not None
             self.__line_graph_layers = line_graph_layers
         return self.__line_graph_layers
