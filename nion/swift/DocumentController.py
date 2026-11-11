@@ -4184,6 +4184,23 @@ class DisplayPanelSelectSiblings(Window.Action):
         return len(context.display_panels) > 0 or context.display_panel is not None
 
 
+class DisplayPanelLeaveBrowserAction(Window.Action):
+
+    action_id = "display_panel.leave_browser"
+    action_name = _("Leave Browser")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        if display_panel:
+            display_panel.leave_browser(context.display_item)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
 class DisplayPanelShowItemAction(Window.Action):
 
     action_id = "display_panel.show_item"
@@ -4359,6 +4376,7 @@ Window.register_action(DisplayPanelDeleteGraphicsAction())
 Window.register_action(DisplayPanelFocusNextAction())
 Window.register_action(DisplayPanelFocusPreviousAction())
 Window.register_action(DisplayPanelSelectSiblings())
+Window.register_action(DisplayPanelLeaveBrowserAction())
 Window.register_action(DisplayPanelShowItemAction())
 Window.register_action(DisplayPanelShowGridBrowserAction())
 Window.register_action(DisplayPanelShowThumbnailBrowserAction())

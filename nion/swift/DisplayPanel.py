@@ -2141,13 +2141,13 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
 
             def mouse_double_clicked_event(self, double_clicked_event: GridFlowCanvasItem.GridFlowCanvasItemDoubleClickedEvent) -> bool:
                 # the context has this display panel even when other display panels are selected, since the double-click
-                # cycles the browser it is in.
+                # leaves the browser it is in.
                 display_panel = self.__display_panel_ref()
                 if display_panel:
-                    display_item = display_panel.display_item
-                    action_context = document_controller.get_action_context_for_display_items([display_item] if display_item else [], None)
+                    display_item = typing.cast(DisplayItem.DisplayItem, double_clicked_event.item)
+                    action_context = document_controller.get_action_context_for_display_items([display_item], None)
                     action_context.display_panel = display_panel
-                    document_controller.perform_action_in_context("display_panel.cycle_display", action_context, invoked_from=Window.ActionOrigin.WINDOW, invoked_from_id=DISPLAY_PANEL_ORIGIN_ID)
+                    document_controller.perform_action_in_context("display_panel.leave_browser", action_context, invoked_from=Window.ActionOrigin.WINDOW, invoked_from_id=DISPLAY_PANEL_ORIGIN_ID)
                     return True
                 return True
 
@@ -2750,6 +2750,21 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def cycle_display(self) -> None:
         self.__cycle_display()
 
+    def leave_browser(self, display_item: DisplayItem.DisplayItem | None) -> None:
+        """Show the display item instead of a browser, or the current display item when display_item is None."""
+        if self.__display_panel_controller is None:
+            if display_item:
+                self.set_display_item(display_item)
+            self.__leave_browser()
+            self.__display_changed = False
+            if callable(self.on_contents_changed):
+                self.on_contents_changed()
+
+    def __leave_browser(self) -> None:
+        self.__switch_to_no_browser()
+        self._select()
+        self.request_focus()
+
     def __cycle_display(self) -> None:
         # cycle display is only valid if there is no display panel controller.
         if self.__display_panel_controller is None:
@@ -2765,9 +2780,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     self.__update_selection_to_display()
                     strip_canvas_item.request_focus()
             else:
-                self.__switch_to_no_browser()
-                self._select()
-                self.request_focus()
+                self.__leave_browser()
             self.__display_changed = False
             # notify so that the new browser type gets persisted into the workspace layout.
             if callable(self.on_contents_changed):

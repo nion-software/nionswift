@@ -1543,6 +1543,44 @@ class TestDisplayPanelClass(unittest.TestCase):
             item_canvas_items_in_view = display_panel._strip_canvas_item_for_test.item_canvas_items_in_view
             self.assertTrue(item_canvas_items_in_view[-1]._has_thumbnail_source)
 
+    def test_double_click_on_the_displayed_item_in_the_thumbnail_browser_shows_it(self):
+        # the double-clicked item is already displayed, so the display does not change.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_item = document_model.display_items[0]
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_item)
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            strip_canvas_item = display_panel._strip_canvas_item_for_test
+            display_item_index = document_controller.filtered_display_items_model.display_items.index(display_item)
+            strip_canvas_item.mouse_double_clicked(display_item_index * 80 + 40, 40, CanvasItem.KeyboardModifiers())
+            self.assertEqual("data_item", display_panel.display_panel_type)
+            self.assertEqual(display_item, display_panel.display_item)
+
+    def test_shift_double_click_in_the_thumbnail_browser_shows_the_double_clicked_item(self):
+        # the first click of the double click extends the selection to two items, so no single item is displayed.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_items = document_controller.filtered_display_items_model.display_items
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_items[0])
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            strip_canvas_item = display_panel._strip_canvas_item_for_test
+            modifiers = CanvasItem.KeyboardModifiers(shift=True)
+            strip_canvas_item.mouse_pressed(120, 40, modifiers)
+            strip_canvas_item.mouse_released(120, 40, modifiers)
+            strip_canvas_item.mouse_double_clicked(120, 40, modifiers)
+            self.assertEqual("data_item", display_panel.display_panel_type)
+            self.assertEqual(display_items[1], display_panel.display_item)
+
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
         self.assertEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
         self.data_item.title = "New Title"
