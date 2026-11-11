@@ -280,6 +280,101 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_controller.periodic()
             self.assertEqual(display_item.graphic_selection.indexes, set((1, )))
 
+    def test_clicking_a_corner_of_a_rectangle_hovers_its_handle_without_moving_the_mouse(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.layout_immediate((1000 + header_height, 1000))
+            rect_graphic = Graphics.RectangleGraphic()
+            rect_graphic.bounds = (0.25, 0.25), (0.5, 0.5)
+            display_item.add_graphic(rect_graphic)
+            display_canvas_item = display_panel.display_canvas_item
+            display_canvas_item.update_canvas_items()
+            display_canvas_item.mouse_entered()
+            display_canvas_item.simulate_move((250, 250))
+            # a press on the rectangle which isn't selected moves it, so the whole rectangle is hovered
+            self.assertEqual(Graphics.HoveredGraphicPart(rect_graphic.uuid, "all"), display_canvas_item.hovered_graphic_part)
+            display_canvas_item.simulate_click((250, 250))
+            document_controller.periodic()
+            display_canvas_item.update_canvas_items()
+            document_controller.periodic()
+            self.assertEqual(Graphics.HoveredGraphicPart(rect_graphic.uuid, "top-left"), display_canvas_item.hovered_graphic_part)
+
+    def test_mouse_exiting_clears_hovered_graphic_part(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.layout_immediate((1000 + header_height, 1000))
+            rect_graphic = Graphics.RectangleGraphic()
+            rect_graphic.bounds = (0.25, 0.25), (0.5, 0.5)
+            display_item.add_graphic(rect_graphic)
+            display_canvas_item = display_panel.display_canvas_item
+            display_canvas_item.update_canvas_items()
+            display_canvas_item.mouse_entered()
+            display_canvas_item.simulate_move((500, 500))
+            self.assertIsNotNone(display_canvas_item.hovered_graphic_part)
+            display_canvas_item.mouse_exited()
+            self.assertIsNone(display_canvas_item.hovered_graphic_part)
+
+    def test_dragging_from_outside_a_graphic_does_not_hover_it(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.layout_immediate((1000 + header_height, 1000))
+            rect_graphic = Graphics.RectangleGraphic()
+            rect_graphic.bounds = (0.25, 0.25), (0.5, 0.5)
+            display_item.add_graphic(rect_graphic)
+            display_canvas_item = display_panel.display_canvas_item
+            display_canvas_item.update_canvas_items()
+            display_canvas_item.mouse_entered()
+            display_canvas_item.simulate_move((100, 100))
+            display_canvas_item.simulate_press((100, 100))
+            display_canvas_item.simulate_move((500, 500))
+            # the press grabbed no graphic, so the rectangle under the mouse is not hovered during the drag
+            self.assertIsNone(display_canvas_item.hovered_graphic_part)
+            display_canvas_item.simulate_release((500, 500))
+            document_controller.periodic()
+
+    def test_tools_other_than_pointer_hover_no_graphic(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel.set_display_panel_display_item(display_item)
+            header_height = display_panel.header_canvas_item.header_height
+            display_panel.layout_immediate((1000 + header_height, 1000))
+            rect_graphic = Graphics.RectangleGraphic()
+            rect_graphic.bounds = (0.25, 0.25), (0.5, 0.5)
+            display_item.add_graphic(rect_graphic)
+            display_canvas_item = display_panel.display_canvas_item
+            display_canvas_item.update_canvas_items()
+            document_controller.tool_mode = "rectangle"
+            display_canvas_item.mouse_entered()
+            # a press with the rectangle tool creates a graphic, so the rectangle under the mouse is not hovered
+            display_canvas_item.simulate_move((500, 500))
+            self.assertIsNone(display_canvas_item.hovered_graphic_part)
+
     def test_1d_data_displayed_as_2d(self):
         # setup
         with TestContext.create_memory_context() as test_context:
