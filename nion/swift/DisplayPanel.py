@@ -2794,9 +2794,14 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
     def __cycle_display(self) -> None:
         # cycle display is only valid if there is no display panel controller.
         if self.__display_panel_controller is None:
-            # the second part of the if statement below handles the case where the data item has been changed by
-            # the user so the cycle should go back to the main display.
-            if self.__display_composition_canvas_item.visible and (not self.__is_horizontal_browser_visible or not self.__display_changed):
+            # the cycle is the display item, the horizontal browser, the grid browser, and the detail browser. the second
+            # part of each if statement below handles the case where the data item has been changed by the user so the
+            # cycle should go back to the main display.
+            if self.__is_grid_browser_visible and not self.__display_changed:
+                detail_canvas_item = self.__switch_to_detail_browser()
+                self.__update_selection_to_display()
+                detail_canvas_item.request_focus()
+            elif self.__display_composition_canvas_item.visible and (not self.__is_horizontal_browser_visible or not self.__display_changed):
                 if self.__is_horizontal_browser_visible:
                     grid_canvas_item = self.__switch_to_grid_browser()
                     self.__update_selection_to_display()
