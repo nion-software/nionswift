@@ -226,6 +226,11 @@ MARKER_SHAPES = ("none", "circle", "square", "diamond", "triangle", "plus", "cro
 STROKE_DASHES = ("solid", "dashed", "dotted")
 
 
+def get_known_value(value: str | None, values: typing.Sequence[str]) -> str:
+    """Return the value if it is one of the values, or else the first of the values."""
+    return value if value is not None and value in values else values[0]
+
+
 @dataclasses.dataclass
 class LegendEntry:
     label: str
@@ -400,11 +405,13 @@ class LineGraphLayer:
                  axes: typing.Optional[LineGraphAxes],
                  fill_color: typing.Optional[Color.Color],
                  stroke_color: typing.Optional[Color.Color],
-                 stroke_width: typing.Optional[float]) -> None:
+                 stroke_width: typing.Optional[float],
+                 plot_kind: str | None = None) -> None:
         self.__xdata = xdata
         self.__fill_color = fill_color
         self.__stroke_color = stroke_color
         self.__stroke_width = stroke_width or 0.5
+        self.__plot_kind = get_known_value(plot_kind, PLOT_KINDS)
         self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
         self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__axes = axes
@@ -420,6 +427,7 @@ class LineGraphLayer:
                 self.__fill_color == other.__fill_color and
                 self.__stroke_color == other.__stroke_color and
                 self.__stroke_width == other.__stroke_width and
+                self.__plot_kind == other.__plot_kind and
                 self.__axes == other.__axes)
 
     @property
@@ -437,6 +445,11 @@ class LineGraphLayer:
     @property
     def stroke_width(self) -> float:
         return self.__stroke_width
+
+    @property
+    def plot_kind(self) -> str:
+        """Return how the line plot draws the layer, one of PLOT_KINDS."""
+        return self.__plot_kind
 
     @property
     def axes(self) -> typing.Optional[LineGraphAxes]:
@@ -665,7 +678,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                             intensity_calibration = xdata.intensity_calibration
                             displayed_dimensional_calibration = xdata.dimensional_calibrations[-1]
                             xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width))
+                    line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width, display_layer.plot_kind))
                     self._has_valid_drawn_graph_data = xdata is not None
             self.__line_graph_layers = line_graph_layers
         return self.__line_graph_layers

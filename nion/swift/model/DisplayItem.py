@@ -1688,6 +1688,7 @@ class DisplayLayerInfo:
     stroke_color: str | None
     fill_color: str | None
     stroke_width: int | None
+    plot_kind: str | None = None
 
 
 @dataclasses.dataclass
@@ -2716,7 +2717,8 @@ class DisplayItem(Persistence.PersistentObject):
                 label=label,
                 stroke_color=display_layer.stroke_color,
                 fill_color=display_layer.fill_color,
-                stroke_width=display_layer.stroke_width
+                stroke_width=display_layer.stroke_width,
+                plot_kind=display_layer.plot_kind
             )
             display_layer_list.append(display_layer_info)
         return display_layer_list
