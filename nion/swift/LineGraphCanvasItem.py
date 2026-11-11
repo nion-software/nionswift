@@ -11,6 +11,7 @@ from __future__ import annotations
 # standard libraries
 import copy
 import dataclasses
+import enum
 import gettext
 import math
 import re
@@ -425,47 +426,53 @@ def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_conte
     return tuple()
 
 
+class LineGraphLayerPart(enum.Enum):
+    """The part of a layer which a layer canvas item draws."""
+    FILL = 0
+    STROKE = 1
+
+
 class LineGraphLayerCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, line_graph_layer: LinePlotDisplay.LineGraphLayer, is_fill: bool, drawing_metrics: UISettings.DrawingMetrics) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, line_graph_layer: LinePlotDisplay.LineGraphLayer, part: LineGraphLayerPart, drawing_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
         self.__line_graph_layer = line_graph_layer
-        self.__is_fill = is_fill
+        self.__part = part
         self.__drawing_metrics = drawing_metrics
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
         line_graph_layer = self.__line_graph_layer
-        if self.__is_fill:
-            cache_values.append(draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache))
-        else:
-            cache_values.append(draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache, self.__drawing_metrics))
+        match self.__part:
+            case LineGraphLayerPart.FILL:
+                cache_values.append(draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache))
+            case LineGraphLayerPart.STROKE:
+                cache_values.append(draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache, self.__drawing_metrics))
+            case _:
+                typing.assert_never(self.__part)
         self.__cache_values = cache_values
 
 
 class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
-    """Canvas item to draw the line plot layer by layer.
-
-    Draws the fills followed by the strokes.
-    """
+    """Canvas item to draw one part of a line plot layer."""
 
     def __init__(self, cache: CanvasItem.ComposerCache, drawing_metrics: UISettings.DrawingMetrics) -> None:
         super().__init__(cache)
         self.__line_graph_layer: typing.Optional[LinePlotDisplay.LineGraphLayer] = None
-        self.__is_fill = False
+        self.__part = LineGraphLayerPart.FILL
         self.__drawing_metrics = drawing_metrics
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         # the line graph can be in a partially updated state, so check if the layer is valid yet.
         if self.__line_graph_layer:
-            return LineGraphLayerCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__line_graph_layer, self.__is_fill, self.__drawing_metrics)
+            return LineGraphLayerCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__line_graph_layer, self.__part, self.__drawing_metrics)
         else:
             return CanvasItem.EmptyCanvasItemComposer(self, self.layout_sizing, composer_cache)
 
-    def update_line_graph_layer(self, line_graph_layer: LinePlotDisplay.LineGraphLayer, is_fill: bool) -> None:
-        if self.__line_graph_layer != line_graph_layer or self.__is_fill != is_fill:
+    def update_line_graph_layer(self, line_graph_layer: LinePlotDisplay.LineGraphLayer, part: LineGraphLayerPart) -> None:
+        if self.__line_graph_layer != line_graph_layer or self.__part != part:
             self.__line_graph_layer = line_graph_layer
-            self.__is_fill = is_fill
+            self.__part = part
             self.update()
 
     @property
@@ -503,7 +510,7 @@ class LineGraphLayersCanvasItemCompositionComposer(CanvasItem.CanvasItemComposit
 class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
     """Canvas item to draw the line plot layer by layer.
 
-    Draws the fills followed by the strokes.
+    Draws each part of every layer before the next part, in the order of LineGraphLayerPart.
     """
 
     def __init__(self, drawing_metrics: UISettings.DrawingMetrics) -> None:
@@ -523,22 +530,21 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
 
     def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LinePlotDisplay.LineGraphLayer]) -> None:
         line_graph_layers = list(line_graph_layers)
-        while len(self.canvas_items) < len(line_graph_layers) * 2:
+        canvas_item_count = len(line_graph_layers) * len(LineGraphLayerPart)
+        while len(self.canvas_items) < canvas_item_count:
             # this method is being called as part of 'will_repaint' functionality, which will update the owner thread
             # of the new line graph layer canvas item. see ThreadedCanvasItem.__call_will_repaint. until then, the owner
             # thread of the new canvas item will be the current thread.
             self.add_canvas_item(LineGraphLayerCanvasItem(self.__cache, self.__drawing_metrics))
-        while len(self.canvas_items) > len(line_graph_layers) * 2:
+        while len(self.canvas_items) > canvas_item_count:
             # the line graph layer canvas items will have a mismatched owner thread. explicitly set the owner thread
             # to the current thread to avoid warnings in remove_canvas_item about mismatched threads.
             self.canvas_items[-1]._set_owner_thread(threading.current_thread())
             self.remove_canvas_item(self.canvas_items[-1])
-        for canvas_item, line_graph_layer in zip(self.canvas_items[:len(line_graph_layers)], line_graph_layers):
-            line_graph_layer_canvas_item = typing.cast(LineGraphLayerCanvasItem, canvas_item)
-            line_graph_layer_canvas_item.update_line_graph_layer(line_graph_layer, True)
-        for canvas_item, line_graph_layer in zip(self.canvas_items[len(line_graph_layers):], line_graph_layers):
-            line_graph_layer_canvas_item = typing.cast(LineGraphLayerCanvasItem, canvas_item)
-            line_graph_layer_canvas_item.update_line_graph_layer(line_graph_layer, False)
+        for part_index, part in enumerate(LineGraphLayerPart):
+            for canvas_item, line_graph_layer in zip(self.canvas_items[part_index * len(line_graph_layers):], line_graph_layers):
+                line_graph_layer_canvas_item = typing.cast(LineGraphLayerCanvasItem, canvas_item)
+                line_graph_layer_canvas_item.update_line_graph_layer(line_graph_layer, part)
 
     def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
         return LineGraphLayersCanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self.__display_frame_rate_id)
