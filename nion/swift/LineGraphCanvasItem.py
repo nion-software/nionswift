@@ -24,7 +24,6 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import DataAndMetadata
-from nion.data import Image
 from nion.swift import MimeTypes
 from nion.swift import Undo
 from nion.swift.model import DisplayItem
@@ -136,11 +135,32 @@ class LineGraphSegment:
             drawing_context.stroke()
 
 
+def rebin_1d(src: _NDArray, length: int) -> _NDArray:
+    """Return the data shrunk or expanded to the length.
+
+    Shrunk data averages the channels each bin overlaps, weighted by the overlap, and a bin which overlaps a NaN is NaN.
+    Expanded data repeats each channel.
+    """
+    src_length = src.shape[0]
+    if length < src_length:
+        ix, iy = numpy.meshgrid(numpy.linspace(0, src_length - 1, src_length), numpy.linspace(0, length - 1, length))
+        s1 = (iy + 1) * float(src_length) / length - ix
+        s2 = s1[::-1, ::-1]
+        w = numpy.clip(s1, 0.0, 1.0) * numpy.clip(s2, 0.0, 1.0)
+        weighted_src = w * src
+        # a nan propagates only into a bin which it overlaps.
+        weighted_src[w == 0] = 0
+        return typing.cast(_NDArray, numpy.sum(weighted_src, axis=1) * length / src_length)
+    result: _NDArray = numpy.empty((length,), dtype=numpy.double)
+    index = (numpy.arange(length) * src_length / length).astype(numpy.int32)
+    result[:] = src[index]
+    return result
+
+
 def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
                          scaled_xdata: DataAndMetadata.DataAndMetadata, scaled_data_min: float,
                          scaled_data_range: float, calibrated_left_channel: float, calibrated_right_channel: float,
                          line_graph_x_calibration: Calibration.Calibration,
-                         rebin_cache: typing.Optional[typing.Dict[str, typing.Any]],
                          axis_scale: LinePlotDisplay.AxisScale) -> typing.Tuple[typing.List[LineGraphSegment], int]:
     """Calculate the line graph segments for the given parameters.
 
@@ -201,7 +221,7 @@ def calculate_line_graph(plot_height: int, plot_width: int, plot_origin_y: int, 
         binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_visible_width)
         did_draw = False
         if binned_length > 0:
-            binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
+            binned_data = rebin_1d(calibrated_data, binned_length)
             binned_data_is_nan = numpy.isnan(binned_data)
             binned_left = int(uncalibrated_visible_left_channel * plot_width / uncalibrated_visible_width)
             # draw the plot
@@ -372,7 +392,7 @@ class SegmentsCacheItem:
                                                           scaled_data_min, scaled_data_range,
                                                           calibrated_left_channel,
                                                           calibrated_right_channel, x_calibration,
-                                                          None, axes.axis_scale)
+                                                          axes.axis_scale)
         return segments, baseline
 
 

@@ -175,7 +175,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data[3:] = range(3,16,1)
         segments, baseline = LineGraphCanvasItem.calculate_line_graph(
             100, 32, 0, 0, DataAndMetadata.new_data_and_metadata(data),
-            0, 16, 0, 16, Calibration.Calibration(), None, LinePlotDisplay._get_axis_scale("linear")
+            0, 16, 0, 16, Calibration.Calibration(), LinePlotDisplay._get_axis_scale("linear")
         )
         self.assertEqual(2, len(segments))
         # make a rough check to ensure that the first segment is minimal; and the second one has some content.
