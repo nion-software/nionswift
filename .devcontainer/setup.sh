@@ -3,7 +3,7 @@ set -euxo pipefail
 
 REPOS="nionutils niondata nionui nionswift-io nionswift nionswift-instrumentation-kit nionswift-usim"
 
-DEPS="numpy scipy tzlocal h5py imageio pillow pytz tifffile types-pytz types-tzlocal"
+DEPS="babel numpy scipy tzlocal h5py imageio pillow pytz tifffile types-pytz types-tzlocal"
 
 cd /workspaces
 for r in $REPOS; do

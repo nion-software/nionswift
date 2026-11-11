@@ -89,4 +89,4 @@ Links
 
 ..
   Docs environment:
-  conda create -n docs pip sphinx scipy h5py imageio pytz tzlocal pillow
+  conda create -n docs pip babel sphinx scipy h5py imageio pytz tzlocal pillow

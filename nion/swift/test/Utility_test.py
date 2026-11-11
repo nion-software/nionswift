@@ -1,4 +1,5 @@
 import contextvars
+import datetime
 import io
 import json
 import os
@@ -18,6 +19,39 @@ class TestUtilityClass(unittest.TestCase):
 
     def tearDown(self):
         Utility.tzlocal.get_localzone = self.__get_localzone
+
+    def test_format_date_time_uses_the_clock_of_the_locale(self):
+        local_datetime = datetime.datetime(2026, 11, 9, 14, 5, 3)
+        self.assertTrue(Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.TIME, "en_US").startswith("2:05"))
+        self.assertTrue(Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.TIME, "en_GB").startswith("14:05"))
+
+    def test_format_date_time_shows_only_the_parts_of_each_form(self):
+        local_datetime = datetime.datetime(2026, 11, 9, 14, 5, 3)
+        self.assertNotIn("03", Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.TIME, "en_GB"))
+        self.assertIn("03", Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.TIME_WITH_SECONDS, "en_GB"))
+        month_day_str = Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.MONTH_DAY, "en_GB")
+        self.assertIn("9", month_day_str)
+        self.assertNotIn("2026", month_day_str)
+        self.assertNotIn("14", month_day_str)
+        year_month_str = Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.YEAR_MONTH, "en_GB")
+        self.assertIn("2026", year_month_str)
+        self.assertIn("11", year_month_str)
+        self.assertNotIn("9", year_month_str)
+
+    def test_locale_name_from_locale_conf_prefers_the_time_locale(self):
+        self.assertEqual("en_GB.UTF-8", Utility.get_locale_name_from_locale_conf('# system locale\nLANG="en_US.UTF-8"\nLC_TIME=en_GB.UTF-8\n'))
+        self.assertEqual("de_DE.UTF-8", Utility.get_locale_name_from_locale_conf("LANG=de_DE.UTF-8\n"))
+        self.assertIsNone(Utility.get_locale_name_from_locale_conf("# no locale set\n"))
+
+    def test_format_date_time_reads_a_locale_name_with_hyphens(self):
+        local_datetime = datetime.datetime(2026, 11, 9, 14, 5, 3)
+        self.assertEqual(Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.TIME, "zh_Hans_CN"),
+                         Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.TIME, "zh-Hans_CN"))
+
+    def test_format_date_time_formats_an_unknown_locale_as_the_posix_locale(self):
+        local_datetime = datetime.datetime(2026, 11, 9, 14, 5, 3)
+        self.assertEqual(Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.TIME_WITH_SECONDS, "en_US_POSIX"),
+                         Utility.format_date_time(local_datetime, Utility.DateTimeFormatType.TIME_WITH_SECONDS, "xx_YY"))
 
     def test_backwards_compatibility_for_short_versions(self):
         self.assertEqual(Utility.compare_versions("1", "1.0.0"), 0)

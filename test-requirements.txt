@@ -7,6 +7,7 @@ git+https://github.com/nion-software/nionutils.git#egg=nionutils
 git+https://github.com/nion-software/nionui.git#egg=nionui
 git+https://github.com/nion-software/niondata.git#egg=niondata
 
+babel
 scipy
 numpy
 h5py
