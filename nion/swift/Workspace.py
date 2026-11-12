@@ -925,7 +925,7 @@ class Workspace:
             self.document_controller.push_undo_command(command)
         else:
             display_item = source_display_item if not source_details else None  # Prefer using the details over the display_item in the case of a panel drop
-            command = self.__replace_displayed_display_item(destination_display_panel, display_item)
+            command = self.__replace_displayed_display_item(destination_display_panel, display_item, source_details)
             self.document_controller.push_undo_command(command)
         return return_type
 
