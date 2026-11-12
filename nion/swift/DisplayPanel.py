@@ -197,10 +197,10 @@ class DisplayPanelOverlayCanvasItemComposer(CanvasItem.BaseComposer):
                 panel_height = (region_rect.height - (gap * (1 + vertical))) / vertical
                 if panel_width <= 0 or panel_height <= 0:
                     return  # If the panel is too small draw nothing
-                for h in range(0, horizontal):
-                    for v in range(0, vertical):
-                        panel_origin_x = region_rect.origin.x + gap + h * (gap + panel_width)
-                        panel_origin_y = region_rect.origin.y + gap + v * (gap + panel_height)
+                for column in range(0, horizontal):
+                    for row in range(0, vertical):
+                        panel_origin_x = region_rect.origin.x + gap + column * (gap + panel_width)
+                        panel_origin_y = region_rect.origin.y + gap + row * (gap + panel_height)
                         drawing_context.rect(panel_origin_x, panel_origin_y, panel_width, panel_height)
 
             def draw_drop_region(region_rect: Geometry.IntRect, split: tuple[int, int] | None = None) -> None:

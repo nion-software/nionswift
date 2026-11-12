@@ -879,36 +879,39 @@ class Workspace:
     def handle_drop(self, destination_display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, region: str, x: int, y: int) -> str:
         """Handle dropping a display panel, display item(s), or external file(s) on a region of a display panel.
 
-        Uses the mime_data to determine the source which can be a display panel, display item or an external file dragged in.
-        The display panel will be split when the region is "left", "right", "top" or "bottom". If the region is "plus" then the display item being dragged is composited.
-        When dragging a display panel the interaction will move the panel contents into the destination, otherwise it will copy the display item into the destination.
+        Uses the mime_data to determine the source which can be a display panel, one or more display items, or one or more external files dragged in.
+        A single display item is placed in the destination. When the region is "left", "right", "top" or "bottom" the destination is split first.
+        If the region is "plus" then the display item being dragged is composited if supported.
+        Multiple display items, or multiple imported files, are placed in a grid of new panels which replaces the destination.
+        When the region is "left", "right", "top" or "bottom" the grid is placed beside the destination instead.
+        When dragging a display panel the interaction will move the panel contents into the destination, otherwise it will copy the display items into the destination.
         The replaced_display_panel_content is set on the "move" which will clear the source panel after the drop.
-        Returns "move" on success when dragging a display panel, or "copy" on success when dragging a display item or an external file, or "ignore" if the drop was not handled.
+        Returns "move" on success when dragging a display panel, "copy" on success when dragging display items or external files,
+        or "ignore" if the drop was not handled, such as when none of the dragged display items exist or none of the files could be imported.
         """
-        source_details: dict[str, typing.Any] | None = None
+        source_details: Persistence.PersistentDictType | None = None
         source_display_item: DisplayItem.DisplayItem | None = None
         source_display_items: list[DisplayItem.DisplayItem] = list()
-        return_type = "ignore"
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             source_display_item, source_details = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
-            return_type = "move"
         elif mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
             source_display_items = MimeTypes.mime_data_get_display_items(mime_data, self.document_model)
-            return_type = "copy"
         elif mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             source_display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
-            return_type = "copy"
         elif mime_data.has_format("text/uri-list"):
             index = len(self.document_model.data_items)
             display_items = self.document_controller.receive_files(mime_data.file_paths, None, index)
-            if not display_items:
-                pass  # No items means receive files failed and the drop should be ignored
-            elif len(display_items) == 1:
+            if len(display_items) == 1:
                 source_display_item = display_items[0]
-                return_type = "copy"
-            elif len(display_items) > 1:
+            else:
                 source_display_items = list(display_items)
-                return_type = "copy"
+
+        if source_details is not None:
+            return_type = "move"
+        elif source_display_item or source_display_items:
+            return_type = "copy"
+        else:
+            return "ignore"  # The dragged display items no longer exist or no files were imported
 
         if return_type == "ignore":
             return return_type  # The drop was unhandled so return early
@@ -1176,12 +1179,12 @@ class Workspace:
 
         return columns_ceil, rows_ceil
 
-    def split_panel_and_insert_display_items(self, display_panel: DisplayPanel.DisplayPanel, display_items: typing.Sequence[DisplayItem.DisplayItem], region: str = 'middle') -> None:
+    def split_panel_and_insert_display_items(self, display_panel: DisplayPanel.DisplayPanel, display_items: typing.Sequence[DisplayItem.DisplayItem], region: str = "middle") -> None:
         """Split the display panel into a grid that fits the display items, then populate the new panels with the display items.
 
         If the region is provided with left, right, top or bottom then the panel will be split in half first before continuing the split and insert on the corresponding panel.
         """
-        if region in ('left', 'right', 'top', 'bottom'):  # Insert an empty panel, then use that to split and insert into
+        if region in ("left", "right", "top", "bottom"):  # Insert an empty panel, then use that to split and insert into
             _, new_display_panel = self._insert_display_panel(display_panel, region, None, None, None, None)
             assert new_display_panel
             display_panel = new_display_panel
