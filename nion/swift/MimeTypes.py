@@ -148,11 +148,11 @@ def mime_data_put_panel(mime_data: UserInterface.MimeData, display_item: typing.
 
 
 def mime_data_get_number_of_items(mime_data: UserInterface.MimeData) -> int:
-    """Gets the number of display items add the number of filepaths"""
+    """Return the number of display items and file paths in the mime data."""
     number_of_items = 0
     if mime_data.has_format(DISPLAY_ITEMS_MIME_TYPE):
-        data_sources_mime_data = json.loads(mime_data.data_as_string(DISPLAY_ITEMS_MIME_TYPE))
-        number_of_items += len(data_sources_mime_data)
+        display_items_mime_data = json.loads(mime_data.data_as_string(DISPLAY_ITEMS_MIME_TYPE))
+        number_of_items += len(display_items_mime_data)
     if mime_data.has_format(DISPLAY_ITEM_MIME_TYPE):
         number_of_items += 1
     if mime_data.file_paths:
