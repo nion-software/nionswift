@@ -6,6 +6,7 @@ import copy
 import math
 import operator
 import typing
+import uuid
 
 # third party libraries
 import numpy
@@ -23,6 +24,7 @@ from nion.swift.model import LinePlotDisplay
 from nion.swift.model import UISettings
 from nion.ui import CanvasItem
 from nion.utils import Geometry
+from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
     from nion.swift import Undo
@@ -247,7 +249,12 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         self.__pending_interval: typing.Optional[Graphics.IntervalGraphic] = None
 
+        # the graphics, the selection, and the mapping at the last update of the canvas items. only the render thread uses it.
+        self.__hover_key: tuple[tuple[tuple[uuid.UUID, int], ...], frozenset[int], float, tuple[float, float] | None, Geometry.IntRect | None] | None = None
+
     def close(self) -> None:
+        # a hovered graphic part update which the render thread queued may run after close.
+        self.__mouse_in = False
         if self.__undo_command:
             self.__undo_command.close()
             self.__undo_command = None
@@ -337,6 +344,46 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         # this goes at the end so that the previous values are still available to determine changes during the update.
         self.__last_line_plot_display_info = line_plot_display_info
+
+        # the graphics, the selection, or the mapping may change under a mouse which doesn't move. the hit test reads the
+        # graphics, so it runs on the main thread. reading the mouse state here may race with a mouse event, which finds
+        # the hovered graphic part itself.
+        axes = line_plot_display_info.axes
+        hover_key = (tuple((graphic_renderer.graphic_uuid, graphic_renderer.modified_count) for graphic_renderer in line_plot_display_info.graphic_renderers),
+                     frozenset(line_plot_display_info.graphic_selection.indexes), line_plot_display_info.data_scale,
+                     (axes.drawn_left_channel, axes.drawn_right_channel) if axes else None, self.__get_plot_rect())
+        if hover_key != self.__hover_key:
+            self.__hover_key = hover_key
+            if self.__mouse_in and (event_loop := self.event_loop):
+                event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(LinePlotCanvasItem.__update_hovered_graphic_part_at_last_mouse, self))
+
+    def __update_hovered_graphic_part_at_last_mouse(self) -> None:
+        if self.__mouse_in and self.__last_mouse:
+            self.__update_hovered_graphic_part(self.__last_mouse)
+
+    def __update_hovered_graphic_part(self, mouse_pos: Geometry.IntPoint | None) -> None:
+        # the hovered graphic part doesn't change while a press is tracked.
+        if self.__tracking_selections or self.__tracking_horizontal or self.__tracking_vertical:
+            return
+        hovered_graphic_part: Graphics.HoveredGraphicPart | None = None
+        delegate = self.delegate
+        # the display info is replaced on a thread, so read it once.
+        line_plot_display_info = self.__line_plot_display_info
+        regions_canvas_bounds = self.__line_graph_regions_canvas_item.canvas_bounds
+        if self.__mouse_in and mouse_pos is not None and delegate and delegate.tool_mode == "pointer" and self.__last_axes and regions_canvas_bounds:
+            # a press tracks the graphics only within the plot.
+            if regions_canvas_bounds.contains_point(self.map_to_canvas_item(mouse_pos, self.__line_graph_regions_canvas_item)):
+                # a press tests the graphics of the display info, so test the same ones.
+                graphics = line_plot_display_info.graphics
+                if part_spec := find_graphic_part(graphics, line_plot_display_info.graphic_selection.indexes, self.__get_mouse_mapping(), self.__drawing_metrics, self.display_style, mouse_pos.to_float_point()):
+                    graphic_index, part = part_spec
+                    hovered_graphic_part = Graphics.HoveredGraphicPart(graphics[graphic_index].uuid, part)
+        self.__line_graph_regions_canvas_item.hovered_graphic_part = hovered_graphic_part
+
+    @property
+    def hovered_graphic_part(self) -> Graphics.HoveredGraphicPart | None:
+        """Return the hovered graphic part, or None if there is none."""
+        return self.__line_graph_regions_canvas_item.hovered_graphic_part
 
     def set_focused(self, is_focused: bool) -> None:
         self.__line_graph_regions_canvas_item.set_is_focused(is_focused)
@@ -445,6 +492,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if super().mouse_exited():
             return True
         self.__mouse_in = False
+        self.__update_hovered_graphic_part(None)
         if self.delegate:  # allow display to work without delegate
             # whenever the cursor exits, clear the cursor display
             self.delegate.cursor_changed(None)
@@ -508,6 +556,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         elif delegate and delegate.tool_mode == "interval":
             self.cursor_shape = "cross"
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
+        self.__update_hovered_graphic_part(self.__last_mouse)
         if self.delegate:
             self.delegate.cursor_changed(self.cursor_position)
         new_rescale = modifiers.control
@@ -572,6 +621,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if delegate:
             delegate.end_mouse_tracking(self.__undo_command)
         self.__undo_command = None
+        self.__update_hovered_graphic_part(Geometry.IntPoint(x=x, y=y))
         return False
 
     def _mouse_dragged(self, start: float, end: float, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
@@ -625,13 +675,16 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.mouse_position_changed(last_mouse.x, last_mouse.y, key.modifiers)
         return True
 
+    def __get_plot_rect(self) -> Geometry.IntRect | None:
+        # the plot rect in the coordinates of this canvas item.
+        canvas_bounds = self.__line_graph_regions_canvas_item.canvas_bounds
+        return canvas_bounds.translated(self.__line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)) if canvas_bounds else None
+
     def __get_mouse_mapping(self) -> LinePlotCanvasItemMapping:
         line_plot_display_info = self.__line_plot_display_info
         data_scale = line_plot_display_info.data_scale
-        plot_origin = self.__line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-        canvas_bounds = self.__line_graph_regions_canvas_item.canvas_bounds
-        assert canvas_bounds
-        plot_rect = canvas_bounds.translated(plot_origin)
+        plot_rect = self.__get_plot_rect()
+        assert plot_rect
         axes = self.__last_axes
         left_channel = axes.drawn_left_channel if axes else 0
         right_channel = axes.drawn_right_channel if axes else 0
