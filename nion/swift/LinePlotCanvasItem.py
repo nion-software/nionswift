@@ -82,6 +82,24 @@ class LinePlotCanvasItemMapping(Graphics.CoordinateMappingLike):
         raise NotImplementedError()
 
 
+def find_graphic_part(graphics: typing.Sequence[Graphics.Graphic], selection_indexes: typing.AbstractSet[int], mapping: Graphics.CoordinateMappingLike,
+                      drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, pos: Geometry.FloatPoint) -> tuple[int, str] | None:
+    """Return the index of the graphic and the name of its part which a press of the pointer tool at a widget position grabs.
+
+    The first graphic which the position hits takes priority.
+
+    Returns None if a press at the position grabs no graphic.
+    """
+    multiple_items_selected = len(selection_indexes) > 1
+    for graphic_index, graphic in enumerate(graphics):
+        if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
+            move_only = graphic_index not in selection_indexes or multiple_items_selected
+            part, specific = graphic.test(mapping, drawing_metrics, display_style, pos, move_only)
+            if part:
+                return graphic_index, part
+    return None
+
+
 class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     """A canvas item to display a line plot.
 
@@ -633,35 +651,30 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             self.__tracking_selections = True
             graphics = self.__line_plot_display_info.graphics
             selection_indexes = graphic_selection.indexes
-            for graphic_index, graphic in enumerate(graphics):
-                if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
-                    already_selected = graphic_index in selection_indexes
-                    multiple_items_selected = len(selection_indexes) > 1
-                    move_only = not already_selected or multiple_items_selected
-                    widget_mapping = self.__get_mouse_mapping()
-                    part, specific = graphic.test(widget_mapping, self.__drawing_metrics, self.display_style, self.__graphic_drag_start_pos.to_float_point(), move_only)
-                    if part:
-                        # select item and prepare for drag
-                        self.graphic_drag_item_was_selected = already_selected
-                        delegate = self.delegate
-                        if delegate and not self.graphic_drag_item_was_selected:
-                            if modifiers.control:
-                                delegate.add_index_to_selection(graphic_index)
-                                selection_indexes.add(graphic_index)
-                            else:
-                                delegate.set_selection(graphic_index)
-                                selection_indexes.clear()
-                                selection_indexes.add(graphic_index)
-                        # keep track of info for the specific item that was clicked
-                        self.__graphic_drag_item = graphic
-                        self.__graphic_drag_part = part
-                        # keep track of drag information for each item in the set
-                        self.__graphic_drag_indexes = selection_indexes
-                        for index in self.__graphic_drag_indexes:
-                            graphic = graphics[index]
-                            self.__graphic_drag_items.append(graphic)
-                            self.__graphic_part_data[index] = graphic.begin_drag()
-                        break
+            part_spec = find_graphic_part(graphics, selection_indexes, self.__get_mouse_mapping(), self.__drawing_metrics, self.display_style, self.__graphic_drag_start_pos.to_float_point())
+            if part_spec is not None:
+                graphic_index, part = part_spec
+                already_selected = graphic_index in selection_indexes
+                # select item and prepare for drag
+                self.graphic_drag_item_was_selected = already_selected
+                delegate = self.delegate
+                if delegate and not self.graphic_drag_item_was_selected:
+                    if modifiers.control:
+                        delegate.add_index_to_selection(graphic_index)
+                        selection_indexes.add(graphic_index)
+                    else:
+                        delegate.set_selection(graphic_index)
+                        selection_indexes.clear()
+                        selection_indexes.add(graphic_index)
+                # keep track of info for the specific item that was clicked
+                self.__graphic_drag_item = graphics[graphic_index]
+                self.__graphic_drag_part = part
+                # keep track of drag information for each item in the set
+                self.__graphic_drag_indexes = selection_indexes
+                for index in self.__graphic_drag_indexes:
+                    graphic = graphics[index]
+                    self.__graphic_drag_items.append(graphic)
+                    self.__graphic_part_data[index] = graphic.begin_drag()
 
     def begin_tracking_horizontal(self, pos: Geometry.IntPoint, rescale: bool) -> None:
         plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
