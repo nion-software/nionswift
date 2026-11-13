@@ -675,9 +675,19 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__drawing_metrics = drawing_metrics
         self.__display_style = display_style
 
+        self.__hovered_graphic_part: Graphics.HoveredGraphicPart | None = None
+
     @property
     def _axes(self) -> LinePlotDisplay.LineGraphAxes | None:  # for testing only
         return self.__axes
+
+    @property
+    def hovered_graphic_part(self) -> Graphics.HoveredGraphicPart | None:
+        return self.__hovered_graphic_part
+
+    @hovered_graphic_part.setter
+    def hovered_graphic_part(self, value: Graphics.HoveredGraphicPart | None) -> None:
+        self.__hovered_graphic_part = value
 
     def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LinePlotDisplay.LineGraphLayer]) -> None:
         axes = line_graph_layers[0].axes if line_graph_layers else None

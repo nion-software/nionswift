@@ -1911,6 +1911,109 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.remove_graphic(display_item.graphics[1]).close()
             self.assertEqual(1, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
 
+    def test_line_plot_mouse_over_end_of_interval_hovers_its_end(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        region = Graphics.IntervalGraphic()
+        region.start = 0.3
+        region.end = 0.4
+        self.display_item.add_graphic(region)
+        line_plot_canvas_item.mouse_entered()
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.4), 100, CanvasItem.KeyboardModifiers())
+        self.assertEqual(Graphics.HoveredGraphicPart(region.uuid, "end"), line_plot_canvas_item.hovered_graphic_part)
+
+    def test_line_plot_mouse_over_horizontal_axis_does_not_hover_interval_above_it(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        region = Graphics.IntervalGraphic()
+        region.start = 0.3
+        region.end = 0.4
+        self.display_item.add_graphic(region)
+        axis_canvas_item = line_plot_canvas_item.line_graph_horizontal_axis_group_canvas_item
+        axis_y = axis_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item).y + axis_canvas_item.canvas_bounds.height // 2
+        line_plot_canvas_item.mouse_entered()
+        # a press on the axis drags the axis, so the interval above it isn't hovered
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.35), axis_y, CanvasItem.KeyboardModifiers())
+        self.assertIsNone(line_plot_canvas_item.hovered_graphic_part)
+
+    def test_line_plot_interval_moving_away_from_still_mouse_is_no_longer_hovered(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        region = Graphics.IntervalGraphic()
+        region.start = 0.3
+        region.end = 0.4
+        self.display_item.add_graphic(region)
+        line_plot_canvas_item.mouse_entered()
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.35), 100, CanvasItem.KeyboardModifiers())
+        self.assertIsNotNone(line_plot_canvas_item.hovered_graphic_part)
+        region.interval = (0.6, 0.7)
+        line_plot_canvas_item.update_canvas_items()
+        self.document_controller.periodic()
+        self.assertIsNone(line_plot_canvas_item.hovered_graphic_part)
+
+    def test_line_plot_hovered_part_follows_plot_moving_under_still_mouse(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        self.display_item.display_layers[0].label = "A"
+        self.display_item.set_display_property("legend_position", "outer-right")
+        self.display_panel.refresh_layout_immediate()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        region = Graphics.IntervalGraphic()
+        region.start = 0.3
+        region.end = 0.4
+        self.display_item.add_graphic(region)
+        line_plot_canvas_item.update_canvas_items()
+        line_plot_canvas_item.mouse_entered()
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.4), 100, CanvasItem.KeyboardModifiers())
+        self.assertEqual(Graphics.HoveredGraphicPart(region.uuid, "end"), line_plot_canvas_item.hovered_graphic_part)
+        # moving the legend to the left moves the plot right without resizing it, so the mouse is now inside the interval
+        self.display_item.set_display_property("legend_position", "outer-left")
+        self.display_panel.refresh_layout_immediate()
+        line_plot_canvas_item.update_canvas_items()
+        self.document_controller.periodic()
+        self.assertEqual(Graphics.HoveredGraphicPart(region.uuid, "all"), line_plot_canvas_item.hovered_graphic_part)
+
+    def test_line_plot_dragging_end_of_interval_past_its_start_keeps_hovering_the_dragged_edge(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        region = Graphics.IntervalGraphic()
+        region.start = 0.3
+        region.end = 0.4
+        self.display_item.add_graphic(region)
+        modifiers = CanvasItem.KeyboardModifiers()
+        line_plot_canvas_item.mouse_entered()
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.4), 100, modifiers)
+        line_plot_canvas_item.mouse_pressed(plot_left + round(plot_width * 0.4), 100, modifiers)
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.2), 100, modifiers)
+        self.assertEqual(Graphics.HoveredGraphicPart(region.uuid, "end"), line_plot_canvas_item.hovered_graphic_part)
+        # the release swaps the start and the end, so the dragged edge is now the start
+        line_plot_canvas_item.mouse_released(plot_left + round(plot_width * 0.2), 100, modifiers)
+        self.assertEqual(Graphics.HoveredGraphicPart(region.uuid, "start"), line_plot_canvas_item.hovered_graphic_part)
+
+    def test_line_plot_mouse_exiting_clears_hovered_graphic_part(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        region = Graphics.IntervalGraphic()
+        region.start = 0.3
+        region.end = 0.4
+        self.display_item.add_graphic(region)
+        line_plot_canvas_item.mouse_entered()
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.35), 100, CanvasItem.KeyboardModifiers())
+        self.assertIsNotNone(line_plot_canvas_item.hovered_graphic_part)
+        line_plot_canvas_item.mouse_exited()
+        self.assertIsNone(line_plot_canvas_item.hovered_graphic_part)
+
     def test_dragging_to_create_interval_undo_redo_cycle(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
