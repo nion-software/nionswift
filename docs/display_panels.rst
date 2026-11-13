@@ -137,7 +137,7 @@ Line Plot Layers
 
 A line plot display can show multiple 1d data items in the same display.
 
-You can drag a line plot into the graph area of another line plot to create the layering. Each layer will have its own name, stroke color, fill color, and stroke width.
+You can drag a line plot into the graph area of another line plot to create the layering. Each layer will have its own name, stroke color, fill color, stroke width, dash, plot kind, and marker.
 
 Note: Layers will only be displayed if the calibrated units match the first data item in the line plot. This can be confusing.
 

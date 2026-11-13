@@ -181,6 +181,97 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         # each channel is two pixels wide, so the channel between the NaNs gives a run of two pixels.
         self.assertEqual([(2, 4), (6, 32)], [(run.starts[0], run.ends[-1]) for run in plot_points.runs])
 
+    def test_plot_points_are_at_the_centers_of_channels_wider_than_a_pixel(self):
+        # four values across 400 pixels give channels 100 pixels wide.
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.array([0.0, 1.0, 2.0, 3.0])),
+            0, 4, 0, 4, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual(100, plot_points.baseline)
+        self.assertEqual([[(0, 50, 100, 100), (100, 150, 200, 75), (200, 250, 300, 50), (300, 350, 400, 25)]],
+                         [list(zip(run.starts, run.xs, run.ends, run.ys)) for run in plot_points.runs])
+
+    def test_plot_points_of_channels_narrower_than_a_pixel_are_one_for_each_pixel(self):
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 100, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.linspace(0.0, 1.0, 1000)),
+            0, 1, 0, 1000, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([(100, 0, 100)], [(len(run.ys), run.starts[0], run.ends[-1]) for run in plot_points.runs])
+
+    def test_plot_points_are_split_where_a_value_is_nan_or_infinite(self):
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 500, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.array([0.0, numpy.nan, 2.0, numpy.inf, 4.0])),
+            0, 4, 0, 5, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([[50], [250], [450]], [list(run.xs) for run in plot_points.runs])
+
+    def test_plot_points_of_a_zoomed_view_include_the_channel_beyond_each_edge(self):
+        # the view of channels 1.3 to 2.7 across 140 pixels gives channels 100 pixels wide.
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 140, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.array([0.0, 1.0, 2.0, 3.0])),
+            0, 4, 1.3, 2.7, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([[-80, 20, 120, 220]], [[round(x) for x in run.xs] for run in plot_points.runs])
+
+    def test_line_plot_draws_values_it_does_not_know_as_defaults(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            document_model.append_data_item(DataItem.DataItem(numpy.arange(8.0)))
+            display_item = document_model.display_items[0]
+            display_layer = display_item.display_layers[0]
+            display_layer.plot_kind = "spline"
+            display_layer.marker_shape = "star"
+            display_layer.marker_size = 0.0
+            display_layer.stroke_dash = "dash_dot"
+            line_plot_display_info = LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info)
+            line_graph_layer = line_plot_display_info.line_graph_layers[0]
+            legend_entry = line_plot_display_info.legend_entries[0]
+            self.assertEqual(("step", "none", 6.0, "solid"), (line_graph_layer.plot_kind, line_graph_layer.marker_shape, line_graph_layer.marker_size, line_graph_layer.stroke_dash))
+            self.assertEqual(("step", "none", 6.0, "solid"), (legend_entry.plot_kind, legend_entry.marker_shape, legend_entry.marker_size, legend_entry.stroke_dash))
+            display_layer.marker_size = math.inf
+            self.assertEqual(6.0, LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info).line_graph_layers[0].marker_size)
+
+    def test_plot_points_of_data_with_a_negative_calibration_scale_are_in_channel_order(self):
+        # the axes count the calibrated values down from 4, and draw the channels from left to right, as the steps do.
+        calibration = Calibration.Calibration(4.0, -1.0, "eV")
+        xdata = DataAndMetadata.new_data_and_metadata(numpy.array([0.0, 1.0, 2.0, 3.0]), dimensional_calibrations=[calibration])
+        scaled_data_min, scaled_data_max, y_ticker = LinePlotDisplay.calculate_y_axis([xdata], None, None, None)
+        axes = LinePlotDisplay.LineGraphAxes(1.0, scaled_data_min, scaled_data_max, 0, 4, calibration, None, None, y_ticker)
+        scaled_xdata = LineGraphCanvasItem.MappedCalibratedDataAndMetadataCacheItem(xdata, axes).calculate()
+        run = LineGraphCanvasItem.ChannelPlotPointsCacheItem(scaled_xdata, axes, Geometry.IntRect.from_tlbr(0, 0, 100, 401)).calculate().runs[0]
+        self.assertEqual(([50, 150, 250, 350], sorted(run.ys, reverse=True)), (list(run.xs), list(run.ys)))
+
+    def test_plot_points_of_a_view_deep_inside_a_channel_put_its_center_at_its_place(self):
+        # a view a ten-billionth of a channel wide, centered in channel 10, puts that channel's edges far outside the plot.
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.arange(24.0)),
+            0, 24, 10.5 - 0.5e-10, 10.5 + 0.5e-10, LinePlotDisplay._get_axis_scale("linear"))
+        run = plot_points.runs[0]
+        self.assertAlmostEqual(200, run.xs[1], places=2)
+        self.assertTrue(run.starts[1] < 0 and run.ends[1] > 400)
+
+    def test_plot_points_outside_the_value_range_keep_their_height(self):
+        # a value of 100 on an axis to 1 is 99 plot heights above the top, and the drawing clips it.
+        plot_points = LineGraphCanvasItem.calculate_channel_plot_points(
+            100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.array([0.0, 100.0])),
+            0, 1, 0, 2, LinePlotDisplay._get_axis_scale("linear"))
+        self.assertEqual([[100, -9900]], [list(run.ys) for run in plot_points.runs])
+
+    def test_line_graph_layer_follows_changes_to_its_display_layer_plot_kind_and_style(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.arange(8.0))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            display_layer = display_item.display_layers[0]
+            line_graph_layers_canvas_item = display_panel.display_canvas_item.line_graph_layers_canvas_item
+            # change one property at a time, so that the drawn layer follows each one only if the layer compares it.
+            for name, value in (("plot_kind", "line"), ("marker_shape", "circle"), ("marker_size", 4.0), ("stroke_dash", "dashed")):
+                setattr(display_layer, name, value)
+                display_panel.display_canvas_item.update_canvas_items()
+                line_graph_layers = [typing.cast(LineGraphCanvasItem.LineGraphLayerCanvasItem, canvas_item)._line_graph_layer_for_testing for canvas_item in line_graph_layers_canvas_item.canvas_items]
+                self.assertEqual({value}, {getattr(line_graph_layer, name) for line_graph_layer in line_graph_layers if line_graph_layer}, name)
+
     def test_dragging_a_layer_without_a_fill_color_onto_another_legend_shows_it_there(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -200,6 +291,37 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             MimeTypes.mime_data_put_layer(mime_data, 0, source_display_item, legend_entry.label, legend_entry.fill_color, legend_entry.stroke_color)
             legend_canvas_item = display_panel.display_canvas_item._line_graph_legend_canvas_item_for_testing
             self.assertEqual("move", legend_canvas_item.drag_enter(mime_data))
+
+    def test_dropping_a_styled_layer_onto_another_legend_keeps_its_plot_kind_and_style(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            source_data_item = DataItem.DataItem(numpy.arange(8.0))
+            target_data_item = DataItem.DataItem(numpy.ones((8,)))
+            document_model.append_data_item(source_data_item)
+            document_model.append_data_item(target_data_item)
+            source_display_item = document_model.get_display_item_for_data_item(source_data_item)
+            source_display_layer = source_display_item.display_layers[0]
+            source_display_layer.plot_kind = "stem"
+            source_display_layer.marker_shape = "cross"
+            source_display_layer.marker_size = 4.0
+            source_display_layer.stroke_dash = "dashed"
+            target_display_item = document_model.get_display_item_for_data_item(target_data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(target_display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            # the legend puts the layer's legend entry into the mime data when the drag starts.
+            mime_data = TestUI.MimeData()
+            legend_entry = LinePlotDisplay.LinePlotDisplayInfo(source_display_item.display_info).legend_entries[0]
+            MimeTypes.mime_data_put_layer(mime_data, 0, source_display_item, legend_entry.label, legend_entry.fill_color, legend_entry.stroke_color,
+                                          legend_entry.plot_kind, legend_entry.marker_shape, legend_entry.marker_size, legend_entry.stroke_dash)
+            legend_canvas_item = display_panel.display_canvas_item._line_graph_legend_canvas_item_for_testing
+            legend_canvas_item.drag_enter(mime_data)
+            legend_canvas_item.drag_move(mime_data, 0, 0)
+            legend_canvas_item.drop(mime_data, 0, 0)
+            target_display_layer = target_display_item.display_layers[0]
+            self.assertEqual(("stem", "cross", 4.0, "dashed"),
+                             (target_display_layer.plot_kind, target_display_layer.marker_shape, target_display_layer.marker_size, target_display_layer.stroke_dash))
 
     def test_step_plot_of_a_view_starting_partway_into_a_channel_draws_each_channel_at_its_place(self):
         # the view of channels 2.5 to 22.5 across 400 pixels gives channels 20 pixels wide, so channel 3 starts at pixel 10.
@@ -244,6 +366,36 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             100, 400, 0, 0, DataAndMetadata.new_data_and_metadata(numpy.arange(24.0)),
             0, 24, 0.0, 1e-310, LinePlotDisplay._get_axis_scale("linear"))
         self.assertEqual([(0, 400, {100.0})], [(run.starts[0], run.ends[-1], set(run.ys)) for run in plot_points.runs])
+
+    def test_layers_draw_every_fill_then_every_stroke_then_every_marker(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.arange(8.0))
+            data_item2 = DataItem.DataItem(numpy.ones((8,)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(data_item2)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            line_graph_layers_canvas_item = display_panel.display_canvas_item.line_graph_layers_canvas_item
+            parts = [typing.cast(LineGraphCanvasItem.LineGraphLayerCanvasItem, canvas_item)._part_for_testing for canvas_item in line_graph_layers_canvas_item.canvas_items]
+            self.assertEqual([LineGraphCanvasItem.LineGraphLayerPart.FILL] * 2 + [LineGraphCanvasItem.LineGraphLayerPart.STROKE] * 2 + [LineGraphCanvasItem.LineGraphLayerPart.MARKERS] * 2, parts)
+
+    def test_legend_entries_give_how_each_layer_is_drawn(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            document_model.append_data_item(DataItem.DataItem(numpy.arange(8.0)))
+            display_item = document_model.display_items[0]
+            display_layer = display_item.display_layers[0]
+            display_layer.plot_kind = "line"
+            display_layer.marker_shape = "circle"
+            display_layer.marker_size = 4.0
+            display_layer.stroke_dash = "dashed"
+            legend_entry = LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info).legend_entries[0]
+            self.assertEqual(("line", "circle", 4.0, "dashed"), (legend_entry.plot_kind, legend_entry.marker_shape, legend_entry.marker_size, legend_entry.stroke_dash))
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup

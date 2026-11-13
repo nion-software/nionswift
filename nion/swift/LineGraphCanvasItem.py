@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 # standard libraries
+import contextlib
 import dataclasses
 import enum
 import functools
@@ -86,6 +87,11 @@ class PlotPointRun:
     ys: tuple[float, ...]
 
     @functools.cached_property
+    def xs(self) -> tuple[float, ...]:
+        """Return the horizontal center of each value."""
+        return tuple((start + end) / 2 for start, end in zip(self.starts, self.ends))
+
+    @functools.cached_property
     def step_path(self) -> DrawingContext.DrawingContext:
         """Return the steps of the run as a path, from the start of its first value to the end of its last.
 
@@ -112,9 +118,11 @@ class PlotPoints:
 
     runs: the runs of consecutive values without a NaN.
     baseline: the height of the axis origin.
+    clip_bounds: the bounds which clip the drawing, if any.
     """
     runs: tuple[PlotPointRun, ...]
     baseline: float
+    clip_bounds: Geometry.IntRect | None = None
 
 
 def rebin_1d(src: _NDArray, length: int) -> _NDArray:
@@ -192,7 +200,8 @@ def calculate_step_plot_points(plot_height: int, plot_width: int, plot_origin_y:
     # convert each value to a y coordinate held within the plot, where y grows downwards from plot_origin_y at the top.
     ys = numpy.clip(plot_origin_y + plot_height - (plot_height * (values - scaled_data_min) / scaled_data_range), plot_origin_y, plot_origin_y + plot_height)
     runs = [PlotPointRun(tuple(range(first_pixel + run_start, first_pixel + run_end)), tuple(range(first_pixel + run_start + 1, first_pixel + run_end + 1)),
-                         tuple(ys[run_start:run_end].tolist())) for run_start, run_end in get_run_edges(is_drawn)]
+                         tuple(ys[run_start:run_end].tolist()))
+            for run_start, run_end in get_run_edges(is_drawn)]
     return PlotPoints(tuple(runs), baseline)
 
 
@@ -221,6 +230,260 @@ def draw_step_stroke(drawing_context: DrawingContext.DrawingContext, plot_points
             drawing_context.line_width = scaled_stroke_width
             drawing_context.stroke_style = stroke_color.color_str
             drawing_context.stroke()
+
+
+def calculate_channel_plot_points(plot_height: int, plot_width: int, plot_origin_y: int, plot_origin_x: int,
+                                  scaled_xdata: DataAndMetadata.DataAndMetadata, scaled_data_min: float, scaled_data_range: float,
+                                  left_channel: float, right_channel: float, axis_scale: LinePlotDisplay.AxisScale) -> PlotPoints:
+    """Return the plot points of the visible values of the data at the centers of their channels.
+
+    left_channel and right_channel are the view's edges in the data's channels, and may be fractional or beyond the data.
+    When a channel is narrower than a pixel, the values give one point for each pixel. A height outside the plot keeps
+    its place, and the plot points clip the drawing to the plot. An infinite value breaks the run, as a NaN does.
+    """
+    # the plot includes the pixels at its far edges.
+    clip_bounds = Geometry.IntRect.from_tlhw(plot_origin_y, plot_origin_x, plot_height + 1, plot_width + 1)
+    if scaled_data_range == 0.0 or right_channel <= left_channel:
+        return PlotPoints(tuple(), 0.0, clip_bounds)
+    baseline = calculate_baseline(plot_height, plot_origin_y, scaled_data_min, scaled_data_range, axis_scale)
+    data = scaled_xdata._data_ex
+    # the channel beyond each edge of the view gives the line its direction at the edge.
+    first_channel = max(0, math.floor(left_channel) - 1)
+    end_channel = min(data.shape[-1], math.ceil(right_channel) + 1)
+    if first_channel >= end_channel:
+        return PlotPoints(tuple(), baseline, clip_bounds)
+
+    # return the pixel position of each channel coordinate.
+    def get_pixels(channels: _NDArray) -> _NDArray:
+        return plot_origin_x + plot_width * (channels - left_channel) / (right_channel - left_channel)
+
+    values = data[first_channel:end_channel]
+    # compute each channel's edges when channels are a pixel wide or more, and only the outer edges when they are narrower.
+    first_pixel, end_pixel = get_pixels(numpy.array([first_channel, end_channel], dtype=numpy.float64)).tolist()
+    pixel_count = round(abs(end_pixel - first_pixel))
+    if pixel_count < len(values):
+        values = rebin_1d(values, max(1, pixel_count))
+        edges = numpy.linspace(first_pixel, end_pixel, len(values) + 1)
+    else:
+        edges = get_pixels(numpy.arange(first_channel, end_channel + 1, dtype=numpy.float64))
+    ys = plot_origin_y + plot_height - plot_height * (values - scaled_data_min) / scaled_data_range
+    is_drawn = numpy.isfinite(ys)
+    runs = [PlotPointRun(tuple(edges[run_start:run_end].tolist()), tuple(edges[run_start + 1:run_end + 1].tolist()), tuple(ys[run_start:run_end].tolist()))
+            for run_start, run_end in get_run_edges(is_drawn)]
+    return PlotPoints(tuple(runs), baseline, clip_bounds)
+
+
+def add_line_path(drawing_context: DrawingContext.DrawingContext, run: PlotPointRun) -> None:
+    """Continue the path from the start of the run's first value along the line through the run to the end of its last."""
+    for x, y in zip(run.xs, run.ys):
+        drawing_context.line_to(x, y)
+    drawing_context.line_to(run.ends[-1], run.ys[-1])
+
+
+def draw_line_fill(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, fill_color: Color.Color) -> None:
+    """Fill the area between the line through each run and the baseline."""
+    baseline = plot_points.baseline
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        for run in plot_points.runs:
+            drawing_context.move_to(run.starts[0], baseline)
+            drawing_context.line_to(run.starts[0], run.ys[0])
+            add_line_path(drawing_context, run)
+            drawing_context.line_to(run.ends[-1], baseline)
+            drawing_context.close_path()
+        drawing_context.fill_style = fill_color.color_str
+        drawing_context.fill()
+
+
+def draw_line_stroke(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, stroke_color: Color.Color, scaled_stroke_width: float) -> None:
+    """Stroke the line through each run."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        for run in plot_points.runs:
+            drawing_context.move_to(run.starts[0], run.ys[0])
+            add_line_path(drawing_context, run)
+        drawing_context.line_width = scaled_stroke_width
+        drawing_context.stroke_style = stroke_color.color_str
+        drawing_context.stroke()
+
+
+def add_bar_paths(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints) -> None:
+    """Add a bar from the baseline to each value, across the value's span, to the path."""
+    for run in plot_points.runs:
+        for start, end, y in zip(run.starts, run.ends, run.ys):
+            drawing_context.rect(start, y, end - start, plot_points.baseline - y)
+
+
+def draw_bar_fill(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, fill_color: Color.Color) -> None:
+    """Fill the bars."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        add_bar_paths(drawing_context, plot_points)
+        drawing_context.fill_style = fill_color.color_str
+        drawing_context.fill()
+
+
+def draw_bar_stroke(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, stroke_color: Color.Color, scaled_stroke_width: float) -> None:
+    """Stroke the outline of the bars."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        add_bar_paths(drawing_context, plot_points)
+        drawing_context.line_width = scaled_stroke_width
+        drawing_context.stroke_style = stroke_color.color_str
+        drawing_context.stroke()
+
+
+def draw_stem_stroke(drawing_context: DrawingContext.DrawingContext, plot_points: PlotPoints, stroke_color: Color.Color, scaled_stroke_width: float) -> None:
+    """Stroke a stem from the baseline to each value, at the center of its span."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        for run in plot_points.runs:
+            for x, y in zip(run.xs, run.ys):
+                drawing_context.move_to(x, plot_points.baseline)
+                drawing_context.line_to(x, y)
+        drawing_context.line_width = scaled_stroke_width
+        drawing_context.stroke_style = stroke_color.color_str
+        drawing_context.stroke()
+
+
+def add_circle_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a circle marker of the size, with its center at the point."""
+    drawing_context.move_to(x + marker_size / 2, y)
+    drawing_context.arc(x, y, marker_size / 2, 0, 2 * math.pi)
+
+
+def add_square_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a square marker of the size, with its center at the point."""
+    drawing_context.rect(x - marker_size / 2, y - marker_size / 2, marker_size, marker_size)
+
+
+def add_diamond_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a diamond marker of the size, with its center at the point."""
+    half_size = marker_size / 2
+    drawing_context.move_to(x, y - half_size)
+    drawing_context.line_to(x + half_size, y)
+    drawing_context.line_to(x, y + half_size)
+    drawing_context.line_to(x - half_size, y)
+    drawing_context.close_path()
+
+
+def add_triangle_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a triangle marker of the size, with its center at the point."""
+    half_size = marker_size / 2
+    drawing_context.move_to(x, y - half_size)
+    drawing_context.line_to(x + half_size, y + half_size)
+    drawing_context.line_to(x - half_size, y + half_size)
+    drawing_context.close_path()
+
+
+def add_plus_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a plus marker of the size, with its center at the point."""
+    half_size = marker_size / 2
+    drawing_context.move_to(x - half_size, y)
+    drawing_context.line_to(x + half_size, y)
+    drawing_context.move_to(x, y - half_size)
+    drawing_context.line_to(x, y + half_size)
+
+
+def add_cross_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a cross marker of the size, with its center at the point."""
+    half_size = marker_size / 2
+    drawing_context.move_to(x - half_size, y - half_size)
+    drawing_context.line_to(x + half_size, y + half_size)
+    drawing_context.move_to(x - half_size, y + half_size)
+    drawing_context.line_to(x + half_size, y - half_size)
+
+
+def add_point_marker_path(drawing_context: DrawingContext.DrawingContext, x: float, y: float, marker_size: float) -> None:
+    """Add the path of a point marker of the size, with its center at the point."""
+    point_radius = max(1.0, marker_size / 6)
+    drawing_context.move_to(x + point_radius, y)
+    drawing_context.arc(x, y, point_radius, 0, 2 * math.pi)
+
+
+class MarkerPaint(enum.Enum):
+    """How the line plot paints the markers of a shape."""
+    # fill the marker in the fill color and outline it in the stroke color.
+    OUTLINED = 0
+    # stroke the marker in the stroke color, or else the fill color, since the shape has no inside.
+    LINES = 1
+    # fill the marker in the stroke color, or else the fill color, since the shape is too small to outline.
+    DOT = 2
+
+
+@dataclasses.dataclass(frozen=True)
+class MarkerShapeDrawing:
+    """How the line plot draws the markers of a shape.
+
+    add_marker_path: the function which adds the path of a marker of a size in pixels, with its center at a point.
+    paint: how the line plot paints the markers.
+    """
+    add_marker_path: typing.Callable[[DrawingContext.DrawingContext, float, float, float], None]
+    paint: MarkerPaint
+
+
+# the drawing of each of LinePlotDisplay.MARKER_SHAPES other than none.
+MARKER_SHAPE_DRAWINGS: typing.Mapping[str, MarkerShapeDrawing] = {
+    "circle": MarkerShapeDrawing(add_circle_marker_path, MarkerPaint.OUTLINED),
+    "square": MarkerShapeDrawing(add_square_marker_path, MarkerPaint.OUTLINED),
+    "diamond": MarkerShapeDrawing(add_diamond_marker_path, MarkerPaint.OUTLINED),
+    "triangle": MarkerShapeDrawing(add_triangle_marker_path, MarkerPaint.OUTLINED),
+    "plus": MarkerShapeDrawing(add_plus_marker_path, MarkerPaint.LINES),
+    "cross": MarkerShapeDrawing(add_cross_marker_path, MarkerPaint.LINES),
+    "point": MarkerShapeDrawing(add_point_marker_path, MarkerPaint.DOT),
+}
+
+
+def draw_marker_shapes(drawing_context: DrawingContext.DrawingContext, marker_shape: str, centers: typing.Iterable[tuple[float, float]], marker_size: float,
+                       fill_color: Color.Color | None, stroke_color: Color.Color | None, scaled_stroke_width: float) -> None:
+    """Draw a marker of the shape, other than none, and of the size in pixels at each center."""
+    marker_shape_drawing = MARKER_SHAPE_DRAWINGS[marker_shape]
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        for x, y in centers:
+            marker_shape_drawing.add_marker_path(drawing_context, x, y, marker_size)
+        match marker_shape_drawing.paint:
+            case MarkerPaint.OUTLINED:
+                if fill_color:
+                    drawing_context.fill_style = fill_color.color_str
+                    drawing_context.fill()
+                if stroke_color:
+                    drawing_context.line_width = scaled_stroke_width
+                    drawing_context.stroke_style = stroke_color.color_str
+                    drawing_context.stroke()
+            case MarkerPaint.LINES:
+                if line_color := stroke_color or fill_color:
+                    drawing_context.line_width = scaled_stroke_width
+                    drawing_context.stroke_style = line_color.color_str
+                    drawing_context.stroke()
+            case MarkerPaint.DOT:
+                if dot_color := stroke_color or fill_color:
+                    drawing_context.fill_style = dot_color.color_str
+                    drawing_context.fill()
+            case _:
+                typing.assert_never(marker_shape_drawing.paint)
+
+
+@contextlib.contextmanager
+def clip_to_bounds(drawing_context: DrawingContext.DrawingContext, clip_bounds: Geometry.IntRect | None) -> typing.Iterator[None]:
+    """Clip the drawing within the context to the bounds, if there are bounds."""
+    if clip_bounds is not None:
+        with drawing_context.saver():
+            drawing_context.clip_rect(clip_bounds.left, clip_bounds.top, clip_bounds.width, clip_bounds.height)
+            yield
+    else:
+        yield
+
+
+@contextlib.contextmanager
+def dash_lines(drawing_context: DrawingContext.DrawingContext, line_dash: float) -> typing.Iterator[None]:
+    """Dash the context's lines with the dash length, if it isn't zero."""
+    if line_dash:
+        with drawing_context.saver():
+            drawing_context.line_dash = line_dash
+            yield
+    else:
+        yield
 
 
 def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int, plot_origin_x: int, plot_origin_y: int, plot_width: int, drawing_metrics: UISettings.DrawingMetrics) -> None:
@@ -311,10 +574,12 @@ class MappedCalibratedDataAndMetadataCacheItem:
 
 
 @dataclasses.dataclass(frozen=True)
-class StepPlotPointsCacheItem:
-    """The step plot points of a layer's data, cached for the layer's parts.
+class PlotPointsCacheItem:
+    """A cache item which calculates the plot points of a layer's data, which the layer's parts share.
 
-    scaled_xdata: the layer's data, scaled for the axes.
+    A subclass decides where the points go.
+
+    scaled_xdata: the layer's data in the axes' scale.
     axes: the axes of the line plot.
     canvas_bounds: the plot area.
     """
@@ -328,7 +593,6 @@ class StepPlotPointsCacheItem:
     def calculate(self) -> PlotPoints:
         scaled_xdata = self.scaled_xdata
         axes = self.axes
-        canvas_bounds = self.canvas_bounds
         x_calibration = axes.x_calibration if axes else None
         if scaled_xdata is not None and axes and x_calibration and x_calibration.units == scaled_xdata.dimensional_calibrations[-1].units:
             data_calibration = scaled_xdata.dimensional_calibrations[-1]
@@ -336,41 +600,165 @@ class StepPlotPointsCacheItem:
             # data with the graph's calibration.
             offset = (x_calibration.offset - data_calibration.offset) / data_calibration.scale
             scale = x_calibration.scale / data_calibration.scale
-            left_channel = offset + scale * axes.drawn_left_channel
-            right_channel = offset + scale * axes.drawn_right_channel
-            return calculate_step_plot_points(canvas_bounds.height - 1, canvas_bounds.width - 1, canvas_bounds.top, canvas_bounds.left, scaled_xdata,
-                                              axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min, left_channel, right_channel, axes.axis_scale)
+            return self._calculate_plot_points(scaled_xdata, axes, offset + scale * axes.drawn_left_channel, offset + scale * axes.drawn_right_channel)
         return PlotPoints(tuple(), 0.0)
 
+    def _calculate_plot_points(self, scaled_xdata: DataAndMetadata.DataAndMetadata, axes: LinePlotDisplay.LineGraphAxes, left_channel: float, right_channel: float) -> PlotPoints:
+        raise NotImplementedError()
 
-def get_plot_points(line_graph_layer: LinePlotDisplay.LineGraphLayer, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> tuple[PlotPoints, tuple[CanvasItem.CacheValue, ...]]:
+
+@dataclasses.dataclass(frozen=True)
+class StepPlotPointsCacheItem(PlotPointsCacheItem):
+    """A cache item which calculates the step plot points of a layer's data."""
+
+    def _calculate_plot_points(self, scaled_xdata: DataAndMetadata.DataAndMetadata, axes: LinePlotDisplay.LineGraphAxes, left_channel: float, right_channel: float) -> PlotPoints:
+        canvas_bounds = self.canvas_bounds
+        return calculate_step_plot_points(canvas_bounds.height - 1, canvas_bounds.width - 1, canvas_bounds.top, canvas_bounds.left, scaled_xdata,
+                                          axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min, left_channel, right_channel, axes.axis_scale)
+
+
+@dataclasses.dataclass(frozen=True)
+class ChannelPlotPointsCacheItem(PlotPointsCacheItem):
+    """A cache item which calculates the plot points of a layer's data at the centers of its channels."""
+
+    def _calculate_plot_points(self, scaled_xdata: DataAndMetadata.DataAndMetadata, axes: LinePlotDisplay.LineGraphAxes, left_channel: float, right_channel: float) -> PlotPoints:
+        canvas_bounds = self.canvas_bounds
+        return calculate_channel_plot_points(canvas_bounds.height - 1, canvas_bounds.width - 1, canvas_bounds.top, canvas_bounds.left, scaled_xdata,
+                                             axes.scaled_data_min, axes.scaled_data_max - axes.scaled_data_min, left_channel, right_channel, axes.axis_scale)
+
+
+@dataclasses.dataclass(frozen=True)
+class PlotKindDrawing:
+    """How the line plot draws the layers of a plot kind.
+
+    plot_points_cache_item_type: the cache item which calculates the plot points of a layer.
+    draw_fill: the function which fills the plot points, or None for a plot kind without a fill.
+    draw_stroke: the function which strokes the plot points, or None for a plot kind without a stroke.
+    """
+    plot_points_cache_item_type: type[PlotPointsCacheItem]
+    draw_fill: typing.Callable[[DrawingContext.DrawingContext, PlotPoints, Color.Color], None] | None
+    draw_stroke: typing.Callable[[DrawingContext.DrawingContext, PlotPoints, Color.Color, float], None] | None
+
+
+# the drawing of each of LinePlotDisplay.PLOT_KINDS.
+PLOT_KIND_DRAWINGS: typing.Mapping[str, PlotKindDrawing] = {
+    "step": PlotKindDrawing(StepPlotPointsCacheItem, draw_step_fill, draw_step_stroke),
+    "line": PlotKindDrawing(ChannelPlotPointsCacheItem, draw_line_fill, draw_line_stroke),
+    "bar": PlotKindDrawing(ChannelPlotPointsCacheItem, draw_bar_fill, draw_bar_stroke),
+    "stem": PlotKindDrawing(ChannelPlotPointsCacheItem, None, draw_stem_stroke),
+    "none": PlotKindDrawing(ChannelPlotPointsCacheItem, None, None),
+}
+
+
+def get_plot_points(line_graph_layer: LinePlotDisplay.LineGraphLayer, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache,
+                    plot_points_cache_item_type: type[PlotPointsCacheItem]) -> tuple[PlotPoints, tuple[CanvasItem.CacheValue, ...]]:
     """Return the plot points of the layer, and the cache values which hold them."""
     scaled_xdata_cache_value = composer_cache.get_cache_value(MappedCalibratedDataAndMetadataCacheItem(line_graph_layer.xdata, line_graph_layer.axes))
     scaled_xdata = typing.cast(typing.Optional[DataAndMetadata.DataAndMetadata], scaled_xdata_cache_value.value)
-    plot_points_cache_value = composer_cache.get_cache_value(StepPlotPointsCacheItem(scaled_xdata, line_graph_layer.axes, canvas_bounds))
+    plot_points_cache_value = composer_cache.get_cache_value(plot_points_cache_item_type(scaled_xdata, line_graph_layer.axes, canvas_bounds))
     return typing.cast(PlotPoints, plot_points_cache_value.value), (scaled_xdata_cache_value, plot_points_cache_value)
 
 
+def get_line_dash(stroke_dash: str, drawing_metrics: UISettings.DrawingMetrics) -> float:
+    """Return the dash length in pixels of a stroke dash, or 0 for a solid stroke."""
+    return drawing_metrics.scale_length({"dashed": 6.0, "dotted": 2.0}.get(stroke_dash, 0.0))
+
+
 def draw_fills(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> typing.Tuple[CanvasItem.CacheValue, ...]:
-    if line_graph_layer.fill_color:
-        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache)
-        draw_step_fill(drawing_context, plot_points, Color.Color(line_graph_layer.fill_color))
+    plot_kind_drawing = PLOT_KIND_DRAWINGS[line_graph_layer.plot_kind]
+    if line_graph_layer.fill_color and plot_kind_drawing.draw_fill:
+        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache, plot_kind_drawing.plot_points_cache_item_type)
+        with clip_to_bounds(drawing_context, plot_points.clip_bounds):
+            plot_kind_drawing.draw_fill(drawing_context, plot_points, Color.Color(line_graph_layer.fill_color))
         return cache_values
     return tuple()
 
 
 def draw_strokes(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache, drawing_metrics: UISettings.DrawingMetrics) -> typing.Tuple[CanvasItem.CacheValue, ...]:
-    if line_graph_layer.stroke_color:
-        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache)
-        draw_step_stroke(drawing_context, plot_points, Color.Color(line_graph_layer.stroke_color), drawing_metrics.scale_stroke(line_graph_layer.stroke_width))
+    plot_kind_drawing = PLOT_KIND_DRAWINGS[line_graph_layer.plot_kind]
+    if line_graph_layer.stroke_color and plot_kind_drawing.draw_stroke:
+        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache, plot_kind_drawing.plot_points_cache_item_type)
+        with clip_to_bounds(drawing_context, plot_points.clip_bounds), dash_lines(drawing_context, get_line_dash(line_graph_layer.stroke_dash, drawing_metrics)):
+            plot_kind_drawing.draw_stroke(drawing_context, plot_points, Color.Color(line_graph_layer.stroke_color), drawing_metrics.scale_stroke(line_graph_layer.stroke_width))
         return cache_values
     return tuple()
+
+
+def get_marker_size_in_pixels(marker_size: float, drawing_metrics: UISettings.DrawingMetrics) -> float:
+    """Return the size in pixels of a marker size in points."""
+    # there are 72 points and 96 pixels to an inch.
+    return drawing_metrics.scale_length(marker_size * 96 / 72)
+
+
+def draw_markers(line_graph_layer: LinePlotDisplay.LineGraphLayer, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect,
+                 composer_cache: CanvasItem.ComposerCache, drawing_metrics: UISettings.DrawingMetrics) -> typing.Tuple[CanvasItem.CacheValue, ...]:
+    """Draw the layer's markers at its channel-sampled plot points, and return the cache values which hold them."""
+    if line_graph_layer.marker_shape != "none" and (line_graph_layer.fill_color or line_graph_layer.stroke_color):
+        plot_points, cache_values = get_plot_points(line_graph_layer, canvas_bounds, composer_cache, ChannelPlotPointsCacheItem)
+        fill_color = Color.Color(line_graph_layer.fill_color) if line_graph_layer.fill_color else None
+        stroke_color = Color.Color(line_graph_layer.stroke_color) if line_graph_layer.stroke_color else None
+        marker_size = get_marker_size_in_pixels(line_graph_layer.marker_size, drawing_metrics)
+        with clip_to_bounds(drawing_context, plot_points.clip_bounds):
+            centers = [(x, y) for run in plot_points.runs for x, y in zip(run.xs, run.ys)]
+            draw_marker_shapes(drawing_context, line_graph_layer.marker_shape, centers, marker_size, fill_color, stroke_color,
+                               drawing_metrics.scale_stroke(line_graph_layer.stroke_width))
+        return cache_values
+    return tuple()
+
+
+def draw_legend_swatch(drawing_context: DrawingContext.DrawingContext, swatch_rect: Geometry.FloatRect, legend_entry: LinePlotDisplay.LegendEntry, drawing_metrics: UISettings.DrawingMetrics) -> None:
+    """Draw the swatch of a legend entry the way the line plot draws its layer: a square for step or bar, a line or a stem, and its marker."""
+    fill_color = Color.Color(legend_entry.fill_color) if legend_entry.fill_color else None
+    stroke_color = Color.Color(legend_entry.stroke_color) if legend_entry.stroke_color else None
+    stroke_width = drawing_metrics.scale_stroke(1.0)
+    left, top, width, height = swatch_rect.left, swatch_rect.top, swatch_rect.width, swatch_rect.height
+    center = Geometry.FloatPoint(x=left + width / 2, y=top + height / 2)
+    with drawing_context.saver():
+        # dash the swatch's lines inside the saver, so that the dash ends before the marker.
+        if line_dash := get_line_dash(legend_entry.stroke_dash, drawing_metrics):
+            drawing_context.line_dash = line_dash
+        if legend_entry.plot_kind in ("step", "bar"):
+            drawing_context.begin_path()
+            drawing_context.rect(left, top, width, height)
+            if fill_color:
+                drawing_context.fill_style = fill_color.color_str
+                drawing_context.fill()
+            if stroke_color:
+                drawing_context.stroke_style = stroke_color.color_str
+                drawing_context.line_width = stroke_width
+                drawing_context.stroke()
+        elif legend_entry.plot_kind == "line":
+            if fill_color:
+                drawing_context.begin_path()
+                drawing_context.rect(left, center.y, width, top + height - center.y)
+                drawing_context.fill_style = fill_color.color_str
+                drawing_context.fill()
+            if stroke_color:
+                drawing_context.begin_path()
+                drawing_context.move_to(left, center.y)
+                drawing_context.line_to(left + width, center.y)
+                drawing_context.stroke_style = stroke_color.color_str
+                drawing_context.line_width = stroke_width
+                drawing_context.stroke()
+        elif legend_entry.plot_kind == "stem":
+            if stroke_color:
+                drawing_context.begin_path()
+                drawing_context.move_to(center.x, top + height)
+                drawing_context.line_to(center.x, top)
+                drawing_context.stroke_style = stroke_color.color_str
+                drawing_context.line_width = stroke_width
+                drawing_context.stroke()
+    if legend_entry.marker_shape != "none":
+        # make the marker no larger than the swatch.
+        marker_size = min(height, get_marker_size_in_pixels(legend_entry.marker_size, drawing_metrics))
+        draw_marker_shapes(drawing_context, legend_entry.marker_shape, [(center.x, center.y)], marker_size, fill_color, stroke_color, stroke_width)
 
 
 class LineGraphLayerPart(enum.Enum):
     """The part of a layer which a layer canvas item draws."""
     FILL = 0
     STROKE = 1
+    MARKERS = 2
 
 
 class LineGraphLayerCanvasItemComposer(CanvasItem.BaseComposer):
@@ -389,6 +777,8 @@ class LineGraphLayerCanvasItemComposer(CanvasItem.BaseComposer):
                 cache_values.append(draw_fills(line_graph_layer, drawing_context, canvas_bounds, composer_cache))
             case LineGraphLayerPart.STROKE:
                 cache_values.append(draw_strokes(line_graph_layer, drawing_context, canvas_bounds, composer_cache, self.__drawing_metrics))
+            case LineGraphLayerPart.MARKERS:
+                cache_values.append(draw_markers(line_graph_layer, drawing_context, canvas_bounds, composer_cache, self.__drawing_metrics))
             case _:
                 typing.assert_never(self.__part)
         self.__cache_values = cache_values
@@ -415,6 +805,14 @@ class LineGraphLayerCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__line_graph_layer = line_graph_layer
             self.__part = part
             self.update()
+
+    @property
+    def _part_for_testing(self) -> LineGraphLayerPart:
+        return self.__part
+
+    @property
+    def _line_graph_layer_for_testing(self) -> typing.Optional[LinePlotDisplay.LineGraphLayer]:
+        return self.__line_graph_layer
 
     @property
     def _xdata_for_testing(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -1236,16 +1634,9 @@ class LineGraphLegendCanvasItemComposer(CanvasItem.BaseComposer):
                     middle_line_y = legend_line_height * index + border + legend_line_height / 2
                     drawing_context.fill_text(legend_entry.label, border, middle_line_y)
 
-                    drawing_context.begin_path()
                     icon_size = legend_font_metrics.height * 0.7
-                    drawing_context.rect(legend_width - border - icon_size, middle_line_y - legend_font_metrics.descent / 2 - icon_size / 2, icon_size, icon_size)
-                    if legend_entry.fill_color:
-                        drawing_context.fill_style = legend_entry.fill_color
-                        drawing_context.fill()
-                    if legend_entry.stroke_color:
-                        drawing_context.stroke_style = legend_entry.stroke_color
-                        drawing_context.line_width = self.__drawing_metrics.scale_stroke(1.0)
-                        drawing_context.stroke()
+                    icon_rect = Geometry.FloatRect.from_tlhw(middle_line_y - legend_font_metrics.descent / 2 - icon_size / 2, legend_width - border - icon_size, icon_size, icon_size)
+                    draw_legend_swatch(drawing_context, icon_rect, legend_entry, self.__drawing_metrics)
 
 
 class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -1409,7 +1800,8 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__mouse_pressed_for_dragging and Geometry.distance(drag_start_position.to_float_point(), Geometry.FloatPoint(y=y, x=x)) > 1:
             mime_data = self.__delegate.create_mime_data()
             layer = self.__legend_entries[dragging_index]
-            MimeTypes.mime_data_put_layer(mime_data, dragging_index, self.__delegate.get_display_item(), layer.label, layer.fill_color, layer.stroke_color)
+            MimeTypes.mime_data_put_layer(mime_data, dragging_index, self.__delegate.get_display_item(), layer.label, layer.fill_color, layer.stroke_color,
+                                          layer.plot_kind, layer.marker_shape, layer.marker_size, layer.stroke_dash)
             thumbnail_data = self.__get_icon_for_layer(layer.fill_color)
             self.drag(mime_data, thumbnail_data)
             self.update()
@@ -1482,8 +1874,10 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
             else:
                 # if we aren't the source, setup foreign_legend_* and update the display
                 assert display_item
-                # the layer mime data leaves out a label or a color which the layer doesn't have.
-                self.__foreign_legend_entry = LinePlotDisplay.LegendEntry(label=legend_data.get("label", str()), fill_color=legend_data.get("fill_color"), stroke_color=legend_data.get("stroke_color"))
+                # the layer mime data leaves out a label or a property which the layer doesn't have.
+                self.__foreign_legend_entry = LinePlotDisplay.create_legend_entry(legend_data.get("label", str()), legend_data.get("fill_color"), legend_data.get("stroke_color"),
+                                                                                  legend_data.get("plot_kind"), legend_data.get("marker_shape"), legend_data.get("marker_size"),
+                                                                                  legend_data.get("stroke_dash"))
                 self.__foreign_legend_uuid_and_index = (display_item, typing.cast(int, legend_data["index"]))
                 self.update()
             return "move"

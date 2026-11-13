@@ -216,11 +216,46 @@ def calculate_y_axis(xdata_list: typing.Sequence[DataAndMetadata.DataAndMetadata
     return scaled_data_min, scaled_data_max, ticker
 
 
+# the plot kinds of a display layer, the first being the default.
+PLOT_KINDS = ("step", "line", "bar", "stem", "none")
+
+# the marker shapes of a display layer, the first being the default.
+MARKER_SHAPES = ("none", "circle", "square", "diamond", "triangle", "plus", "cross", "point")
+
+# the size of a marker in points, when a display layer doesn't give one.
+DEFAULT_MARKER_SIZE = 6.0
+
+# the stroke dashes of a display layer, the first being the default.
+STROKE_DASHES = ("solid", "dashed", "dotted")
+
+
+def get_known_value(value: str | None, values: typing.Sequence[str]) -> str:
+    """Return the value if it is one of the values, or else the first of the values."""
+    return value if value is not None and value in values else values[0]
+
+
+def get_known_marker_size(marker_size: float | None) -> float:
+    """Return the marker size in points if it is finite and above zero, or else the default."""
+    return marker_size if marker_size is not None and math.isfinite(marker_size) and marker_size > 0 else DEFAULT_MARKER_SIZE
+
+
 @dataclasses.dataclass
 class LegendEntry:
     label: str
     fill_color: typing.Optional[str]
     stroke_color: typing.Optional[str]
+    # how the line plot draws the layer, so that its swatch shows it.
+    plot_kind: str = PLOT_KINDS[0]
+    marker_shape: str = MARKER_SHAPES[0]
+    marker_size: float = DEFAULT_MARKER_SIZE
+    stroke_dash: str = STROKE_DASHES[0]
+
+
+def create_legend_entry(label: str, fill_color: str | None, stroke_color: str | None, plot_kind: str | None, marker_shape: str | None,
+                        marker_size: float | None, stroke_dash: str | None) -> LegendEntry:
+    """Return the legend entry of a layer with the properties, giving the default for a value it doesn't know."""
+    return LegendEntry(label, fill_color, stroke_color, get_known_value(plot_kind, PLOT_KINDS), get_known_value(marker_shape, MARKER_SHAPES),
+                       get_known_marker_size(marker_size), get_known_value(stroke_dash, STROKE_DASHES))
 
 
 class LineGraphAxes:
@@ -390,11 +425,19 @@ class LineGraphLayer:
                  axes: typing.Optional[LineGraphAxes],
                  fill_color: typing.Optional[Color.Color],
                  stroke_color: typing.Optional[Color.Color],
-                 stroke_width: typing.Optional[float]) -> None:
+                 stroke_width: typing.Optional[float],
+                 plot_kind: str | None = None,
+                 marker_shape: str | None = None,
+                 marker_size: float | None = None,
+                 stroke_dash: str | None = None) -> None:
         self.__xdata = xdata
         self.__fill_color = fill_color
         self.__stroke_color = stroke_color
         self.__stroke_width = stroke_width or 0.5
+        self.__plot_kind = get_known_value(plot_kind, PLOT_KINDS)
+        self.__marker_shape = get_known_value(marker_shape, MARKER_SHAPES)
+        self.__marker_size = get_known_marker_size(marker_size)
+        self.__stroke_dash = get_known_value(stroke_dash, STROKE_DASHES)
         self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
         self.__calibrated_xdata: typing.Optional[DataAndMetadata.DataAndMetadata] = None
         self.__axes = axes
@@ -410,6 +453,10 @@ class LineGraphLayer:
                 self.__fill_color == other.__fill_color and
                 self.__stroke_color == other.__stroke_color and
                 self.__stroke_width == other.__stroke_width and
+                self.__plot_kind == other.__plot_kind and
+                self.__marker_shape == other.__marker_shape and
+                self.__marker_size == other.__marker_size and
+                self.__stroke_dash == other.__stroke_dash and
                 self.__axes == other.__axes)
 
     @property
@@ -427,6 +474,26 @@ class LineGraphLayer:
     @property
     def stroke_width(self) -> float:
         return self.__stroke_width
+
+    @property
+    def plot_kind(self) -> str:
+        """Return how the line plot draws the layer, one of PLOT_KINDS."""
+        return self.__plot_kind
+
+    @property
+    def marker_shape(self) -> str:
+        """Return the shape of the marker which the line plot draws at each value, one of MARKER_SHAPES."""
+        return self.__marker_shape
+
+    @property
+    def marker_size(self) -> float:
+        """Return the size of a marker in points."""
+        return self.__marker_size
+
+    @property
+    def stroke_dash(self) -> str:
+        """Return the dash of the layer's stroke, one of STROKE_DASHES."""
+        return self.__stroke_dash
 
     @property
     def axes(self) -> typing.Optional[LineGraphAxes]:
@@ -655,7 +722,8 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                             intensity_calibration = xdata.intensity_calibration
                             displayed_dimensional_calibration = xdata.dimensional_calibrations[-1]
                             xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
-                    line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width))
+                    line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width, display_layer.plot_kind,
+                                                            display_layer.marker_shape, display_layer.marker_size, display_layer.stroke_dash))
                     self._has_valid_drawn_graph_data = xdata is not None
             self.__line_graph_layers = line_graph_layers
         return self.__line_graph_layers
@@ -681,6 +749,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         label = "Unknown"
                 fill_color = display_layer.fill_color
                 stroke_color = display_layer.stroke_color
-                legend_entries.append(LegendEntry(label, fill_color, stroke_color))
+                legend_entries.append(create_legend_entry(label, fill_color, stroke_color, display_layer.plot_kind, display_layer.marker_shape,
+                                                          display_layer.marker_size, display_layer.stroke_dash))
             self.__legend_entries = legend_entries
         return self.__legend_entries

@@ -429,7 +429,25 @@ With the layered line plot selected, you can
 
 * Change the stroke width by typing a number into the "Stroke Width" text box. This creates an outline of the stroke color around the associated layer.
 
+* Choose a dash for the stroke with the "Dash" choice next to "Stroke Width": Solid, Dashed, or Dotted.
+
+* Choose how to draw the layer with the "Plot Kind" choice.
+
+  * Step draws each value as a level across its channel. This is the default.
+
+  * Line joins the values at the centers of their channels. The fill color fills the area between the line and the baseline.
+
+  * Bar draws a bar across each value's channel, fills it with the fill color and outlines it in the stroke color.
+
+  * Stem draws a line from the baseline to each value.
+
+  * None draws only the markers.
+
+* Choose a marker to draw at each value with the "Marker" choice: Circle, Square, Diamond, Triangle, Plus, Cross, or Point. Type its size in points into the "Size" text box; the default is 6. The stroke color outlines a Circle, Square, Diamond, or Triangle marker and the fill color fills it, so the marker is hollow when the layer has no fill color. The stroke color draws a Plus or Cross marker and fills a Point marker, and the fill color does so when the layer has no stroke color.
+
 * Change the complex display type for a layer. If the data is complex, choose Log Absolute, Absolute, Phase, Real, or Imaginary to control how the data is converted to a scalar for display.
+
+The legend shows each layer the way the line plot draws it. If a later version sets a layer to a plot kind, marker, or dash which this version doesn't have, this version draws the layer with the default and keeps the setting.
 
 .. _Graphics Inspector Section:
 

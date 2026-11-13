@@ -1622,6 +1622,11 @@ class DisplayLayer(Schema.Entity):
     stroke_color = Schema.EntityAttribute[typing.Optional[str]]()
     fill_color = Schema.EntityAttribute[typing.Optional[str]]()
     stroke_width = Schema.EntityAttribute[typing.Optional[int]]()
+    # the plot kind and style of the layer in a line plot, each None for its default.
+    plot_kind = Schema.EntityAttribute[str | None]()  # one of LinePlotDisplay.PLOT_KINDS
+    marker_shape = Schema.EntityAttribute[str | None]()  # one of LinePlotDisplay.MARKER_SHAPES
+    marker_size = Schema.EntityAttribute[float | None]()  # in points
+    stroke_dash = Schema.EntityAttribute[str | None]()  # one of LinePlotDisplay.STROKE_DASHES
     display_data_channel = Schema.EntityAttribute[typing.Optional[DisplayDataChannel]]()
 
     def __init__(self, display_layer_properties: typing.Optional[Persistence.PersistentDictType] = None) -> None:
@@ -1683,6 +1688,10 @@ class DisplayLayerInfo:
     stroke_color: str | None
     fill_color: str | None
     stroke_width: int | None
+    plot_kind: str | None = None
+    marker_shape: str | None = None
+    marker_size: float | None = None
+    stroke_dash: str | None = None
 
 
 @dataclasses.dataclass
@@ -2711,7 +2720,11 @@ class DisplayItem(Persistence.PersistentObject):
                 label=label,
                 stroke_color=display_layer.stroke_color,
                 fill_color=display_layer.fill_color,
-                stroke_width=display_layer.stroke_width
+                stroke_width=display_layer.stroke_width,
+                plot_kind=display_layer.plot_kind,
+                marker_shape=display_layer.marker_shape,
+                marker_size=display_layer.marker_size,
+                stroke_dash=display_layer.stroke_dash
             )
             display_layer_list.append(display_layer_info)
         return display_layer_list
@@ -2732,7 +2745,7 @@ class DisplayItem(Persistence.PersistentObject):
     @display_layers_list.setter
     def display_layers_list(self, value: list[DisplayLayer]) -> None:
         assert len(value) == len(self.display_layers)
-        properties = ["data_row", "fill_color", "stroke_color", "label", "stroke_width"]
+        properties = ["data_row", "fill_color", "stroke_color", "label", "stroke_width", "plot_kind", "marker_shape", "marker_size", "stroke_dash"]
         for index, (display_layer, new_display_layer) in enumerate(zip(self.display_layers, value)):
             for property in properties:
                 property_value = getattr(new_display_layer, property)
