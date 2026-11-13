@@ -159,7 +159,8 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
                  graphic_selection: DisplayItem.GraphicSelection,
                  displayed_shape: typing.Optional[DataAndMetadata.ShapeType],
                  coordinate_system: typing.Sequence[Calibration.Calibration],
-                 is_focused: bool) -> None:
+                 is_focused: bool,
+                 hovered_graphic_part: Graphics.HoveredGraphicPart | None) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__drawing_metrics = drawing_metrics
         self.__display_style = display_style
@@ -168,6 +169,7 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
         self.__displayed_shape = displayed_shape
         self.__coordinate_system = coordinate_system
         self.__is_focused = is_focused
+        self.__hovered_graphic_part = hovered_graphic_part
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         drawing_metrics = self.__drawing_metrics
@@ -177,13 +179,15 @@ class GraphicsCanvasItemComposer(CanvasItem.BaseComposer):
         displayed_shape = self.__displayed_shape
         coordinate_system = self.__coordinate_system
         is_focused = self.__is_focused
+        hovered_graphic_part = self.__hovered_graphic_part
         widget_mapping = ImageCanvasItemMapping.make(displayed_shape, canvas_bounds, coordinate_system)
         if graphic_renderers and widget_mapping:
             with drawing_context.saver():
                 drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 for graphic_index, graphic_renderer in enumerate(graphic_renderers):
+                    hover_part = hovered_graphic_part.part if hovered_graphic_part and hovered_graphic_part.graphic_uuid == graphic_renderer.graphic_uuid else None
                     try:
-                        graphic_renderer.draw(drawing_context, drawing_metrics, display_style, widget_mapping, graphic_selection.contains(graphic_index), is_focused)
+                        graphic_renderer.draw(drawing_context, drawing_metrics, display_style, widget_mapping, graphic_selection.contains(graphic_index), is_focused, hover_part)
                     except Exception as e:
                         import traceback
                         logging.debug("Graphic Repaint Error: %s", e)
@@ -208,6 +212,9 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__coordinate_system: typing.Sequence[Calibration.Calibration] = tuple()
         self.__is_focused = False
 
+        # the main thread replaces the hovered graphic part, which is immutable, and the render thread reads it.
+        self.__hovered_graphic_part: Graphics.HoveredGraphicPart | None = None
+
     @property
     def is_focused(self) -> bool:
         return self.__is_focused
@@ -216,6 +223,16 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     def is_focused(self, value: bool) -> None:
         self.__is_focused = value
         self.update()
+
+    @property
+    def hovered_graphic_part(self) -> Graphics.HoveredGraphicPart | None:
+        return self.__hovered_graphic_part
+
+    @hovered_graphic_part.setter
+    def hovered_graphic_part(self, value: Graphics.HoveredGraphicPart | None) -> None:
+        if value != self.__hovered_graphic_part:
+            self.__hovered_graphic_part = value
+            self.update()
 
     def update_coordinate_system(self, displayed_shape: DataAndMetadata.ShapeType | None, coordinate_system: typing.Sequence[Calibration.Calibration], graphic_renderers: typing.Sequence[Graphics.GraphicRenderer], graphic_selection: DisplayItem.GraphicSelection) -> None:
         needs_update = False
@@ -243,7 +260,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__drawing_metrics, self.__display_style, self.__graphic_renderers, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system, self.__is_focused)
+        return GraphicsCanvasItemComposer(self, self.sizing, composer_cache, self.__drawing_metrics, self.__display_style, self.__graphic_renderers, self.__graphic_selection, self.__displayed_shape, self.__coordinate_system, self.__is_focused, self.__hovered_graphic_part)
 
 
 class ScaleMarkerCanvasItemComposer(CanvasItem.BaseComposer):
@@ -713,6 +730,40 @@ MousePositionAndModifiers = typing.Tuple[Geometry.IntPoint, "UserInterface.Keybo
 MouseHandlerReactorFn = typing.Callable[[Stream.ValueChangeStreamReactorInterface[MousePositionAndModifiers]], typing.Coroutine[typing.Any, typing.Any, typing.Any]]
 
 
+def find_graphic_part(graphics: typing.Sequence[Graphics.Graphic], selection_indexes: typing.AbstractSet[int], mapping: Graphics.CoordinateMappingLike,
+                      drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, pos: Geometry.FloatPoint) -> tuple[int, str] | None:
+    """Return the index of the graphic and the name of its part which a press of the pointer tool at a widget position grabs.
+
+    A hit on a specific part, such as a handle or an outline, takes priority over a hit elsewhere, such as inside a graphic.
+    Among hits of the same kind, a selected graphic takes priority over one which isn't selected, and then a graphic drawn
+    later takes priority over one drawn earlier. A press moves a graphic which isn't selected, and any graphic while several
+    are selected, so the part is then "all", unless it is an inverted part.
+
+    Returns None if a press at the position grabs no graphic.
+    """
+    multiple_items_selected = len(selection_indexes) > 1
+    part_specs: list[tuple[int, str]] = list()
+    specific_part_spec: tuple[int, str] | None = None
+    # sort the graphics so that the one with the highest priority comes last.
+    for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
+        if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
+            move_only = graphic_index not in selection_indexes or multiple_items_selected
+            try:
+                part, specific = graphic.test(mapping, drawing_metrics, display_style, pos, move_only)
+            except Exception as e:
+                import traceback
+                logging.debug("Graphic Test Error: %s", e)
+                traceback.print_exc()
+                traceback.print_stack()
+                continue
+            if part:
+                part_spec = graphic_index, "all" if move_only and not part.startswith("inverted") else part
+                part_specs.append(part_spec)
+                if specific:
+                    specific_part_spec = part_spec
+    return specific_part_spec if specific_part_spec is not None else part_specs[-1] if len(part_specs) > 0 else None
+
+
 class MouseHandler:
     def __init__(self, image_canvas_item: ImageCanvasItem, event_loop: asyncio.AbstractEventLoop) -> None:
         self.__image_canvas_item = image_canvas_item
@@ -769,34 +820,10 @@ class PointerMouseHandler(MouseHandler):
 
         graphics = image_canvas_item.graphics
         selection_indexes = image_canvas_item.graphic_selection.indexes
-        multiple_items_selected = len(selection_indexes) > 1
-        part_specs: typing.List[typing.Tuple[int, Graphics.Graphic, bool, str]] = list()
-        part_spec: typing.Optional[typing.Tuple[int, Graphics.Graphic, bool, str]]
-        specific_part_spec: typing.Optional[typing.Tuple[int, Graphics.Graphic, bool, str]] = None
-        # the graphics are drawn in order, which means the graphics with the higher index are "on top" of the
-        # graphics with the lower index. but priority should also be given to selected graphics. so sort the
-        # graphics according to whether they are selected or not (selected ones go later), then by their index.
-        for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
-            if graphic.has_attribute(Graphics.GraphicAttributeEnum.TWO_DIMENSIONAL):
-                already_selected = graphic_index in selection_indexes
-                move_only = not already_selected or multiple_items_selected
-                try:
-                    part, specific = graphic.test(widget_mapping, image_canvas_item.drawing_metrics, image_canvas_item.display_style, start_drag_pos, move_only)
-                except Exception as e:
-                    import traceback
-                    logging.debug("Graphic Test Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
-                    continue
-                if part:
-                    part_spec = graphic_index, graphic, already_selected, "all" if move_only and not part.startswith("inverted") else part
-                    part_specs.append(part_spec)
-                    if specific:
-                        specific_part_spec = part_spec
-        part_spec = specific_part_spec if specific_part_spec is not None else part_specs[-1] if len(part_specs) > 0 else None
+        part_spec = find_graphic_part(graphics, selection_indexes, widget_mapping, image_canvas_item.drawing_metrics, image_canvas_item.display_style, start_drag_pos)
         if part_spec is not None:
-            graphic_index, graphic, already_selected, part = part_spec
-            part = part if specific_part_spec is not None else part_spec[-1]
+            graphic_index, part = part_spec
+            already_selected = graphic_index in selection_indexes
             # select item and prepare for drag
             graphic_drag_item_was_selected = already_selected
             if not graphic_drag_item_was_selected:
@@ -1103,8 +1130,17 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         self.__mouse_in = False
         self.__mouse_handler: typing.Optional[MouseHandler] = None
 
+        # the graphics, the selection, the calibrations, and the image rect at the last update of the canvas items. only the
+        # render thread uses it.
+        self.__hover_key: tuple[tuple[tuple[uuid.UUID, int], ...], frozenset[int], tuple[Calibration.Calibration, ...], Geometry.IntRect | None] | None = None
+
         # frame rate and latency
         self.__display_latency_model = Model.PropertyModel[bool](False)
+
+    def close(self) -> None:
+        # a hovered graphic part update which the render thread queued may run after close.
+        self.__mouse_in = False
+        super().close()
 
     @property
     def _scale_marker_canvas_item_for_test(self) -> ScaleMarkerCanvasItem:
@@ -1210,6 +1246,41 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         # this goes at the end so that the previous values are still available to determine changes during the update.
         self.__last_image_display_info = image_display_info
 
+        # the graphics, the selection, the calibrations, or the image rect may change under a mouse which doesn't move. the
+        # hit test reads the graphics, so it runs on the main thread. reading the mouse state here may race with a mouse
+        # event, which finds the hovered graphic part itself.
+        hover_key = (tuple((graphic_renderer.graphic_uuid, graphic_renderer.modified_count) for graphic_renderer in image_display_info.graphic_renderers),
+                     frozenset(image_display_info.graphic_selection.indexes), tuple(datum_calibrations), self.__composite_canvas_item.canvas_rect)
+        if hover_key != self.__hover_key:
+            self.__hover_key = hover_key
+            if self.__mouse_in and self.__event_loop:
+                self.__event_loop.call_soon_threadsafe(ReferenceCounting.weak_partial(ImageCanvasItem.__update_hovered_graphic_part_at_last_mouse, self))
+
+    def __update_hovered_graphic_part_at_last_mouse(self) -> None:
+        if self.__mouse_in and self.__last_mouse:
+            self.__update_hovered_graphic_part(self.__last_mouse.to_float_point())
+
+    def __update_hovered_graphic_part(self, mouse_pos: Geometry.FloatPoint | None) -> None:
+        # a press of the pointer tool grabs the hovered graphic part, so it doesn't change while the press is tracked.
+        if self.__mouse_handler:
+            return
+        hovered_graphic_part: Graphics.HoveredGraphicPart | None = None
+        delegate = self.delegate
+        display_item = delegate.display_item if delegate else None
+        widget_mapping = self.__make_mouse_mapping()
+        if self.__mouse_in and mouse_pos is not None and delegate and display_item and delegate.tool_mode == "pointer" and widget_mapping:
+            # the drawn graphics may still include a deleted graphic until the next repaint, so test the current ones.
+            graphics = display_item.graphics
+            if part_spec := find_graphic_part(graphics, display_item.graphic_selection.indexes, widget_mapping, self.drawing_metrics, self.display_style, mouse_pos):
+                graphic_index, part = part_spec
+                hovered_graphic_part = Graphics.HoveredGraphicPart(graphics[graphic_index].uuid, part)
+        self.__graphics_canvas_item.hovered_graphic_part = hovered_graphic_part
+
+    @property
+    def hovered_graphic_part(self) -> Graphics.HoveredGraphicPart | None:
+        """Return the hovered graphic part, or None if there is none."""
+        return self.__graphics_canvas_item.hovered_graphic_part
+
     def handle_auto_display(self) -> bool:
         # enter key has been pressed. calculate best display limits and set them.
         delegate = self.delegate
@@ -1311,6 +1382,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if delegate.tool_mode == "pointer":
             assert not self.__mouse_handler
             assert self.__event_loop
+            self.__update_hovered_graphic_part(mouse_pos)
             self.__mouse_handler = PointerMouseHandler(self, self.__event_loop)
             self.__mouse_handler.mouse_pressed(Geometry.IntPoint(y=y, x=x), modifiers)
         elif delegate.tool_mode == "hand":
@@ -1363,6 +1435,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             pass
         else:
             delegate.tool_mode = "pointer"
+        self.__update_hovered_graphic_part(mouse_pos)
         return True
 
     def mouse_entered(self) -> bool:
@@ -1375,6 +1448,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         if super().mouse_exited():
             return True
         self.__mouse_in = False
+        self.__update_hovered_graphic_part(None)
         if self.delegate:  # allow display to work without delegate
             # whenever the cursor exits, clear the cursor display
             self.delegate.cursor_changed(None)
@@ -1416,6 +1490,7 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
 
         # x,y already have transform applied
         self.__last_mouse = mouse_pos.to_int_point()
+        self.__update_hovered_graphic_part(mouse_pos)
         delegate.cursor_changed(self.cursor_position)
         if self.__mouse_handler:
             self.__mouse_handler.mouse_position_changed(Geometry.IntPoint(y, x), modifiers)
@@ -1466,10 +1541,15 @@ class ImageCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
     def toggle_latency(self) -> None:
         self.__display_latency_model.value = not self.__display_latency_model.value
 
+    def __make_mouse_mapping(self) -> ImageCanvasItemMapping | None:
+        # the render thread replaces the display info, so read it once.
+        image_display_info = self.__last_image_display_info
+        data_shape = image_display_info.data_shape.as_tuple() if image_display_info.data_shape else None
+        datum_calibrations = image_display_info.display_calibration_info.datum_calibrations if image_display_info.display_calibration_info else list()
+        return ImageCanvasItemMapping.make(data_shape, self.__composite_canvas_item.canvas_rect, datum_calibrations)
+
     def __get_mouse_mapping(self) -> ImageCanvasItemMapping:
-        data_shape = self.__last_image_display_info.data_shape.as_tuple() if self.__last_image_display_info.data_shape else None
-        datum_calibrations = self.__last_image_display_info.display_calibration_info.datum_calibrations if self.__last_image_display_info.display_calibration_info else list()
-        widget_mapping = ImageCanvasItemMapping.make(data_shape, self.__composite_canvas_item.canvas_rect, datum_calibrations)
+        widget_mapping = self.__make_mouse_mapping()
         assert widget_mapping
         return widget_mapping
 

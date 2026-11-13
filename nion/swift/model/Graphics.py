@@ -4,6 +4,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import copy
+import dataclasses
 import enum
 import gettext
 import math
@@ -463,15 +464,17 @@ def draw_arrow(ctx: DrawingContextLike, p1: Geometry.FloatPoint, p2: Geometry.Fl
     ctx.line_to(p2.x - arrow_size * math.cos(angle + math.pi / 6), p2.y - arrow_size * math.sin(angle + math.pi / 6))
 
 
-def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool, is_locked: bool) -> None:
+def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool, is_locked: bool, is_hovered: bool = False) -> None:
+    # a locked marker doesn't grow on hover, since dragging it doesn't change the graphic.
     if not is_locked:
         with ctx.saver():
             marker_color = '#00FF00'
+            half_size = 4 if is_hovered else 3
             ctx.begin_path()
-            ctx.move_to(p.x - 3, p.y - 3)
-            ctx.line_to(p.x + 3, p.y - 3)
-            ctx.line_to(p.x + 3, p.y + 3)
-            ctx.line_to(p.x - 3, p.y + 3)
+            ctx.move_to(p.x - half_size, p.y - half_size)
+            ctx.line_to(p.x + half_size, p.y - half_size)
+            ctx.line_to(p.x + half_size, p.y + half_size)
+            ctx.line_to(p.x - half_size, p.y + half_size)
             ctx.close_path()
             if is_enabled:
                 ctx.fill_style = marker_color
@@ -500,10 +503,12 @@ def draw_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: boo
                 ctx.stroke()
 
 
-def draw_circular_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool, is_locked:bool) -> None:
+def draw_circular_marker(ctx: DrawingContextLike, p: Geometry.FloatPoint, is_enabled: bool, is_locked:bool, is_hovered: bool = False) -> None:
+    # a locked marker doesn't grow on hover, as in draw_marker.
     if not is_locked:
         marker_color = '#00FF00'
-        size = Geometry.FloatSize(w=6, h=6)
+        diameter = 8 if is_hovered else 6
+        size = Geometry.FloatSize(w=diameter, h=diameter)
         if is_enabled:
             draw_ellipse(ctx, p, size, None, marker_color)
         else:
@@ -543,11 +548,12 @@ def draw_centre_marker(ctx: DrawingContextLike, origin: Geometry.FloatPoint, gra
             ctx.stroke_style = stroke_style
             ctx.stroke()
 
-def draw_rect_marker(ctx: DrawingContextLike, r: Geometry.FloatRect, is_enabled: bool, is_shape_locked: bool) -> None:
-    draw_marker(ctx, r.top_left, is_enabled, is_shape_locked)
-    draw_marker(ctx, r.top_right, is_enabled, is_shape_locked)
-    draw_marker(ctx, r.bottom_right, is_enabled, is_shape_locked)
-    draw_marker(ctx, r.bottom_left, is_enabled, is_shape_locked)
+# the hovered corner is the name of the corner under the mouse, as the rectangle hit test gives it, or None.
+def draw_rect_marker(ctx: DrawingContextLike, r: Geometry.FloatRect, is_enabled: bool, is_shape_locked: bool, hovered_corner: str | None = None) -> None:
+    draw_marker(ctx, r.top_left, is_enabled, is_shape_locked, hovered_corner == "top-left")
+    draw_marker(ctx, r.top_right, is_enabled, is_shape_locked, hovered_corner == "top-right")
+    draw_marker(ctx, r.bottom_right, is_enabled, is_shape_locked, hovered_corner == "bottom-right")
+    draw_marker(ctx, r.bottom_left, is_enabled, is_shape_locked, hovered_corner == "bottom-left")
 
 
 def draw_ellipse_graphic(
@@ -567,6 +573,7 @@ def draw_ellipse_graphic(
     orientation_arrow_inner_offset: float,
     orientation_arrow_size: float,
     orientation_stroke_width: float,
+    hover_part: str | None = None,
 ) -> None:
     rect = Geometry.FloatRect.from_center_and_size(center, size)
     origin = rect.origin
@@ -597,7 +604,7 @@ def draw_ellipse_graphic(
                 ctx.translate(center.x, center.y)
                 ctx.rotate(-rotation)
                 ctx.translate(-center.x, -center.y)
-            draw_rect_marker(ctx, rect, is_focused, is_shape_locked)
+            draw_rect_marker(ctx, rect, is_focused, is_shape_locked, hover_part)
             draw_centre_marker(ctx, rect.center, size, stroke_style, is_position_locked)
             # draw rotation marker
             top_middle = Geometry.FloatPoint(y=rect.top, x=rect.center.x)
@@ -607,7 +614,7 @@ def draw_ellipse_graphic(
             ctx.line_to(rotation_point.x, rotation_point.y)
             ctx.stroke_style = stroke_style
             ctx.stroke()
-            draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked)
+            draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked, hover_part == "rotate")
 
 
 
@@ -978,9 +985,9 @@ class Graphic(Persistence.PersistentObject):
             constraints.add("bounds")
         return constraints
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         if not self._closed:
-            self.get_renderer().draw(ctx, drawing_metrics, display_style, mapping, is_selected, is_focused)
+            self.get_renderer().draw(ctx, drawing_metrics, display_style, mapping, is_selected, is_focused, hover_part)
 
     def get_renderer(self) -> GraphicRenderer:
         raise NotImplementedError()
@@ -1034,6 +1041,17 @@ class Graphic(Persistence.PersistentObject):
         return False
 
 
+@dataclasses.dataclass(frozen=True)
+class HoveredGraphicPart:
+    """The graphic under the mouse, and its part which a press of the pointer tool there grabs.
+
+    graphic_uuid: the uuid of the graphic.
+    part: the name of the part, as the hit test of the graphic gives it.
+    """
+    graphic_uuid: uuid.UUID
+    part: str
+
+
 class GraphicRenderer:
     """Drawing state for rendering a Graphic.
 
@@ -1063,11 +1081,20 @@ class GraphicRenderer:
         self.used_text_visibility_map = graphic.used_text_visibility_map
         self.used_text_background_color_map = graphic.used_text_background_color_map
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
+        """Draw the graphic.
+
+        The hover part is the part of this graphic which the hovered graphic part names, or None if it names no part of this
+        graphic.
+        """
         raise NotImplementedError()
 
     def label_position(self, drawing_metrics: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         return None
+
+    def get_drawn_stroke_width(self, hover_part: str | None) -> float:
+        """Return the unscaled stroke width for drawing the graphic, which is wider when the graphic has a hover part."""
+        return self.used_stroke_width + 1.0 if hover_part else self.used_stroke_width
 
     @staticmethod
     def is_label_visible(text_visibility: str | None, is_selected: bool) -> bool:
@@ -1128,7 +1155,7 @@ class MissingGraphic(Graphic):
 
 class MissingGraphicRenderer(GraphicRenderer):
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         pass
 
 
@@ -1357,10 +1384,10 @@ class RectangleGraphic(RectangleTypeGraphic):
 
 class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         bounds = self.bounds
         rotation = self.rotation
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         orientation_stroke_width = drawing_metrics.scale_stroke(1.0)
         orientation_arrow_outer_offset = drawing_metrics.scale_length(10.0)
@@ -1412,7 +1439,7 @@ class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
                     ctx.translate(center.x, center.y)
                     ctx.rotate(-rotation)
                     ctx.translate(-center.x, -center.y)
-                draw_rect_marker(ctx, rect, is_focused, is_shape_locked)
+                draw_rect_marker(ctx, rect, is_focused, is_shape_locked, hover_part)
                 draw_centre_marker(ctx, center, rect.size, used_stroke_style, is_position_locked)
                 # draw rotation marker
                 top_middle = Geometry.FloatPoint(y=rect.top, x=rect.center.x)
@@ -1422,7 +1449,7 @@ class RectangleGraphicRenderer(RectangleTypeGraphicRenderer):
                 ctx.line_to(rotation_point.x, rotation_point.y)
                 ctx.stroke_style = used_stroke_style
                 ctx.stroke()
-                draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked)
+                draw_circular_marker(ctx, rotation_point, is_focused, is_rotation_locked, hover_part == "rotate")
         self.draw_label(ctx, drawing_metrics, display_style, mapping, is_selected)
 
     def label_position(self, drawing_metrics: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -1462,10 +1489,10 @@ class EllipseGraphic(RectangleTypeGraphic):
 
 class EllipseGraphicRenderer(RectangleTypeGraphicRenderer):
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         bounds = self.bounds
         rotation = self.rotation
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         orientation_stroke_width = drawing_metrics.scale_stroke(1.0)
         orientation_arrow_outer_offset = drawing_metrics.scale_length(10.0)
@@ -1479,7 +1506,7 @@ class EllipseGraphicRenderer(RectangleTypeGraphicRenderer):
         # origin is top left
         center = mapping.map_point_image_norm_to_widget(bounds.center)
         size = mapping.map_size_image_norm_to_widget(bounds.size)
-        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width)
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width, hover_part)
         self.draw_label(ctx, drawing_metrics, display_style, mapping, is_selected)
 
     def label_position(self, drawing_metrics: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -1811,12 +1838,12 @@ class LineGraphic(LineTypeGraphic):
 
 class LineGraphicRenderer(LineTypeGraphicRenderer):
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         start = self.start
         end = self.end
         start_arrow_enabled = self.start_arrow_enabled
         end_arrow_enabled = self.end_arrow_enabled
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         arrow_size = drawing_metrics.scale_length(8.0)
         used_stroke_style = self.used_stroke_style
@@ -1835,8 +1862,8 @@ class LineGraphicRenderer(LineTypeGraphicRenderer):
             ctx.stroke_style = used_stroke_style
             ctx.stroke()
         if is_selected:
-            draw_marker(ctx, p1, is_focused, is_shape_locked)
-            draw_marker(ctx, p2, is_focused, is_shape_locked)
+            draw_marker(ctx, p1, is_focused, is_shape_locked, hover_part == "start")
+            draw_marker(ctx, p2, is_focused, is_shape_locked, hover_part == "end")
         self.draw_label(ctx, drawing_metrics, display_style, mapping, is_selected)
 
 
@@ -1890,7 +1917,7 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
         self.width = graphic.width
         self.interval_descriptors = copy.deepcopy(graphic.interval_descriptors)
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         start = self.start
         end = self.end
         start_arrow_enabled = self.start_arrow_enabled
@@ -1898,7 +1925,7 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
         width = self.width
         interval_descriptors = self.interval_descriptors
         stroke_color = self.stroke_color
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         arrow_size = drawing_metrics.scale_length(8.0)
         used_stroke_style = self.used_stroke_style
@@ -1950,8 +1977,8 @@ class LineProfileGraphicRenderer(LineTypeGraphicRenderer):
                         ctx.stroke_style = color
                         ctx.stroke()
         if is_selected:
-            draw_marker(ctx, p1, is_focused, is_shape_locked)
-            draw_marker(ctx, p2, is_focused, is_shape_locked)
+            draw_marker(ctx, p1, is_focused, is_shape_locked, hover_part == "start")
+            draw_marker(ctx, p2, is_focused, is_shape_locked, hover_part == "end")
         self.draw_label(ctx, drawing_metrics, display_style, mapping, is_selected)
 
 
@@ -2077,10 +2104,10 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
         super().__init__(graphic)
         self.cross_hair_size = graphic.cross_hair_size
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         position = self.position
         scaled_cross_hair_size = drawing_metrics.scale_stroke(self.cross_hair_size)
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         used_stroke_style = self.used_stroke_style
         p = mapping.map_point_image_norm_to_widget(position)
@@ -2101,10 +2128,10 @@ class PointGraphicRenderer(PointTypeGraphicRenderer):
             ctx.stroke()
             self.draw_label(ctx, drawing_metrics, display_style, mapping, is_selected)
         if is_selected:
-            draw_marker(ctx, p + Geometry.FloatPoint(scaled_cross_hair_size, scaled_cross_hair_size), is_focused, False)
-            draw_marker(ctx, p + Geometry.FloatPoint(scaled_cross_hair_size, -scaled_cross_hair_size), is_focused, False)
-            draw_marker(ctx, p + Geometry.FloatPoint(-scaled_cross_hair_size, scaled_cross_hair_size), is_focused, False)
-            draw_marker(ctx, p + Geometry.FloatPoint(-scaled_cross_hair_size, -scaled_cross_hair_size), is_focused, False)
+            draw_marker(ctx, p + Geometry.FloatPoint(scaled_cross_hair_size, scaled_cross_hair_size), is_focused, False, hover_part == "all")
+            draw_marker(ctx, p + Geometry.FloatPoint(scaled_cross_hair_size, -scaled_cross_hair_size), is_focused, False, hover_part == "all")
+            draw_marker(ctx, p + Geometry.FloatPoint(-scaled_cross_hair_size, scaled_cross_hair_size), is_focused, False, hover_part == "all")
+            draw_marker(ctx, p + Geometry.FloatPoint(-scaled_cross_hair_size, -scaled_cross_hair_size), is_focused, False, hover_part == "all")
 
     def label_position(self, drawing_metrics: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
         p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
@@ -2290,7 +2317,7 @@ class IntervalGraphicRenderer(GraphicRenderer):
         self.start = graphic.start
         self.end = graphic.end
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         pass
 
 
@@ -2374,7 +2401,7 @@ class ChannelGraphicRenderer(GraphicRenderer):
         super().__init__(graphic)
         self.position = graphic.position
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         pass
 
 
@@ -2567,6 +2594,16 @@ class SpotGraphic(Graphic):
 
 
 class SpotGraphicRenderer(GraphicRenderer):
+    # the inverted ellipse is drawn rotated by half a turn, so its drawn top left corner is the one which the hit test
+    # names inverted bottom right. this maps each inverted part of the hit test to the part of the drawn inverted ellipse.
+    drawn_inverted_parts = {
+        "inverted-bottom-right": "top-left",
+        "inverted-bottom-left": "top-right",
+        "inverted-top-left": "bottom-right",
+        "inverted-top-right": "bottom-left",
+        "inverted-rotate": "rotate",
+        "inverted-all": "all",
+    }
 
     def __init__(self, graphic: SpotGraphic) -> None:
         super().__init__(graphic)
@@ -2575,11 +2612,11 @@ class SpotGraphicRenderer(GraphicRenderer):
         self.center = graphic.center
         self.size = graphic.size
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         bounds = self.bounds
         rotation = self.rotation
         used_stroke_style = self.used_stroke_style
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         orientation_stroke_width = drawing_metrics.scale_stroke(1.0)
         orientation_arrow_outer_offset = drawing_metrics.scale_length(10.0)
@@ -2593,12 +2630,13 @@ class SpotGraphicRenderer(GraphicRenderer):
         origin = mapping.calibrated_origin_widget
         center = origin + mapping.map_size_image_norm_to_widget(bounds.center.as_size())
         size = mapping.map_size_image_norm_to_widget(bounds.size)
-        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width)
+        inverted_hover_part = SpotGraphicRenderer.drawn_inverted_parts.get(hover_part) if hover_part else None
+        draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width, None if inverted_hover_part else hover_part)
         with ctx.saver():
             ctx.translate(origin.x, origin.y)
             ctx.rotate(math.pi)
             ctx.translate(-origin.x, -origin.y)
-            draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width)
+            draw_ellipse_graphic(ctx, center, size, rotation, is_selected, is_focused, is_shape_locked, is_position_locked, is_rotation_locked, used_stroke_style, scaled_stroke_width, used_fill_style, orientation_arrow_outer_offset, orientation_arrow_inner_offset, orientation_arrow_size, orientation_stroke_width, inverted_hover_part)
         self.draw_label(ctx, drawing_metrics, display_style, mapping, is_selected)
 
     def label_position(self, drawing_metrics: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
@@ -2788,10 +2826,10 @@ class WedgeGraphicRenderer(GraphicRenderer):
         self.start_angle = graphic.start_angle
         self.end_angle = graphic.end_angle
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         start_angle = self.start_angle
         end_angle = self.end_angle
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         used_stroke_style = self.used_stroke_style
         used_fill_style = self.used_fill_style
@@ -2993,11 +3031,11 @@ class RingGraphicRenderer(GraphicRenderer):
         self.radius_2 = graphic.radius_2
         self.mode = graphic.mode
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         radius_1 = self.radius_1
         radius_2 = self.radius_2
         mode = self.mode
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         used_stroke_style = self.used_stroke_style
         used_fill_style = self.used_fill_style
@@ -3016,19 +3054,19 @@ class RingGraphicRenderer(GraphicRenderer):
                              Geometry.FloatSize(width=radius_1_widget[1] * 2, height=radius_1_widget[0] * 2),
                              used_stroke_style, None)
                 if is_selected:
-                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_1_widget[0], center.x), is_focused, is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_1_widget[0], center.x), is_focused, is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_1_widget[1]), is_focused, is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_1_widget[1]), is_focused, is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_1_widget[0], center.x), is_focused, is_shape_locked, hover_part == "radius_1")
+                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_1_widget[0], center.x), is_focused, is_shape_locked, hover_part == "radius_1")
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_1_widget[1]), is_focused, is_shape_locked, hover_part == "radius_1")
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_1_widget[1]), is_focused, is_shape_locked, hover_part == "radius_1")
             if not mode == "high-pass":
                 ctx.line_width = scaled_stroke_width
                 ctx.stroke_style = used_stroke_style
                 draw_ellipse(ctx, center, Geometry.FloatSize(width=radius_2_widget[1] * 2, height=radius_2_widget[0] * 2), used_stroke_style, None)
                 if is_selected:
-                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_2_widget[0], center.x), is_focused, is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_2_widget[0], center.x), is_focused, is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_2_widget[1]), is_focused, is_shape_locked)
-                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_2_widget[1]), is_focused, is_shape_locked)
+                    draw_marker(ctx, Geometry.FloatPoint(center.y + radius_2_widget[0], center.x), is_focused, is_shape_locked, hover_part == "radius_2")
+                    draw_marker(ctx, Geometry.FloatPoint(center.y - radius_2_widget[0], center.x), is_focused, is_shape_locked, hover_part == "radius_2")
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x + radius_2_widget[1]), is_focused, is_shape_locked, hover_part == "radius_2")
+                    draw_marker(ctx, Geometry.FloatPoint(center.y, center.x - radius_2_widget[1]), is_focused, is_shape_locked, hover_part == "radius_2")
             # draw 2 thick arcs
             ctx.fill_style = used_fill_style
             # ctx.stroke_style = "#0000FF"
@@ -3334,11 +3372,11 @@ class LatticeGraphicRenderer(GraphicRenderer):
         self.v_pos = graphic.v_pos
         self.radius = graphic.radius
 
-    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool) -> None:
+    def draw(self, ctx: DrawingContextLike, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, mapping: CoordinateMappingLike, is_selected: bool, is_focused: bool, hover_part: str | None = None) -> None:
         u_pos = self.u_pos
         v_pos = self.v_pos
         radius = self.radius
-        used_stroke_width = self.used_stroke_width
+        used_stroke_width = self.get_drawn_stroke_width(hover_part)
         scaled_stroke_width = drawing_metrics.scale_stroke(used_stroke_width)
         arrow_size = drawing_metrics.scale_length(8.0)
         used_stroke_style = self.used_stroke_style
@@ -3396,11 +3434,13 @@ class LatticeGraphicRenderer(GraphicRenderer):
                 mx += 1
 
         if is_selected:
-            draw_marker(ctx, start_widget, is_focused, is_position_locked)
-            draw_marker(ctx, u_pos_widget, is_focused, is_position_locked)
-            draw_marker(ctx, v_pos_widget, is_focused, is_position_locked)
-            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget), is_focused, is_shape_locked)
-            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget), is_focused, is_shape_locked)
+            hovered_u_corner = hover_part.removeprefix("u-") if hover_part and hover_part.startswith("u-") else None
+            hovered_v_corner = hover_part.removeprefix("v-") if hover_part and hover_part.startswith("v-") else None
+            draw_marker(ctx, start_widget, is_focused, is_position_locked, hover_part == "all")
+            draw_marker(ctx, u_pos_widget, is_focused, is_position_locked, hover_part == "u-all")
+            draw_marker(ctx, v_pos_widget, is_focused, is_position_locked, hover_part == "v-all")
+            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(u_pos_widget, size_widget), is_focused, is_shape_locked, hovered_u_corner)
+            draw_rect_marker(ctx, Geometry.FloatRect.from_center_and_size(v_pos_widget, size_widget), is_focused, is_shape_locked, hovered_v_corner)
         self.draw_label(ctx, drawing_metrics, display_style, mapping, is_selected)
 
     def label_position(self, drawing_metrics: UISettings.DrawingMetrics, mapping: CoordinateMappingLike, scaled_text_size: Geometry.FloatSize, scaled_padding: float) -> typing.Optional[Geometry.FloatPoint]:
