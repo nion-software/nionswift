@@ -7,22 +7,32 @@ import contextlib
 import contextvars
 import dataclasses
 import datetime
+import enum
 import functools
 import gettext
+import locale
 import logging
 import os
 import pathlib
+import plistlib
 import re
 import sys
 import threading
 import time
 import traceback
 import types
+import warnings
+import xml.parsers.expat
 import zoneinfo
+
+if sys.platform != "win32":
+    import pwd
 
 # third party libraries
 import typing
 
+import babel
+import babel.dates
 import numpy
 
 # local libraries
@@ -73,6 +83,86 @@ def local_utcoffset_minutes(datetime_local: typing.Optional[datetime.datetime] =
         return local_utcoffset_override[0]
     now = datetime.datetime.now()
     return int((now - now.astimezone(tz=datetime.timezone.utc).replace(tzinfo=None)).total_seconds() / 60)
+
+
+class DateTimeFormatType(enum.Enum):
+    """The forms of a date or time which format_date_time gives."""
+    TIME = 0
+    TIME_WITH_SECONDS = 1
+    MONTH_DAY = 2
+    YEAR_MONTH = 3
+
+
+def format_date_time(local_datetime: datetime.datetime, format_type: DateTimeFormatType, locale_name: str | None = None) -> str:
+    """Return the local date and time in the form which format_type describes, as the locale writes it.
+
+    The locale is the one which locale_name names, or the one which the operating system is set to when locale_name is
+    None.
+    """
+    babel_locale = get_babel_locale(locale_name if locale_name is not None else get_system_locale_name())
+    if format_type == DateTimeFormatType.TIME:
+        return babel.dates.format_time(local_datetime, "short", locale=babel_locale)
+    if format_type == DateTimeFormatType.TIME_WITH_SECONDS:
+        return babel.dates.format_time(local_datetime, "medium", locale=babel_locale)
+    if format_type == DateTimeFormatType.MONTH_DAY:
+        return babel.dates.format_skeleton("MMMd", local_datetime, locale=babel_locale)
+    return babel.dates.format_skeleton("yMM", local_datetime, locale=babel_locale)
+
+
+@functools.lru_cache(maxsize=16)
+def get_babel_locale(locale_name: str | None) -> babel.Locale:
+    """Return the Babel locale which locale_name names, or the POSIX locale if it is None or not known.
+
+    The name may separate its parts with hyphens, as macOS does for a locale with a script, such as zh-Hans_CN.
+    """
+    if locale_name:
+        try:
+            return babel.Locale.parse(locale_name.replace("-", "_"))
+        except (babel.UnknownLocaleError, ValueError):
+            # a locale which Babel does not know, such as one defined locally, still shows its dates in the POSIX form.
+            pass
+    return babel.Locale.parse("en_US_POSIX")
+
+
+@functools.cache
+def get_system_locale_name() -> str | None:
+    """Return the name of the locale which the operating system is set to, or None if it cannot be read.
+
+    The name comes from the user locale on Windows, the region setting on macOS, and the system locale on Linux. It is
+    read once, on the first call.
+    """
+    try:
+        if sys.platform == "win32":
+            # some Python versions warn that getdefaultlocale is deprecated, but it is the only standard way to read the
+            # Windows user locale.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                return locale.getdefaultlocale()[0]
+        if sys.platform == "darwin":
+            global_preferences_path = pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir) / "Library" / "Preferences" / ".GlobalPreferences.plist"
+            with open(global_preferences_path, "rb") as global_preferences_file:
+                apple_locale = plistlib.load(global_preferences_file).get("AppleLocale")
+            return apple_locale if isinstance(apple_locale, str) else None
+        for locale_conf_path in (pathlib.Path("/etc/locale.conf"), pathlib.Path("/etc/default/locale")):
+            if locale_conf_path.is_file() and (locale_name := get_locale_name_from_locale_conf(locale_conf_path.read_text())):
+                return locale_name
+    except (OSError, KeyError, ValueError, plistlib.InvalidFileException, xml.parsers.expat.ExpatError):
+        # a setting which cannot be read gives no locale name, which get_babel_locale treats as unknown.
+        pass
+    return None
+
+
+def get_locale_name_from_locale_conf(locale_conf_text: str) -> str | None:
+    """Return the name of the time locale which the text of a Linux locale.conf file sets, or None if it sets none.
+
+    The time locale is LC_TIME if the file sets it, and LANG otherwise.
+    """
+    values = dict[str, str]()
+    for line in locale_conf_text.splitlines():
+        name, separator, value = line.strip().partition("=")
+        if separator:
+            values[name.strip()] = value.strip().strip("\"'")
+    return values.get("LC_TIME") or values.get("LANG") or None
 
 
 class TimezoneMinutesToStringConverter:

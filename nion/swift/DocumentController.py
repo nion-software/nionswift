@@ -4184,6 +4184,23 @@ class DisplayPanelSelectSiblings(Window.Action):
         return len(context.display_panels) > 0 or context.display_panel is not None
 
 
+class DisplayPanelLeaveBrowserAction(Window.Action):
+
+    action_id = "display_panel.leave_browser"
+    action_name = _("Leave Browser")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        display_panel = context.display_panel
+        if display_panel:
+            display_panel.leave_browser(context.display_item)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
 class DisplayPanelShowItemAction(Window.Action):
 
     action_id = "display_panel.show_item"
@@ -4224,6 +4241,29 @@ class DisplayPanelShowGridBrowserAction(Window.Action):
     def is_checked(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
         return context.display_panel is not None and context.display_panel.display_panel_type == "grid"
+
+    def is_enabled(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None
+
+
+class DisplayPanelShowDetailBrowserAction(Window.Action):
+
+    action_id = "display_panel.show_detail_browser"
+    action_name = _("Detail Browser")
+
+    def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+        context = typing.cast(DocumentController.ActionContext, context)
+        window = typing.cast(DocumentController, context.window)
+        workspace_controller = window.workspace_controller
+        display_panel = context.display_panel
+        if workspace_controller and display_panel:
+            workspace_controller.switch_to_display_content(display_panel, "detail-browser-display-panel", display_panel.display_item)
+        return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+    def is_checked(self, context: Window.ActionContext) -> bool:
+        context = typing.cast(DocumentController.ActionContext, context)
+        return context.display_panel is not None and context.display_panel.display_panel_type == "detail"
 
     def is_enabled(self, context: Window.ActionContext) -> bool:
         context = typing.cast(DocumentController.ActionContext, context)
@@ -4359,8 +4399,10 @@ Window.register_action(DisplayPanelDeleteGraphicsAction())
 Window.register_action(DisplayPanelFocusNextAction())
 Window.register_action(DisplayPanelFocusPreviousAction())
 Window.register_action(DisplayPanelSelectSiblings())
+Window.register_action(DisplayPanelLeaveBrowserAction())
 Window.register_action(DisplayPanelShowItemAction())
 Window.register_action(DisplayPanelShowGridBrowserAction())
+Window.register_action(DisplayPanelShowDetailBrowserAction())
 Window.register_action(DisplayPanelShowThumbnailBrowserAction())
 Window.register_action(DisplayRemoveAction())
 Window.register_action(DisplayRevealAction())

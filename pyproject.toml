@@ -22,6 +22,7 @@ classifiers = [
 ]
 urls = { "Homepage" = "https://github.com/nion-software/nionswift" }
 dependencies = [
+    "babel",
     "h5py",
     "imageio >=2.19.0",
     "niondata >=15.10,<16.0",

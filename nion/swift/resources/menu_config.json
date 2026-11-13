@@ -209,6 +209,10 @@
                 "action_id": "display_panel.show_grid_browser"
             },
             {
+                "type": "item",
+                "action_id": "display_panel.show_detail_browser"
+            },
+            {
                 "type": "separator"
             },
             {

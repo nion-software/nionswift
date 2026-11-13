@@ -1446,22 +1446,22 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_image_display_panel_produces_context_menu_with_correct_item_count(self):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel._context_menu_event_for_testing(500, 500)
-        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(23, len(self.document_controller.ui.popup.items))
+        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, detail, sep
+        self.assertEqual(24, len(self.document_controller.ui.popup.items))
 
     def test_image_display_panel_produces_context_menu_with_correct_item_count_outside_image_area(self):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel._context_menu_event_for_testing(10, 32)  # header + 10
-        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(23, len(self.document_controller.ui.popup.items))
+        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, detail, sep
+        self.assertEqual(24, len(self.document_controller.ui.popup.items))
 
     def test_image_display_panel_with_no_image_produces_context_menu_with_correct_item_count(self):
         self.display_panel.set_display_panel_display_item(None)
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.refresh_layout_immediate()
         self.display_panel._context_menu_event_for_testing(500, 500)
-        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(15, len(self.document_controller.ui.popup.items))
+        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, detail, sep
+        self.assertEqual(16, len(self.document_controller.ui.popup.items))
 
     def test_empty_display_panel_produces_context_menu_with_correct_item_count(self):
         d = {"type": "image", "display-panel-type": "empty-display-panel"}
@@ -1469,8 +1469,19 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.refresh_layout_immediate()
         self.display_panel._context_menu_event_for_testing(500, 500)
-        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(15, len(self.document_controller.ui.popup.items))
+        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, detail, sep
+        self.assertEqual(16, len(self.document_controller.ui.popup.items))
+
+    def test_cycle_display_in_grid_browser_shows_the_detail_browser(self):
+        self.document_controller.workspace_controller.switch_to_display_content(self.display_panel, "browser-display-panel", self.display_item)
+        self.display_panel.cycle_display()
+        self.assertEqual("detail", self.display_panel.display_panel_type)
+
+    def test_cycle_display_in_detail_browser_shows_the_display_item(self):
+        self.document_controller.workspace_controller.switch_to_display_content(self.display_panel, "detail-browser-display-panel", self.display_item)
+        self.display_panel.cycle_display()
+        self.assertEqual("data_item", self.display_panel.display_panel_type)
+        self.assertEqual(self.display_item, self.display_panel.display_item)
 
     def test_browser_display_panel_produces_context_menu_with_correct_item_count_over_data_item(self):
         d = {"type": "image", "display-panel-type": "browser-display-panel"}
@@ -1479,8 +1490,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.refresh_layout_immediate()
         self.display_panel._context_menu_event_for_testing(40, 40)
-        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(22, len(self.document_controller.ui.popup.items))
+        # show, sep, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, detail, sep
+        self.assertEqual(23, len(self.document_controller.ui.popup.items))
 
     def test_browser_display_panel_produces_context_menu_with_correct_item_count_over_area_to_right_of_data_item(self):
         d = {"type": "image", "display-panel-type": "browser-display-panel"}
@@ -1489,8 +1500,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.refresh_layout_immediate()
         self.display_panel._context_menu_event_for_testing(300, 40)
-        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(15, len(self.document_controller.ui.popup.items))
+        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, detail, sep
+        self.assertEqual(16, len(self.document_controller.ui.popup.items))
 
     def test_browser_display_panel_produces_context_menu_with_correct_item_count_below_last_data_item(self):
         d = {"type": "image", "display-panel-type": "browser-display-panel"}
@@ -1499,8 +1510,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.refresh_layout_immediate()
         self.display_panel._context_menu_event_for_testing(300, 300)
-        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
-        self.assertEqual(15, len(self.document_controller.ui.popup.items))
+        # reveal, export, sep, del, sep, split h, split v, sep, none, sep, data, thumbnails, browser, detail, sep
+        self.assertEqual(16, len(self.document_controller.ui.popup.items))
 
     def test_browser_context_menu_deletes_all_selected_items(self):
         with TestContext.create_memory_context() as test_context:
@@ -1546,6 +1557,22 @@ class TestDisplayPanelClass(unittest.TestCase):
             item_canvas_items_in_view = display_panel._grid_canvas_item_for_test.item_canvas_items_in_view
             self.assertTrue(item_canvas_items_in_view[-1]._has_thumbnail_source)
 
+    def test_detail_browser_shows_thumbnails_and_dates_of_items_in_view(self):
+        # the data panel is not laid out and shows no items, so the browser cannot rely on it for its thumbnails.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(10):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "detail-browser-display-panel", None)
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            document_controller.periodic()
+            item_canvas_items_in_view = display_panel._detail_canvas_item_for_test.item_canvas_items_in_view
+            self.assertTrue(item_canvas_items_in_view[-1]._has_thumbnail_source)
+            self.assertTrue(item_canvas_items_in_view[-1]._date_str)
+
     def test_horizontal_browser_shows_thumbnails_of_items_in_view(self):
         # the data panel is not laid out and shows no items, so the browser cannot rely on it for its thumbnails.
         with TestContext.create_memory_context() as test_context:
@@ -1560,6 +1587,98 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             item_canvas_items_in_view = display_panel._strip_canvas_item_for_test.item_canvas_items_in_view
             self.assertTrue(item_canvas_items_in_view[-1]._has_thumbnail_source)
+
+    def test_double_click_on_the_displayed_item_in_the_thumbnail_browser_shows_it(self):
+        # the double-clicked item is already displayed, so the display does not change.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_item = document_model.display_items[0]
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_item)
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            strip_canvas_item = display_panel._strip_canvas_item_for_test
+            display_item_index = document_controller.filtered_display_items_model.display_items.index(display_item)
+            strip_canvas_item.mouse_double_clicked(display_item_index * 80 + 40, 40, CanvasItem.KeyboardModifiers())
+            self.assertEqual("data_item", display_panel.display_panel_type)
+            self.assertEqual(display_item, display_panel.display_item)
+
+    def test_shift_double_click_in_the_thumbnail_browser_shows_the_double_clicked_item(self):
+        # the first click of the double click extends the selection to two items, so no single item is displayed.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_items = document_controller.filtered_display_items_model.display_items
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_items[0])
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            strip_canvas_item = display_panel._strip_canvas_item_for_test
+            modifiers = CanvasItem.KeyboardModifiers(shift=True)
+            strip_canvas_item.mouse_pressed(120, 40, modifiers)
+            strip_canvas_item.mouse_released(120, 40, modifiers)
+            strip_canvas_item.mouse_double_clicked(120, 40, modifiers)
+            self.assertEqual("data_item", display_panel.display_panel_type)
+            self.assertEqual(display_items[1], display_panel.display_item)
+
+    def test_cycle_display_goes_on_from_a_browser_chosen_from_the_display_menu(self):
+        # choosing an item in the earlier browser should not make the cycle leave the chosen one.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_items = document_controller.filtered_display_items_model.display_items
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_items[0])
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            strip_canvas_item = display_panel._strip_canvas_item_for_test
+            strip_canvas_item.mouse_pressed(120, 40, CanvasItem.KeyboardModifiers())
+            strip_canvas_item.mouse_released(120, 40, CanvasItem.KeyboardModifiers())
+            workspace_controller.switch_to_display_content(display_panel, "data-display-panel", display_panel.display_item)
+            workspace_controller.switch_to_display_content(display_panel, "thumbnail-browser-display-panel", display_panel.display_item)
+            display_panel.cycle_display()
+            self.assertEqual("grid", display_panel.display_panel_type)
+
+    def test_cycle_display_in_grid_browser_shows_an_item_chosen_in_it(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_items = document_controller.filtered_display_items_model.display_items
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", display_items[0])
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            grid_canvas_item = display_panel._grid_canvas_item_for_test
+            grid_canvas_item.mouse_pressed(120, 40, CanvasItem.KeyboardModifiers())
+            grid_canvas_item.mouse_released(120, 40, CanvasItem.KeyboardModifiers())
+            display_panel.cycle_display()
+            self.assertEqual("data_item", display_panel.display_panel_type)
+            self.assertEqual(display_items[1], display_panel.display_item)
+
+    def test_double_click_on_the_displayed_item_in_the_grid_browser_shows_it(self):
+        # the grid browser is not the last in the cycle, so the double click must not cycle on from it.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            for _ in range(3):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
+            display_items = document_controller.filtered_display_items_model.display_items
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.switch_to_display_content(display_panel, "browser-display-panel", display_items[0])
+            workspace_controller.image_row.children[0]._root_canvas_item().layout_immediate(Geometry.IntSize(width=640, height=480))
+            display_panel._grid_canvas_item_for_test.mouse_double_clicked(40, 40, CanvasItem.KeyboardModifiers())
+            self.assertEqual("data_item", display_panel.display_panel_type)
+            self.assertEqual(display_items[0], display_panel.display_item)
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
         self.assertEqual(self.display_panel.header_canvas_item.title, self.display_item.displayed_title)
