@@ -6,6 +6,7 @@ from __future__ import annotations
 import dataclasses
 import math
 import typing
+import uuid
 import warnings
 
 # third party libraries
@@ -35,6 +36,8 @@ class RegionInfo:
     color: typing.Optional[str]
     used_text_visibility_map: dict[str, str]  # Returns the visibility of the passed in text part
     used_text_background_color_map: dict[str, str]  # Returns the background color of the passed in text part
+    graphic_uuid: uuid.UUID
+    edge_parts: tuple[str, str]  # The parts at the left and right edges, as the hit test of the graphic gives them
 
 
 def nice_label(value: float, precision: int) -> str:
@@ -491,6 +494,7 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                 for graphic_index, graphic_renderer in enumerate(graphic_renderers):
                     if isinstance(graphic_renderer, Graphics.IntervalGraphicRenderer):
                         graphic_start, graphic_end = graphic_renderer.start, graphic_renderer.end
+                        edge_parts = ("start", "end") if graphic_start <= graphic_end else ("end", "start")
                         graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
                         left_channel = graphic_start * data_scale
                         right_channel = graphic_end * data_scale
@@ -500,7 +504,8 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         region = RegionInfo((graphic_start, graphic_end),
                                             graphic_selection.contains(graphic_index),
                                             graphic_index, left_text, right_text, middle_text,
-                                            graphic_renderer.label, None, graphic_renderer.used_stroke_style, graphic_renderer.used_text_visibility_map, graphic_renderer.used_text_background_color_map)
+                                            graphic_renderer.label, None, graphic_renderer.used_stroke_style, graphic_renderer.used_text_visibility_map, graphic_renderer.used_text_background_color_map,
+                                            graphic_renderer.graphic_uuid, edge_parts)
                         regions.append(region)
                     elif isinstance(graphic_renderer, Graphics.ChannelGraphicRenderer):
                         graphic_start, graphic_end = graphic_renderer.position, graphic_renderer.position
@@ -513,7 +518,8 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                         region = RegionInfo((graphic_start, graphic_end),
                                             graphic_selection.contains(graphic_index),
                                             graphic_index, left_text, right_text, middle_text,
-                                            graphic_renderer.label, "tag", graphic_renderer.used_stroke_style, graphic_renderer.used_text_visibility_map, graphic_renderer.used_text_background_color_map)
+                                            graphic_renderer.label, "tag", graphic_renderer.used_stroke_style, graphic_renderer.used_text_visibility_map, graphic_renderer.used_text_background_color_map,
+                                            graphic_renderer.graphic_uuid, ("all", "all"))
                         regions.append(region)
             self.__regions = regions
         return self.__regions or list()

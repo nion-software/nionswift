@@ -233,9 +233,9 @@ def draw_frame(drawing_context: DrawingContext.DrawingContext, plot_height: int,
 
 
 def draw_marker(drawing_context: DrawingContext.DrawingContext, p: Geometry.FloatPoint,
-                fill: typing.Optional[str] = None, stroke: typing.Optional[str] = None) -> None:
+                fill: typing.Optional[str] = None, stroke: typing.Optional[str] = None, is_hovered: bool = False) -> None:
     with drawing_context.saver():
-        marker_half_size = 3
+        marker_half_size = 4 if is_hovered else 3
         drawing_context.begin_path()
         drawing_context.move_to(p.x - marker_half_size, p.y - marker_half_size)
         drawing_context.line_to(p.x + marker_half_size, p.y - marker_half_size)
@@ -504,12 +504,13 @@ class LineGraphLayersCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], regions: typing.Sequence[LinePlotDisplay.RegionInfo], is_focused: bool, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle) -> None:
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache, axes: typing.Optional[LinePlotDisplay.LineGraphAxes], regions: typing.Sequence[LinePlotDisplay.RegionInfo], is_focused: bool, drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, hovered_graphic_part: Graphics.HoveredGraphicPart | None) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__cache_values = list[typing.Tuple[CanvasItem.CacheValue, ...]]()
         self.__axes = axes
         self.__regions = regions
         self.__is_focused = is_focused
+        self.__hovered_graphic_part = hovered_graphic_part
         self.__drawing_metrics = drawing_metrics
         self.__display_style = display_style
         self.label_text_color = "black"
@@ -520,6 +521,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
         canvas_size = canvas_bounds.size
 
         regions = self.__regions
+        hovered_graphic_part = self.__hovered_graphic_part
 
         axes = self.__axes
         if axes:
@@ -596,6 +598,7 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                 left_channel, right_channel = region.channels
                 region_selected = region.selected
                 index = region.index
+                hover_part = hovered_graphic_part.part if hovered_graphic_part and hovered_graphic_part.graphic_uuid == region.graphic_uuid else None
                 level = canvas_size.height - canvas_size.height * 0.8 + index * int(self.__drawing_metrics.scale_length(8))
                 with drawing_context.saver():
                     drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
@@ -617,9 +620,11 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                         p = 0.25
                         selection_color = f"#{min(255, int(r * p + 255 * (1 - p))):02x}{min(255, int(g * p + 255 * (1 - p))):02x}{min(255, int(b * p + 255 * (1 - p))):02x}"
 
-                    drawing_context.line_width = self.__drawing_metrics.scale_stroke(1)
+                    # a hovered region draws wider, and solid, since a wide dashed line looks odd.
+                    is_whole_region_hovered = hover_part == "all"
+                    drawing_context.line_width = self.__drawing_metrics.scale_stroke(2 if is_whole_region_hovered else 1)
                     drawing_context.stroke_style = region_color
-                    if not region_selected:
+                    if not region_selected and not is_whole_region_hovered:
                         drawing_context.line_dash = self.__drawing_metrics.scale_length(2)
                     drawing_context.stroke()
 
@@ -630,13 +635,23 @@ class LineGraphRegionsCanvasItemComposer(CanvasItem.BaseComposer):
                     drawing_context.move_to(mid_x + offset_marker, level)
                     drawing_context.line_to(right, level)
                     drawing_context.stroke()
+                    # a press of the pointer tool on an edge moves only that edge, so only that edge draws hovered.
+                    for edge_x, edge_part in zip((left, right), region.edge_parts):
+                        if not is_whole_region_hovered and edge_part == hover_part:
+                            with drawing_context.saver():
+                                drawing_context.begin_path()
+                                drawing_context.move_to(edge_x, plot_origin_y)
+                                drawing_context.line_to(edge_x, plot_origin_y + plot_height)
+                                drawing_context.line_width = self.__drawing_metrics.scale_stroke(2)
+                                drawing_context.line_dash = 0
+                                drawing_context.stroke()
                     drawing_context.close_path()  # A new path is needed for the label to have a transparency in the background
                     drawing_context.line_dash = 0
                     drawing_context.begin_path()
                     if region_selected:
-                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color)
+                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), fill=selection_color, stroke=selection_color, is_hovered=is_whole_region_hovered)
                     else:
-                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color)
+                        draw_marker(drawing_context, Geometry.FloatPoint(level, mid_x), stroke=selection_color, is_hovered=is_whole_region_hovered)
                     drawing_context.font = font
 
                     is_label_visible = True
@@ -675,6 +690,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__drawing_metrics = drawing_metrics
         self.__display_style = display_style
 
+        # the main thread replaces the hovered graphic part, which is immutable, and the render thread reads it.
         self.__hovered_graphic_part: Graphics.HoveredGraphicPart | None = None
 
     @property
@@ -687,7 +703,9 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     @hovered_graphic_part.setter
     def hovered_graphic_part(self, value: Graphics.HoveredGraphicPart | None) -> None:
-        self.__hovered_graphic_part = value
+        if value != self.__hovered_graphic_part:
+            self.__hovered_graphic_part = value
+            self.update()
 
     def update_line_graph_layers(self, line_graph_layers: typing.Sequence[LinePlotDisplay.LineGraphLayer]) -> None:
         axes = line_graph_layers[0].axes if line_graph_layers else None
@@ -707,7 +725,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return LineGraphRegionsCanvasItemComposer(self, self.layout_sizing, composer_cache, self._axes, self.__regions, self.__is_focused, self.__drawing_metrics, self.__display_style)
+        return LineGraphRegionsCanvasItemComposer(self, self.layout_sizing, composer_cache, self._axes, self.__regions, self.__is_focused, self.__drawing_metrics, self.__display_style, self.__hovered_graphic_part)
 
 
 class LineGraphFrameCanvasItemComposer(CanvasItem.BaseComposer):
