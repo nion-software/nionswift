@@ -3229,33 +3229,32 @@ class LatticeGraphic(Graphic):
         return self.u_pos, self.v_pos, self.radius
 
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
-        p_image = mapping.map_point_widget_to_image(current)
         p_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(current))
         o_norm = Geometry.FloatPoint.make(mapping.map_point_widget_to_image_norm(original))
         original_image = mapping.map_point_widget_to_image(original)
         current_image = mapping.map_point_widget_to_image(current)
         delta = p_norm - o_norm
-        start_image = mapping.calibrated_origin_widget
+        start_norm = mapping.calibrated_origin_image_norm
+        start_image = mapping.map_point_image_norm_to_image(start_norm)
         constraints = self._constraints
 
         radius = part[3]
         size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
 
         if part[0] == "u-all" and not "position" in constraints:
+            u_pos = Geometry.FloatPoint.make(part[1]) + delta
             if modifiers.shift:
-                p_image = snap_to_45_degree_angle(p_image, start_image)
-                u_pos = mapping.map_point_image_to_image_norm(p_image)
-            else:
-                u_pos = Geometry.FloatPoint.make(part[1]) + delta
+                # constrain the angle in image coordinates, since 45 degrees in normalized coordinates is not 45 degrees on a non-square image
+                p_image = snap_to_45_degree_angle(mapping.map_point_image_norm_to_image(start_norm + u_pos), start_image)
+                u_pos = mapping.map_point_image_to_image_norm(p_image) - start_norm
             if "bounds" in constraints:
                 u_pos = Geometry.FloatPoint(min(max(u_pos.y, 0.0), 1.0), min(max(u_pos.x, 0.0), 1.0))
             self.u_pos = u_pos.as_size()
         elif part[0] == "v-all" and not "position" in constraints:
+            v_pos = Geometry.FloatPoint.make(part[2]) + delta
             if modifiers.shift:
-                p_image = snap_to_45_degree_angle(p_image, start_image)
-                v_pos = mapping.map_point_image_to_image_norm(p_image)
-            else:
-                v_pos = Geometry.FloatPoint.make(part[2]) + delta
+                p_image = snap_to_45_degree_angle(mapping.map_point_image_norm_to_image(start_norm + v_pos), start_image)
+                v_pos = mapping.map_point_image_to_image_norm(p_image) - start_norm
             if "bounds" in constraints:
                 v_pos = Geometry.FloatPoint(min(max(v_pos.y, 0.0), 1.0), min(max(v_pos.x, 0.0), 1.0))
             self.v_pos = v_pos.as_size()

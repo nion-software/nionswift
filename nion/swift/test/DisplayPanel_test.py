@@ -600,6 +600,27 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.origin), (9, 4))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_item.graphics[0].bounds.size.as_point()), (2, 2))
 
+    def test_shift_drag_lattice_ellipse_constrains_it_to_horizontal(self):
+        # put the calibrated origin at the center of the image, at widget (500, 500)
+        self.data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.zeros((10, 10)), dimensional_calibrations=[Calibration.Calibration(-5, 1), Calibration.Calibration(-5, 1)]))
+        lattice = self.document_controller.add_lattice_graphic()
+        self.display_panel.display_canvas_item.update_canvas_items()
+        # the u ellipse starts at offset (0.0, 0.25), at widget (500, 750); drag it slightly down and right
+        self.display_panel.display_canvas_item.simulate_drag((500, 750), (560, 800), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
+        self.assertClosePoint(lattice.u_pos, (0.0, 0.3))
+
+    def test_shift_drag_lattice_ellipse_constrains_it_to_diagonal(self):
+        # use a tall image, on which the diagonal in pixels is not the diagonal in normalized coordinates
+        self.data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.zeros((20, 10)), dimensional_calibrations=[Calibration.Calibration(-10, 1), Calibration.Calibration(-5, 1)]))
+        self.display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=2000, width=1000))
+        lattice = self.document_controller.add_lattice_graphic()
+        self.display_panel.display_canvas_item.update_canvas_items()
+        # the v ellipse starts at offset (-0.25, 0.0), at widget (500, 500); drag it to pixel offset (-6, -5), a little steeper than the diagonal
+        self.display_panel.display_canvas_item.simulate_drag((500, 500), (400, 0), CanvasItem.KeyboardModifiers(shift=True))
+        self.document_controller.periodic()
+        self.assertClosePoint(lattice.v_pos, (-0.3, -0.6))
+
     def test_insert_remove_graphics_and_selection(self):
         self.assertFalse(self.display_item.graphic_selection.indexes)
         self.document_controller.add_rectangle_graphic()
