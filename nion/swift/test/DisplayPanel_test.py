@@ -621,6 +621,28 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.periodic()
         self.assertClosePoint(lattice.v_pos, (-0.3, -0.6))
 
+    def test_drag_bounds_constrained_lattice_ellipse_keeps_its_center_inside_image(self):
+        # put the calibrated origin at the center of the image, at widget (500, 500)
+        self.data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.zeros((10, 10)), dimensional_calibrations=[Calibration.Calibration(-5, 1), Calibration.Calibration(-5, 1)]))
+        lattice = self.document_controller.add_lattice_graphic()
+        lattice.is_bounds_constrained = True
+        self.display_panel.display_canvas_item.update_canvas_items()
+        # the v ellipse starts at offset (-0.25, 0.0), at widget (250, 500); drag it past the left edge of the image
+        self.display_panel.display_canvas_item.simulate_drag((250, 500), (200, -100))
+        self.document_controller.periodic()
+        self.assertClosePoint(lattice.v_pos, (-0.3, -0.5))
+
+    def test_resize_bounds_constrained_lattice_ellipse_keeps_it_inside_image(self):
+        # put the calibrated origin at the center of the image, at widget (500, 500)
+        self.data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.zeros((10, 10)), dimensional_calibrations=[Calibration.Calibration(-5, 1), Calibration.Calibration(-5, 1)]))
+        lattice = self.document_controller.add_lattice_graphic()
+        lattice.is_bounds_constrained = True
+        self.display_panel.display_canvas_item.update_canvas_items()
+        # the u ellipse is centered at widget (500, 750) with radius 0.1; the right edge of the image limits its radius to 0.25
+        self.display_panel.display_canvas_item.simulate_drag((400, 650), (200, 450))
+        self.document_controller.periodic()
+        self.assertAlmostEqual(lattice.radius, 0.25)
+
     def test_insert_remove_graphics_and_selection(self):
         self.assertFalse(self.display_item.graphic_selection.indexes)
         self.document_controller.add_rectangle_graphic()

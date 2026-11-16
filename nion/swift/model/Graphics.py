@@ -3286,7 +3286,8 @@ class LatticeGraphic(Graphic):
                 p_image = snap_to_45_degree_angle(mapping.map_point_image_norm_to_image(start_norm + u_pos), start_image)
                 u_pos = mapping.map_point_image_to_image_norm(p_image) - start_norm
             if "bounds" in constraints:
-                u_pos = Geometry.FloatPoint(min(max(u_pos.y, 0.0), 1.0), min(max(u_pos.x, 0.0), 1.0))
+                u_end = start_norm + u_pos
+                u_pos = Geometry.FloatPoint(min(max(u_end.y, 0.0), 1.0), min(max(u_end.x, 0.0), 1.0)) - start_norm
             self.u_pos = u_pos.as_size()
         elif part[0] == "v-all" and not "position" in constraints:
             v_pos = Geometry.FloatPoint.make(part[2]) + delta
@@ -3294,11 +3295,12 @@ class LatticeGraphic(Graphic):
                 p_image = snap_to_45_degree_angle(mapping.map_point_image_norm_to_image(start_norm + v_pos), start_image)
                 v_pos = mapping.map_point_image_to_image_norm(p_image) - start_norm
             if "bounds" in constraints:
-                v_pos = Geometry.FloatPoint(min(max(v_pos.y, 0.0), 1.0), min(max(v_pos.x, 0.0), 1.0))
+                v_end = start_norm + v_pos
+                v_pos = Geometry.FloatPoint(min(max(v_end.y, 0.0), 1.0), min(max(v_end.x, 0.0), 1.0)) - start_norm
             self.v_pos = v_pos.as_size()
         elif part[0].startswith("u-") and not "shape" in constraints:
             part_constraints = constraints.union({"position", "square"})
-            u_bounds = Geometry.FloatRect.from_center_and_size(part[1], size)
+            u_bounds = Geometry.FloatRect.from_center_and_size(start_norm + Geometry.FloatSize.make(part[1]), size)
             sub_part = part[0][2:], u_bounds, 0
             sub_bounds = Geometry.FloatRect.make(sub_part[1])
             part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
@@ -3306,7 +3308,7 @@ class LatticeGraphic(Graphic):
             self.radius = abs(part_bounds.height / 2)
         elif part[0].startswith("v-") and not "shape" in constraints:
             part_constraints = constraints.union({"position", "square"})
-            v_bounds = Geometry.FloatRect.from_center_and_size(part[2], size)
+            v_bounds = Geometry.FloatRect.from_center_and_size(start_norm + Geometry.FloatSize.make(part[2]), size)
             sub_part = part[0][2:], v_bounds, 0
             sub_bounds = Geometry.FloatRect.make(sub_part[1])
             part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
