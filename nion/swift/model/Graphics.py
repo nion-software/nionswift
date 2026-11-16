@@ -3241,40 +3241,27 @@ class LatticeGraphic(Graphic):
         radius = part[3]
         size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
 
-        if part[0] == "u-all" and not "position" in constraints:
-            u_pos = Geometry.FloatPoint.make(part[1]) + delta
+        # the u and v ellipses drag the same way, with their offsets from the origin in part[1] and part[2]
+        is_u_part = part[0].startswith("u-")
+        offset = Geometry.FloatPoint.make(part[1] if is_u_part else part[2])
+
+        if part[0] in ("u-all", "v-all") and not "position" in constraints:
+            offset = offset + delta
             if modifiers.shift:
                 # constrain the angle in image coordinates, since 45 degrees in normalized coordinates is not 45 degrees on a non-square image
-                p_image = snap_to_45_degree_angle(mapping.map_point_image_norm_to_image(start_norm + u_pos), start_image)
-                u_pos = mapping.map_point_image_to_image_norm(p_image) - start_norm
+                p_image = snap_to_45_degree_angle(mapping.map_point_image_norm_to_image(start_norm + offset), start_image)
+                offset = mapping.map_point_image_to_image_norm(p_image) - start_norm
             if "bounds" in constraints:
-                u_end = start_norm + u_pos
-                u_pos = Geometry.FloatPoint(min(max(u_end.y, 0.0), 1.0), min(max(u_end.x, 0.0), 1.0)) - start_norm
-            self.u_pos = u_pos.as_size()
-        elif part[0] == "v-all" and not "position" in constraints:
-            v_pos = Geometry.FloatPoint.make(part[2]) + delta
-            if modifiers.shift:
-                p_image = snap_to_45_degree_angle(mapping.map_point_image_norm_to_image(start_norm + v_pos), start_image)
-                v_pos = mapping.map_point_image_to_image_norm(p_image) - start_norm
-            if "bounds" in constraints:
-                v_end = start_norm + v_pos
-                v_pos = Geometry.FloatPoint(min(max(v_end.y, 0.0), 1.0), min(max(v_end.x, 0.0), 1.0)) - start_norm
-            self.v_pos = v_pos.as_size()
-        elif part[0].startswith("u-") and not "shape" in constraints:
+                end = start_norm + offset
+                offset = Geometry.FloatPoint(min(max(end.y, 0.0), 1.0), min(max(end.x, 0.0), 1.0)) - start_norm
+            if is_u_part:
+                self.u_pos = offset.as_size()
+            else:
+                self.v_pos = offset.as_size()
+        elif part[0][:2] in ("u-", "v-") and not "shape" in constraints:
             # the radius is in normalized coordinates, so take it from the smaller side of the dragged box in normalized coordinates
-            part_constraints = constraints.union({"position"})
-            u_bounds = Geometry.FloatRect.from_center_and_size(start_norm + Geometry.FloatSize.make(part[1]), size)
-            sub_part = part[0][2:], u_bounds, 0
-            sub_bounds = Geometry.FloatRect.make(sub_part[1])
-            part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], NullModifiers(), part_constraints)
-            part_bounds = Geometry.FloatRect.make(part_bounds)
-            self.radius = min(abs(part_bounds.height), abs(part_bounds.width)) / 2
-        elif part[0].startswith("v-") and not "shape" in constraints:
-            part_constraints = constraints.union({"position"})
-            v_bounds = Geometry.FloatRect.from_center_and_size(start_norm + Geometry.FloatSize.make(part[2]), size)
-            sub_part = part[0][2:], v_bounds, 0
-            sub_bounds = Geometry.FloatRect.make(sub_part[1])
-            part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], NullModifiers(), part_constraints)
+            bounds = Geometry.FloatRect.from_center_and_size(start_norm + offset, size)
+            part_bounds, _ = adjust_rectangle_like(part[0][2:], Geometry.FloatSize.make(mapping.data_shape), bounds, 0.0, False, original_image, current_image, 0.0, NullModifiers(), constraints.union({"position"}))
             part_bounds = Geometry.FloatRect.make(part_bounds)
             self.radius = min(abs(part_bounds.height), abs(part_bounds.width)) / 2
 
