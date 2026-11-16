@@ -546,10 +546,18 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         self.cursor_shape = "split_vertical"
                     else:
                         self.cursor_shape = "hand"
-                elif (graphics := line_plot_display_info.graphics) and (part_spec := find_graphic_part(graphics, line_plot_display_info.graphic_selection.indexes, self.__get_mouse_mapping(), self.__drawing_metrics, self.display_style, pos.to_float_point())):
-                    self.cursor_shape = "size_horizontal" if part_spec[1] in {"start", "end"} and not modifiers.control else "hand"
                 else:
-                    self.cursor_shape = "arrow"
+                    part_spec: tuple[int, str] | None = None
+                    regions_canvas_bounds = self.__line_graph_regions_canvas_item.canvas_bounds
+                    # a press grabs a graphic only within the plot.
+                    if regions_canvas_bounds and regions_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
+                        part_spec = find_graphic_part(line_plot_display_info.graphics, line_plot_display_info.graphic_selection.indexes, self.__get_mouse_mapping(), self.__drawing_metrics, self.display_style, pos.to_float_point())
+                    if part_spec and part_spec[1] in {"start", "end"} and not modifiers.control:
+                        self.cursor_shape = "size_horizontal"
+                    elif part_spec:
+                        self.cursor_shape = "hand"
+                    else:
+                        self.cursor_shape = "arrow"
         elif delegate and delegate.tool_mode == "interval":
             self.cursor_shape = "cross"
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)

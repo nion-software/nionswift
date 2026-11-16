@@ -1977,6 +1977,23 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.5), 100, CanvasItem.KeyboardModifiers())
         self.assertEqual("size_horizontal", line_plot_canvas_item.cursor_shape)
 
+    def test_line_plot_cursor_over_legend_beside_interval_past_plot_edge_shows_arrow(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        self.display_item.display_layers[0].label = "A"
+        self.display_item.set_display_property("legend_position", "outer-right")
+        # zoom in so that the interval extends past the right edge of the plot, under the legend
+        self.display_item.set_display_property("left_channel", 0)
+        self.display_item.set_display_property("right_channel", 512)
+        self.display_panel.refresh_layout_immediate()
+        region = Graphics.IntervalGraphic()
+        region.interval = (0.4, 0.9)
+        self.display_item.add_graphic(region)
+        line_plot_canvas_item.update_canvas_items()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_right = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.right + plot_origin.x
+        line_plot_canvas_item.mouse_position_changed(plot_right + 20, 100, CanvasItem.KeyboardModifiers())
+        self.assertEqual("arrow", line_plot_canvas_item.cursor_shape)
+
     def test_line_plot_dragging_inside_overlapping_intervals_moves_the_one_drawn_on_top(self):
         line_plot_canvas_item = self.setup_line_plot()
         plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
