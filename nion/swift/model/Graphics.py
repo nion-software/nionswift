@@ -2624,7 +2624,6 @@ class WedgeGraphic(Graphic):
             end_angle =  float(value[1])
             return start_angle, end_angle
 
-        self.__first_drag = True
         self.__inverted_drag = False
         self.define_property("angle_interval", (0.0, math.pi), validate=validate_angles, changed=self._property_changed, hidden=True)
         self._default_drag_part = "start-angle"
@@ -2726,9 +2725,6 @@ class WedgeGraphic(Graphic):
 
     def begin_drag(self) -> DragPartData:
         return self.__start_angle_internal, self.__end_angle_internal
-
-    def end_drag(self, part_data: DragPartData) -> None:
-        self.__first_drag = False
 
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         if self.is_rotation_locked and part[0] in {"all", "inverted-all"}:
@@ -3230,9 +3226,6 @@ class LatticeGraphic(Graphic):
 
     def begin_drag(self) -> DragPartData:
         return self.u_pos, self.v_pos, self.radius
-
-    def end_drag(self, part_data: DragPartData) -> None:
-        self.__first_drag = False
 
     def adjust_part(self, mapping: CoordinateMappingLike, original: Geometry.FloatPoint, current: Geometry.FloatPoint, part: DragPartDataPlus, modifiers: ModifiersLike) -> None:
         p_image = mapping.map_point_widget_to_image(current)
