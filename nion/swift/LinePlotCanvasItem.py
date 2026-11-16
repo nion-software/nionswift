@@ -88,18 +88,21 @@ def find_graphic_part(graphics: typing.Sequence[Graphics.Graphic], selection_ind
                       drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, pos: Geometry.FloatPoint) -> tuple[int, str] | None:
     """Return the index of the graphic and the name of its part which a press of the pointer tool at a widget position grabs.
 
-    The first graphic which the position hits takes priority.
+    A selected graphic takes priority over one which isn't selected, and then a graphic drawn later takes priority over one
+    drawn earlier.
 
     Returns None if a press at the position grabs no graphic.
     """
     multiple_items_selected = len(selection_indexes) > 1
-    for graphic_index, graphic in enumerate(graphics):
+    part_spec: tuple[int, str] | None = None
+    # sort the graphics so that the one with the highest priority comes last.
+    for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
         if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
             move_only = graphic_index not in selection_indexes or multiple_items_selected
             part, specific = graphic.test(mapping, drawing_metrics, display_style, pos, move_only)
             if part:
-                return graphic_index, part
-    return None
+                part_spec = graphic_index, part
+    return part_spec
 
 
 class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
@@ -526,6 +529,7 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
             axes = self.__last_axes
             if axes:
                 pos = Geometry.IntPoint(x=x, y=y)
+                line_plot_display_info = self.__line_plot_display_info
                 h_axis_canvas_bounds = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds
                 v_axis_canvas_bounds = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds
                 if h_axis_canvas_bounds and h_axis_canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
@@ -538,19 +542,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
                         self.cursor_shape = "split_vertical"
                     else:
                         self.cursor_shape = "hand"
-                elif graphics := self.__line_plot_display_info.graphics:
-                    for graphic_index, graphic in enumerate(graphics):
-                        if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
-                            widget_mapping = self.__get_mouse_mapping()
-                            part, specific = graphic.test(widget_mapping, self.__drawing_metrics, self.display_style, pos.to_float_point(), False)
-                            if part in {"start", "end"} and not modifiers.control:
-                                self.cursor_shape = "size_horizontal"
-                                break
-                            elif part:
-                                self.cursor_shape = "hand"
-                                break
-                    else:
-                        self.cursor_shape = "arrow"
+                elif (graphics := line_plot_display_info.graphics) and (part_spec := find_graphic_part(graphics, line_plot_display_info.graphic_selection.indexes, self.__get_mouse_mapping(), self.__drawing_metrics, self.display_style, pos.to_float_point())):
+                    self.cursor_shape = "size_horizontal" if part_spec[1] in {"start", "end"} and not modifiers.control else "hand"
                 else:
                     self.cursor_shape = "arrow"
         elif delegate and delegate.tool_mode == "interval":
