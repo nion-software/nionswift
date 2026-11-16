@@ -643,6 +643,17 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.periodic()
         self.assertAlmostEqual(lattice.radius, 0.25)
 
+    def test_resize_lattice_ellipse_on_tall_image_follows_corner(self):
+        # put the calibrated origin at the center of a tall image, at widget (1000, 500)
+        self.data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.zeros((20, 10)), dimensional_calibrations=[Calibration.Calibration(-10, 1), Calibration.Calibration(-5, 1)]))
+        self.display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=2000, width=1000))
+        lattice = self.document_controller.add_lattice_graphic()
+        self.display_panel.display_canvas_item.update_canvas_items()
+        # the v ellipse is centered at widget (500, 500) with radius 0.1, so its bottom right corner is at widget (700, 600)
+        self.display_panel.display_canvas_item.simulate_drag((700, 600), (740, 620))
+        self.document_controller.periodic()
+        self.assertAlmostEqual(lattice.radius, 0.12)
+
     def test_insert_remove_graphics_and_selection(self):
         self.assertFalse(self.display_item.graphic_selection.indexes)
         self.document_controller.add_rectangle_graphic()

@@ -3299,21 +3299,22 @@ class LatticeGraphic(Graphic):
                 v_pos = Geometry.FloatPoint(min(max(v_end.y, 0.0), 1.0), min(max(v_end.x, 0.0), 1.0)) - start_norm
             self.v_pos = v_pos.as_size()
         elif part[0].startswith("u-") and not "shape" in constraints:
-            part_constraints = constraints.union({"position", "square"})
+            # the radius is in normalized coordinates, so take it from the smaller side of the dragged box in normalized coordinates
+            part_constraints = constraints.union({"position"})
             u_bounds = Geometry.FloatRect.from_center_and_size(start_norm + Geometry.FloatSize.make(part[1]), size)
             sub_part = part[0][2:], u_bounds, 0
             sub_bounds = Geometry.FloatRect.make(sub_part[1])
-            part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
+            part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], NullModifiers(), part_constraints)
             part_bounds = Geometry.FloatRect.make(part_bounds)
-            self.radius = abs(part_bounds.height / 2)
+            self.radius = min(abs(part_bounds.height), abs(part_bounds.width)) / 2
         elif part[0].startswith("v-") and not "shape" in constraints:
-            part_constraints = constraints.union({"position", "square"})
+            part_constraints = constraints.union({"position"})
             v_bounds = Geometry.FloatRect.from_center_and_size(start_norm + Geometry.FloatSize.make(part[2]), size)
             sub_part = part[0][2:], v_bounds, 0
             sub_bounds = Geometry.FloatRect.make(sub_part[1])
-            part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], modifiers, part_constraints)
+            part_bounds, _ = adjust_rectangle_like(sub_part[0], Geometry.FloatSize.make(mapping.data_shape), sub_bounds, 0.0, False, original_image, current_image, sub_part[2], NullModifiers(), part_constraints)
             part_bounds = Geometry.FloatRect.make(part_bounds)
-            self.radius = abs(part_bounds.height / 2)
+            self.radius = min(abs(part_bounds.height), abs(part_bounds.width)) / 2
 
     def get_region(self) -> LatticeRegion:
         return LatticeRegion(self.u_pos, self.v_pos, Geometry.FloatSize(self.radius * 2, self.radius * 2), 0.0)
