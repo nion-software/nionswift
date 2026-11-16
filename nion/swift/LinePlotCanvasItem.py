@@ -88,21 +88,25 @@ def find_graphic_part(graphics: typing.Sequence[Graphics.Graphic], selection_ind
                       drawing_metrics: UISettings.DrawingMetrics, display_style: UISettings.DisplayStyle, pos: Geometry.FloatPoint) -> tuple[int, str] | None:
     """Return the index of the graphic and the name of its part which a press of the pointer tool at a widget position grabs.
 
-    A selected graphic takes priority over one which isn't selected, and then a graphic drawn later takes priority over one
-    drawn earlier.
+    A hit on a specific part, such as an interval edge or a channel line, takes priority over a hit elsewhere, such as inside
+    an interval or on a label. Among hits of the same kind, a selected graphic takes priority over one which isn't selected,
+    and then a graphic drawn later takes priority over one drawn earlier.
 
     Returns None if a press at the position grabs no graphic.
     """
     multiple_items_selected = len(selection_indexes) > 1
     part_spec: tuple[int, str] | None = None
+    specific_part_spec: tuple[int, str] | None = None
     # sort the graphics so that the one with the highest priority comes last.
     for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
         if graphic.has_attribute(Graphics.GraphicAttributeEnum.ONE_DIMENSIONAL):
             move_only = graphic_index not in selection_indexes or multiple_items_selected
             part, specific = graphic.test(mapping, drawing_metrics, display_style, pos, move_only)
-            if part:
+            if part and specific:
+                specific_part_spec = graphic_index, part
+            elif part:
                 part_spec = graphic_index, part
-    return part_spec
+    return specific_part_spec if specific_part_spec is not None else part_spec
 
 
 class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
