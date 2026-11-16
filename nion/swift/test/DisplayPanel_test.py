@@ -1943,6 +1943,68 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_item.remove_graphic(display_item.graphics[1]).close()
             self.assertEqual(1, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
 
+    def test_line_plot_dragging_inside_overlapping_intervals_moves_the_one_drawn_on_top(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        lower_region = Graphics.IntervalGraphic()
+        lower_region.interval = (0.2, 0.5)
+        self.display_item.add_graphic(lower_region)
+        upper_region = Graphics.IntervalGraphic()
+        upper_region.interval = (0.3, 0.6)
+        self.display_item.add_graphic(upper_region)
+        modifiers = CanvasItem.KeyboardModifiers()
+        line_plot_canvas_item.mouse_pressed(plot_left + round(plot_width * 0.4), 100, modifiers)
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.45), 100, modifiers)
+        line_plot_canvas_item.mouse_released(plot_left + round(plot_width * 0.45), 100, modifiers)
+        self.document_controller.periodic()
+        self.assertAlmostEqual(0.35, upper_region.start, 2)  # pixel accuracy, approx. 1/500
+        self.assertEqual((0.2, 0.5), lower_region.interval)
+
+    def test_line_plot_dragging_inside_overlapping_intervals_moves_the_selected_one(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        lower_region = Graphics.IntervalGraphic()
+        lower_region.interval = (0.2, 0.5)
+        self.display_item.add_graphic(lower_region)
+        upper_region = Graphics.IntervalGraphic()
+        upper_region.interval = (0.3, 0.6)
+        self.display_item.add_graphic(upper_region)
+        modifiers = CanvasItem.KeyboardModifiers()
+        # select the lower interval by clicking where only it is
+        line_plot_canvas_item.mouse_pressed(plot_left + round(plot_width * 0.25), 100, modifiers)
+        line_plot_canvas_item.mouse_released(plot_left + round(plot_width * 0.25), 100, modifiers)
+        self.document_controller.periodic()
+        line_plot_canvas_item.mouse_pressed(plot_left + round(plot_width * 0.4), 100, modifiers)
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.45), 100, modifiers)
+        line_plot_canvas_item.mouse_released(plot_left + round(plot_width * 0.45), 100, modifiers)
+        self.document_controller.periodic()
+        self.assertAlmostEqual(0.25, lower_region.start, 2)  # pixel accuracy, approx. 1/500
+        self.assertEqual((0.3, 0.6), upper_region.interval)
+
+    def test_line_plot_interval_tool_drag_from_edge_of_interval_creates_new_interval(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_layers_canvas_item.canvas_rect.width
+        region = Graphics.IntervalGraphic()
+        region.interval = (0.2, 0.4)
+        self.display_item.add_graphic(region)
+        self.document_controller.tool_mode = "interval"
+        modifiers = CanvasItem.KeyboardModifiers()
+        line_plot_canvas_item.mouse_pressed(plot_left + round(plot_width * 0.4), 100, modifiers)
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.45), 100, modifiers)
+        line_plot_canvas_item.mouse_position_changed(plot_left + round(plot_width * 0.5), 100, modifiers)
+        line_plot_canvas_item.mouse_released(plot_left + round(plot_width * 0.5), 100, modifiers)
+        self.document_controller.periodic()
+        self.assertEqual(2, len(self.display_item.graphics))
+        self.assertEqual((0.2, 0.4), region.interval)
+        self.assertAlmostEqual(0.4, self.display_item.graphics[1].start, 2)  # pixel accuracy, approx. 1/500
+        self.assertAlmostEqual(0.5, self.display_item.graphics[1].end, 2)  # pixel accuracy, approx. 1/500
+
     def test_line_plot_mouse_over_end_of_interval_hovers_its_end(self):
         line_plot_canvas_item = self.setup_line_plot()
         plot_origin = line_plot_canvas_item.line_graph_layers_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
