@@ -136,6 +136,24 @@ def rotate(point: Geometry.FloatPoint, origin: Geometry.FloatPoint, angle: float
                                         y=delta.y * angle_cos - delta.x * angle_sin)
 
 
+def snap_to_45_degree_angle(point: Geometry.FloatPoint, pivot: Geometry.FloatPoint) -> Geometry.FloatPoint:
+    """Return the point moved onto a horizontal, vertical or diagonal line through the pivot.
+
+    A point within 30 degrees of the horizontal or the vertical moves onto it. Any other point moves onto the diagonal,
+    keeping its offset from the pivot along the axis it is closer to.
+    """
+    dy = point.y - pivot.y
+    dx = point.x - pivot.x
+    angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
+    if angle_degrees > 60:
+        return Geometry.FloatPoint(point.y, pivot.x)
+    if angle_degrees > 45:
+        return Geometry.FloatPoint(point.y, pivot.x + dy if dx * dy > 0 else pivot.x - dy)
+    if angle_degrees > 30:
+        return Geometry.FloatPoint(pivot.y + dx if dx * dy > 0 else pivot.y - dx, point.x)
+    return Geometry.FloatPoint(pivot.y, point.x)
+
+
 def get_line_intersection(p1: Geometry.FloatPoint, p2: Geometry.FloatPoint, p3: Geometry.FloatPoint, p4: Geometry.FloatPoint, sign: float) -> typing.Tuple[bool, Geometry.FloatPoint, float]:
     # see https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection
     d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x)
@@ -1726,25 +1744,8 @@ class LineTypeGraphic(Graphic):
         pivot_image = mapping.map_point_image_norm_to_image(pivot)
 
         if not "shape" in constraints and part[0] in {"start", "end"}:
-            dy = p_image.y - pivot_image.y
-            dx = p_image.x - pivot_image.x
             if modifiers.shift:
-                angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
-                if angle_degrees > 60:
-                    p_image = Geometry.FloatPoint(p_image.y, pivot_image.x)
-                elif angle_degrees > 30:
-                    if angle_degrees > 45:
-                        if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(p_image.y, pivot_image.x + dy)
-                        else:
-                            p_image = Geometry.FloatPoint(p_image.y, pivot_image.x - dy)
-                    else:
-                        if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(pivot_image.y + dx, p_image.x)
-                        else:
-                            p_image = Geometry.FloatPoint(pivot_image.y - dx, p_image.x)
-                else:
-                    p_image = Geometry.FloatPoint(pivot_image.y, p_image.x)
+                p_image = snap_to_45_degree_angle(p_image, pivot_image)
 
             if part[0] == "start":
                 start = mapping.map_point_image_to_image_norm(p_image)
@@ -3279,25 +3280,8 @@ class LatticeGraphic(Graphic):
         size = Geometry.FloatSize(width=radius * 2, height=radius * 2)
 
         if part[0] == "u-all" and not "position" in constraints:
-            dy = p_image.y - start_image.y
-            dx = p_image[1] - start_image[1]
             if modifiers.shift:
-                angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
-                if angle_degrees > 60:
-                    p_image = Geometry.FloatPoint(p_image.y, start_image.x)
-                elif angle_degrees > 30:
-                    if angle_degrees > 45:
-                        if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(p_image.y, start_image.x + dy)
-                        else:
-                            p_image = Geometry.FloatPoint(p_image.y, start_image.x - dy)
-                    else:
-                        if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(start_image.y + dx, p_image.x)
-                        else:
-                            p_image = Geometry.FloatPoint(start_image.y - dx, p_image.x)
-                else:
-                    p_image = Geometry.FloatPoint(start_image.y, p_image.x)
+                p_image = snap_to_45_degree_angle(p_image, start_image)
                 u_pos = mapping.map_point_image_to_image_norm(p_image)
             else:
                 u_pos = Geometry.FloatPoint.make(part[1]) + delta
@@ -3305,25 +3289,8 @@ class LatticeGraphic(Graphic):
                 u_pos = Geometry.FloatPoint(min(max(u_pos.y, 0.0), 1.0), min(max(u_pos.x, 0.0), 1.0))
             self.u_pos = u_pos.as_size()
         elif part[0] == "v-all" and not "position" in constraints:
-            dy = p_image.y - start_image.y
-            dx = p_image.x - start_image.x
             if modifiers.shift:
-                angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
-                if angle_degrees > 60:
-                    p_image = Geometry.FloatPoint(p_image.y, start_image.x)
-                elif angle_degrees > 30:
-                    if angle_degrees > 45:
-                        if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(p_image.y, start_image.x + dy)
-                        else:
-                            p_image = Geometry.FloatPoint(p_image.y, start_image.x - dy)
-                    else:
-                        if dx * dy > 0:
-                            p_image = Geometry.FloatPoint(start_image.y + dx, p_image.x)
-                        else:
-                            p_image = Geometry.FloatPoint(start_image.y - dx, p_image.x)
-                else:
-                    p_image = Geometry.FloatPoint(start_image.y, p_image.x)
+                p_image = snap_to_45_degree_angle(p_image, start_image)
                 v_pos = mapping.map_point_image_to_image_norm(p_image)
             else:
                 v_pos = Geometry.FloatPoint.make(part[2]) + delta
