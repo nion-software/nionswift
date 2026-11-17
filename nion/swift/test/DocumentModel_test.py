@@ -2458,6 +2458,23 @@ class TestDocumentModelClass(unittest.TestCase):
                 # resulting in an exception.
                 document_model._update_data_item_reference("new_ref", data_item)
 
+    def test_data_item_reference_started_twice_ends_live_state_with_the_last_stop(self):
+        # a data item reference counts its starts, and each start needs a matching stop.
+        with create_memory_profile_context() as profile_context:
+            document_model = profile_context.create_document_model(auto_close=False)
+            with document_model.ref():
+                data_item = DataItem.DataItem(numpy.ones((4, 4)))
+                document_model.append_data_item(data_item)
+                document_model.setup_channel("abc", data_item)
+                data_item_reference = document_model.get_data_item_reference("abc")
+                data_item_reference.start()
+                data_item_reference.start()
+                data_item_reference.stop()
+                self.assertTrue(data_item.is_live)
+                data_item_reference.stop()
+                self.assertFalse(data_item.is_live)
+                self.assertFalse(data_item.in_transaction_state)
+
     def test_display_items_with_multiple_data_channels_list_all_sources(self):
         with create_memory_profile_context() as profile_context:
             document_model = profile_context.create_document_model(auto_close=False)
