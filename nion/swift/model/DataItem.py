@@ -232,6 +232,12 @@ class DataItem(Persistence.PersistentObject):
         self.__write_delay_data_changed = False
         self.__source_file_path: typing.Optional[pathlib.Path] = None
         self.__is_live = False
+
+        # the key of the started data item reference which is sending data to this data item. the reference sets it
+        # under its mutex, on the main thread once this item is in the document. the value is replaced whole, so
+        # reading it needs no lock.
+        self.__data_item_reference_key: str | None = None
+
         self.__session_manager: typing.Optional[SessionManager] = None
         self.__source_reference = self.create_item_reference()
         self.description_changed_event = Event.Event()
@@ -684,6 +690,18 @@ class DataItem(Persistence.PersistentObject):
     def is_live(self) -> bool:
         """Return whether this library item represents live acquisition."""
         return self.__is_live
+
+    @property
+    def data_item_reference_key(self) -> str | None:
+        """Return the key of the started data item reference which is sending data to this data item, or None."""
+        return self.__data_item_reference_key
+
+    @data_item_reference_key.setter
+    def data_item_reference_key(self, value: str | None) -> None:
+        if value != self.__data_item_reference_key:
+            self.__data_item_reference_key = value
+            # the data panel sorts by the data item reference key and re-sorts an item when it changes.
+            self.item_changed_event.fire()
 
     def _enter_live_state(self) -> None:
         self.__is_live = True

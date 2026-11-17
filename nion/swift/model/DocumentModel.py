@@ -1757,6 +1757,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                 if self.__starts == 0:
                     self.__data_item.increment_data_ref_count()
                     self.__data_item_transaction = self.__document_model.item_transaction(self.__data_item)
+                    # the key is set before the live state, which re-sorts the item in the data panel, so that the item
+                    # moves once, straight into the channels.
+                    self.__data_item.data_item_reference_key = self.__key
                     self.__document_model.begin_data_item_live(self.__data_item)
                 self.__starts += 1
 
@@ -1773,6 +1776,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     self.__data_item_transaction.close()
                     self.__data_item_transaction = None
                     self.__document_model.end_data_item_live(self.__data_item)
+                    # the key is cleared after the live state, for the same reason.
+                    self.__data_item.data_item_reference_key = None
                     self.__data_item.decrement_data_ref_count()
 
         @property
