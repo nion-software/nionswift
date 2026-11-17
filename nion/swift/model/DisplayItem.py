@@ -2925,8 +2925,8 @@ class DisplayItem(Persistence.PersistentObject):
         self._end_display_item_changes()
 
     def __item_changed(self) -> None:
-        # this event is only triggered when the data item changed live state; everything else goes through
-        # the data changed messages.
+        # the data item fires this when its live state or data item reference key changes, and when a change to its
+        # content ends; data changes also go through the data changed messages.
         self.item_changed_event.fire()
         self.notify_property_changed("displayed_title")
 
@@ -3302,6 +3302,11 @@ class DisplayItem(Persistence.PersistentObject):
         return any(data_item.is_live if data_item else False for data_item in self.data_items)
 
     @property
+    def data_item_reference_key(self) -> str | None:
+        """Return the key of the started data item reference which is sending data to a data item of this display item, or None."""
+        return next((data_item.data_item_reference_key for data_item in self.data_items if data_item and data_item.data_item_reference_key is not None), None)
+
+    @property
     def category(self) -> str:
         return "temporary" if any(data_item.category == "temporary" if data_item else None for data_item in self.data_items) else "persistent"
 
@@ -3597,8 +3602,34 @@ class DisplayCalibrationInfo:
         return None
 
 
-def sort_by_date_key(display_item: DisplayItem) -> typing.Tuple[typing.Optional[str], datetime.datetime, str]:
-    """A sort key for display items. The sort by uuid makes it determinate."""
+@dataclasses.dataclass(frozen=True, slots=True)
+class LiveItemSortKey:
+    """The sort key of a live display item, which sorts in ascending order in a list sorted in reverse.
+
+    value is the data item reference key, title and uuid, in the order of comparison.
+    """
+    # a tuple, since a tuple compares element by element.
+    value: tuple[str, str, str]
+
+    def __lt__(self, other: LiveItemSortKey) -> bool:
+        return self.value > other.value
+
+    def __gt__(self, other: LiveItemSortKey) -> bool:
+        return self.value < other.value
+
+
+# the key is a tuple, since a tuple compares element by element.
+def sort_by_date_key(display_item: DisplayItem) -> tuple[int, LiveItemSortKey] | tuple[int, datetime.datetime, str]:
+    """A sort key for display items in a list sorted in reverse.
+
+    The acquisition channels come first, by data item reference key and title, then the other live items by title, then
+    the remaining items, most recent first. The uuid makes the order determinate.
+    """
     assert not display_item._closed
-    display_item_uuid = display_item.uuid
-    return display_item.title + str(display_item_uuid) if display_item.is_live else str(), display_item.stable_date_for_sorting, str(display_item_uuid)
+    display_item_uuid = str(display_item.uuid)
+    # each check walks the data items, so the key checks for a data item reference only on the few items which are live.
+    if display_item.is_live:
+        if (data_item_reference_key := display_item.data_item_reference_key) is not None:
+            return 2, LiveItemSortKey((data_item_reference_key, display_item.title, display_item_uuid))
+        return 1, LiveItemSortKey((str(), display_item.title, display_item_uuid))
+    return 0, display_item.stable_date_for_sorting, display_item_uuid

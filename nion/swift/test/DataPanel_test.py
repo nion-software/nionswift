@@ -763,6 +763,40 @@ class TestDataPanelClass(unittest.TestCase):
                 document_controller.periodic()
                 self.assertEqual(bottom_display_item, display_items_model.items[0])
 
+    def test_data_panel_sorts_acquisition_channels_by_key_ahead_of_other_live_items(self):
+        # a hardware source starts a data item reference for each channel it acquires, keyed by its id and channel id.
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item_references = list()
+            try:
+                for hardware_source_id, channel_id, title in (("scan", "b", "Scan (BF)"), ("scan", "a", "Scan (HAADF)"), ("ronchigram", None, "Ronchigram")):
+                    data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+                    data_item.title = title
+                    document_model.append_data_item(data_item)
+                    data_item_reference_key = document_model.make_data_item_reference_key(hardware_source_id, channel_id)
+                    document_model.setup_channel(data_item_reference_key, data_item)
+                    data_item_reference = document_model.get_data_item_reference(data_item_reference_key)
+                    data_item_reference.start()
+                    data_item_references.append(data_item_reference)
+                haadf_display_item = document_model.get_display_item_for_data_item(data_item_references[1].data_item)
+                fft_data_item = document_model.get_fft_new(haadf_display_item, haadf_display_item.data_item)
+                fft_data_item.title = "zFFT"
+                # the image is newer than the FFT, so the FFT comes before it only as a live item.
+                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+                data_item.title = "Image"
+                document_model.append_data_item(data_item)
+                document_controller.periodic()
+                titles = [display_item.title for display_item in document_controller.display_items_model.items]
+                self.assertEqual(["Ronchigram", "Scan (HAADF)", "Scan (BF)", "zFFT", "Image"], titles)
+                # switching the collection sorts the whole list again.
+                document_controller.set_filter("persistent")
+                titles = [display_item.title for display_item in document_controller.display_items_model.items]
+                self.assertEqual(["Ronchigram", "Scan (HAADF)", "Scan (BF)", "zFFT", "Image"], titles)
+            finally:
+                for data_item_reference in data_item_references:
+                    data_item_reference.stop()
+
     def test_data_panel_grid_contents_resize_properly(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
