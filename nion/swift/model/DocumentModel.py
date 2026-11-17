@@ -1688,8 +1688,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     import time
                     time.sleep(self._test_delay)
                 with self.mutex:
-                    self.__pending_starts = self.__starts
-                    self.__starts = 0
+                    # a data item set while this waited for the mutex has already taken over the starts.
+                    if not self.__data_item:
+                        self.__pending_starts = self.__starts
+                        self.__starts = 0
 
             self.__data_item_proxy.on_item_unregistered = item_unregistered
 
@@ -1750,10 +1752,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     self.__pending_starts -= 1
 
         def __start(self) -> None:
+            # the first start begins the transaction and the live state, and the matching last stop ends them.
             if self.__data_item:
-                self.__data_item.increment_data_ref_count()
-                self.__data_item_transaction = self.__document_model.item_transaction(self.__data_item)
-                self.__document_model.begin_data_item_live(self.__data_item)
+                if self.__starts == 0:
+                    self.__data_item.increment_data_ref_count()
+                    self.__data_item_transaction = self.__document_model.item_transaction(self.__data_item)
+                    self.__document_model.begin_data_item_live(self.__data_item)
                 self.__starts += 1
 
         def __stop(self) -> None:
@@ -1761,13 +1765,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
             # when the transaction ends, the data will get written to disk, so we need to
             # make sure it's still in memory. if decrement were to come before the end
             # of the transaction, the data would be unloaded from memory, losing it forever.
-            if self.__data_item_transaction:
-                assert self.__data_item
-                self.__data_item_transaction.close()
-                self.__data_item_transaction = None
-                self.__document_model.end_data_item_live(self.__data_item)
-                self.__data_item.decrement_data_ref_count()
+            if self.__starts > 0:
                 self.__starts -= 1
+                if self.__starts == 0:
+                    assert self.__data_item
+                    assert self.__data_item_transaction
+                    self.__data_item_transaction.close()
+                    self.__data_item_transaction = None
+                    self.__document_model.end_data_item_live(self.__data_item)
+                    self.__data_item.decrement_data_ref_count()
 
         @property
         def data_item(self) -> typing.Optional[DataItem.DataItem]:
@@ -1782,9 +1788,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, D
                     # start (internal) for each pending start or existing start.
                     # existing starts may be cleared in item_unregistered, but there is a race
                     # between this method and item_unregistered. see _test_delay.
-                    for i in range(self.__pending_starts + self.__starts):
-                        self.__start()
+                    start_count = self.__pending_starts + self.__starts
                     self.__pending_starts = 0
+                    self.__starts = 0
+                    for i in range(start_count):
+                        self.__start()
                     if self.__data_item in self.__document_model.data_items:
                         self.data_item_reference_changed_event.fire()
                     else:
