@@ -554,8 +554,6 @@ class DataRangeProcessor(ProcessorBase):
             data_dtype = data_metadata.data_dtype
             if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
                 data_range = (0, 255)
-            elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                data_range = (numpy.amin(display_data), numpy.amax(display_data))
             else:
                 data_range = (numpy.amin(display_data), numpy.amax(display_data))
         else:
