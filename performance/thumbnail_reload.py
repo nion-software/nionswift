@@ -4,7 +4,9 @@
 # thumbnails, which is not timed. Each reload then runs in a new Python process, as when Nion Swift starts. It opens the
 # profile and reads the project (load), then creates a thumbnail source for every display item, as the data panel does,
 # and waits until every source has an image (first images) and no source has changed for half a second (settled, which
-# doesn't include the half second). --cache cold removes the thumbnail cache files before each reload.
+# doesn't include the half second). While it waits, a callback scheduled every 10 ms on the event loop records how late
+# it runs; the longest delay of each reload is how long the main thread was busy at its worst (main thread delay).
+# --cache cold removes the thumbnail cache files before each reload.
 #
 # The test user interface rasterizes every thumbnail as the same noisy image, so that compressing and storing a thumbnail
 # costs what it does for a real image. The rest is the work Nion Swift does.
@@ -192,6 +194,33 @@ class ThumbnailWatch:
         self.__sources = list()
 
 
+class MainThreadDelay:
+    """A callback which runs every 10 ms on an event loop, recording the longest it has run late."""
+
+    def __init__(self, event_loop: asyncio.AbstractEventLoop) -> None:
+        self.__event_loop = event_loop
+        self.__expected_time: float | None = None
+        self.__is_running = True
+        self.longest_delay = 0.0
+        event_loop.call_soon(self.__handle_tick)
+
+    def __handle_tick(self) -> None:
+        now = time.perf_counter()
+        if self.__expected_time is not None:
+            self.longest_delay = max(self.longest_delay, now - self.__expected_time)
+        if self.__is_running:
+            self.__expected_time = now + 0.010
+            self.__event_loop.call_later(0.010, self.__handle_tick)
+
+    def stop(self) -> None:
+        self.__is_running = False
+
+
+def get_cache_size(work_directory: pathlib.Path) -> int:
+    """Return the size in bytes of the thumbnail cache files of the profile in work_directory."""
+    return sum(cache_path.stat().st_size for cache_path in (work_directory / "Profiles" / "Cache").glob("*.ns*"))
+
+
 def open_profile(work_directory: pathlib.Path) -> tuple[asyncio.AbstractEventLoop, Profile.Profile]:
     """Return a new event loop, and the profile in work_directory, which is created if it doesn't exist."""
     event_loop = asyncio.new_event_loop()
@@ -268,8 +297,10 @@ def reload_project(arguments: argparse.Namespace) -> None:
     document_model = project_reference.document_model
     assert document_model
     load_time = time.perf_counter() - start
+    main_thread_delay = MainThreadDelay(event_loop)
     thumbnail_watch = ThumbnailWatch(document_model)
     wait_until_settled(event_loop, thumbnail_watch, arguments.timeout)
+    main_thread_delay.stop()
     if profiler:
         profiler.disable()
         pstats.Stats(profiler).sort_stats("tottime").print_stats(15)
@@ -277,7 +308,8 @@ def reload_project(arguments: argparse.Namespace) -> None:
     image_count = len(thumbnail_watch.first_image_times)
     assert image_count == display_item_count, f"{image_count} of {display_item_count} thumbnail sources reported an image"
     result = {"load": load_time, "first_images": max(thumbnail_watch.first_image_times.values(), default=0.0),
-              "settled": thumbnail_watch.last_change - thumbnail_watch.start, "display_item_count": display_item_count}
+              "settled": thumbnail_watch.last_change - thumbnail_watch.start, "main_thread_delay": main_thread_delay.longest_delay,
+              "display_item_count": display_item_count}
     thumbnail_watch.close()
     close_profile(event_loop, profile, project_reference)
     print(RESULT_PREFIX + json.dumps(result))
@@ -288,8 +320,9 @@ def main() -> None:
     if arguments.reload_directory:
         reload_project(arguments)
         return
-    measurements: dict[str, list[float]] = {"load": list(), "first_images": list(), "settled": list()}
+    measurements: dict[str, list[float]] = {"load": list(), "first_images": list(), "settled": list(), "main_thread_delay": list()}
     display_item_count = 0
+    cache_size = 0
     with tempfile.TemporaryDirectory() as temporary_directory:
         work_directory = pathlib.Path(temporary_directory)
         create_project(arguments, work_directory)
@@ -310,7 +343,8 @@ def main() -> None:
             for measurement_name, times in measurements.items():
                 times.append(result[measurement_name])
             display_item_count = result["display_item_count"]
-    print_report(parser, arguments, list(measurements.items()), {"display_item_count": display_item_count})
+            cache_size = get_cache_size(work_directory)
+    print_report(parser, arguments, list(measurements.items()), {"display_item_count": display_item_count, "cache_megabytes": round(cache_size / 1e6, 1)})
 
 
 if __name__ == "__main__":
