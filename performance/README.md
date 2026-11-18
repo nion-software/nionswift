@@ -13,6 +13,7 @@ measure a running Nion Swift, and probes, which measure the platform it runs on;
 | `delete_undo.py` | Creating 1000 data items, then deleting 100 of them and undoing the deletion, in memory or in files |
 | `histogram_frame.py` | The histogram panel's histogram and statistics of one 2048x2048 frame |
 | `histogram_contention.py` | How long the histogram panel's calculations of one 2048x2048 frame block another thread |
+| `display_data_range.py` | The display's data range of one 2048x2048 frame, and how long it blocks another thread |
 | `thumbnail_reload.py` | Reloading a project from files in a new process until all of its thumbnails are ready |
 
 The comment at the top of each script describes its work and its standard case in more detail.
