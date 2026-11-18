@@ -8,6 +8,7 @@ measure a running Nion Swift, and probes, which measure the platform it runs on;
 | Script | Measures |
 |---|---|
 | `data_panel_resort.py` | The main thread's handling of one live frame while the data panel holds 5000 display items |
+| `data_panel_filter.py` | A text filter change in the data panel, narrowing and widening, while it holds 20000 display items |
 | `line_plot_frame.py` | The line plot layers drawing one frame of a 2048 channel spectrum |
 | `delete_undo.py` | Creating 1000 data items, then deleting 100 of them and undoing the deletion, in memory or in files |
 | `histogram_frame.py` | The histogram panel's histogram and statistics of one 2048x2048 frame |
