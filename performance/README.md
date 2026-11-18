@@ -91,6 +91,7 @@ fixed workload, so its results depend on the instrument and its settings. It pri
 | Diagnostic | Measures |
 |---|---|
 | `diagnostics/histogram_jitter.py` | How often and for how long a background histogram loop stalls, and which threads run during the stalls |
+| `diagnostics/hang_watchdog.py` | Every thread's stack, written to a file, whenever the main thread stops for longer than a timeout |
 
 The docstring at the top of the diagnostic says how to run it from the Nion Swift console. Its report starts with the
 same lines which identify a script's report: the name and revision, the date, the machine and the software.
