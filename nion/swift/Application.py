@@ -240,9 +240,6 @@ def install_gettext_fast_path(domain: str = "messages", localedir: str | None = 
 
     Replacing dgettext takes effect even in modules which already bound gettext.gettext at import time, because
     gettext.gettext looks dgettext up in the gettext module namespace on each call.
-
-    This is a temporary measure. The permanent fix is for each module to bind the gettext method of a translation
-    object resolved once, rather than binding gettext.gettext itself.
     """
     # fallback=True returns a NullTranslations, whose gettext returns the message unchanged, rather than raising.
     translation = gettext.translation(domain, localedir, fallback=True)
