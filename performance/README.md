@@ -11,6 +11,7 @@ measure a running Nion Swift, and probes, which measure the platform it runs on;
 | `data_panel_filter.py` | A text filter change in the data panel, narrowing and widening, while it holds 20000 display items |
 | `line_plot_frame.py` | The line plot layers drawing one frame of a 2048 channel spectrum |
 | `delete_undo.py` | Creating 1000 data items, then deleting 100 of them and undoing the deletion, in memory or in files |
+| `append_edit.py` | Appending a data item and editing a display property at 1000, 2000 and 4000 data items, in memory or in files |
 | `histogram_frame.py` | The histogram panel's histogram and statistics of one 2048x2048 frame |
 | `histogram_contention.py` | How long the histogram panel's calculations of one 2048x2048 frame block another thread |
 | `display_data_range.py` | The display's data range of one 2048x2048 frame, and how long it blocks another thread |
