@@ -1210,11 +1210,8 @@ class DocumentController(Window.Window):
                     display_item.graphic_selection.add(display_item.graphics.index(graphic))
                 return True
             display_item_to_paste = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
-            data_item_to_paste = display_item_to_paste.data_item if display_item_to_paste else None
-            if display_item_to_paste and data_item_to_paste:
-                append_command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, display_item, data_item_to_paste, display_item_to_paste.display_layers[0], command_id="append_display_data_channel")
-                append_command.perform()
-                self.push_undo_command(append_command)
+            if display_item_to_paste:
+                self.add_display_data_channel_to_composite(display_item, display_item_to_paste)
         return False
 
     def handle_delete(self) -> None:
@@ -1223,11 +1220,11 @@ class DocumentController(Window.Window):
 
     def add_display_data_channel_to_composite(self, target_display_item: DisplayItem.DisplayItem, display_item: DisplayItem.DisplayItem) -> bool:
         # append the display data channel of the display_item to the target_display_item.
-        # the display_item must have a single data item.
+        # the display_item must have a single data item which the target_display_item can add as a layer.
         # this is used for stacking line plot layers.
         # returns True if success else False.
         data_item = display_item.data_item if display_item else None
-        if data_item and target_display_item:
+        if data_item and target_display_item and target_display_item.can_add_as_layer(display_item):
             command = DisplayPanel.AppendDisplayDataChannelCommand(self.document_model, target_display_item, data_item, display_item.display_layers[0], command_id="append_display_data_channel")
             command.perform()
             self.push_undo_command(command)
@@ -1294,7 +1291,7 @@ class DocumentController(Window.Window):
 
     def add_display_data_channel_to_or_create_composite(self, target_display_item: DisplayItem.DisplayItem, display_item: DisplayItem.DisplayItem, display_panel: DisplayPanel.DisplayPanel) -> typing.Optional[DisplayItem.DisplayItem]:
         data_item = display_item.data_item if display_item else None
-        if data_item and target_display_item:
+        if data_item and target_display_item and target_display_item.can_add_as_layer(display_item):
             if target_display_item.display_data_channel:
                 new_display_item = target_display_item.snapshot()
                 display_layer = new_display_item.display_layers[0]
