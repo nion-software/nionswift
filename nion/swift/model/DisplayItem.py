@@ -3348,6 +3348,14 @@ class DisplayItem(Persistence.PersistentObject):
                         break
         return display_type
 
+    def can_add_as_layer(self, display_item: DisplayItem) -> bool:
+        """Return whether this display item can add display_item as a line plot layer.
+
+        This display item has to be a line plot, and display_item has to have a single display data channel with 1D data.
+        """
+        display_data_channel = display_item.display_data_channel
+        return self.used_display_type == "line_plot" and display_data_channel is not None and display_data_channel.is_display_1d_preferred
+
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
         left = None

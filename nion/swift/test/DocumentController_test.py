@@ -924,6 +924,69 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertIsInstance(display_item.graphics[0], Graphics.RectangleGraphic)
             self.assertIsInstance(display_item.graphics[1], Graphics.EllipseGraphic)
 
+    def test_paste_of_line_plot_into_line_plot_adds_a_layer(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((16,)))
+            data_item2 = DataItem.DataItem(numpy.ones((16,)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(data_item2))
+            document_controller.handle_copy()
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.handle_paste()
+            self.assertEqual(2, len(display_item.display_data_channels))
+
+    def test_paste_of_image_into_line_plot_does_not_add_a_layer(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((16,)))
+            image_data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(image_data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(image_data_item))
+            document_controller.handle_copy()
+            display_panel.set_display_panel_display_item(display_item)
+            document_controller.handle_paste()
+            self.assertEqual(1, len(display_item.display_data_channels))
+
+    def test_paste_of_line_plot_into_image_does_not_add_a_layer(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            image_data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item = DataItem.DataItem(numpy.zeros((16,)))
+            document_model.append_data_item(image_data_item)
+            document_model.append_data_item(data_item)
+            image_display_item = document_model.get_display_item_for_data_item(image_data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(data_item))
+            document_controller.handle_copy()
+            display_panel.set_display_panel_display_item(image_display_item)
+            document_controller.handle_paste()
+            self.assertEqual(1, len(image_display_item.display_data_channels))
+
+    def test_composite_of_image_onto_line_plot_is_refused(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.zeros((16,)))
+            image_data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(image_data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            image_display_item = document_model.get_display_item_for_data_item(image_data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            self.assertIsNone(document_controller.add_display_data_channel_to_or_create_composite(display_item, image_display_item, display_panel))
+            self.assertTrue(all(len(display_item.display_data_channels) == 1 for display_item in document_model.display_items))
+
     def test_snapshot_undo_redo_cycle(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -1252,6 +1315,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.data_items[1].title = "two"
             data_item1 = document_model.get_line_profile_new(document_model.get_display_item_for_data_item(document_model.data_items[0]), document_model.data_items[0])
             data_item2 = document_model.get_line_profile_new(document_model.get_display_item_for_data_item(document_model.data_items[1]), document_model.data_items[1])
+            document_model.recompute_all()
             display_item1 = document_model.get_display_item_for_data_item(data_item1)
             display_item2 = document_model.get_display_item_for_data_item(data_item2)
             display_panel = document_controller.selected_display_panel
