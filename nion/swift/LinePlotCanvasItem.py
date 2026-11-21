@@ -925,8 +925,8 @@ class LinePlotCanvasItem(DisplayCanvasItem.DisplayCanvasItem):
         return pos_1d
 
     def get_drop_regions_map(self, display_item: DisplayItem.DisplayItem) -> typing.Optional[typing.Mapping[str, typing.Tuple[Geometry.IntRect, Geometry.IntRect]]]:
-        # partial logic overlap in if chain with display_item.used_display_type
-        if self.__line_graph_area_stack.canvas_rect and display_item and display_item.display_data_channel and display_item.display_data_channel.is_display_1d_preferred:
+        target_display_item = self.delegate.display_item if self.delegate else None
+        if self.__line_graph_area_stack.canvas_rect and target_display_item and display_item and target_display_item.can_add_as_layer(display_item):
             canvas_rect = self.__line_graph_area_stack.canvas_rect
             hit_rect = Geometry.IntRect.from_center_and_size(canvas_rect.center, Geometry.IntSize(height=canvas_rect.height // 2, width=canvas_rect.width // 2))
             return {"plus": (hit_rect, self.__line_graph_area_stack.canvas_rect)}
