@@ -65,12 +65,8 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
 def get_statistics(times: typing.Sequence[float]) -> tuple[float, float, float]:
     """Return the median, 90th percentile and interquartile range of times, in milliseconds."""
     times_ms = sorted(time_s * 1000 for time_s in times)
-    # a single sample has no spread, and quantiles needs two values before Python 3.13.
-    if len(times_ms) > 1:
-        quartiles = statistics.quantiles(times_ms, n=4)
-        iqr_ms = quartiles[2] - quartiles[0]
-    else:
-        iqr_ms = 0.0
+    quartiles = statistics.quantiles(times_ms, n=4)
+    iqr_ms = quartiles[2] - quartiles[0]
     return statistics.median(times_ms), times_ms[int(len(times_ms) * 0.9)], iqr_ms
 
 
@@ -243,9 +239,8 @@ def main() -> None:
     idle_wakeups = record_wakeups(lambda: time.perf_counter_ns() < idle_end_ns)
     idle_windows = [(idle_start_ns + window_index * window_ns, idle_start_ns + (window_index + 1) * window_ns) for window_index in range(arguments.frames)]
     idle_delays = get_longest_delays(idle_wakeups, idle_windows)
-    # no public API says whether the interpreter lock is enabled, and sys._is_gil_enabled exists only from Python 3.13.
-    is_gil_enabled = getattr(sys, "_is_gil_enabled", None)
-    interpreter_lock = ("enabled" if is_gil_enabled() else "disabled") if is_gil_enabled else "unknown"
+    # no public API says whether the interpreter lock is enabled.
+    interpreter_lock = "enabled" if sys._is_gil_enabled() else "disabled"
     print_report(parser, arguments, [("histogram", histogram_delays), ("idle", idle_delays)],
                  {"interpreter_lock": interpreter_lock, "histogram_bin_count": histogram_contention.histogram_bin_count})
 

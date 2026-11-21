@@ -87,12 +87,8 @@ def time_frames(arguments: argparse.Namespace, run_frame: typing.Callable[[int],
 def get_statistics(times: typing.Sequence[float]) -> tuple[float, float, float]:
     """Return the median, 90th percentile and interquartile range of times, in milliseconds."""
     times_ms = sorted(time_s * 1000 for time_s in times)
-    # a single sample has no spread, and quantiles needs two values before Python 3.13.
-    if len(times_ms) > 1:
-        quartiles = statistics.quantiles(times_ms, n=4)
-        iqr_ms = quartiles[2] - quartiles[0]
-    else:
-        iqr_ms = 0.0
+    quartiles = statistics.quantiles(times_ms, n=4)
+    iqr_ms = quartiles[2] - quartiles[0]
     return statistics.median(times_ms), times_ms[int(len(times_ms) * 0.9)], iqr_ms
 
 
