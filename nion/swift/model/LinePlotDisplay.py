@@ -724,10 +724,11 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
                     if xdata:
                         data_row = max(0, min(xdata.dimensional_shape[0] - 1, data_row))
                         if xdata.is_data_2d:
-                            scalar_data = xdata.data[data_row:data_row + 1, :].reshape((xdata.dimensional_shape[-1],))
+                            # indexing keeps the color axis of rgb data, and the layer plots the row as grayscale.
+                            row_data = xdata.data[data_row]
                             intensity_calibration = xdata.intensity_calibration
                             displayed_dimensional_calibration = xdata.dimensional_calibrations[-1]
-                            xdata = DataAndMetadata.new_data_and_metadata(scalar_data, intensity_calibration, [displayed_dimensional_calibration])
+                            xdata = DataAndMetadata.new_data_and_metadata(row_data, intensity_calibration, [displayed_dimensional_calibration])
                     line_graph_layers.append(LineGraphLayer(xdata, axes, fill_color, stroke_color, stroke_width, display_layer.plot_kind,
                                                             display_layer.marker_shape, display_layer.marker_size, display_layer.stroke_dash))
                     self._has_valid_drawn_graph_data = xdata is not None
