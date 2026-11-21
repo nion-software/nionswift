@@ -3274,6 +3274,22 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.content_canvas_item.drag_enter(file_mime_data)
             self.assertEqual(dict(), display_panel.content_canvas_item.drop_regions_map)
 
+    def test_image_drag_over_line_plot_has_no_plus_drop_region(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            data_item = DataItem.DataItem(numpy.zeros((12,)))
+            image_data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(image_data_item)
+            display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(data_item))
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=200, width=100))
+            mime_data = document_controller.ui.create_mime_data()
+            MimeTypes.mime_data_put_display_item(mime_data, document_model.get_display_item_for_data_item(image_data_item))
+            display_panel.content_canvas_item.drag_enter(mime_data)
+            self.assertNotIn("plus", display_panel.content_canvas_item.drop_regions_map)
+
     def test_cursor_task_is_closed_when_display_panel_is_emptied(self):
         with TestContext.create_memory_context() as test_context:
             # set up the layout
