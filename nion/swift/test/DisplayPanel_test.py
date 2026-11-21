@@ -3255,6 +3255,25 @@ class TestDisplayPanelClass(unittest.TestCase):
             new_display_item = document_model.display_items[-1]
             self.assertEqual(2, len(new_display_item.display_data_channels))
 
+    def test_file_drag_over_line_plot_has_no_drop_regions_from_an_earlier_drag(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            data_item = DataItem.DataItem(numpy.zeros((12,)))
+            data_item2 = DataItem.DataItem(numpy.ones((12,)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            display_panel.set_display_panel_display_item(document_model.get_display_item_for_data_item(data_item))
+            display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=200, width=100))
+            mime_data = document_controller.ui.create_mime_data()
+            MimeTypes.mime_data_put_display_item(mime_data, document_model.get_display_item_for_data_item(data_item2))
+            display_panel.content_canvas_item.drag_enter(mime_data)
+            display_panel.content_canvas_item.drag_leave()
+            file_mime_data = TestUI.MimeData({"text/uri-list": "image.png"})
+            display_panel.content_canvas_item.drag_enter(file_mime_data)
+            self.assertEqual(dict(), display_panel.content_canvas_item.drop_regions_map)
+
     def test_cursor_task_is_closed_when_display_panel_is_emptied(self):
         with TestContext.create_memory_context() as test_context:
             # set up the layout

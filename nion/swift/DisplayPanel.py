@@ -471,6 +471,8 @@ class DisplayPanelOverlayCanvasItemComposition(CanvasItem.CanvasItemComposition)
 
     def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         self.__set_drop_region("none")
+        # on_drag_enter sets drop regions only for a drag which holds a display item.
+        self.__display_panel_overlay_canvas_item.drop_regions_map = dict()
         if self.on_drag_enter:
             self.on_drag_enter(mime_data)
         return "ignore"
