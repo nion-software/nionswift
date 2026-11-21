@@ -384,6 +384,22 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             parts = [typing.cast(LineGraphCanvasItem.LineGraphLayerCanvasItem, canvas_item)._part_for_testing for canvas_item in line_graph_layers_canvas_item.canvas_items]
             self.assertEqual([LineGraphCanvasItem.LineGraphLayerPart.FILL] * 2 + [LineGraphCanvasItem.LineGraphLayerPart.STROKE] * 2 + [LineGraphCanvasItem.LineGraphLayerPart.MARKERS] * 2, parts)
 
+    def test_line_plot_layer_of_rgb_image_plots_its_row_as_grayscale(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item = DataItem.DataItem(numpy.linspace(-1.0, 1.0, 64))
+            rgba_data_item = DataItem.DataItem(numpy.full((8, 16, 4), 200, numpy.uint8))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(rgba_data_item, False)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            display_item.append_display_data_channel_for_data_item(rgba_data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_display_item(display_item)
+            display_panel.display_canvas_item.update_canvas_items()
+            axes = display_panel.display_canvas_item._axes_for_testing
+            self.assertGreaterEqual(axes.calibrated_value_max, 200)
+
     def test_legend_entries_give_how_each_layer_is_drawn(self):
         with TestContext.create_memory_context() as test_context:
             document_model = test_context.create_document_model()
