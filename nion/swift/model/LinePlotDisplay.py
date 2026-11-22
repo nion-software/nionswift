@@ -676,8 +676,8 @@ class LinePlotDisplayInfo(DisplayInfo.DisplayInfo):
             # update the line graph data
             left_channel = left_channel_opt if left_channel_opt is not None else 0
             right_channel = right_channel_opt if right_channel_opt is not None else data_scale
-            left_channel = min(left_channel, right_channel)
-            right_channel = max(left_channel, right_channel)
+            if left_channel > right_channel:
+                left_channel, right_channel = right_channel, left_channel
 
             if y_min is not None:
                 y_min_calibrated = displayed_intensity_calibration.convert_to_calibrated_value(y_min)

@@ -497,6 +497,19 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertTrue(interval_region.end < 0.9)
             self.assertAlmostEqual(interval_region.end - interval_region.start, 0.8)
 
+    def test_line_plot_orders_explicit_channel_bounds(self):
+        with TestContext.create_memory_context() as test_context:
+            document_model = test_context.create_document_model()
+            data_item = DataItem.DataItem(numpy.arange(16))
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            for left, right, expected in ((10, 5, (5, 10)), (5, 10, (5, 10)), (5, 5, (5, 5))):
+                with self.subTest(left=left, right=right):
+                    display_item.set_display_property("left_channel", left)
+                    display_item.set_display_property("right_channel", right)
+                    axes = LinePlotDisplay.LinePlotDisplayInfo(display_item.display_info).axes
+                    self.assertEqual((axes.drawn_left_channel, axes.drawn_right_channel), expected)
+
     def test_line_plot_auto_scales_uncalibrated_y_axis(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
