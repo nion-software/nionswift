@@ -2058,6 +2058,7 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                 if display_item:
                     self.__content_canvas_item.drop_regions_map = getattr(display_canvas_item, "get_drop_regions_map")(display_item)
             if workspace_controller:
+                # The preview counts every dragged file, so it is larger than the result when some of the files fail to import.
                 self.__content_canvas_item.drag_items_split = workspace_controller.get_split_for_selection(MimeTypes.mime_data_get_number_of_items(mime_data))
                 return workspace_controller.handle_drag_enter(self, mime_data)
             return "ignore"
