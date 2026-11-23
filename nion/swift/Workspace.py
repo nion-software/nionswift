@@ -885,6 +885,7 @@ class Workspace:
         If the region is "plus" then the dragged display item or display panel is composited if supported.
         Multiple display items, or multiple imported files, are placed in a grid of new panels which replaces the destination.
         When the region is "left", "right", "top" or "bottom" the grid is placed beside the destination instead.
+        The grid holds at most MAX_SPLIT_FROM_SELECTION items, and a message tells the user when a drop holds more.
         When dragging a display panel the interaction will move the panel contents into the destination, otherwise it will copy the display items into the destination.
         The replaced_display_panel_content is set on the "move" which will clear the source panel after the drop.
         Returns "move" on success when dragging a display panel, "copy" on success when dragging display items or external files,
@@ -921,6 +922,8 @@ class Workspace:
             command: Undo.UndoableCommand = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
             self.split_panel_and_insert_display_items(destination_display_panel, source_display_items, region)
             self.document_controller.push_undo_command(command)
+            if len(source_display_items) > MAX_SPLIT_FROM_SELECTION:
+                self.__show_split_limit_message(len(source_display_items), is_file_drop)
         elif source_display_item and not is_file_drop and destination_display_panel.handle_drop_display_item(region, source_display_item):
             # A file drag has no display item when it enters the panel, so it never gets a "plus" region and is not added as a layer.
             pass  # If handle_drop_display_item returns true then the drop was handled by the function
@@ -931,6 +934,16 @@ class Workspace:
             command = self.__replace_displayed_display_item(destination_display_panel, display_item, source_details)
             self.document_controller.push_undo_command(command)
         return return_type
+
+    def __show_split_limit_message(self, item_count: int, is_file_drop: bool) -> None:
+        """Tell the user that a drop of more items than the split holds placed only the first of them in the workspace."""
+        application = self.document_controller.app
+        if application:
+            message = _("The first {0} items were inserted into the workspace.").format(MAX_SPLIT_FROM_SELECTION)
+            if is_file_drop:
+                remaining_message = _("The remaining {0} items were imported and are in the data panel.").format(item_count - MAX_SPLIT_FROM_SELECTION)
+                message = f"{message} {remaining_message}"
+            application.show_ok_dialog(_("Split Display Panel"), message)
 
     def _replace_displayed_display_item(self, display_panel: DisplayPanel.DisplayPanel,
                                         display_item: typing.Optional[DisplayItem.DisplayItem],
