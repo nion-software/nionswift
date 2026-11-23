@@ -192,6 +192,14 @@ class TestDocumentControllerClass(unittest.TestCase):
             new_data_items = document_model.data_items[count_before_import:]
             self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
 
+    def test_receive_files_returns_display_items_from_every_file(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            display_items = document_controller.receive_files([":/app/scroll_gem.png", ":/app/scroll_gem.png"])
+            self.assertEqual(2, len(display_items))
+            self.assertEqual(list(document_model.display_items), list(display_items))
+
     def test_receive_files_should_put_files_into_data_group_at_index(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
