@@ -2007,6 +2007,47 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(list(document_model.display_items), [dp.display_item for dp in document_controller.workspace_controller.display_panels])
             self.assertEqual(2, len(document_controller.workspace_controller.display_panels))
 
+    def test_drop_more_display_items_than_split_maximum_shows_message(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            for _ in range(Workspace.MAX_SPLIT_FROM_SELECTION + 1):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((1, 1))))
+            mime_data = TestUI.MimeData()
+            MimeTypes.mime_data_put_display_items(mime_data, document_model.display_items)
+            window_count = len(document_controller.app.windows)
+            document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "middle", 160, 240)
+            self.assertEqual(Workspace.MAX_SPLIT_FROM_SELECTION, len(document_controller.workspace_controller.display_panels))
+            self.assertEqual(window_count + 1, len(document_controller.app.windows))
+            document_controller.app.windows[-1].request_close()
+
+    def test_drop_split_maximum_display_items_shows_no_message(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            for _ in range(Workspace.MAX_SPLIT_FROM_SELECTION):
+                document_model.append_data_item(DataItem.DataItem(numpy.zeros((1, 1))))
+            mime_data = TestUI.MimeData()
+            MimeTypes.mime_data_put_display_items(mime_data, document_model.display_items)
+            window_count = len(document_controller.app.windows)
+            document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "middle", 160, 240)
+            self.assertEqual(Workspace.MAX_SPLIT_FROM_SELECTION, len(document_controller.workspace_controller.display_panels))
+            self.assertEqual(window_count, len(document_controller.app.windows))
+
+    def test_drop_more_files_than_split_maximum_imports_all_and_shows_message(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller_with_application()
+            document_model = document_controller.document_model
+            image_path = pathlib.Path(__file__).parent.parent / "resources" / "1x1_icon.png"
+            file_count = Workspace.MAX_SPLIT_FROM_SELECTION + 1
+            mime_data = TestUI.MimeData({"text/uri-list": "\n".join([str(image_path)] * file_count)})
+            window_count = len(document_controller.app.windows)
+            document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "middle", 160, 240)
+            self.assertEqual(file_count, len(document_model.display_items))
+            self.assertEqual(Workspace.MAX_SPLIT_FROM_SELECTION, len(document_controller.workspace_controller.display_panels))
+            self.assertEqual(window_count + 1, len(document_controller.app.windows))
+            document_controller.app.windows[-1].request_close()
+
     def test_display_panel_next_previous_display_panel(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
