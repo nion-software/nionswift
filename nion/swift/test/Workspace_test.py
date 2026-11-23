@@ -1691,6 +1691,28 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(["data_item", "data_item"], [dp._display_panel_type for dp in display_panels])
             self.assertEqual([display_item1, display_item2], [dp.display_item for dp in display_panels])
 
+    def test_drag_multiple_display_items_over_panel_is_accepted_and_splits_on_drop(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.double))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.double))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            content_canvas_item = document_controller.workspace_controller.display_panels[0].content_canvas_item
+            mime_data = TestUI.MimeData()
+            MimeTypes.mime_data_put_display_items(mime_data, [display_item1, display_item2])
+            self.assertTrue(content_canvas_item.wants_drag_event(mime_data, 320, 200))
+            content_canvas_item.drag_enter(mime_data)
+            self.assertEqual((2, 1), content_canvas_item.drag_items_split)
+            self.assertEqual("copy", content_canvas_item.drag_move(mime_data, 320, 200))
+            self.assertEqual("copy", content_canvas_item.drop(mime_data, 320, 200))
+            self.assertEqual([display_item1, display_item2], [dp.display_item for dp in document_controller.workspace_controller.display_panels])
+
     def test_switch_from_layout_with_controller_with_footer_works(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
@@ -1972,6 +1994,19 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, document_model.data_items[-1])
             self.assertEqual(document_controller.workspace_controller.display_panels[0].display_panel_type, "data_item")
 
+    def test_drop_multiple_external_files_splits_panel(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            image_path = pathlib.Path(__file__).parent.parent / "resources" / "1x1_icon.png"
+            mime_data = TestUI.MimeData({"text/uri-list": f"{image_path}\n{image_path}"})
+            self.assertEqual("copy", document_controller.workspace_controller.handle_drop(display_panel, mime_data, "middle", 160, 240))
+            self.assertEqual(list(document_model.display_items), [dp.display_item for dp in document_controller.workspace_controller.display_panels])
+            self.assertEqual(2, len(document_controller.workspace_controller.display_panels))
+
     def test_display_panel_next_previous_display_panel(self):
         with TestContext.create_memory_context() as test_context:
             document_controller = test_context.create_document_controller()
@@ -2119,6 +2154,16 @@ class TestWorkspaceClass(unittest.TestCase):
         item_count = Workspace.MAX_SPLIT_FROM_SELECTION + 1
         test_case = SplitCase(selected_data_items_indices=[x for x in range(0, item_count)], total_data_items=item_count, initial_layout_id="3x2", is_disabled=True)
         self.run_split_test(test_case)
+
+    def test_new_workspace_name_gives_maximum_when_too_many_selected(self):
+        item_count = Workspace.MAX_SPLIT_FROM_SELECTION + 1
+        test_case = SplitCase(selected_data_items_indices=[x for x in range(0, item_count)], total_data_items=item_count)
+        with TestContext.create_memory_context() as test_context:
+            document_controller, _ = self.__setup_split_test(test_context, test_case)
+            action_context = document_controller._get_action_context()
+            new_workspace_action = Window.actions["workspace.new_workspace_from_selection"]
+            expected_name = f"{new_workspace_action.action_name} (Max {Workspace.MAX_SPLIT_FROM_SELECTION} items)"
+            self.assertEqual(expected_name, new_workspace_action.get_action_name(action_context))
 
     def test_new_workspace_single_item(self):  # 1 data item selected becomes a workspace with that item
         test_case = SplitCase(selected_data_items_indices=[0], total_data_items=1, initial_layout_id="2x1", expected_split_shape=(1, 1))
