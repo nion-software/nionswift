@@ -915,9 +915,6 @@ class Workspace:
         else:
             return "ignore"  # The dragged display items no longer exist or no files were imported
 
-        if return_type == "ignore":
-            return return_type  # The drop was unhandled so return early
-
         if source_display_items:
             command: Undo.UndoableCommand = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
             self.split_panel_and_insert_display_items(destination_display_panel, source_display_items, region)
