@@ -874,7 +874,8 @@ class Workspace:
         return "ignore"
 
     def should_handle_drag_for_mime_data(self, mime_data: UserInterface.MimeData) -> bool:
-        return mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE) or mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE)
+        return (mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE) or mime_data.has_format("text/uri-list") or
+                mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE) or mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE))
 
     def handle_drop(self, destination_display_panel: DisplayPanel.DisplayPanel, mime_data: UserInterface.MimeData, region: str, x: int, y: int) -> str:
         """Handle dropping a display panel, display item(s), or external file(s) on a region of a display panel.

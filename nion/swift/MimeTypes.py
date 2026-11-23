@@ -164,6 +164,6 @@ def mime_data_get_number_of_items(mime_data: UserInterface.MimeData) -> int:
         number_of_items += len(display_items_mime_data)
     if mime_data.has_format(DISPLAY_ITEM_MIME_TYPE):
         number_of_items += 1
-    if mime_data.file_paths:
+    if mime_data.has_file_paths:
         number_of_items += len(mime_data.file_paths)
     return number_of_items
