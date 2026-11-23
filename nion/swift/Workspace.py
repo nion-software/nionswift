@@ -1191,8 +1191,10 @@ class Workspace:
         horizontal, vertical = self.get_split_for_selection(len(display_items))
         # apply_layouts mutates self.display_panels so directly using it would cause recursion, instead pass a new list with the display panel in
         display_panels = self.apply_layouts(display_panel, [display_panel], horizontal, vertical)
-        for display_item, new_display_panel in zip(display_items, display_panels):  # Populate the display panels with the items
-            new_display_panel.set_display_item(display_item)
+        # Populate the display panels with the items. The first panel is the original display panel, so its contents
+        # must be fully replaced to close any display panel controller or browser it was showing.
+        for display_item, new_display_panel in zip(display_items, display_panels):
+            new_display_panel.set_display_panel_display_item(display_item, detect_controller=True)
 
 
 class WorkspaceManager(metaclass=Utility.Singleton):
