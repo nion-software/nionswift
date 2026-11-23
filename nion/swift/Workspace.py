@@ -881,7 +881,7 @@ class Workspace:
 
         Uses the mime_data to determine the source which can be a display panel, one or more display items, or one or more external files dragged in.
         A single display item is placed in the destination. When the region is "left", "right", "top" or "bottom" the destination is split first.
-        If the region is "plus" then the display item being dragged is composited if supported.
+        If the region is "plus" then the dragged display item or display panel is composited if supported.
         Multiple display items, or multiple imported files, are placed in a grid of new panels which replaces the destination.
         When the region is "left", "right", "top" or "bottom" the grid is placed beside the destination instead.
         When dragging a display panel the interaction will move the panel contents into the destination, otherwise it will copy the display items into the destination.
@@ -892,6 +892,7 @@ class Workspace:
         source_details: Persistence.PersistentDictType | None = None
         source_display_item: DisplayItem.DisplayItem | None = None
         source_display_items: list[DisplayItem.DisplayItem] = list()
+        is_file_drop = False
         if mime_data.has_format(MimeTypes.DISPLAY_PANEL_MIME_TYPE):
             source_display_item, source_details = MimeTypes.mime_data_get_panel(mime_data, self.document_model)
         elif mime_data.has_format(MimeTypes.DISPLAY_ITEMS_MIME_TYPE):
@@ -899,6 +900,7 @@ class Workspace:
         elif mime_data.has_format(MimeTypes.DISPLAY_ITEM_MIME_TYPE):
             source_display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_model)
         elif mime_data.has_format("text/uri-list"):
+            is_file_drop = True
             index = len(self.document_model.data_items)
             display_items = self.document_controller.receive_files(mime_data.file_paths, None, index)
             if len(display_items) == 1:
@@ -920,7 +922,8 @@ class Workspace:
             command: Undo.UndoableCommand = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
             self.split_panel_and_insert_display_items(destination_display_panel, source_display_items, region)
             self.document_controller.push_undo_command(command)
-        elif source_display_item and destination_display_panel.handle_drop_display_item(region, source_display_item):
+        elif source_display_item and not is_file_drop and destination_display_panel.handle_drop_display_item(region, source_display_item):
+            # A file drag has no display item when it enters the panel, so it never gets a "plus" region and is not added as a layer.
             pass  # If handle_drop_display_item returns true then the drop was handled by the function
         elif region == "right" or region == "left" or region == "top" or region == "bottom":
             display_item = source_display_item if not source_details else None  # Prefer using the details over the display_item in the case of a panel drop
