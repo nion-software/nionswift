@@ -42,7 +42,7 @@ if typing.TYPE_CHECKING:
 
 _ = gettext.gettext
 
-MAX_SPLIT_FROM_SELECTION = 60  # Max number of items allowed while splitting a display panel from a selection
+MAX_SPLIT_FROM_SELECTION = 60  # Maximum number of display items placed in a split from a selection
 
 
 def create_image_desc() -> Persistence.PersistentDictType:
@@ -916,6 +916,7 @@ class Workspace:
         else:
             return "ignore"  # The dragged display items no longer exist or no files were imported
 
+        display_item = source_display_item if source_details is None else None  # Prefer using the details over the display_item in the case of a panel drop
         if source_display_items:
             command: Undo.UndoableCommand = ChangeWorkspaceContentsCommand(self, _("Split Display Panel"))
             self.split_panel_and_insert_display_items(destination_display_panel, source_display_items, region)
@@ -924,11 +925,9 @@ class Workspace:
             # A file drag has no display item when it enters the panel, so it never gets a "plus" region and is not added as a layer.
             pass  # If handle_drop_display_item returns true then the drop was handled by the function
         elif region == "right" or region == "left" or region == "top" or region == "bottom":
-            display_item = source_display_item if not source_details else None  # Prefer using the details over the display_item in the case of a panel drop
             command = self.insert_display_panel(destination_display_panel, region, display_item, source_details)
             self.document_controller.push_undo_command(command)
         else:
-            display_item = source_display_item if not source_details else None  # Prefer using the details over the display_item in the case of a panel drop
             command = self.__replace_displayed_display_item(destination_display_panel, display_item, source_details)
             self.document_controller.push_undo_command(command)
         return return_type
