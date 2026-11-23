@@ -1640,6 +1640,57 @@ class TestWorkspaceClass(unittest.TestCase):
         finally:
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
+    def test_drop_multiple_display_items_on_controlled_panel_closes_controller(self):
+        DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
+        try:
+            with TestContext.create_memory_context() as test_context:
+                document_controller = test_context.create_document_controller()
+                document_model = document_controller.document_model
+                data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.double))
+                data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.double))
+                document_model.append_data_item(data_item1)
+                document_model.append_data_item(data_item2)
+                display_item1 = document_model.get_display_item_for_data_item(data_item1)
+                display_item2 = document_model.get_display_item_for_data_item(data_item2)
+                workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
+                document_controller.workspace_controller.change_workspace(workspace)
+                root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+                root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+                display_panel = document_controller.workspace_controller.display_panels[0]
+                display_panel_controller = display_panel._display_panel_controller_for_test
+                self.assertIsNotNone(display_panel_controller)
+                mime_data = TestUI.MimeData()
+                MimeTypes.mime_data_put_display_items(mime_data, [display_item1, display_item2])
+                document_controller.workspace_controller.handle_drop(display_panel, mime_data, "middle", 320, 240)
+                display_panels = document_controller.workspace_controller.display_panels
+                self.assertTrue(display_panel_controller.closed)
+                self.assertTrue(all(dp._display_panel_controller_for_test is None for dp in display_panels))
+                self.assertEqual([display_item1, display_item2], [dp.display_item for dp in display_panels])
+        finally:
+            DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+
+    def test_drop_multiple_display_items_on_browser_panel_replaces_browser(self):
+        with TestContext.create_memory_context() as test_context:
+            document_controller = test_context.create_document_controller()
+            document_model = document_controller.document_model
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.double))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.double))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            display_item1 = document_model.get_display_item_for_data_item(data_item1)
+            display_item2 = document_model.get_display_item_for_data_item(data_item2)
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            display_panel.change_display_panel_content({"type": "image", "display-panel-type": "browser-display-panel"})
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            self.assertEqual("grid", display_panel._display_panel_type)
+            mime_data = TestUI.MimeData()
+            MimeTypes.mime_data_put_display_items(mime_data, [display_item1, display_item2])
+            document_controller.workspace_controller.handle_drop(display_panel, mime_data, "middle", 320, 240)
+            display_panels = document_controller.workspace_controller.display_panels
+            self.assertEqual(["data_item", "data_item"], [dp._display_panel_type for dp in display_panels])
+            self.assertEqual([display_item1, display_item2], [dp.display_item for dp in display_panels])
+
     def test_switch_from_layout_with_controller_with_footer_works(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         try:
