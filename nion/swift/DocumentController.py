@@ -2718,11 +2718,9 @@ class DocumentController(Window.Window):
     def receive_files(self, files: typing.Sequence[str], data_group: typing.Optional[DataGroup.DataGroup] = None, index: int = -1) -> typing.Sequence[DisplayItem.DisplayItem]:
         """Import files using the provided file paths and add them to the document model.
 
-        data_group and index can optionally be specified.
-        If data_group is specified, the item is added to an arbitrary position in the document model (the end) and at the group at the position specified by the index.
-        If the data group is not specified, the item is added at the index within the document model.
+        If data_group is specified, the display items are added to the end of the document model and inserted into the data group starting at index.
         The newly created display items are selected in the data panel.
-        Returns the display items created by importing the files.
+        Returns the display items created by importing the files, excluding those inserted into data_group.
         """
         new_display_items = list[DisplayItem.DisplayItem]()  # Newly created display items to be returned
         file_paths = [pathlib.Path(file_path) for file_path in files]
