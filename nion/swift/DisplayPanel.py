@@ -192,7 +192,7 @@ class DisplayPanelOverlayCanvasItemComposer(CanvasItem.BaseComposer):
                 # Draw a grid of panels to preview what the split will look like
                 gap = 4  # Each panel is separated by a gap of 4px
                 horizontal, vertical = split
-                # The panel width and height can be calculated as: n - 1 gaps + 2 border gaps + n panel widths equal the total canvas size which is rearranged to get the panel width/height
+                # n panels and n + 1 gaps fill the region
                 panel_width = (region_rect.width - (gap * (1 + horizontal))) / horizontal
                 panel_height = (region_rect.height - (gap * (1 + vertical))) / vertical
                 if panel_width <= 0 or panel_height <= 0:
