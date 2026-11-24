@@ -3910,7 +3910,7 @@ class CreateWorkspaceFromSelectionAction(WorkspaceNewAction):
         assert workspace_controller is not None
 
         if len(window.selected_display_items) > Workspace.MAX_SPLIT_FROM_SELECTION:
-            return self.action_name + _(" (Max {0} items)").format(Workspace.MAX_SPLIT_FROM_SELECTION)
+            return _("{0} (Max {1} items)").format(self.action_name, Workspace.MAX_SPLIT_FROM_SELECTION)
 
         if not self.is_enabled(context):
             return self.action_name  # If the action is disabled return the default name
