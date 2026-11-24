@@ -1708,6 +1708,7 @@ class TestWorkspaceClass(unittest.TestCase):
             MimeTypes.mime_data_put_display_items(mime_data, [display_item1, display_item2])
             self.assertTrue(content_canvas_item.wants_drag_event(mime_data, 320, 200))
             content_canvas_item.drag_enter(mime_data)
+            self.assertEqual((2, 1), content_canvas_item.drag_items_split)
             self.assertEqual("copy", content_canvas_item.drag_move(mime_data, 320, 200))
             self.assertEqual("copy", content_canvas_item.drop(mime_data, 320, 200))
             self.assertEqual([display_item1, display_item2], [dp.display_item for dp in document_controller.workspace_controller.display_panels])
