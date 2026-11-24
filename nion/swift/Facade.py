@@ -41,6 +41,7 @@ import copy
 import datetime
 import functools
 import gettext
+import io
 import logging
 import numbers
 import pathlib
@@ -3594,7 +3595,22 @@ class API_1:
 
         # without a stdout, the script's output goes wherever the caller's output goes.
         if stdout is not None:
-            g["print"] = stdout.write
+            output_target = stdout
+
+            def script_print(*values: object, sep: str | None = " ", end: str | None = "\n",
+                             file: typing.TextIO | None = None, flush: bool = False) -> None:
+                if file is not None:
+                    print(*values, sep=sep, end=end, file=file, flush=flush)
+                    return
+                # Write each print call as a single chunk to the supplied target,
+                # including when a script starts a thread without its context.
+                output = io.StringIO()
+                print(*values, sep=sep, end=end, file=output)
+                output_target.write(output.getvalue())
+                if flush:
+                    output_target.flush()
+
+            g["print"] = script_print
             with Utility.redirect_output(stdout, stdout):
                 exec(compiled, g)
         else:

@@ -646,6 +646,35 @@ class TestFacadeClass(unittest.TestCase):
             finally:
                 menu_item_reference.close()
 
+    def test_run_script_with_stdout_supports_print_arguments_and_line_endings(self):
+        with create_memory_profile_context() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            profile_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            script_path = pathlib.Path(directory_str) / "print_script.py"
+            script_path.write_text('print("a", "b", sep="|", end=" ")\nprint(7)\nprint()\nprint("tail", end="")\n')
+            output = io.StringIO()
+            api.run_script(file_path=str(script_path), stdout=output)
+            self.assertEqual("a|b 7\n\ntail", output.getvalue())
+
+    def test_run_script_print_supports_file_and_flush(self):
+        class Output(io.StringIO):
+            flushed = False
+
+            def flush(self) -> None:
+                self.flushed = True
+                super().flush()
+
+        with create_memory_profile_context() as profile_context, tempfile.TemporaryDirectory() as directory_str:
+            profile_context.create_document_controller_with_application()
+            api = Facade.get_api("~1.0", "~1.0")
+            script_path = pathlib.Path(directory_str) / "print_script.py"
+            script_path.write_text('import io\nother = io.StringIO()\nprint("elsewhere", file=other, flush=True)\n'
+                                   'assert other.getvalue() == "elsewhere\\n"\nprint("here", flush=True)\n')
+            output = Output()
+            api.run_script(file_path=str(script_path), stdout=output)
+            self.assertEqual("here\n", output.getvalue())
+            self.assertTrue(output.flushed)
+
     def test_run_script_without_stdout_from_console_shows_what_the_script_prints_in_the_console(self):
         with create_memory_profile_context() as profile_context, tempfile.TemporaryDirectory() as directory_str:
             profile_context.create_document_controller_with_application()
@@ -686,8 +715,7 @@ class TestFacadeClass(unittest.TestCase):
             script_path.write_text("print(\"x\")\n")
             console = ConsoleDialog.ConsoleWidgetStateController({"api": api, "sys": sys})
             try:
-                # with a stdout, the script's print is that stdout's write.
-                self.assertEqual(("x", 0), console.interpret_command(f"api.run_script(file_path={str(script_path)!r}, stdout=sys.stdout)"))
+                self.assertEqual(("x\n", 0), console.interpret_command(f"api.run_script(file_path={str(script_path)!r}, stdout=sys.stdout)"))
             finally:
                 console.close()
 

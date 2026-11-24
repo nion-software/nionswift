@@ -100,6 +100,24 @@ class TestScriptsDialogClass(unittest.TestCase):
             finally:
                 dialog.close()
 
+    def test_script_print_supports_multiple_arguments_and_custom_line_endings(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            script_path = pathlib.Path(directory_str) / "print_script.py"
+            script_path.write_text('print("a", "b", sep="|", end=" ")\nprint(7)\nprint()\nprint("tail", end="")\n')
+            dialog = ScriptsDialog.RunScriptDialog(document_controller)
+            try:
+                output_widget = typing.cast(UserInterface.TextEditWidget, dialog.content.find_widget_by_id("output"))
+                dialog.run_script(str(script_path))
+                expected_text = "a|b 7\n\ntail"
+                start_time = time.time()
+                while output_widget.text != expected_text and time.time() - start_time < 10.0:
+                    document_controller.periodic()
+                    time.sleep(0.01)
+                self.assertEqual(expected_text, output_widget.text)
+            finally:
+                dialog.close()
+
     def test_script_output_written_to_stdout_keeps_its_line_breaks(self):
         with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
             document_controller = test_context.create_document_controller()

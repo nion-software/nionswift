@@ -72,6 +72,36 @@ class TestConsoleDialogClass(unittest.TestCase):
             sys.stdout = stdout
             console.close()
 
+    def test_console_run_script_preserves_print_spacing_and_line_endings(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            script_path = pathlib.Path(directory_str) / "print_script.py"
+            script_path.write_text('print("a", "b", end=" ")\nprint("c")\n'
+                                   'import sys\nsys.stdout.write("ne")\nsys.stdout.write("xt\\n")\n')
+            console_widget = ConsoleDialog.ConsoleWidget(document_controller.ui, logging.getLogger("console_test"), {"api": Facade.get_api("~1.0", "~1.0")})
+            try:
+                console_widget.interpret_lines(["def run_script(*args, **kwargs):", "  api.run_script(*args, stdout=_stdout, **kwargs)", ""])
+                console_widget.insert_lines([f"run_script(file_path={str(script_path)!r})"])
+                console_text = typing.cast(UserInterface.TextEditWidget, console_widget.content_widget.children[0]).text or str()
+                self.assertIn("a b c\nnext\n>>> ", console_text)
+            finally:
+                console_widget.close()
+
+    def test_console_prompt_follows_a_script_traceback_on_a_new_line(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
+            document_controller = test_context.create_document_controller()
+            script_path = pathlib.Path(directory_str) / "failing_script.py"
+            script_path.write_text('print("before error")\nraise ValueError("example")\n')
+            console_widget = ConsoleDialog.ConsoleWidget(document_controller.ui, logging.getLogger("console_test"), {"api": Facade.get_api("~1.0", "~1.0")})
+            try:
+                console_widget.interpret_lines(["def run_script(*args, **kwargs):", "  api.run_script(*args, stdout=_stdout, **kwargs)", ""])
+                console_widget.insert_lines([f"run_script(file_path={str(script_path)!r})"])
+                console_text = typing.cast(UserInterface.TextEditWidget, console_widget.content_widget.children[0]).text or str()
+                self.assertIn("before error\nTraceback", console_text)
+                self.assertIn("ValueError: example\n>>> ", console_text)
+            finally:
+                console_widget.close()
+
     def test_console_run_script_shows_output_of_a_thread_before_output_the_script_writes_after_joining_it(self):
         with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory_str:
             document_controller = test_context.create_document_controller()

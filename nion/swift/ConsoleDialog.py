@@ -201,6 +201,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__output_lock = threading.Lock()
         self.__pending_output: list[typing.Callable[[], None]] = list()
         self.__running_command_count = 0
+        self.__output_started = False
+        self.__output_ends_with_newline = False
 
         console_widget = self
 
@@ -212,10 +214,11 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 self.__is_closed = True
 
             def write(self, stuff: str) -> int:
+                if not stuff:
+                    return 0
                 if not self.__is_closed:
-                    stripped_stuff = str(stuff).rstrip()
-                    if console_widget._append_output(functools.partial(console_widget._append_text, stripped_stuff)):
-                        return len(stripped_stuff)
+                    if console_widget._append_output(functools.partial(console_widget._append_text, stuff)):
+                        return len(stuff)
                 # output the console does not take, from another thread after its command has returned or from any
                 # thread after the console has closed, goes to the stream the output redirections replaced. it is
                 # written in an empty context, since the writing context can still hold a redirection to this catcher.
@@ -290,7 +293,12 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
     # append text to the console. called on the main thread.
     def _append_text(self, text: str) -> None:
-        self.__text_edit_widget.append_text(text)
+        if not self.__output_started:
+            self.__text_edit_widget.append_text(str())
+            self.__output_started = True
+        self.__text_edit_widget.move_cursor_position("end")
+        self.__text_edit_widget.insert_text(text)
+        self.__output_ends_with_newline = text.endswith("\n")
 
     # append the output other threads wrote while a command ran. called on the main thread.
     def __append_pending_output(self) -> None:
@@ -303,6 +311,9 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
     def __interpret_command(self, command: str) -> typing.Tuple[str, int]:
         with self.__output_lock:
+            if self.__running_command_count == 0:
+                self.__output_started = False
+                self.__output_ends_with_newline = False
             self.__running_command_count += 1
         try:
             return self.__state_controller.interpret_command(command)
@@ -324,6 +335,12 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
     def current_prompt(self) -> str:
         return self.continuation_prompt if self.__state_controller.incomplete else self.prompt
 
+    def __append_prompt(self, *, after_result: bool = False) -> None:
+        if not after_result and self.__output_started and self.__output_ends_with_newline:
+            self.__text_edit_widget.insert_text(self.current_prompt)
+        else:
+            self.__text_edit_widget.append_text(self.current_prompt)
+
     def insert_lines(self, lines: typing.Sequence[str]) -> None:
         for l in lines:
             text_edit_widget = self.__text_edit_widget
@@ -335,9 +352,12 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             if not self.__closed:
                 if len(result) > 0:
                     text_edit_widget.set_text_color("red" if error_code else "aquamarine")
-                    text_edit_widget.append_text(result[:-1])
+                    if self.__output_started and self.__output_ends_with_newline:
+                        text_edit_widget.insert_text(result[:-1])
+                    else:
+                        text_edit_widget.append_text(result[:-1])
                     text_edit_widget.set_text_color("white")
-                text_edit_widget.append_text(self.current_prompt)
+                self.__append_prompt(after_result=bool(result))
                 text_edit_widget.move_cursor_position("end")
                 self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
 
@@ -355,9 +375,12 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         result, error_code = self.__interpret_command(command)
         if len(result) > 0:
             self.__text_edit_widget.set_text_color("red" if error_code else "aquamarine")
-            self.__text_edit_widget.append_text(result[:-1])
+            if self.__output_started and self.__output_ends_with_newline:
+                self.__text_edit_widget.insert_text(result[:-1])
+            else:
+                self.__text_edit_widget.append_text(result[:-1])
         self.__text_edit_widget.set_text_color("white")
-        self.__text_edit_widget.append_text(self.current_prompt)
+        self.__append_prompt(after_result=bool(result))
         self.__text_edit_widget.move_cursor_position("end")
         self.__last_cursor_position = copy.deepcopy(self.__cursor_position)
         return True
