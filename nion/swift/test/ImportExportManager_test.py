@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import pathlib
+import tempfile
 import typing
 import unittest
 import uuid
@@ -100,6 +101,28 @@ class TestImportExportManagerClass(unittest.TestCase):
                     data_item.close()
             finally:
                 os.remove(file_path)
+
+    def test_ndata_export_leaves_other_files_beside_its_folder_unchanged(self):
+        with TestContext.create_memory_context() as test_context, tempfile.TemporaryDirectory() as directory:
+            document_model = test_context.create_document_model()
+            data = numpy.random.default_rng(1).random((16, 16))
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_item = document_model.get_display_item_for_data_item(data_item)
+            export_folder = pathlib.Path(directory) / "export"
+            export_folder.mkdir()
+            other_files = {pathlib.Path(directory) / "export_metadata.json": b"metadata", pathlib.Path(directory) / "export_data.npy": b"data"}
+            for other_file_path, contents in other_files.items():
+                other_file_path.write_bytes(contents)
+            file_path = export_folder / "data.ndata"
+            handler = ImportExportManager.NDataImportExportHandler("ndata1-io-handler", "ndata", ["ndata"])
+            handler.write_display_item(display_item, file_path, "ndata")
+            self.assertEqual(other_files, {other_file_path: other_file_path.read_bytes() for other_file_path in other_files if other_file_path.exists()})
+            self.assertEqual(["data.ndata"], os.listdir(export_folder))
+            data_items = handler.read_data_items("ndata", file_path)
+            self.assertTrue(numpy.array_equal(data, data_items[0].data))
+            for data_item in data_items:
+                data_item.close()
 
     def test_npy_write_to_then_read_from_temp_file(self):
         with TestContext.create_memory_context() as test_context:
