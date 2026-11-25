@@ -733,19 +733,12 @@ class NDataImportExportHandler(ImportExportHandler):
         data_element = create_data_element_from_data_item(data_item, include_data=False)
         data = data_item.data
         if data is not None:
-            root = str(path.parent)
-            metadata_path = root + "_metadata.json"
-            data_path = root + "_data.npy"
-            try:
-                with open(metadata_path, "w") as fp:
-                    json.dump(data_element, fp)
-                numpy.save(data_path, data)
-                zip_file = zipfile.ZipFile(path, 'w')
-                zip_file.write(metadata_path, "metadata.json")
-                zip_file.write(data_path, "data.npy")
-            finally:
-                os.remove(metadata_path)
-                os.remove(data_path)
+            # the entries are written into the zip file as they are made, so that the export writes no other file. an entry
+            # written this way needs zip64 declared up front if it may pass the zip limit.
+            with zipfile.ZipFile(path, "w") as zip_file:
+                zip_file.writestr("metadata.json", json.dumps(data_element))
+                with zip_file.open("data.npy", "w", force_zip64=data.nbytes >= zipfile.ZIP64_LIMIT) as data_file:
+                    numpy.save(data_file, data)
 
 
 class ImportExportDriver(typing.Protocol):
