@@ -2003,8 +2003,6 @@ class DisplayPanel(CanvasItem.LayerCanvasItem):
                     display_item = MimeTypes.mime_data_get_display_item(mime_data, self.document_controller.document_model)
                 if display_item:
                     self.__content_canvas_item.drop_regions_map = getattr(display_canvas_item, "get_drop_regions_map")(display_item)
-            else:
-                self.__content_canvas_item.drop_regions_map = dict()
             if workspace_controller:
                 return workspace_controller.handle_drag_enter(self, mime_data)
             return "ignore"
