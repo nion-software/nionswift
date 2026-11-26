@@ -2055,9 +2055,19 @@ class TestWorkspaceClass(unittest.TestCase):
         self.run_split_test(test_case)
 
     def test_new_workspace_disabled_too_many_total(self):  # Total selected data items, 61, is too large, no expected change
-        item_count = DocumentController.CreateWorkspaceFromSelectionAction.MAX_PANELS + 1
+        item_count = Workspace.MAX_SPLIT_FROM_SELECTION + 1
         test_case = SplitCase(selected_data_items_indices=[x for x in range(0, item_count)], total_data_items=item_count, initial_layout_id="3x2", is_disabled=True)
         self.run_split_test(test_case)
+
+    def test_new_workspace_name_gives_maximum_when_too_many_selected(self):
+        item_count = Workspace.MAX_SPLIT_FROM_SELECTION + 1
+        test_case = SplitCase(selected_data_items_indices=[x for x in range(0, item_count)], total_data_items=item_count)
+        with TestContext.create_memory_context() as test_context:
+            document_controller, _ = self.__setup_split_test(test_context, test_case)
+            action_context = document_controller._get_action_context()
+            new_workspace_action = Window.actions["workspace.new_workspace_from_selection"]
+            expected_name = f"{new_workspace_action.action_name} (Max {Workspace.MAX_SPLIT_FROM_SELECTION} items)"
+            self.assertEqual(expected_name, new_workspace_action.get_action_name(action_context))
 
     def test_new_workspace_single_item(self):  # 1 data item selected becomes a workspace with that item
         test_case = SplitCase(selected_data_items_indices=[0], total_data_items=1, initial_layout_id="2x1", expected_split_shape=(1, 1))
